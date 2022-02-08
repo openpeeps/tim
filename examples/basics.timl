@@ -9,7 +9,8 @@
 // Example 1
 section > div.container > div.row.vh-100.align-items-center
     h1.mb-4: "Minimalism Enthusiasts 🚀"
-    p.h4: "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur"
+    p.h4: "Duis aute irure dolor in reprehenderit in voluptate velit
+    esse cillum dolore eu fugiat nulla pariatur"
     a.px-5.mx-auto.d-inline-block href="https://example.com": "Click me"
 
 // Example 2
