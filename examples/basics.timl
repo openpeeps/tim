@@ -1,6 +1,33 @@
 // Tim supports only single comment lines.
-// Comments are not showing up in final HTML output
+// Comments or new lines are not showing up in final HTML output.
+
+
+//
+// Nested Examples
+//
+
+// Example 1
 section > div.container > div.row.vh-100.align-items-center
     h1.mb-4: "Minimalism Enthusiasts 🚀"
     p.h4: "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur"
     a.px-5.mx-auto.d-inline-block href="https://example.com": "Click me"
+
+// Example 2
+section > div.container > div.row.vh-100.align-items-center
+    div#card-reminder.col-5.mx-auto > div.bg-light.border.p-4.rounded.shadow-sm
+        div.row
+            div > small.d-block.text-muted.text-uppercase: "Issue No #5"
+            div.col-lg-9.col-12 > h1.fw-bold: "Meet great assets for designers 🔥"
+            div.col-lg-3.col-12.text-center
+                div.bg-primary.overflow-hidden
+                    img.img-fluid
+                        src = "https://imgproxy.generated.photos/7B_3uVLgPR17_HmsbJHTelyufws9nIRSTEE2D_FJmLA/rs:fit:256:256/Z3M6Ly9nZW5lcmF0/ZWQtcGhvdG9zL3Ry/YW5zcGFyZW50X3Yz/L3YzXzA2OTc1Nzgu/cG5n.png"
+                        width = "110px"
+                    style =
+                        border-radius: "42%"
+                        width, height: "80px"
+        div.row > div.col-12
+            p.lead.fw-normal: "Start Exploring Communities you're interested in.<br>The first step to find areas' experts in the rooms"
+            div.row
+                div.col > a.btn.btn-outline-secondary: "Skip for now"
+                div.col > a.btn.btn-dark.d-block: "Join Clubhouse 🤟"
