@@ -1,3 +1,10 @@
+# ⚡️ High-performance compiled
+# template engine inspired by Emmet syntax.
+# 
+# MIT License
+# Copyright (c) 2022 George Lemon from OpenPeep
+# https://github.com/openpeep/tim
+
 from std/strutils import toUpperAscii
 from std/enumutils import symbolName, symbolRank
 from ./lexer import TokenTuple

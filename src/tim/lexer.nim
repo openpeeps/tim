@@ -1,3 +1,10 @@
+# ⚡️ High-performance compiled
+# template engine inspired by Emmet syntax.
+# 
+# MIT License
+# Copyright (c) 2022 George Lemon from OpenPeep
+# https://github.com/openpeep/tim
+
 import os, lexbase, streams, json, re
 from strutils import Whitespace, `%`, replace, indent, startsWith
 import ./tokens

@@ -1,3 +1,10 @@
+# ⚡️ High-performance compiled
+# template engine inspired by Emmet syntax.
+# 
+# MIT License
+# Copyright (c) 2022 George Lemon from OpenPeep
+# https://github.com/openpeep/tim
+
 import std/[json, jsonutils]
 import ./lexer, ./tokens, ./ast
 from std/strutils import `%`
@@ -73,8 +80,10 @@ proc walk(p: var Parser, parentNode: HtmlNode = nil) =
             p.statements.add(htmlNode)
         jump p
 
-proc getStatements*[T: Parser](p: var T): string = 
+proc getStatements*[T: Parser](p: T): string = 
     return pretty(toJson(p.statements))
+
+proc getStatements*[T: Parser](p: T, nodes: bool): seq[HtmlNode] = p.statements
 
 proc parse*(contents: string): Parser =
     var p: Parser = Parser(lexer: Lexer.init(contents))
