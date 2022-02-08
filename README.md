@@ -1,9 +1,14 @@
-<p align="center"><img src=".github/tim.png" width="140px"><br>A simple and fast template engine inspired by Emmet syntax. Written in Nim language</p>
+<p align="center"><img src=".github/tim.png" width="140px"><br>Fast Template Engine inspired by Emmet syntax. Written in Nim language 👑</p>
 
 ## 😍 Key Features
-- [x] Made with Love
-- [x] ...
-- [x] Open Source
+- [x] Compiled, fast, powered by Nim
+- [x] Low memory foot-print
+- [x] Emmet-syntax
+- [ ] `layouts`, `views` and `partials` logic
+- [ ] Variable Assignment
+- [ ] `for` Loops & Iterations
+- [ ] `if`, `elif`, `else` Conditional Statements
+- [x] Open Source | `MIT` License
 
 ## Installing
 _installation description_
