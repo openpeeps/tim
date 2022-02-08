@@ -1,13 +1,21 @@
-<p align="center"><img src=".github/tim.png" width="140px"><br>Fast Template Engine inspired by Emmet syntax. Written in Nim language 👑</p>
+<p align="center">
+    <img src=".github/tim.png" width="140px"><br>
+    ⚡️ High-performance compiled template engine inspired by Emmet syntax.<br>
+    <strong>Fast</strong> • <strong>Dependency free</strong> • Written in Nim language 👑
+</p>
 
 ## 😍 Key Features
-- [x] Compiled, fast, powered by Nim
-- [x] Low memory foot-print
-- [x] Emmet-syntax
+- [x] Emmet-syntax 🤓
+- [x] Multi-threading | Low memory foot-print 🍃
+- [x] Tim as **Nimble library** for Nim programming 👑
+- [x] **Tim as Binary** for calling from other programming languages 🥳
 - [ ] `layouts`, `views` and `partials` logic
 - [ ] Variable Assignment
 - [ ] `for` Loops & Iterations
 - [ ] `if`, `elif`, `else` Conditional Statements
+- [ ] `JSON` AST Generator
+- [ ] Just-in-time Compilation
+- [ ] Language Extension `.timl` 😎
 - [x] Open Source | `MIT` License
 
 ## Installing
