@@ -36,6 +36,6 @@ If you like this project you can contribute to Tim project by opening new issues
 <strong>Why Nim?</strong> Performance, fast compilation and C-like freedom. We want to keep code clean, readable, concise, and close to our intention. Also a very good language to learn in 2022.
 
 ### 🎩 License
-Tim Berners-Lee [illustration made by Kagan McLeod](https://www.kaganmcleod.com).<br>
+Illustration of Tim Berners-Lee [made by Kagan McLeod](https://www.kaganmcleod.com).<br><br>
 This is an Open Source Software released under `MIT` license. [Developed by Humans from OpenPeep](https://github.com/openpeep).<br>
 Copyright &copy; 2022 OpenPeep & Contributors &mdash; All rights reserved.
