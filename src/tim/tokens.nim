@@ -129,13 +129,14 @@ type
         TK_U
         TK_UL
         TK_VAR
-        TK_VIDEO
+        TK_VIDEO        # video         <video>
         TK_WBR
 
         TK_ATTR
-        TK_ATTR_CLASS
-        TK_ATTR_ID
-        TK_ASSIGN
+        TK_ATTR_CLASS   # .
+        TK_ATTR_ID      # #
+        TK_ASSIGN       # =
+        TK_CONTENT      # :
         TK_INTEGER
         TK_STRING
         TK_NEST_OP      # >
