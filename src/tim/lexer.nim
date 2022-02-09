@@ -342,6 +342,8 @@ proc getToken*[T: Lexer](lex: var T): tuple[kind: TokenKind, value: string, wsno
         lex.setTokenMeta(TK_ATTR_ID, 1)
     of '=':
         lex.setTokenMeta(TK_ASSIGN, 1)
+    of ':':
+        lex.setTokenMeta(TK_CONTENT, 1)
     of '>':
         lex.setTokenMeta(TK_NEST_OP, 1)
     # of '\'': lex.handleChar()

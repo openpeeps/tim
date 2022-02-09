@@ -65,13 +65,19 @@ proc walk(p: var Parser, parentNode: HtmlNode = nil) =
                         p.setError("Missing value for \"$1\" attribute" % [attrName])
                         break
                     attrs.add(HtmlAttribute(name: attrName, value: p.next.value))
+                elif p.current.kind == TK_CONTENT:
+                    if p.next.kind != TK_STRING:
+                        p.setError("Missing string content for \"$1\" node" % [p.prev.value])
+                    else:
+                        let htmlTextNode = HtmlNode(nodeType: HtmlText, nodeName: getSymbolName(HtmlText), text: p.next.value)
+                        htmlNode.nodes.add(htmlTextNode)
                 else: break
                 jump p, 2
 
             htmlNode.attributes = attrs     # set available html attributes
             htmlNode.id = id                # set ID html attribute or null
 
-            if p.current.kind == TK_NEST_OP:
+            if p.current.kind in {TK_NEST_OP, TK_CONTENT}:
                 p.walk(htmlNode)
     
             if parentNode != nil: parentNode.nodes.add(htmlNode)
