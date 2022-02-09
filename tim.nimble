@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "George Lemon"
-description   = "Really lightweight template engine"
+description   = "High-performance compiled template engine inspired by Emmet syntax"
 license       = "MIT"
 srcDir        = "src"
 bin           = @["tim"]
