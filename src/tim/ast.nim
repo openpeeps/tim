@@ -11,7 +11,7 @@ from ./lexer import TokenTuple
 from ./tokens import TokenKind
 
 type
-    HtmlNodeType = enum
+    HtmlNodeType* = enum
         HtmlDoctype
         HtmlDiv
         HtmlA
@@ -30,6 +30,7 @@ type
         HtmlBdo
 
         HtmlSection
+        HtmlText
 
     HtmlAttribute* = object
         name*: string
@@ -39,7 +40,10 @@ type
         value*: string
 
     HtmlNode* = ref object
-        nodeType*: HtmlNodeType
+        case nodeType*: HtmlNodeType
+        of HtmlText:
+            text*: string
+        else: nil
         nodeName*: string
         id*: IDAttribute
         attributes*: seq[HtmlAttribute]
@@ -72,4 +76,5 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_BDO: HtmlBdo
     of TK_DIV: HtmlDiv
     of TK_SECTION: HtmlSection
+    of TK_STRING: HtmlText
     else: HtmlDiv
