@@ -42,7 +42,14 @@ proc isAttributeName(): bool =
 
 proc isNestable[T: TokenTuple](token: T): bool =
     ## Determine if current token can contain more nodes
-    return token.kind in {TK_ARTICLE, TK_DIV, TK_SECTION}
+    ## TODO filter only nestable tokens
+    return token.kind in {TK_ARTICLE, TK_DIV, TK_SECTION, TK_SPAN}
+
+proc isInline[T: TokenTuple](token: T): bool =
+    ## Determine if current token is an inliner HTML Node
+    ## such as TK_SPAN, TK_EM, TK_I, TK_STRONG TK_LINK and so on.
+    ## TODO
+    discard
 
 proc walk(p: var Parser, parentNode: HtmlNode = nil) =
     var htmlNode: HtmlNode

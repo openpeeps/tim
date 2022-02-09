@@ -304,6 +304,9 @@ proc handleIdent[T: Lexer](lex: var T) =
             of "select": TK_SELECT
             of "small": TK_SMALL
             of "source": TK_SOURCE
+            of "span": TK_SPAN
+            of "strike": TK_STRIKE
+            of "strong": TK_STRONG
             of "style": TK_STYLE
             of "sub": TK_SUB
             of "summary": TK_SUMMARY
