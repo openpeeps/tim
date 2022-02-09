@@ -40,22 +40,29 @@ proc writeTagEnd[T: Compiler](c: var T, node: HtmlNode) =
     ## Close the current HtmlNode element
     add c.html, "</" & toLowerAscii(node.nodeName) & ">"
 
-proc getHtml*[T: Compiler](c: T): string =
-    ## Retrieve compiled timl as html
+proc writeText[T: Compiler](c: var T, node: HtmlNode) =
+    add c.html, node.text
+
+proc getHtml*[T: Compiler](c: T, minified = true): string =
+    ## Return compiled timl as html. By default the output is minfied,
+    ## Set `minified` to `false` for regular output.
     result = c.html
 
 proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[]) =
     var i = 0
     let nodeseq = if childNodes.len == 0: c.nodes else: childNodes
     while i < nodeseq.len:
-        let mainNode: HtmlNode = nodeseq[0]
-        c.writeTagStart(mainNode)   # start tag
-        if mainNode.hasNodes():     # parse child nodes, if any
-            c.program(mainNode.nodes)
-        c.writeTagEnd(mainNode)     # end tag
+        let mainNode: HtmlNode = nodeseq[i]
+        if mainNode.nodeType == HtmlText:
+            c.writeText(mainNode)
+        else:
+            c.writeTagStart(mainNode)   # start tag
+            if mainNode.hasNodes():     # parse child nodes, if any
+                c.program(mainNode.nodes)
+            c.writeTagEnd(mainNode)     # end tag
         inc i
 
 proc init*[T: typedesc[Compiler]](C: T, parser: Parser) =
     var compile = C(nodes: parser.getStatements(nodes = true))
     compile.program()
-    # echo compile.getHTML()
+    echo compile.getHTML(minified = false)
