@@ -1,8 +1,10 @@
 <p align="center">
     <img src=".github/tim.png" width="140px"><br>
-    ⚡️ High-performance compiled template engine inspired by Emmet syntax.<br>
+    ⚡️ A high-performance compiled template engine inspired by Emmet syntax.<br>
     <strong>Fast</strong> • <strong>Dependency free</strong> • Written in Nim language 👑
 </p>
+
+_Work in progress_
 
 ## 😍 Key Features
 - [x] Emmet-syntax 🤓
@@ -19,10 +21,58 @@
 - [x] Open Source | `MIT` License
 
 ## Installing
-_installation description_
+Tim Engine is different than other Template Engines because it can be used as a standalone binary application,
+so it can be called from any programming language exactly like `zip`, `mkdir`, or `ls`.
+
+In this case there are two ways to install Tim.
+
+As a nimble library for the Nim programming language
+```
+nimble install tim
+```
+
+As a standalone binary app. Compile the binary by yourself or get the latest version
+of Tim from GitHub Releases and set Tim to your working `PATH`
+```
+ln -s /path/to/your/tim /usr/local/bin
+```
+
+Here is an example of how to use Tim in your NodeJS application.
+
+Tim Compiler is separated in 2 phases. The first phase is involved in tokenizing the syntax via `Lexer` ➤ `Parser` ➤ `AST Nodes` Generation,
+and saves the AST output for using later in the second phase, `JIT`. In Just-in-time compilation the Compiler resolves `data assignments`,
+`conditional statements` and available `loops` or `iterations`.
+
+NodeJS app example that use Tim's JIT on request (need to be tested)
+```js
+const http = require('http');
+const { spawn } = require('child_process');
+const server = http.createServer();
+
+const Views = {
+    'profile': './storage/tim/jit/profile.timl.ast'
+}
+
+server.on('request', (request, response) => {
+    if (request.url === '/profile') {
+        var htmlPage = ""
+        const tim = spawn('tim', ['input', Views.profile]);
+        process.stdin.pipe(tim.stdin)
+        for await (const html of tim.stdout) {
+            htmlPage += data
+        };
+        res.end(htmlPage)
+    } else {
+        res.writeHead(404, {'Content-Type': 'text/html'})
+        res.end('404 | Route not found')
+    }
+});
+
+server.listen(3000);
+```
 
 ## Examples
-_to add working examples_
+_todo_
 
 ## Roadmap
 _to add roadmap_
