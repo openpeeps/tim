@@ -17,6 +17,7 @@ _Work in progress_
 - [ ] `if`, `elif`, `else` Conditional Statements
 - [ ] `JSON` AST Generator
 - [ ] Just-in-time Compilation
+- [ ] Semantic Checker & SEO Optimizer
 - [ ] Language Extension `.timl` 😎
 - [x] Open Source | `MIT` License
 
@@ -37,13 +38,17 @@ of Tim from GitHub Releases and set Tim to your working `PATH`
 ln -s /path/to/your/tim /usr/local/bin
 ```
 
-Here is an example of how to use Tim in your NodeJS application.
-
 Tim Compiler is separated in 2 phases. The first phase is involved in tokenizing the syntax via `Lexer` ➤ `Parser` ➤ `AST Nodes` Generation,
 and saves the AST output for using later in the second phase, `JIT`. In Just-in-time compilation the Compiler resolves `data assignments`,
 `conditional statements` and available `loops` or `iterations`.
 
-NodeJS app example that use Tim's JIT on request (need to be tested)
+## Using Tim from other programming languages
+
+<details>
+    <summary>NodeJS example</summary>
+
+JIT compiler on request, using `.timl.ast`, `spawn`
+
 ```js
 const http = require('http');
 const { spawn } = require('child_process');
@@ -83,6 +88,7 @@ server.on('request', (request, response) => {
 
 server.listen(3000);
 ```
+</details>
 
 ## Examples
 _todo_
