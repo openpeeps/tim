@@ -31,7 +31,7 @@ As a nimble library for the Nim programming language
 nimble install tim
 ```
 
-As a standalone binary app. Compile the binary by yourself or get the latest version
+As a standalone binary app. Compile it by yourself or get the latest version
 of Tim from GitHub Releases and set Tim to your working `PATH`
 ```
 ln -s /path/to/your/tim /usr/local/bin
@@ -50,13 +50,26 @@ const { spawn } = require('child_process');
 const server = http.createServer();
 
 const Views = {
-    'profile': './storage/tim/jit/profile.timl.ast'
+    'profile': './storage/tim/jit/profile.timl.ast'         // add content example of this timl.ast
+}
+
+const User = {
+    data: {
+        name: 'Tim Berners-Lee',
+        username: 'tim.berners.lee',
+    },
+    
+    json: () => JSON.stringify(User.data)
 }
 
 server.on('request', (request, response) => {
     if (request.url === '/profile') {
         var htmlPage = ""
-        const tim = spawn('tim', ['input', Views.profile]);
+
+        // Spawn a process to Tim Engine for JIT of the given AST,
+        // providing data as a stringified JSON with `--data` flag
+        const tim = spawn('tim', ['--ast', Views.profile, '--data', User.json()]);
+        
         process.stdin.pipe(tim.stdin)
         for await (const html of tim.stdout) {
             htmlPage += data
