@@ -140,6 +140,8 @@ type
     IDAttribute* = ref object
         value*: string
 
+    MetaNode* = tuple[column, indent, line: int]
+
     HtmlNode* = ref object
         case nodeType*: HtmlNodeType
         of HtmlText:
@@ -149,6 +151,7 @@ type
         id*: IDAttribute
         attributes*: seq[HtmlAttribute]
         nodes*: seq[HtmlNode]
+        meta*: MetaNode
 
 proc isEmptyAttribute*[T: HtmlAttribute](attr: var T): bool = attr.name.len == 0 and attr.value.len == 0
 proc isEmptyAttribute*[T: IDAttribute](attr: var T): bool = attr.value.len == 0

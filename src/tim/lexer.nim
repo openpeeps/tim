@@ -87,8 +87,7 @@ proc skip[T: Lexer](lex: var T) =
             if lex.buf[lex.bufpos] notin NewLines:
                 inc lex.bufpos
                 inc wsno
-            else:
-                lex.handleNewLine()
+            else: lex.handleNewLine()
         else:
             lex.whitespaces = wsno
             break
@@ -335,7 +334,6 @@ proc getToken*[T: Lexer](lex: var T): TokenTuple =
     lex.kind = TK_INVALID
     setLen(lex.token, 0)
     skip lex
-
     case lex.buf[lex.bufpos]
     of EndOfFile:
         lex.startPos = lex.getColNumber(lex.bufpos)

@@ -61,7 +61,11 @@ proc walk(p: var Parser, pNode: HtmlNode = nil, recursive = false): HtmlNode =
     while p.hasError() == false and p.current.kind != TK_EOF:
         if p.current.isNestable():
             let htmlNodeType = getHtmlNodeType(p.current)
-            htmlNode = HtmlNode(nodeType: htmlNodeType, nodeName: getSymbolName(htmlNodeType))
+            htmlNode = HtmlNode(
+                nodeType: htmlNodeType,
+                nodeName: getSymbolName(htmlNodeType),
+                meta: (column: p.current.col, indent: p.current.wsno, line: p.current.line)
+            )
             var attrs: seq[HtmlAttribute]
             var id: IDAttribute
             jump p
@@ -85,7 +89,12 @@ proc walk(p: var Parser, pNode: HtmlNode = nil, recursive = false): HtmlNode =
                         p.setError("Missing string content for \"$1\" node" % [p.prev.value])
                         break
                     else:
-                        let htmlTextNode = HtmlNode(nodeType: HtmlText, nodeName: getSymbolName(HtmlText), text: p.next.value)
+                        let htmlTextNode = HtmlNode(
+                            nodeType: HtmlText,
+                            nodeName: getSymbolName(HtmlText),
+                            text: p.next.value,
+                            meta: (column: p.next.col, indent: p.next.wsno, line: p.next.line)
+                        )
                         htmlNode.nodes.add(htmlTextNode)
                     jump p, 2 
                     break
@@ -113,9 +122,12 @@ proc walk(p: var Parser, pNode: HtmlNode = nil, recursive = false): HtmlNode =
     return htmlNode
 
 proc getStatements*[T: Parser](p: T): string = 
-    return pretty(toJson(p.statements))
+    ## Retrieve all HtmlNodes available in current document as stringified JSON
+    result = pretty(toJson(p.statements))
 
-proc getStatements*[T: Parser](p: T, nodes: bool): seq[HtmlNode] = p.statements
+proc getStatements*[T: Parser](p: T, asNodes: bool): seq[HtmlNode] =
+    ## Return all HtmlNodes available in current document
+    result = p.statements
 
 proc parse*(contents: string): Parser =
     var p: Parser = Parser(lexer: Lexer.init(contents))
