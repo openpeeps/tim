@@ -92,7 +92,7 @@ server.listen(3000);
 
 ## Examples
 
-```nim
+```timl
 section > div.container > div.row.vh-100.align-items-center
     div#card-reminder.col-5.mx-auto > div.bg-light.border.p-4.rounded.shadow-sm
         div.row
