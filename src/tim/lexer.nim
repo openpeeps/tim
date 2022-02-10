@@ -330,11 +330,12 @@ proc handleIdent[T: Lexer](lex: var T) =
             of "wbr": TK_WBR
             else: TK_IDENTIFIER
 
-proc getToken*[T: Lexer](lex: var T): tuple[kind: TokenKind, value: string, wsno, col, line: int] =
+proc getToken*[T: Lexer](lex: var T): TokenTuple =
     ## Parsing through available tokens
     lex.kind = TK_INVALID
     setLen(lex.token, 0)
     skip lex
+
     case lex.buf[lex.bufpos]
     of EndOfFile:
         lex.startPos = lex.getColNumber(lex.bufpos)
@@ -355,6 +356,7 @@ proc getToken*[T: Lexer](lex: var T): tuple[kind: TokenKind, value: string, wsno
     of '"', '\'': lex.handleString()
     else:
         lex.setError("Unrecognized character $1" % [lex.token])
+    
     if lex.kind == TK_COMMENT:
         return lex.getToken()
     result = (kind: lex.kind, value: lex.token, wsno: lex.whitespaces, col: lex.startPos, line: lex.lineNumber)

@@ -142,4 +142,5 @@ type
         TK_NEST_OP      # >
         TK_IDENTIFIER
         TK_INVALID
+        TK_EOL          # end of line
         TK_EOF          # end of file

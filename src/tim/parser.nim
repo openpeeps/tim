@@ -15,6 +15,7 @@ type
         prev, current, next: TokenTuple
         error: string
         statements: seq[HtmlNode]
+        prevln, currln, nextln: int
 
 proc setError[T: Parser](p: var T, msg: string) = p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
 proc hasError*[T: Parser](p: var T): bool = p.error.len != 0
@@ -51,20 +52,26 @@ proc isInline[T: TokenTuple](token: T): bool =
     ## TODO
     discard
 
-proc walk(p: var Parser, parentNode: HtmlNode = nil) =
-    var htmlNode: HtmlNode
+proc walk(p: var Parser, pNode: HtmlNode = nil, recursive = false): HtmlNode =
+    ## Magically walk and collect HtmlNodes, assign HtmlAttributes
+    ## for creating document node of the current timl page
+    var htmlNode: HtmlNode = nil
+    var parentNode: HtmlNode = pNode
+    var isRecursive = recursive
     while p.hasError() == false and p.current.kind != TK_EOF:
         if p.current.isNestable():
             let htmlNodeType = getHtmlNodeType(p.current)
             htmlNode = HtmlNode(nodeType: htmlNodeType, nodeName: getSymbolName(htmlNodeType))
             var attrs: seq[HtmlAttribute]
             var id: IDAttribute
-            jump p # jump from div
+            jump p
             while true:
                 if p.current.kind == TK_ATTR_CLASS and p.next.kind == TK_IDENTIFIER:
                     attrs.add(HtmlAttribute(name: "class", value: p.next.value))
+                    jump p, 2
                 elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
                     id = IDAttribute(value: p.next.value)
+                    jump p, 2
                 elif p.current.kind == TK_IDENTIFIER and p.next.kind == TK_ASSIGN:
                     let attrName = p.current.value
                     jump p
@@ -72,26 +79,38 @@ proc walk(p: var Parser, parentNode: HtmlNode = nil) =
                         p.setError("Missing value for \"$1\" attribute" % [attrName])
                         break
                     attrs.add(HtmlAttribute(name: attrName, value: p.next.value))
+                    jump p, 2
                 elif p.current.kind == TK_CONTENT:
                     if p.next.kind != TK_STRING:
                         p.setError("Missing string content for \"$1\" node" % [p.prev.value])
+                        break
                     else:
                         let htmlTextNode = HtmlNode(nodeType: HtmlText, nodeName: getSymbolName(HtmlText), text: p.next.value)
                         htmlNode.nodes.add(htmlTextNode)
+                    jump p, 2 
+                    break
                 else: break
-                jump p, 2
 
             htmlNode.attributes = attrs     # set available html attributes
-            htmlNode.id = id                # set ID html attribute or null
+            if id != nil:
+                htmlNode.id = id                # set ID html attribute or null
 
-            if p.current.kind in {TK_NEST_OP, TK_CONTENT}:
-                p.walk(htmlNode)
-    
-            if parentNode != nil: parentNode.nodes.add(htmlNode)
-
-        if parentNode == nil:
+        if isRecursive:
+            parentNode.nodes.add(htmlNode)
+        elif htmlNode != nil and isRecursive == false:
             p.statements.add(htmlNode)
-        jump p
+        
+        if p.current.line > p.currln or p.current.kind == TK_STRING:
+            isRecursive = false
+        elif p.current.kind in {TK_NEST_OP}:
+            jump p
+            discard p.walk(htmlNode, true)
+
+        if p.current.line > p.currln:
+            p.prevln = p.currln
+            p.currln = p.current.line
+
+    return htmlNode
 
 proc getStatements*[T: Parser](p: T): string = 
     return pretty(toJson(p.statements))
@@ -102,5 +121,6 @@ proc parse*(contents: string): Parser =
     var p: Parser = Parser(lexer: Lexer.init(contents))
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
-    p.walk()
+    p.currln = p.current.line
+    discard p.walk()
     return p
