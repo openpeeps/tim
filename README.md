@@ -114,7 +114,13 @@ section > div.container > div.row.vh-100.align-items-center
 ```
 
 ## Roadmap
-_to add roadmap_
+
+### `0.1.0`
+- [ ] Lexer, Parser, AST, Compiler
+- [ ] Create Sublime Syntax
+- [ ] Create VSCode Syntax (yak)
+- [ ] Add tests
+- [ ] Talk about it on ycombinator / stackoverflow / producthunt
 
 ### ❤ Contributions
 If you like this project you can contribute to Tim project by opening new issues, fixing bugs, contribute with code, ideas and you can even [donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C) 🥰
