@@ -7,6 +7,7 @@
 
 import tim/[parser, compiler]
 from std/times import cpuTime
+from std/os import getCurrentDir
 
 export parser, compiler
 
@@ -22,6 +23,8 @@ when isMainModule:
         echo p.getStatements()
 
         # Otherwise compile timl document to html
-        Compiler.init(parser = p, minified = false)
-
+        let c = Compiler.init(parser = p, minified = false)
         echo "✨ Done in " & $(cpuTime() - time)
+
+        let sample = getCurrentDir() & "/sample.html"
+        writeFile(sample, c.getHtml())

@@ -48,6 +48,9 @@ proc isInline[T: TokenTuple](token: T): bool =
     ## TODO
     discard
 
+proc hasID[T: HtmlNode](node: T): bool {.inline.} =
+    result = node.id != nil
+
 proc getID[T: HtmlNode](node: T): string {.inline.} =
     result = if node.id != nil: node.id.value else: ""
 
@@ -61,6 +64,8 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
             htmlNode.attributes.add(HtmlAttribute(name: "class", value: p.next.value))
             jump p, 2
         elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
+            if htmlNode.hasID():
+                p.setError("Elements can hold a single ID attribute.")
             id = IDAttribute(value: p.next.value)
             jump p, 2
         elif p.current.kind == TK_IDENTIFIER and p.next.kind == TK_ASSIGN:
@@ -127,6 +132,7 @@ proc walk(p: var Parser) =
                 lazySequence.add(child)
                 inc ndepth
             jump p
+            if p.current.kind == TK_EOF: break
 
         if lazySequence.len != 0:
             var i = 0
@@ -147,6 +153,7 @@ proc walk(p: var Parser) =
             p.prevln = p.currln
             p.currln = p.current.line
             ndepth = 0
+    jump p
 
 proc getStatements*[T: Parser](p: T): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON

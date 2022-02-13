@@ -85,9 +85,9 @@ proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[], fixBr = fal
             c.writeTagEnd(mainNode, true)               # end tag
         inc i
 
-proc init*[T: typedesc[Compiler]](compiler: T, parser: Parser, minified = true) =
+proc init*[T: typedesc[Compiler]](compiler: T, parser: Parser, minified = true): Compiler =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
     var c = compiler(nodes: parser.getStatements(asNodes = true), minified: minified)
     c.program(fixBr = true)
-    echo c.getHtml()
+    result = c
