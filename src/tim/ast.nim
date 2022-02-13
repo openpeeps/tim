@@ -284,3 +284,12 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_VIDEO: HtmlVideo
     of TK_WBR: HtmlWbr
     else: HtmlDiv
+
+
+proc isNestable*[T: TokenTuple](token: T): bool =
+    ## Determine if current token can contain more nodes
+    ## TODO filter only nestable tokens
+    return token.kind notin {
+        TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_CONTENT,
+        TK_INTEGER, TK_STRING, TK_NEST_OP, TK_INVALID, TK_EOF, TK_NONE
+    }
