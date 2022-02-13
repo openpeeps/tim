@@ -22,6 +22,6 @@ when isMainModule:
         echo p.getStatements()
 
         # Otherwise compile timl document to html
-        Compiler.init(parser = p)
+        Compiler.init(parser = p, minified = false)
 
         echo "✨ Done in " & $(cpuTime() - time)

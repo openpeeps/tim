@@ -66,9 +66,6 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
             htmlNode.attributes.add(HtmlAttribute(name: "class", value: p.next.value))
             jump p, 2
         elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
-            if isDigit(p.next.value[1]):
-                p.setError("ID's cannot start with numbers")
-                break
             id = IDAttribute(value: p.next.value)
             jump p, 2
         elif p.current.kind == TK_IDENTIFIER and p.next.kind == TK_ASSIGN:
@@ -96,9 +93,13 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
         else: break
     if id != nil: htmlNode.id = id
 
+proc nindent(depth: int = 0): int {.inline.} =
+    result = if depth == 0: 0 else: 2 * depth
+
 proc walk(p: var Parser) =
     ## Magically walk and collect HtmlNodes, assign HtmlAttributes
     ## for creating document node of the current timl page
+    var ndepth = 0
     var htmlNode: HtmlNode
     while p.hasError() == false and p.current.kind != TK_EOF:
         while p.current.isNestable():
@@ -106,17 +107,17 @@ proc walk(p: var Parser) =
             htmlNode = HtmlNode(
                 nodeType: htmlNodeType,
                 nodeName: getSymbolName(htmlNodeType),
-                meta: (column: p.current.col, indent: p.current.wsno, line: p.current.line)
+                meta: (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
             )
             jump p
             p.setHTMLAttributes(htmlNode)     # set available html attributes
+            inc ndepth
 
         # Collects the parent HtmlNode which is a headliner
         # Set current HtmlNode as parentNode. This is the headliner
         # that wraps the entire line
         if htmlNode != nil and p.parentNode == nil:
-            p.parentNode = htmlNode             #a1
-        var depth: int = 0
+            p.parentNode = htmlNode
         var lazySequence: seq[HtmlNode]
         var child, childNodes: HtmlNode
         while p.current.line == p.currln:
@@ -125,10 +126,11 @@ proc walk(p: var Parser) =
                 child = HtmlNode(
                     nodeType: htmlNodeType,
                     nodeName: getSymbolName(htmlNodeType),
-                    meta: (column: p.current.col, indent: p.current.wsno, line: p.current.line))
+                    meta: (column: p.current.col, indent: nindent(ndepth), line: p.current.line))
                 jump p
                 p.setHTMLAttributes(child)     # set available html attributes
                 lazySequence.add(child)
+                inc ndepth
             jump p
 
         if lazySequence.len != 0:
@@ -149,12 +151,12 @@ proc walk(p: var Parser) =
         if p.current.line > p.currln:
             p.prevln = p.currln
             p.currln = p.current.line
-        
+            ndepth = 0
 
 proc getStatements*[T: Parser](p: T): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
-    result = pretty(toJson(p.statements))
-    # result = ""
+    # result = pretty(toJson(p.statements))
+    result = ""
 
 proc getStatements*[T: Parser](p: T, asNodes: bool): seq[HtmlNode] =
     ## Return all HtmlNodes available in current document

@@ -46,6 +46,35 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
     lex.error = ""
     return lex
 
+proc handleNewLine[T: Lexer](lex: var T) =
+    ## Handle new lines
+    case lex.buf[lex.bufpos]
+    of '\c': lex.bufpos = lex.handleCR(lex.bufpos)
+    of '\n': lex.bufpos = lex.handleLF(lex.bufpos)
+    else: discard
+
+proc skipToEOL[T: Lexer](lex: var T): int =
+    # Get entire buffer starting from given position to the end of line
+    while true:
+        if lex.buf[lex.bufpos] in NewLines:
+            return
+        inc lex.bufpos
+    return lex.bufpos
+
+proc skip[T: Lexer](lex: var T) =
+    ## Procedure for skipping/offset between columns/positions 
+    var wsno: int
+    while true:
+        case lex.buf[lex.bufpos]
+        of Whitespace:
+            if lex.buf[lex.bufpos] notin NewLines:
+                inc lex.bufpos
+                inc wsno
+            else: lex.handleNewLine()
+        else:
+            lex.whitespaces = wsno
+            break
+
 proc setTokenMeta*[T: Lexer](lex: var T, tokenKind: TokenKind, offset:int = 0) =
     ## Set meta data for current token
     lex.kind = tokenKind
@@ -63,34 +92,21 @@ proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
             inc lex.bufpos
     return (pos: lex.bufpos, token: lex.token)
 
-proc skipToEOL[T: Lexer](lex: var T): int =
-    # Get entire buffer starting from given position to the end of line
-    while true:
-        if lex.buf[lex.bufpos] in NewLines:
-            return
-        inc lex.bufpos
-    return lex.bufpos
+proc next*[T: Lexer](lex: var T, tkChar: char, offset = 1): bool =
+    # Determine if the next character is as expected,
+    # without modifying the current buffer position
+    skip lex
+    return lex.buf[lex.bufpos + offset] in {tkChar}
 
-proc handleNewLine[T: Lexer](lex: var T) =
-    ## Handle new lines
-    case lex.buf[lex.bufpos]
-    of '\c': lex.bufpos = lex.handleCR(lex.bufpos)
-    of '\n': lex.bufpos = lex.handleLF(lex.bufpos)
-    else: discard
- 
-proc skip[T: Lexer](lex: var T) =
-    ## Procedure for skipping/offset between columns/positions 
-    var wsno: int
-    while true:
-        case lex.buf[lex.bufpos]
-        of Whitespace:
-            if lex.buf[lex.bufpos] notin NewLines:
-                inc lex.bufpos
-                inc wsno
-            else: lex.handleNewLine()
-        else:
-            lex.whitespaces = wsno
-            break
+proc next*[T: Lexer](lex: var T, chars:string): bool =
+    ## Determine the next characters based on given chars string,
+    ## without modifying the current buffer position
+    var i = 1
+    var status = false
+    for c in chars.toSeq():
+        status = lex.next(c, i)
+        inc i
+    return status
  
 proc handleSpecial[T: Lexer](lex: var T): char =
     ## Procedure for for handling special escaping tokens

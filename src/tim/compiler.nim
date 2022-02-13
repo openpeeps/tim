@@ -16,9 +16,10 @@ type
         solved: int
         html: string
 
-proc indentIfEnabled[T: Compiler](c: var T) =
+proc indentIfEnabled[T: Compiler](c: var T, meta: MetaNode) =
     if c.minified == false:
-        add c.html, "\n".indent(4)
+        if meta.column != 0:
+            add c.html, "\n".indent(meta.indent)
 
 proc hasNodes[T: HtmlNode](node: T): bool =
     ## Determine if current HtmlNode has any child nodes
@@ -46,7 +47,7 @@ proc writeIDAttribute[T: Compiler](c: var T, node: HtmlNode) =
 proc writeTagStart[T: Compiler](c: var T, node: HtmlNode) =
     ## Open tag of the current HtmlNode element
     ## TODO Handle indentation when minification disabled
-    c.indentIfEnabled()
+    c.indentIfEnabled(node.meta)
     add c.html, "<" & toLowerAscii(node.nodeName)
     if node.hasIDAttribute():   c.writeIDAttribute(node)
     if node.hasAttributes():    c.writeAttributes(node)
@@ -57,7 +58,7 @@ proc writeTagEnd[T: Compiler](c: var T, node: HtmlNode) =
     ## TODO Handle self closers in HtmlNode based on HtmlNodeType
     ## TODO Handle indentation when minification disabled
     add c.html, "</" & toLowerAscii(node.nodeName) & ">"
-    c.indentIfEnabled()
+    c.indentIfEnabled(node.meta)
 
 proc writeText[T: Compiler](c: var T, node: HtmlNode) =
     ## Add HtmlNode to final HTML output
@@ -83,9 +84,9 @@ proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[]) =
             c.writeTagEnd(mainNode)     # end tag
         inc i
 
-proc init*[T: typedesc[Compiler]](compiler: T, parser: Parser) =
+proc init*[T: typedesc[Compiler]](compiler: T, parser: Parser, minified = true) =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
-    var c = compiler(nodes: parser.getStatements(asNodes = true), minified: true)
+    var c = compiler(nodes: parser.getStatements(asNodes = true), minified: minified)
     c.program()
     echo c.getHtml()
