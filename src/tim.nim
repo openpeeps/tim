@@ -6,9 +6,12 @@
 # https://github.com/openpeep/tim
 
 import tim/[parser, compiler]
+from std/times import cpuTime
+
 export parser, compiler
 
 when isMainModule:
+    let time = cpuTime()
     var p: Parser = parse(readFile("sample.timl"))
     if p.hasError():
         # Catch errors collected while parsing
@@ -20,3 +23,5 @@ when isMainModule:
 
         # Otherwise compile timl document to html
         Compiler.init(parser = p)
+
+        echo "✨ Done in " & $(cpuTime() - time)
