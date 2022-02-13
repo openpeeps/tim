@@ -7,7 +7,7 @@
 
 import std/[json, jsonutils]
 import ./lexer, ./tokens, ./ast
-from std/strutils import `%`
+from std/strutils import `%`, isDigit
 
 type
     Parser* = object
@@ -53,6 +53,12 @@ proc isInline[T: TokenTuple](token: T): bool =
     ## TODO
     discard
 
+proc getID[T: HtmlNode](node: T): string {.inline.} =
+    result = if node.id != nil: node.id.value else: ""
+
+proc toJsonStr(nodes: HtmlNode) =
+    echo pretty(toJson(nodes))
+
 template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
     var id: IDAttribute
     while true:
@@ -60,6 +66,9 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
             htmlNode.attributes.add(HtmlAttribute(name: "class", value: p.next.value))
             jump p, 2
         elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
+            if isDigit(p.next.value[1]):
+                p.setError("ID's cannot start with numbers")
+                break
             id = IDAttribute(value: p.next.value)
             jump p, 2
         elif p.current.kind == TK_IDENTIFIER and p.next.kind == TK_ASSIGN:
@@ -87,12 +96,6 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
         else: break
     if id != nil: htmlNode.id = id
 
-proc getID[T: HtmlNode](node: T): string {.inline.} =
-    result = if node.id != nil: node.id.value else: ""
-
-proc toJsonStr(nodes: HtmlNode) =
-    echo pretty(toJson(nodes))
-
 proc walk(p: var Parser) =
     ## Magically walk and collect HtmlNodes, assign HtmlAttributes
     ## for creating document node of the current timl page
@@ -109,9 +112,10 @@ proc walk(p: var Parser) =
             p.setHTMLAttributes(htmlNode)     # set available html attributes
 
         # Collects the parent HtmlNode which is a headliner
+        # Set current HtmlNode as parentNode. This is the headliner
+        # that wraps the entire line
         if htmlNode != nil and p.parentNode == nil:
             p.parentNode = htmlNode             #a1
-        # Iterate the entire line starting after headliner
         var depth: int = 0
         var lazySequence: seq[HtmlNode]
         var child, childNodes: HtmlNode
@@ -127,17 +131,20 @@ proc walk(p: var Parser) =
                 lazySequence.add(child)
             jump p
 
-        var i = 0
-        var maxlen = (lazySequence.len - 1)
-        while true:
-            if i == maxlen: break
-            lazySequence[(maxlen - (i + 1))].nodes.add(lazySequence[^1])
-            lazySequence.delete( (maxlen - i) )
-            inc i
-
-        childNodes = lazySequence[0]
-        p.parentNode.nodes.add(childNodes)
+        if lazySequence.len != 0:
+            var i = 0
+            var maxlen = (lazySequence.len - 1)
+            while true:
+                if i == maxlen: break
+                lazySequence[(maxlen - (i + 1))].nodes.add(lazySequence[^1])
+                lazySequence.delete( (maxlen - i) )
+                inc i
+            childNodes = lazySequence[0]
+        if childNodes != nil:
+            p.parentNode.nodes.add(childNodes)
+            childNodes = nil
         p.statements.add(p.parentNode)
+        p.parentNode = nil
 
         if p.current.line > p.currln:
             p.prevln = p.currln
