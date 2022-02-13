@@ -16,10 +16,10 @@ type
         solved: int
         html: string
 
-proc indentIfEnabled[T: Compiler](c: var T, meta: MetaNode) =
+proc indentIfEnabled[T: Compiler](c: var T, meta: MetaNode, fixTail = false) =
     if c.minified == false:
         if meta.column != 0:
-            add c.html, "\n".indent(meta.indent)
+            add c.html, "\n".indent( if fixTail: (meta.indent - 2) else: meta.indent )
 
 proc hasNodes[T: HtmlNode](node: T): bool =
     ## Determine if current HtmlNode has any child nodes
@@ -53,12 +53,12 @@ proc writeTagStart[T: Compiler](c: var T, node: HtmlNode) =
     if node.hasAttributes():    c.writeAttributes(node)
     add c.html, ">"
 
-proc writeTagEnd[T: Compiler](c: var T, node: HtmlNode) =
+proc writeTagEnd[T: Compiler](c: var T, node: HtmlNode, fixTail = false) =
     ## Close the current HtmlNode element
     ## TODO Handle self closers in HtmlNode based on HtmlNodeType
     ## TODO Handle indentation when minification disabled
     add c.html, "</" & toLowerAscii(node.nodeName) & ">"
-    c.indentIfEnabled(node.meta)
+    c.indentIfEnabled(node.meta, true)
 
 proc writeText[T: Compiler](c: var T, node: HtmlNode) =
     ## Add HtmlNode to final HTML output
@@ -69,7 +69,7 @@ proc getHtml*[T: Compiler](c: T): string =
     ## Set `minified` to `false` for regular output.
     result = c.html
 
-proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[]) =
+proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[], fixBr = false) =
     ## Start "compile" the current HtmlNode document
     var i = 0
     let nodeseq = if childNodes.len == 0: c.nodes else: childNodes
@@ -78,15 +78,16 @@ proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[]) =
         if mainNode.nodeType == HtmlText:
             c.writeText(mainNode)
         else:
-            c.writeTagStart(mainNode)   # start tag
-            if mainNode.hasNodes():     # parse child nodes, if any
+            if fixBr: add c.html, "\n"
+            c.writeTagStart(mainNode)                   # start tag
+            if mainNode.hasNodes():                     # parse child nodes, if any
                 c.program(mainNode.nodes)
-            c.writeTagEnd(mainNode)     # end tag
+            c.writeTagEnd(mainNode, true)               # end tag
         inc i
 
 proc init*[T: typedesc[Compiler]](compiler: T, parser: Parser, minified = true) =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
     var c = compiler(nodes: parser.getStatements(asNodes = true), minified: minified)
-    c.program()
+    c.program(fixBr = true)
     echo c.getHtml()

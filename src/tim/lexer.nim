@@ -18,7 +18,7 @@ type
     TokenTuple* = tuple[kind: TokenKind, value: string, wsno, col, line: int]
 
 const NUMBERS = {'0'..'9'}
-const AZaz = {'a'..'z', 'A'..'Z', '_'}
+const AZaz = {'a'..'z', 'A'..'Z', '_', '-'}
 
 template setError(l: var Lexer; err: string): untyped =
     l.kind = TK_INVALID
