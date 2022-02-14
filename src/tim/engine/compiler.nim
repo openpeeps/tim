@@ -1,5 +1,4 @@
-# ⚡️ High-performance compiled
-# template engine inspired by Emmet syntax.
+# High-performance, compiled template engine inspired by Emmet syntax.
 # 
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
@@ -18,7 +17,7 @@ type
 
 proc indentIfEnabled[T: Compiler](c: var T, meta: MetaNode, fixTail = false) =
     if c.minified == false:
-        if meta.column != 0:
+        if meta.column != 0 and meta.indent != 0:
             add c.html, "\n".indent( if fixTail: (meta.indent - 2) else: meta.indent )
 
 proc hasNodes[T: HtmlNode](node: T): bool =

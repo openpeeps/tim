@@ -1,5 +1,4 @@
-# ⚡️ High-performance compiled
-# template engine inspired by Emmet syntax.
+# High-performance, compiled template engine inspired by Emmet syntax.
 # 
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
@@ -75,11 +74,26 @@ proc skip[T: Lexer](lex: var T) =
             lex.whitespaces = wsno
             break
 
-proc setTokenMeta*[T: Lexer](lex: var T, tokenKind: TokenKind, offset:int = 0) =
+proc setToken*[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 1) =
     ## Set meta data for current token
     lex.kind = tokenKind
     lex.startPos = lex.getColNumber(lex.bufpos)
     inc(lex.bufpos, offset)
+
+proc setTokenMulti[T: Lexer](lex: var T, tokenKind: TokenKind, offset = 0, multichars = 0) =
+    # Set meta data of the current token and jump to the next one
+    skip lex
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    var items = 0
+    if multichars != 0:
+        while items < multichars:
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+            inc items
+    else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos, offset
+    lex.kind = tokenKind
 
 proc nextToEOL[T: Lexer](lex: var T): tuple[pos: int, token: string] =
     # Get entire buffer starting from given position to the end of line
@@ -205,8 +219,22 @@ proc handleNumber[T: Lexer](lex: var T) =
             lex.setError("Invalid number")
             return
         else:
-            lex.setTokenMeta(TK_INTEGER)
+            lex.setToken(TK_INTEGER)
             break
+
+proc handleVariableIdent[T: Lexer](lex: var T) =
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    setLen(lex.token, 0)
+    inc lex.bufpos
+    while true:
+        if lex.hasLetters(lex.bufpos):
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+        elif lex.hasNumbers(lex.bufpos):
+            add lex.token, lex.buf[lex.bufpos]
+            inc lex.bufpos
+        else: break
+    lex.setToken(TK_VARIABLE)
 
 proc handleIdent[T: Lexer](lex: var T) =
     lex.startPos = lex.getColNumber(lex.bufpos)
@@ -271,6 +299,8 @@ proc handleIdent[T: Lexer](lex: var T) =
             of "form": TK_FORM
             of "frame": TK_FRAME
             of "frameset": TK_FRAMESET
+            of "false": TK_VALUE_BOOL
+            of "for": TK_FOR
             of "h1": TK_H1
             of "h2": TK_h2
             of "h3": TK_H3
@@ -285,6 +315,8 @@ proc handleIdent[T: Lexer](lex: var T) =
             of "iframe": TK_IFRAME
             of "img": TK_IMG
             of "input": TK_INPUT
+            of "in": TK_IN
+            of "if": TK_IF
             of "ins": TK_INS
             of "kbd": TK_KBD
             of "label": TK_LABEl
@@ -337,6 +369,7 @@ proc handleIdent[T: Lexer](lex: var T) =
             of "time": TK_TIME
             of "title": TK_TITLE
             of "tr": TK_TR
+            of "true": TK_VALUE_BOOL
             of "track": TK_TRACK
             of "tt": TK_TT
             of "u": TK_U
@@ -355,16 +388,19 @@ proc getToken*[T: Lexer](lex: var T): TokenTuple =
         lex.startPos = lex.getColNumber(lex.bufpos)
         lex.kind = TK_EOF
     of '.':
-        lex.setTokenMeta(TK_ATTR_CLASS, 1)
+        lex.setToken(TK_ATTR_CLASS, 1)
     of '#':
-        lex.setTokenMeta(TK_ATTR_ID, 1)
+        lex.setToken(TK_ATTR_ID, 1)
+    of '!':
+        if lex.next('='): lex.setTokenMulti(TK_NEQ, 2, 2)
     of '=':
-        lex.setTokenMeta(TK_ASSIGN, 1)
+        if lex.next('='): lex.setTokenMulti(TK_EQ, 2, 2)
+        else: lex.setToken(TK_ASSIGN, 1)
     of ':':
-        lex.setTokenMeta(TK_CONTENT, 1)
+        lex.setToken(TK_COLON, 1)
     of '>':
-        lex.setTokenMeta(TK_NEST_OP, 1)
-    # of '\'': lex.handleChar()
+        lex.setToken(TK_NEST_OP, 1)
+    of '$': lex.handleVariableIdent()
     of '0'..'9': lex.handleNumber()
     of 'a'..'z', 'A'..'Z', '_', '-': lex.handleIdent()
     of '"', '\'': lex.handleString()

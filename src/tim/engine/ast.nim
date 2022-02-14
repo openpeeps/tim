@@ -132,19 +132,7 @@ type
         HtmlVar
         HtmlVideo
         HtmlWbr
-
-    ConditionalType = enum
-        ConditionIf
-        ConditionElif
-        ConditionElse
-
-    VariableContentType = enum
-        VarBool
-        VarInt
-        VarFloat
-        VarJson
-        VarNil
-        VarString
+        HtmlInvalid
 
     HtmlAttribute* = object
         name*: string
@@ -166,19 +154,35 @@ type
         nodes*: seq[HtmlNode]
         meta*: MetaNode
 
+    VariableContentType* = enum
+        VarInvalid
+        VarBool
+        VarInt
+        VarFloat
+        VarJson
+        VarNil
+        VarString
+
     VariableNode* = ref object
-        identName*: string
+        varName*: string
         case varType*: VariableContentType
-            of VarBool: boolValue: bool
-            of VarInt: intValue: int
-            of VarFloat: floatValue: float
-            of VarJson: jsonValue: JsonNode
-            of VarNil: nilValue: string
-            of VarString: stringValue: string
+        of VarBool: boolValue: bool
+        of VarInt: intValue: int
+        of VarFloat: floatValue: float
+        of VarJson: jsonValue: JsonNode
+        of VarNil: nilValue: string
+        of VarString: stringValue: string
+        of VarInvalid: invalidValue: bool
         meta*: MetaNode
 
+    ConditionalType* = enum
+        ConditionInvalid
+        ConditionIf
+        ConditionElif
+        ConditionElse
+
     ConditionalNode* = ref object
-        conditionType: ConditionalType
+        conditionType*: ConditionalType
         nodeName*: string
         variableNode*: VariableNode
         nodes*: seq[HtmlNode]
@@ -188,9 +192,19 @@ proc isEmptyAttribute*[T: HtmlAttribute](attr: var T): bool = attr.name.len == 0
 proc isEmptyAttribute*[T: IDAttribute](attr: var T): bool = attr.value.len == 0
 
 proc getSymbolName*[T: HtmlNodeType](nodeType: T): string =
-    ## Get the stringified symbol name of the given HtmlNodeType
+    ## Get stringified symbol name of the given HtmlNodeType
     var nodeName = nodeType.symbolName
-    return toUpperAscii(nodeName[4 .. ^1])
+    result = toUpperAscii(nodeName[4 .. ^1])
+
+proc getSymbolName*[T: ConditionalType](nodeType: T): string =
+    ## Get stringified symbol name of the given ConditonalType
+    var nodeName = nodeType.symbolName
+    result = toUpperAscii(nodeName[9 .. ^1])
+
+proc getSymbolName*[T: VariableContentType](nodeType: T): string =
+    ## Get stringified symbol name of the given VariableContentType
+    var nodeName = nodeType.symbolName
+    result = toUpperAscii(nodeName[3 .. ^1])
 
 proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType = 
     result = case token.kind:
@@ -314,4 +328,21 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_VAR: HtmlVar
     of TK_VIDEO: HtmlVideo
     of TK_WBR: HtmlWbr
-    else: HtmlDiv
+    else: HtmlInvalid
+
+proc getConditionalNodeType*[T: TokenTuple](token: T): ConditionalType = 
+    result = case token.kind:
+    of TK_IF: ConditionIf
+    of TK_ELIF: ConditionElif
+    of TK_ELSE: ConditionElse
+    else: ConditionInvalid
+
+proc getVariableNodeType*[T: TokenTuple](token: T): VariableContentType =
+    result = case token.kind:
+    of TK_VALUE_BOOL: VarBool
+    of TK_VALUE_INT: VarInt
+    of TK_VALUE_FLOAT: VarFloat
+    of TK_VALUE_JSON: VarJson
+    of TK_VALUE_NIL: VarNil
+    of TK_VALUE_STRING: VarString
+    else: VarInvalid

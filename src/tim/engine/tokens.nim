@@ -1,5 +1,4 @@
-# ⚡️ High-performance compiled
-# template engine inspired by Emmet syntax.
+# High-performance, compiled template engine inspired by Emmet syntax.
 # 
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
@@ -136,11 +135,26 @@ type
         TK_ATTR_CLASS   # .
         TK_ATTR_ID      # #
         TK_ASSIGN       # =
-        TK_CONTENT      # :
+        TK_COLON        # :
         TK_INTEGER
         TK_STRING
         TK_NEST_OP      # >
         TK_IDENTIFIER
+        TK_VARIABLE     # $[az_AZ_09]
+        TK_IF           # if
+        TK_ELIF         # elif
+        TK_ELSE         # else
+        TK_FOR          # for
+        TK_IN           # in
+        TK_OR           # or
+        TK_EQ           # ==
+        TK_NEQ          # !=
+        TK_VALUE_BOOL
+        TK_VALUE_FLOAT
+        TK_VALUE_INT
+        TK_VALUE_JSON
+        TK_VALUE_NIL
+        TK_VALUE_STRING
         TK_INVALID
         TK_EOL          # end of line
         TK_EOF          # end of file
