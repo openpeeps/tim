@@ -1,5 +1,4 @@
-# ⚡️ High-performance compiled
-# template engine inspired by Emmet syntax.
+# High-performance, compiled template engine inspired by Emmet syntax.
 # 
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
@@ -7,6 +6,7 @@
 
 from std/strutils import toUpperAscii
 from std/enumutils import symbolName, symbolRank
+from std/json import JsonNode
 from ./lexer import TokenTuple
 from ./tokens import TokenKind
 
@@ -133,6 +133,19 @@ type
         HtmlVideo
         HtmlWbr
 
+    ConditionalType = enum
+        ConditionIf
+        ConditionElif
+        ConditionElse
+
+    VariableContentType = enum
+        VarBool
+        VarInt
+        VarFloat
+        VarJson
+        VarNil
+        VarString
+
     HtmlAttribute* = object
         name*: string
         value*: string
@@ -150,6 +163,24 @@ type
         nodeName*: string
         id*: IDAttribute
         attributes*: seq[HtmlAttribute]
+        nodes*: seq[HtmlNode]
+        meta*: MetaNode
+
+    VariableNode* = ref object
+        identName*: string
+        case varType*: VariableContentType
+            of VarBool: boolValue: bool
+            of VarInt: intValue: int
+            of VarFloat: floatValue: float
+            of VarJson: jsonValue: JsonNode
+            of VarNil: nilValue: string
+            of VarString: stringValue: string
+        meta*: MetaNode
+
+    ConditionalNode* = ref object
+        conditionType: ConditionalType
+        nodeName*: string
+        variableNode*: VariableNode
         nodes*: seq[HtmlNode]
         meta*: MetaNode
 
@@ -284,12 +315,3 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_VIDEO: HtmlVideo
     of TK_WBR: HtmlWbr
     else: HtmlDiv
-
-
-proc isNestable*[T: TokenTuple](token: T): bool =
-    ## Determine if current token can contain more nodes
-    ## TODO filter only nestable tokens
-    return token.kind notin {
-        TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_CONTENT,
-        TK_INTEGER, TK_STRING, TK_NEST_OP, TK_INVALID, TK_EOF, TK_NONE
-    }
