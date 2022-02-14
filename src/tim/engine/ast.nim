@@ -6,7 +6,7 @@
 
 from std/strutils import toUpperAscii
 from std/enumutils import symbolName, symbolRank
-from std/json import JsonNode
+from std/json import JsonNode, JsonNodeKind
 from ./lexer import TokenTuple
 from ./tokens import TokenKind
 
@@ -155,24 +155,23 @@ type
         meta*: MetaNode
 
     VariableContentType* = enum
-        VarInvalid
-        VarBool
-        VarInt
-        VarFloat
-        VarJson
-        VarNil
-        VarString
+        ValueInvalid
+        ValueBool
+        ValueInt
+        ValueFloat
+        ValueNull
+        ValueString
 
     VariableNode* = ref object
-        varName*: string
+        varName: string
+        varTypeName: string
         case varType*: VariableContentType
-        of VarBool: boolValue: bool
-        of VarInt: intValue: int
-        of VarFloat: floatValue: float
-        of VarJson: jsonValue: JsonNode
-        of VarNil: nilValue: string
-        of VarString: stringValue: string
-        of VarInvalid: invalidValue: bool
+        of ValueBool: boolValue: bool
+        of ValueInt: intValue: BiggestInt
+        of ValueFloat: floatValue: float
+        of ValueNull: nullValue: string
+        of ValueString: stringValue: string
+        of ValueInvalid: invalidValue: string
         meta*: MetaNode
 
     ConditionalType* = enum
@@ -204,7 +203,7 @@ proc getSymbolName*[T: ConditionalType](nodeType: T): string =
 proc getSymbolName*[T: VariableContentType](nodeType: T): string =
     ## Get stringified symbol name of the given VariableContentType
     var nodeName = nodeType.symbolName
-    result = toUpperAscii(nodeName[3 .. ^1])
+    result = toUpperAscii(nodeName[5 .. ^1])
 
 proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType = 
     result = case token.kind:
@@ -337,12 +336,28 @@ proc getConditionalNodeType*[T: TokenTuple](token: T): ConditionalType =
     of TK_ELSE: ConditionElse
     else: ConditionInvalid
 
-proc getVariableNodeType*[T: TokenTuple](token: T): VariableContentType =
+proc getVariableNodeType*[T: JsonNode](token: T): VariableContentType =
     result = case token.kind:
-    of TK_VALUE_BOOL: VarBool
-    of TK_VALUE_INT: VarInt
-    of TK_VALUE_FLOAT: VarFloat
-    of TK_VALUE_JSON: VarJson
-    of TK_VALUE_NIL: VarNil
-    of TK_VALUE_STRING: VarString
-    else: VarInvalid
+    of JBool: ValueBool
+    of JInt: ValueInt
+    of JFloat: ValueFloat
+    of JString: ValueString
+    of JNull: ValueNull
+    else: ValueInvalid
+
+proc newVariableNode*(varName: string, varValue: JsonNode): VariableNode =
+    ## Create a new VariableNode using given varName and varValue
+    let varNodeType = getVariableNodeType(varValue)
+    var varNode = VariableNode(
+        varName: varName,
+        varType: varNodeType,
+        varTypeName: getSymbolName(varNodeType),
+    )
+
+    case varNodeType:
+    of ValueBool: varNode.boolValue = varValue.bval
+    of ValueInt: varNode.intValue = varValue.num
+    of ValueFloat: varNode.floatValue = varValue.fnum
+    of ValueString: varNode.stringValue = varValue.str
+    else: varnode.nullValue = ""
+    result = varNode
