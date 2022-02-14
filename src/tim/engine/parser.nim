@@ -126,8 +126,7 @@ proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
     if not p.interpreter.hasVar(varName):
         p.setError("Undeclared variable for \"$1\" identifier" % [varName])
         return nil
-    let varType = ast.getVariableNodeType(tokenVar)
-    result = VariableNode(varName: varName, varType: varType)
+    result = newVariableNode(varName, p.interpreter.getVar(varName))
 
 template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 
@@ -139,6 +138,9 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
         jump p
         let tokenVar = p.current
         var varNode: VariableNode = p.parseVariable(tokenVar)
+
+        echo pretty(toJson(varNode), 4)
+
         jump p
         if varNode == nil: break    # and prompt "Undeclared identifier" error
         elif p.current.kind notin {TK_EQ, TK_NEQ}:
@@ -221,8 +223,8 @@ proc walk(p: var Parser) =
 
 proc getStatements*[T: Parser](p: T): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
-    result = pretty(toJson(p.statements))
-    # result = ""
+    # result = pretty(toJson(p.statements))
+    result = ""
 
 proc getStatements*[T: Parser](p: T, asNodes: bool): seq[HtmlNode] =
     ## Return all HtmlNodes available in current document
@@ -235,5 +237,12 @@ proc parse*(contents: string, data: JsonNode): Parser =
     p.next    = p.lexer.getToken()
     p.currln  = p.current.line
     p.walk()
+
+    assert isEqualBool(true, true) == true
+    assert isNotEqualBool(false, true) == true
+
+    assert isEqualString("a", "a") == true
+    assert isNotEqualString("a", "b") == true
+    assert isNotEqualFloat(12.000, 12.000) == false
 
     result = p
