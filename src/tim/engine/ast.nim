@@ -351,7 +351,7 @@ proc newVariableNode*(varName: string, varValue: JsonNode): VariableNode =
     var varNode = VariableNode(
         varName: varName,
         varType: varNodeType,
-        varTypeName: getSymbolName(varNodeType),
+        varTypeName: getSymbolName(varNodeType)
     )
 
     case varNodeType:

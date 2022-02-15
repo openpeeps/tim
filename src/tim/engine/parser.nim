@@ -4,12 +4,12 @@
 # Copyright (c) 2022 George Lemon from OpenPeep
 # https://github.com/openpeep/tim
 
-import std/[json, jsonutils]
+import std/[json, jsonutils, tables]
 import ./tokens, ./lexer, ./ast, ./interpreter
 import ../utils
 import ./utils/parseutils
 
-from std/strutils import `%`, isDigit
+from std/strutils import `%`, isDigit, join
 
 type
     Parser* = object
@@ -34,7 +34,7 @@ proc jump[T: Parser](p: var T, offset = 1) =
         inc i
 
 proc isElement(): bool =
-    ## Determine if current token is an HTML Element
+    ## Determine if current token is a HTML Element
     ## TODO
     discard
 
@@ -72,7 +72,7 @@ proc isNestable*[T: TokenTuple](token: T): bool =
     ## Determine if current token can contain more nodes
     ## TODO filter only nestable tokens
     result = token.kind notin {
-        TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_COLON,
+        TK_IDENTIFIER, TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_COLON,
         TK_INTEGER, TK_STRING, TK_NEST_OP, TK_INVALID, TK_EOF, TK_NONE
     }
 
@@ -81,13 +81,29 @@ proc isConditional*[T: TokenTuple](token: T): bool =
     ## as TK_IF, TK_ELIF, TK_ELSE
     result = token.kind in {TK_IF, TK_ELIF, TK_ELSE}
 
+proc isIdent[T: TokenTuple](token: T): bool =
+    result = token.kind == TK_IDENTIFIER
+
+proc isChild[T: Parser](p: var T, childNode, parentNode: TokenTuple): bool =
+    result = childNode.col > parentNode.col
+    if result == true:
+        result = (childNode.col and 1) != 1 and (parentNode.col and 1) != 1
+        if result == false:
+            p.setError("Invalid indentation. Use 2 or 4 spaces to indent your rules")
+
 template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
     var id: IDAttribute
+    var hasAttributes: bool
+    var attributes: Table[string, seq[string]]
     while true:
         if p.current.kind == TK_ATTR_CLASS and p.next.kind == TK_IDENTIFIER:
-            htmlNode.attributes.add(HtmlAttribute(name: "class", value: p.next.value))
+            hasAttributes = true
+            if attributes.hasKey("class"):
+                attributes["class"].add(p.next.value)
+            else:
+                attributes["class"] = @[p.next.value]
             jump p, 2
         elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
             if htmlNode.hasID():
@@ -101,23 +117,33 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
             if p.next.kind != TK_STRING:
                 p.setError("Missing value for \"$1\" attribute" % [attrName])
                 break
-            htmlNode.attributes.add(HtmlAttribute(name: attrName, value: p.next.value))
+            if attributes.hasKey(attrName):
+                p.setError("Duplicate attribute name for \"$1\" identifier" % [attrName])
+            else:
+                attributes[attrName] = @[p.next.value]
+                hasAttributes = true
             jump p, 2
         elif p.current.kind == TK_COLON:
             if p.next.kind != TK_STRING:
                 p.setError("Missing string content for \"$1\" node" % [p.prev.value])
                 break
             else:
+                jump p
                 let htmlTextNode = HtmlNode(
                     nodeType: HtmlText,
                     nodeName: getSymbolName(HtmlText),
-                    text: p.next.value,
-                    meta: (column: p.next.col, indent: p.next.wsno, line: p.next.line)
+                    text: p.current.value,
+                    meta: (column: p.current.col, indent: p.current.wsno, line: p.current.line)
                 )
                 htmlNode.nodes.add(htmlTextNode)
-            jump p
             break
         else: break
+
+    if hasAttributes:
+        for attrName, attrValues in attributes.pairs:
+            htmlNode.attributes.add(HtmlAttribute(name: attrName, value: attrValues.join(" ")))
+        hasAttributes = false
+    clear(attributes)
 
 proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
     ## Parse and validate given VariableNode
@@ -139,7 +165,7 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
         let tokenVar = p.current
         var varNode: VariableNode = p.parseVariable(tokenVar)
 
-        echo pretty(toJson(varNode), 4)
+        # echo pretty(toJson(varNode), 4)
 
         jump p
         if varNode == nil: break    # and prompt "Undeclared identifier" error
@@ -165,7 +191,10 @@ proc walk(p: var Parser) =
             p.parseCondition(conditionNode)
             jump p
 
+        var origin: TokenTuple
+        if p.current.isNestable(): origin = p.current
         while p.current.isNestable():
+            # echo p.isChild(p.current, origin)
             let htmlNodeType = getHtmlNodeType(p.current)
             htmlNode = HtmlNode(
                 nodeType: htmlNodeType,
@@ -178,15 +207,20 @@ proc walk(p: var Parser) =
 
         skipNilElement()
 
-        # Collects the parent HtmlNode which is a headliner
-        # Set current HtmlNode as parentNode. This is the headliner
-        # that wraps the entire line
         if htmlNode != nil and p.parentNode == nil:
             p.parentNode = htmlNode
 
+        # Walks the entire line and collect all HtmlNodes from current nest
         var lazySequence: seq[HtmlNode]
         var child, childNodes: HtmlNode
+
+        if p.current.line > p.currln:
+            p.prevln = p.currln
+            p.currln = p.current.line
+            ndepth = 0
+
         while p.current.line == p.currln:
+            if p.current.kind == TK_EOF: break
             if p.current.isNestable():
                 let htmlNodeType = getHtmlNodeType(p.current)
                 child = HtmlNode(
@@ -198,7 +232,6 @@ proc walk(p: var Parser) =
                 lazySequence.add(child)
                 inc ndepth
             jump p
-            if p.current.kind == TK_EOF: break
 
         if lazySequence.len != 0:
             var i = 0
@@ -219,12 +252,12 @@ proc walk(p: var Parser) =
             p.prevln = p.currln
             p.currln = p.current.line
             ndepth = 0
-    jump p
+        else: jump p
 
 proc getStatements*[T: Parser](p: T): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
-    # result = pretty(toJson(p.statements))
-    result = ""
+    result = pretty(toJson(p.statements))
+    # result = ""
 
 proc getStatements*[T: Parser](p: T, asNodes: bool): seq[HtmlNode] =
     ## Return all HtmlNodes available in current document
