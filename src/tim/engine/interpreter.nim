@@ -56,10 +56,8 @@ proc hasVar*[T: Interpreter](i: T, key: string): bool =
 
 proc getVar*[T: Interpreter](i: var T, key: string): JsonNode =
     ## Retrieve a variable from current data
-    if i.hasVar(key):
-        result = i.data[key]
-    else:
-        result = newJNull()
+    if i.hasVar(key): result = i.data[key]
+    else: result = newJNull()
 
 proc init*[T: typedesc[Interpreter]](newInterpreter: T, data: JsonNode): Interpreter =
     ## Initialize a Tim Interpreter
