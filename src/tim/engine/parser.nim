@@ -180,6 +180,13 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
             break
         break
 
+template `!>`[T: Parser](p: var T): untyped =
+    ## Ensure nest token `>` exists for inline statements
+    if p.current.isNestable() and p.next.isNestable():
+        if p.current.line == p.next.line:
+            p.setError("Missing `>` token for single line nest")
+            break
+
 proc walk(p: var Parser) =
     var ndepth = 0
     var htmlNode: HtmlNode
@@ -194,6 +201,7 @@ proc walk(p: var Parser) =
         var origin: TokenTuple
         if p.current.isNestable(): origin = p.current
         while p.current.isNestable():
+            !> p # Check for missing `>` nest token, in next token is nestable too
             # echo p.isChild(p.current, origin)
             let htmlNodeType = getHtmlNodeType(p.current)
             htmlNode = HtmlNode(
@@ -222,6 +230,7 @@ proc walk(p: var Parser) =
         while p.current.line == p.currln:
             if p.current.kind == TK_EOF: break
             if p.current.isNestable():
+                !> p # Check for missing `>` nest token, in next token is nestable too
                 let htmlNodeType = getHtmlNodeType(p.current)
                 child = HtmlNode(
                     nodeType: htmlNodeType,
