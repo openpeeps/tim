@@ -3,9 +3,9 @@
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
 # https://github.com/openpeep/tim
-
+import bson, bson/marshal
 import std/[json, jsonutils, tables]
-import ./tokens, ./lexer, ./ast, ./interpreter
+import ./meta, ./tokens, ./lexer, ./ast, ./interpreter
 import ../utils
 import ./utils/parseutils
 
@@ -272,19 +272,13 @@ proc getStatements*[T: Parser](p: T, asNodes: bool): seq[HtmlNode] =
     ## Return all HtmlNodes available in current document
     result = p.statements
 
-proc parse*(contents: string, data: JsonNode): Parser =
-    var p: Parser = Parser(lexer: Lexer.init(contents))
-    p.interpreter = Interpreter.init(data = data)
+proc parse*[T: TimEngine](engine: var T, timlTemplate: var TimlTemplate): Parser {.thread.} =
+    var p: Parser = Parser(lexer: Lexer.init(timlTemplate.getContents()))
+    p.interpreter = Interpreter.init(data = timlTemplate.getFileData())
+
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
     p.currln  = p.current.line
+
     p.walk()
-
-    assert isEqualBool(true, true) == true
-    assert isNotEqualBool(false, true) == true
-
-    assert isEqualString("a", "a") == true
-    assert isNotEqualString("a", "b") == true
-    assert isNotEqualFloat(12.000, 12.000) == false
-
     result = p
