@@ -80,7 +80,7 @@ proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[], fixBr = fal
             if fixBr: add c.html, "\n"
             c.writeTagStart(mainNode)                   # start tag
             if mainNode.hasNodes():                     # parse child nodes, if any
-                c.program(mainNode.nodes)
+                c.program(mainNode.nodes)               # TODO iteration over recursion
             c.writeTagEnd(mainNode, true)               # end tag
         inc i
 
