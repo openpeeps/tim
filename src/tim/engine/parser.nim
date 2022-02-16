@@ -3,9 +3,11 @@
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
 # https://github.com/openpeep/tim
-import bson, bson/marshal
 import std/[json, jsonutils, tables]
-import ./meta, ./tokens, ./lexer, ./ast, ./interpreter
+import ./tokens, ./lexer, ./ast, ./interpreter
+
+from ./meta import TimEngine, TimlTemplate, getContents, getFileData
+
 import ../utils
 import ./utils/parseutils
 
@@ -263,18 +265,20 @@ proc walk(p: var Parser) =
             ndepth = 0
         else: jump p
 
-proc getStatements*[T: Parser](p: T): string = 
+proc getStatements*[T: Parser](p: T, prettyString = false): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
-    result = pretty(toJson(p.statements))
-    # result = ""
+    if prettyString: 
+        result = pretty(toJson(p.statements))
+    else:
+        result = $(toJson(p.statements))
 
 proc getStatements*[T: Parser](p: T, asNodes: bool): seq[HtmlNode] =
     ## Return all HtmlNodes available in current document
     result = p.statements
 
-proc parse*[T: TimEngine](engine: var T, timlTemplate: var TimlTemplate): Parser {.thread.} =
-    var p: Parser = Parser(lexer: Lexer.init(timlTemplate.getContents()))
-    p.interpreter = Interpreter.init(data = timlTemplate.getFileData())
+proc parse*[T: TimEngine](engine: var T, templateObject: TimlTemplate, data: JsonNode = %*{}): Parser {.thread.} =
+    var p: Parser = Parser(lexer: Lexer.init(templateObject.getSourceCode))
+    p.interpreter = Interpreter.init(data = data)
 
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()

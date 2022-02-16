@@ -5,30 +5,30 @@
 # https://github.com/openpeep/tim
 
 import tim/engine/[parser, compiler, meta]
-import std/tables
-
+import std/[tables, json]
 from std/times import cpuTime
-from std/strutils import `%`, strip, split
-from std/osproc import execProcess, poStdErrToStdOut, poUsePath
-from std/os import getCurrentDir, normalizePath, dirExists,
-                   fileExists, walkDirRec, splitPath
-
 export parser, compiler, meta
 
-proc run*[T: TimEngine](engine: var T) =
-    echo len(engine.getSources())
-    discard
+proc compile*[T: TimEngine](engine: var T) =
+    if engine.hasAnySources:
+        for id, layout in engine.getLayouts().pairs():
+            var p: Parser = engine.parse(layout, data = %*{})
+            if p.hasError():
+                echo p.getError()
+            else:
+                # layout.setAstSource(p.getStatements())        # fix 'layout' is immutable, not 'var'
+                engine.writeBson(layout, p.getStatements())
+    else: raise newException(TimException, "Unable to find any Timl templates")
 
 when isMainModule:
     let time = cpuTime()
-
     # First, create a new Tim Engine
     var engine = TimEngine.init(
-        templates = "../examples/templates",          # root dir to Timl templates
-        storage = "../examples/storage/templates"     # dir path for storing BSON AST files 
+        source = "../examples/templates",             # root dir to Timl templates
+        output = "../examples/storage/templates",     # dir path for storing BSON AST files 
         hotreload = true                              # automatically disabled when compiling with -d:release
     )
-    engine.run()
+    engine.compile()
     echo "✨ Done in " & $(cpuTime() - time)
 
     # Add a new Timl layout, view, or partial using `add` proc
@@ -42,8 +42,6 @@ when isMainModule:
     # else:
     #     # Returns the a stringified JSON representing the
     #     # Abstract Syntax Tree of the current timl document
-    #     var BSONDocument = @@(p.getStatements())
-    #     writeFile(getCurrentDir() & "/sample.ast.bson", BSONDocument.bytes())
 
     #     # Otherwise compile timl document to html
     #     let c = Compiler.init(parser = p, minified = false)
