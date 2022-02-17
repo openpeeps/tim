@@ -153,6 +153,7 @@ type
         attributes*: seq[HtmlAttribute]
         nodes*: seq[HtmlNode]
         meta*: MetaNode
+        conditional*: ConditionalNode
 
     VariableContentType* = enum
         ValueInvalid
@@ -165,13 +166,14 @@ type
     VariableNode* = ref object
         varName: string
         varTypeName: string
-        case varType*: VariableContentType
-        of ValueBool: boolValue: bool
-        of ValueInt: intValue: BiggestInt
-        of ValueFloat: floatValue: float
-        of ValueNull: nullValue: string
-        of ValueString: stringValue: string
-        of ValueInvalid: invalidValue: string
+        varType*: VariableContentType
+        # case varType*: VariableContentType
+        # of ValueBool: boolValue: bool
+        # of ValueInt: intValue: BiggestInt
+        # of ValueFloat: floatValue: float
+        # of ValueNull: nullValue: string
+        # of ValueString: stringValue: string
+        # of ValueInvalid: invalidValue: string
         meta*: MetaNode
 
     ConditionalType* = enum
@@ -180,10 +182,24 @@ type
         ConditionElif
         ConditionElse
 
+    ComparatorType* = enum
+        InvalidComparator
+        Equal
+        NotEqual
+        Great
+        GreatOrEqual
+        Less
+        LessOrEqual
+
+    ComparatorNode* = ref object
+        nodeType*: ComparatorType
+        nodeName*: string
+        variables*: seq[VariableNode]
+
     ConditionalNode* = ref object
         conditionType*: ConditionalType
         nodeName*: string
-        variableNode*: VariableNode
+        comparatorNode*: ComparatorNode
         nodes*: seq[HtmlNode]
         meta*: MetaNode
 
@@ -204,6 +220,10 @@ proc getSymbolName*[T: VariableContentType](nodeType: T): string =
     ## Get stringified symbol name of the given VariableContentType
     var nodeName = nodeType.symbolName
     result = toUpperAscii(nodeName[5 .. ^1])
+
+proc getSymbolName*[T: ComparatorType](nodeType: T): string =
+    var nodeName = nodeType.symbolName
+    result = toUpperAscii(nodeName)
 
 proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType = 
     result = case token.kind:
@@ -336,6 +356,28 @@ proc getConditionalNodeType*[T: TokenTuple](token: T): ConditionalType =
     of TK_ELSE: ConditionElse
     else: ConditionInvalid
 
+proc newConditionNode*(nodeType: TokenTuple, meta: MetaNode): ConditionalNode = 
+    let ctype = getConditionalNodeTYpe(nodeType)
+    result = ConditionalNode(
+        conditionType: ctype,
+        nodeName: getSymbolName(ctype),
+        meta: meta
+    )
+
+proc getComparatorNodeType*[T: TokenTuple](token: T): ComparatorType =
+    result = case token.kind:
+        of TK_EQ: Equal
+        of TK_NEQ: NotEqual
+        else: InvalidComparator
+
+proc newComparatorNode*(nodeType: TokenTuple, variables: seq[VariableNode]): ComparatorNode = 
+    let compNodeType = getComparatorNodeType(nodeType)
+    result = ComparatorNode(
+        nodeType: compNodeType,
+        nodeName: getSymbolName(compNodeType),
+        variables: variables
+    )
+
 proc getVariableNodeType*[T: JsonNode](token: T): VariableContentType =
     result = case token.kind:
     of JBool: ValueBool
@@ -354,10 +396,10 @@ proc newVariableNode*(varName: string, varValue: JsonNode): VariableNode =
         varTypeName: getSymbolName(varNodeType)
     )
 
-    case varNodeType:
-    of ValueBool: varNode.boolValue = varValue.bval
-    of ValueInt: varNode.intValue = varValue.num
-    of ValueFloat: varNode.floatValue = varValue.fnum
-    of ValueString: varNode.stringValue = varValue.str
-    else: varnode.nullValue = ""
+    # case varNodeType:
+    # of ValueBool: varNode.boolValue = varValue.bval
+    # of ValueInt: varNode.intValue = varValue.num
+    # of ValueFloat: varNode.floatValue = varValue.fnum
+    # of ValueString: varNode.stringValue = varValue.str
+    # else: varnode.nullValue = ""
     result = varNode
