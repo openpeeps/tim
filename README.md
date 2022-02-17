@@ -122,13 +122,19 @@ Cannot be defined on `runtime`. Also, a variable cannot hold mixed data. And, va
 
 A variable must be always prefixed with `$`. Variables are `case sensitive`, can be `alphanumerical`, and separated with `_` only.
 
-```json
+```js
 {
     "user": true,
     "is": {
         "admin": true
     },
-    "admin": true
+    "admin": true,
+
+    // invalid examples
+    " ": "Just checking...",
+    "you-tell-me": 123,
+    "lets.try.again": "Okay",
+    "user": false
 }
 ```
 
