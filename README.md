@@ -118,7 +118,7 @@ section > div.container > div.row.vh-100.align-items-center
 
 #### Variables
 Are simple identifiers that reflects your json object `data`. So a variable can be an `array`, `bool`, `float`, `int`, `object`, `null`, or `string`.
-Cannot be defined on `runtime`. Also, a variable cannot hold mixed data. And, variables are typed-safe, so their value cannot be changed during `runtime`.
+Cannot be defined on `runtime`. Also, a variable cannot hold mixed data. And, variables are typed-safe, so their type cannot be changed during `runtime`.
 
 A variable must be always prefixed with `$`. Variables are `case sensitive`, can be `alphanumerical`, and separated with `_` only.
 
