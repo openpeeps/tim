@@ -113,6 +113,42 @@ section > div.container > div.row.vh-100.align-items-center
                 div.col > a.btn.btn-dark.d-block: "Join Clubhouse 🤟"
 ```
 
+### About Tim Engine
+
+
+#### Variables
+Are simple identifiers that reflects your json object `data`. So a variable can be an `array`, `bool`, `float`, `int`, `object`, `null`, or `string`.
+Cannot be defined on `runtime`. Also, a variable cannot hold mixed data. And, variables are typed-safe, so their value cannot be changed during `runtime`.
+
+A variable must be always prefixed with `$`. Variables are `case sensitive`, can be `alphanumerical`, and separated with `_` only.
+
+```json
+{
+    "user": true,
+    "is": {
+        "admin": true
+    }
+}
+```
+
+```tim
+if $user == $is.admin
+    a href="/dashboard": "Go to dashboard"
+else: 
+    a href="/profile": "Go to your Profile"
+```
+
+#### Conditionals, Comparison and Logical Operators
+Tim knows about the following conditional statements: `if`, `elif` and `else`.
+
+The following Comparison Operators are valid
+- [x] Equal `$a == $b`
+- [x] Not Equal `$a != $b`
+- [x] Greater than `$a > $b`
+- [x] Less than `$a < $b`
+- [x] Greater than or Equal `$a >= $b`
+- [x] Less than or Equal `$a <= $b`
+
 ## Roadmap
 
 ### `0.1.0`
