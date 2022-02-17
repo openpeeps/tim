@@ -15,40 +15,37 @@ type
     TimlTemplateType = enum
         Layout, View, Partial
 
-    TimlTemplateTable = OrderedTable[string, TimlTemplate]
-    TimlDirectoryTable = Table[string, TimlDirectory]
 
     TimlTemplate* = object
         meta: tuple [
             name: string,                           # name of the current TimlTemplate representing file name
             template_type: TimlTemplateType         # type of TimlTemplate, either Layout, View or Partial
         ]
-        paths: tuple[
-            file, ast, html: string, 
-        ]
+        paths: tuple[file, ast, html: string]
         data: JsonNode                              # JSON data exposed to TimlTemplate
         sourceCode: string
         astSource*: string
-
-    TimlDirectory = object
-        path: string                                # source path on disk
-        templates: TimlTemplateTable                # table containing all TimlTemplate objects
+    
+    TimlTemplateTable = OrderedTable[string, TimlTemplate]
 
     TimEngine* = object
         root: string                                # root path to your Timl templates
         output: string                              # root path for HTML and BSON AST output
-        src: TimlDirectoryTable                     # table containing all TimlDirectory objects
+        layouts: TimlTemplateTable
+        views: TimlTemplateTable
+        partials: TimlTemplateTable
 
-    TimException* = object of CatchableError
+    TimException* = object of CatchableError        # raise errors while setup Tim
+    TimSyntaxError* = object of CatchableError      # raise errors from Tim language
 
-proc getTemplates*[T: TimlDirectory](t: var T): TimlTemplateTable {.inline.} =
-    result = t.templates
+# proc getTemplates*[T: TimlTemplateTable](t: var T): TimlTemplateTable {.inline.} =
+#     result = t.templates
 
-proc getTemplate*[T: TimlDirectory](t: var T, key: string): TimlTemplate =
-    let templates = t.getTemplates
-    if templates.hasKey(key):
-        result = templates[key]
-    else: raise newException(TimException, "Unable to find a template for \"$1\" key")
+# proc getTemplate*[T: TimlTemplateTable](t: var T, key: string): TimlTemplate =
+#     let templates = t.getTemplates
+#     if templates.hasKey(key):
+#         result = templates[key]
+#     else: raise newException(TimException, "Unable to find a template for \"$1\" key")
 
 proc getContents*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve code contents of current TimlTemplate
@@ -78,33 +75,20 @@ proc getAstSource*[T: TimlTemplate](t: T): string {.inline.} =
 
 proc hasAnySources*[T: TimEngine](e: T): bool {.inline.} =
     ## Determine if current TimEngine has any TimlDirectory
-    ## objects stored in TimlDirectoryTable
-    result = len(e.src) != 0
-
-proc getSources[T: TimEngine](e: var T): TimlDirectoryTable {.inline.} =
-    ## Retrieves all TimlDirectory objects as TimlDirectoryTable (Table[string, TimlDirectory])
-    result = e.src
-
-proc getSources[T: TimEngine](e: var T, key: string): TimlDirectory =
-    ## Retrieve a specific TimlDirectory object source, based on given key,
-    ## where key can be either `layouts`, `views`, or `partials`
-    let sources = e.getSources()
-    if e.src.hasKey(key):
-        result = e.src[key]
-    else: raise newException(TimException,
-        "Unable to find a TimlDirectoryTable for \"$1\" key")
+    ## objects stored in layouts, views or partials fields
+    result = len(e.layouts) != 0
 
 proc getLayouts*[T: TimEngine](e: var T): TimlTemplateTable =
     ## Retrieve entire table of layouts as TimlTemplateTable
-    result = e.getSources("layouts").templates
+    result = e.layouts
 
 proc getViews*[T: TimEngine](e: var T): TimlTemplateTable =
     ## Retrieve entire table of views as TimlTemplateTable
-    result = e.getSources("views").templates
+    result = e.views
 
 proc getPartials*[T: TimEngine](e: var T): TimlTemplateTable =
     ## Retrieve entire table of partials as TimlTemplateTable
-    result = e.getSources("partials").templates
+    result = e.partials
 
 proc getStoragePath*[T: TimEngine](e: var T): string =
     ## Retrieve the absolute path of TimEngine output directory
@@ -123,19 +107,25 @@ proc htmlPath(outputDir, filePath: string): string =
     result = getCurrentDir() & "/" & outputDir & "/html/" & hashTail(filePath) & ".html"
     normalizePath(result)
 
-# proc writeBson*[E: TimEngine, T: TimlTemplate](e: var E, t: var T) =
-#     echo t.ast
-#     # writeFile(t.ast, bytes(@@(t.getAstSource)))
-
 proc writeBson*[E: TimEngine, T: TimlTemplate](e: var E, t: T, ast: string) =
-    writeFile(t.paths.ast, bytes(@@(ast)))
+    ## Write current JSON AST to BSON
+    var document = newBsonDocument()
+    document["ast"] = ast
+    writeFile(t.paths.ast, document.bytes)
+
+proc readBson*[E: TimENgine, T: TimlTemplate](e: var E, t: T): JsonNode =
+    ## Read current BSON and parse to JSON
+    var document: Bson = newBsonDocument(readFile(t.paths.ast))
+    result = parseJson(document["ast"])
 
 proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
     ## Short hand procedure for executing shell commands via execProcess
     return execProcess(inputCmd, args=inputArgs, options={poStdErrToStdOut, poUsePath})
 
-proc finder*(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
+proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
     ## Recursively search for files.
+    ##
+    ## TODO
     ## Optionally, you can set the maximum depth level,
     ## whether to ignore a certain types of files,
     ## by extension and/or visibility (dot files)
@@ -165,8 +155,10 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotrelo
     for path in @[source, output]:
         var tpath = getCurrentDir() & "/" & path
         tpath.normalizePath()
-        if not tpath.dirExists(): raise newException(TimException,
-            "Unable to find Tim source directory at\n$1" % [tpath])
+        if not tpath.dirExists():
+            # raise newException(TimException, "Unable to find Tim source directory at\n$1" % [tpath])
+            createDir(tpath)
+
         timlInOutDirs.add(path)
         if path == output:
             # create `bson` and `html` dirs inside `output` directory
@@ -179,33 +171,38 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotrelo
                 let innerDir = path & "/" & inDir
                 if not dirExists(innerDir): createDir(innerDir)
 
-
-    var e = timEngine()
-    e.root = timlInOutDirs[0]
-    e.output = timlInOutDirs[1]
+    var lTable, vTable, pTable: OrderedTable[string, TimlTemplate]
     for tdir in @["layouts", "views", "partials"]:
-        let tdirpath = e.root & "/" & tdir
+        var tdirpath = getCurrentDir() & "/" & timlInOutDirs[0] & "/" & tdir
         if dirExists(tdirpath):
-            var timlDirObject = TimlDirectory(path: tdirpath)
+            # TODO look for .timl files only
             let files = finder(findArgs = @["-type", "f", "-print"], path = tdirpath)
             if files.len != 0:
                 for f in files:
                     let fname = splitPath(f)
                     var ftype: TimlTemplateType
                     case tdir:
-                        of "layouts": ftype = Layout
-                        of "views": ftype = View
-                        of "partials": ftype = Partial
+                    of "layouts": ftype = Layout
+                    of "views": ftype = View
+                    of "partials": ftype = Partial
 
-                    var timlTemplate = TimlTemplate(
-                            meta: (name: fname.tail, template_type: ftype),
-                            paths: (file: f, ast: bsonPath(e.output, f), html: htmlPath(e.output, f)),
-                            sourceCode: readFile(f)
-                        )
-                    timlDirObject.templates[fname.tail] = timlTemplate
-                    e.src[tdir] = timlDirObject
-    result = e
+                    var tTemplate = TimlTemplate(
+                        meta: (name: fname.tail, template_type: ftype),
+                        paths: (file: f, ast: bsonPath(timlInOutDirs[1], f), html: htmlPath(timlInOutDirs[1], f)),
+                        sourceCode: readFile(f)
+                    )
+                    
+                    case ftype:
+                    of Layout: lTable[f] = tTemplate
+                    of View: vTable[f] = tTemplate
+                    of Partial: vTable[f] = tTemplate
+        else:
+            createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
-proc add*[T: TimEngine](pageType: TimlTemplateType) =
-    ## Add a new Timl layout, view or partial to current Engine instance
-    discard
+    result = timEngine(
+        root: timlInOutDirs[0],
+        output: timlInOutDirs[1],
+        layouts: lTable,
+        views: vTable,
+        partials: pTable
+    )
