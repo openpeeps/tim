@@ -127,7 +127,8 @@ A variable must be always prefixed with `$`. Variables are `case sensitive`, can
     "user": true,
     "is": {
         "admin": true
-    }
+    },
+    "admin": true
 }
 ```
 
@@ -136,7 +137,13 @@ if $user == $is.admin
     a href="/dashboard": "Go to dashboard"
 else: 
     a href="/profile": "Go to your Profile"
+
+if $admin:
+    span: "Fake admin"
 ```
+
+Variable nodes are generated based on given `JsonNode` and limited to first level of your `Json` nodes only.
+So anything deeper than that is just... `json`. You can use `.` annotation to access other levels.
 
 #### Conditionals, Comparison and Logical Operators
 Tim knows about the following conditional statements: `if`, `elif` and `else`.
