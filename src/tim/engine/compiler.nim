@@ -63,7 +63,7 @@ proc writeText[T: Compiler](c: var T, node: HtmlNode) =
     ## Add HtmlNode to final HTML output
     add c.html, node.text
 
-proc getHtml*[T: Compiler](c: T): string =
+proc getHtml*[T: Compiler](c: T): string {.inline.} =
     ## Return compiled timl as html. By default the output is minfied,
     ## Set `minified` to `false` for regular output.
     result = c.html
@@ -84,9 +84,9 @@ proc program[T: Compiler](c: var T, childNodes: seq[HtmlNode] = @[], fixBr = fal
             c.writeTagEnd(mainNode, true)               # end tag
         inc i
 
-proc init*[T: typedesc[Compiler]](compiler: T, parser: Parser, minified = true): Compiler =
+proc init*[T: typedesc[Compiler]](compiler: T, parser: Parser, minified: bool, asNodes = true): Compiler =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
-    var c = compiler(nodes: parser.getStatements(asNodes = true), minified: minified)
+    var c = compiler(nodes: parser.getStatements(asNodes = asNodes), minified: minified)
     c.program(fixBr = true)
     result = c
