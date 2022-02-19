@@ -1,10 +1,9 @@
 import std/macros
 
-# dumpAstGen:
-#     if conditionNode != nil: conditionNode.nodes.add(p.parentNode)
-#     else: p.statements.add(p.parentNode)
-#     p.parentNode = nil
-
+# if conditionNode != nil: conditionNode.nodes.add(p.parentNode)
+# else: p.statements.add(p.parentNode)
+# p.parentNode = nil
+# todo better a template
 macro skipNilElement*(): untyped =
     nnkStmtList.newTree(
         nnkIfStmt.newTree(
