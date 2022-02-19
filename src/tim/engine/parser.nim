@@ -20,12 +20,18 @@ type
         error: string
         statements: seq[HtmlNode]
         prevln, currln, nextln: int
+        prevlnEndWithContent: bool
         parentNode: HtmlNode
         interpreter: Interpreter
+        enableJit: bool
 
 proc setError[T: Parser](p: var T, msg: string) = p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
 proc hasError*[T: Parser](p: var T): bool = p.error.len != 0
 proc getError*[T: Parser](p: var T): string = p.error
+
+proc hasJIT*[T: Parser](p: var T): bool {.inline.} =
+    ## Determine if current timl template requires a JIT compilation
+    result = p.enableJit == true
 
 proc jump[T: Parser](p: var T, offset = 1) =
     var i = 0
@@ -61,7 +67,7 @@ proc getID[T: HtmlNode](node: T): string {.inline.} =
     ## Retrieve the HTML ID attribute, if any
     result = if node.id != nil: node.id.value else: ""
 
-proc toJsonStr(nodes: HtmlNode) =
+proc toJsonStr*(nodes: HtmlNode) =
     ## Print a stringified representation of the current Abstract Syntax Tree
     echo pretty(toJson(nodes))
 
@@ -93,6 +99,22 @@ proc isChild[T: Parser](p: var T, childNode, parentNode: TokenTuple): bool =
         if result == false:
             p.setError("Invalid indentation. Use 2 or 4 spaces to indent your rules")
 
+proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
+    ## Determine if given token kind is TK_EOF
+    result = token.kind == TK_EOF
+
+proc getPrev[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): TokenTuple = 
+    ## Retrieve previous line from headliners
+    let prevln = if p.current.line == 1: 0 else: p.current.line - 1
+    result = h[prevln]
+
+proc isBadNest[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): bool =
+    ## Determine if current headline has a bad nest. This applies
+    ## only if previous line ends with a string content
+    if p.prevlnEndWithContent == true:
+        let prev = p.getPrev(h)
+        result = prev.col < p.current.col
+
 template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
@@ -101,6 +123,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
     var attributes: Table[string, seq[string]]
     while true:
         if p.current.kind == TK_ATTR_CLASS and p.next.kind == TK_IDENTIFIER:
+            # TODO check for wsno for `.` token and prevent mess
             hasAttributes = true
             if attributes.hasKey("class"):
                 attributes["class"].add(p.next.value)
@@ -108,12 +131,14 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
                 attributes["class"] = @[p.next.value]
             jump p, 2
         elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
+            # TODO check for wsno for `#` token
             if htmlNode.hasID():
                 p.setError("Elements can hold a single ID attribute.")
             id = IDAttribute(value: p.next.value)
             if id != nil: htmlNode.id = id
             jump p, 2
         elif p.current.kind == TK_IDENTIFIER and p.next.kind == TK_ASSIGN:
+            # TODO check for wsno for other `attr` token
             let attrName = p.current.value
             jump p
             if p.next.kind != TK_STRING:
@@ -131,6 +156,9 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
                 break
             else:
                 jump p
+                if (p.current.line == p.next.line) and not p.next.isEOF:
+                    p.setError("Bad indentation after enclosed string")      # TODO a better error message?
+                    break
                 let htmlTextNode = HtmlNode(
                     nodeType: HtmlText,
                     nodeName: getSymbolName(HtmlText),
@@ -138,6 +166,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
                     meta: (column: p.current.col, indent: p.current.wsno, line: p.current.line)
                 )
                 htmlNode.nodes.add(htmlTextNode)
+                p.prevlnEndWithContent = true
             break
         else: break
 
@@ -159,24 +188,24 @@ proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
 template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 
     let currln: int = p.current.line
+    var compToken: TokenTuple
+    var varNode1, varNode2: VariableNode
+    var comparatorNode: ComparatorNode
     while true:
         if p.current.kind == TK_IF and p.next.kind != TK_VARIABLE:
             p.setError("Missing variable identifier for conditional statement")
             break
         jump p
-        let tokenVar = p.current
-        var varNode: VariableNode = p.parseVariable(tokenVar)
-
-        # echo pretty(toJson(varNode), 4)
-
+        varNode1 = p.parseVariable(p.current)
         jump p
-        if varNode == nil: break    # and prompt "Undeclared identifier" error
-        elif p.current.kind notin {TK_EQ, TK_NEQ}:
-            p.setError("Invalid conditional. Missing comparison operator")
-            break
-        elif p.next.kind == TK_VARIABLE:
-            var varNode: VariableNode = p.parseVariable(p.next)
-            if varNode == nil: break
+        if varNode1 == nil: break    # and prompt "Undeclared identifier" error
+        elif p.current.kind in {TK_EQ, TK_NEQ}:
+            compToken = p.current
+            if p.next.kind == TK_VARIABLE:
+                jump p
+                varNode2 = p.parseVariable(p.current)
+            comparatorNode = newComparatorNode(compToken, @[varNode1, varNode2])
+            conditionNode.comparatorNode = comparatorNode
         elif p.next.kind != TK_STRING:
             p.setError("Invalid conditional. Missing comparison value")
             break
@@ -189,34 +218,45 @@ template `!>`[T: Parser](p: var T): untyped =
             p.setError("Missing `>` token for single line nest")
             break
 
+template jit[T: Parser](p: var T): untyped =
+    ## Enable jit flag When current document contains
+    ## either conditionals, or variable assignments
+    if p.enableJit == false: p.enableJit = true
+
 proc walk(p: var Parser) =
     var ndepth = 0
     var htmlNode: HtmlNode
     var conditionNode: ConditionalNode
+    var heads: OrderedTable[int, TokenTuple]
     while p.hasError() == false and p.current.kind != TK_EOF:
+        # jit p
         while p.current.isConditional():
-            let conditionType = getConditionalNodeType(p.current)
-            conditionNode = ConditionalNode(conditionType: conditionType)
+            jit p
+            conditionNode = newConditionNode(p.current, meta = (column: p.current.col, indent: nindent(ndepth), line: p.current.line))
             p.parseCondition(conditionNode)
             jump p
 
-        var origin: TokenTuple
-        if p.current.isNestable(): origin = p.current
+        var origin: TokenTuple = p.current
         while p.current.isNestable():
-            !> p # Check for missing `>` nest token, in next token is nestable too
-            # echo p.isChild(p.current, origin)
+            !> p # Check for missing `>` nest token, in case next token is nestable too
+            if not heads.hasKey(p.current.line):
+                if p.isBadNest(heads):
+                    p.setError("Bad indentation. Previous line is not nestable")
+                heads[p.current.line] = p.current
+
             let htmlNodeType = getHtmlNodeType(p.current)
             htmlNode = HtmlNode(
                 nodeType: htmlNodeType,
                 nodeName: getSymbolName(htmlNodeType),
                 meta: (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
             )
+            # echo p.isChild(p.current, origin)
             jump p
             p.setHTMLAttributes(htmlNode)     # set available html attributes
             inc ndepth
 
-        skipNilElement()
-
+        skipNilElement()        # todo template
+        
         if htmlNode != nil and p.parentNode == nil:
             p.parentNode = htmlNode
 
@@ -231,8 +271,8 @@ proc walk(p: var Parser) =
 
         while p.current.line == p.currln:
             if p.current.kind == TK_EOF: break
+            !> p # Check for missing `>` nest token, in case next token is nestable too
             if p.current.isNestable():
-                !> p # Check for missing `>` nest token, in next token is nestable too
                 let htmlNodeType = getHtmlNodeType(p.current)
                 child = HtmlNode(
                     nodeType: htmlNodeType,
@@ -253,7 +293,12 @@ proc walk(p: var Parser) =
                 lazySequence.delete( (maxlen - i) )
                 inc i
             childNodes = lazySequence[0]
-        if childNodes != nil and p.parentNode != nil:
+        
+        if conditionNode != nil:
+            discard
+            # echo pretty(toJson(conditionNode))
+            # p.parentNode.add(conditionNode)
+        elif childNodes != nil and p.parentNode != nil:
             p.parentNode.nodes.add(childNodes)
             childNodes = nil
 
@@ -265,16 +310,20 @@ proc walk(p: var Parser) =
             ndepth = 0
         else: jump p
 
-proc getStatements*[T: Parser](p: T, prettyString = false): string = 
-    ## Retrieve all HtmlNodes available in current document as stringified JSON
-    if prettyString: 
-        result = pretty(toJson(p.statements))
-    else:
-        result = $(toJson(p.statements))
-
-proc getStatements*[T: Parser](p: T, asNodes: bool): seq[HtmlNode] =
+proc getStatements*[T: Parser](p: T, asNodes = true): seq[HtmlNode] =
     ## Return all HtmlNodes available in current document
     result = p.statements
+
+proc getStatements*[T: Parser](p: T, asJsonNode = true): JsonNode =
+    ## Return all HtmlNodes available in current document as JsonNode
+    result = toJson(p.statements)
+
+proc getStatementsStr*[T: Parser](p: T, prettyString = false): string = 
+    ## Retrieve all HtmlNodes available in current document as stringified JSON
+    if prettyString: 
+        result = pretty(p.getStatements(asJsonNode = true))
+    else:
+        result = $(toJson(p.statements))
 
 proc parse*[T: TimEngine](engine: var T, templateObject: TimlTemplate, data: JsonNode = %*{}): Parser {.thread.} =
     var p: Parser = Parser(lexer: Lexer.init(templateObject.getSourceCode))
