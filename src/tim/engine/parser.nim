@@ -92,21 +92,24 @@ proc isConditional*[T: TokenTuple](token: T): bool =
 proc isIdent[T: TokenTuple](token: T): bool =
     result = token.kind == TK_IDENTIFIER
 
-proc isChild[T: Parser](p: var T, childNode, parentNode: TokenTuple): bool =
-    result = childNode.col > parentNode.col
-    if result == true:
-        result = (childNode.col and 1) != 1 and (parentNode.col and 1) != 1
-        if result == false:
-            p.setError("Invalid indentation. Use 2 or 4 spaces to indent your rules")
-
-proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
-    ## Determine if given token kind is TK_EOF
-    result = token.kind == TK_EOF
+proc hasPrev[T: Parser](p: T, h: OrderedTable[int, TokenTuple]): bool =
+    let prevln = if p.current.line == 1: 0 else: p.current.line - 1
+    result = h.hasKey(prevln)
 
 proc getPrev[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): TokenTuple = 
     ## Retrieve previous line from headliners
     let prevln = if p.current.line == 1: 0 else: p.current.line - 1
     result = h[prevln]
+
+proc isChild[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): bool =
+    result = p.hasPrev(h)
+    if result and p.prevlnEndWithContent == false:
+        result = p.getPrev(h).col < p.current.col;
+    # result = childNode.col > parentNode.col
+    # if result == true:
+    #     result = (childNode.col and 1) != 1 and (parentNode.col and 1) != 1
+    #     if result == false:
+    #         p.setError("Bad indentation. Use 2 or 4 spaces to indent your code")
 
 proc isBadNest[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): bool =
     ## Determine if current headline has a bad nest. This applies
@@ -115,6 +118,10 @@ proc isBadNest[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): bool =
         let prev = p.getPrev(h)
         result = prev.col < p.current.col
 
+proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
+    ## Determine if given token kind is TK_EOF
+    result = token.kind == TK_EOF
+
 template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
@@ -122,6 +129,8 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
     var hasAttributes: bool
     var attributes: Table[string, seq[string]]
     while true:
+        # if p.current.kind == TK_NEST_OP:
+        #     break
         if p.current.kind == TK_ATTR_CLASS and p.next.kind == TK_IDENTIFIER:
             # TODO check for wsno for `.` token and prevent mess
             hasAttributes = true
@@ -168,7 +177,8 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
                 htmlNode.nodes.add(htmlTextNode)
                 p.prevlnEndWithContent = true
             break
-        else: break
+        else:
+            break
 
     if hasAttributes:
         for attrName, attrValues in attributes.pairs:
@@ -223,13 +233,25 @@ template jit[T: Parser](p: var T): untyped =
     ## either conditionals, or variable assignments
     if p.enableJit == false: p.enableJit = true
 
+proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
+    ## Rezolve lazy sequence of nodes collected from last inline nest
+    # starting from tail, each node will be assigned to its sibling node
+    # until we reach the begining of the sequence
+    var i = 0
+    var maxlen = (lazySeq.len - 1)
+    while true:
+        if i == maxlen: break
+        lazySeq[(maxlen - (i + 1))].nodes.add(lazySeq[^1])
+        lazySeq.delete( (maxlen - i) )
+        inc i
+    result = lazySeq[0]
+
 proc walk(p: var Parser) =
     var ndepth = 0
     var htmlNode: HtmlNode
     var conditionNode: ConditionalNode
     var heads: OrderedTable[int, TokenTuple]
     while p.hasError() == false and p.current.kind != TK_EOF:
-        # jit p
         while p.current.isConditional():
             jit p
             conditionNode = newConditionNode(p.current, meta = (column: p.current.col, indent: nindent(ndepth), line: p.current.line))
@@ -237,31 +259,33 @@ proc walk(p: var Parser) =
             jump p
 
         var origin: TokenTuple = p.current
-        while p.current.isNestable():
+        while p.current.isNestable() and heads.hasKey(p.current.line) == false:
+            # Handle the headliner of the current line
             !> p # Check for missing `>` nest token, in case next token is nestable too
-            if not heads.hasKey(p.current.line):
-                if p.isBadNest(heads):
-                    p.setError("Bad indentation. Previous line is not nestable")
-                heads[p.current.line] = p.current
-
+            if p.isBadNest(heads):
+                p.setError("Bad indentation. Previous line is not nestable")
+            heads[p.current.line] = p.current
+            # echo p.isChild(heads)
             let htmlNodeType = getHtmlNodeType(p.current)
             htmlNode = HtmlNode(
                 nodeType: htmlNodeType,
                 nodeName: getSymbolName(htmlNodeType),
                 meta: (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
             )
-            # echo p.isChild(p.current, origin)
-            jump p
-            p.setHTMLAttributes(htmlNode)     # set available html attributes
-            inc ndepth
+            if p.next.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER}:
+                jump p
+                p.setHTMLAttributes(htmlNode)     # set available html attributes
+            elif p.next.kind == TK_NEST_OP:
+                if htmlNode != nil and p.parentNode == nil:
+                    p.parentNode = htmlNode
+                inc ndepth
+                jump p, 2
+                break
+            else:
+                p.parentNode = htmlNode
+                jump p
 
-        skipNilElement()        # todo template
-        
-        if htmlNode != nil and p.parentNode == nil:
-            p.parentNode = htmlNode
-
-        # Walks the entire line and collect all HtmlNodes from current nest
-        var lazySequence: seq[HtmlNode]
+        var lazySeq: seq[HtmlNode]
         var child, childNodes: HtmlNode
 
         if p.current.line > p.currln:
@@ -269,8 +293,8 @@ proc walk(p: var Parser) =
             p.currln = p.current.line
             ndepth = 0
 
-        while p.current.line == p.currln:
-            if p.current.kind == TK_EOF: break
+        while p.current.line == p.currln and p.current.isEOF == false:
+            # Walk along the line and collect single-line nests
             !> p # Check for missing `>` nest token, in case next token is nestable too
             if p.current.isNestable():
                 let htmlNodeType = getHtmlNodeType(p.current)
@@ -278,37 +302,31 @@ proc walk(p: var Parser) =
                     nodeType: htmlNodeType,
                     nodeName: getSymbolName(htmlNodeType),
                     meta: (column: p.current.col, indent: nindent(ndepth), line: p.current.line))
-                jump p
-                p.setHTMLAttributes(child)     # set available html attributes
-                lazySequence.add(child)
-                inc ndepth
+
+                if p.next.kind == TK_NEST_OP:
+                    inc ndepth
+                    jump p
+                if p.next.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON}:
+                    jump p
+                    p.setHTMLAttributes(child)
+                    lazySeq.add(child)
+                else: lazySeq.add(child)
             jump p
-
-        if lazySequence.len != 0:
-            var i = 0
-            var maxlen = (lazySequence.len - 1)
-            while true:
-                if i == maxlen: break
-                lazySequence[(maxlen - (i + 1))].nodes.add(lazySequence[^1])
-                lazySequence.delete( (maxlen - i) )
-                inc i
-            childNodes = lazySequence[0]
-        
-        if conditionNode != nil:
-            discard
-            # echo pretty(toJson(conditionNode))
-            # p.parentNode.add(conditionNode)
-        elif childNodes != nil and p.parentNode != nil:
-            p.parentNode.nodes.add(childNodes)
-            childNodes = nil
-
-        registerNode(conditionNode)
 
         if p.current.line > p.currln:
             p.prevln = p.currln
             p.currln = p.current.line
             ndepth = 0
-        else: jump p
+
+        if p.parentNode != nil:
+            if lazySeq.len != 0:
+                childnodes = rezolveInlineNest(lazySeq)
+            if childNodes != nil and p.parentNode != nil:
+                p.parentNode.nodes.add(childNodes)
+            p.statements.add(p.parentNode)
+            p.parentNode = nil
+            childNodes = nil
+
 
 proc getStatements*[T: Parser](p: T, asNodes = true): seq[HtmlNode] =
     ## Return all HtmlNodes available in current document
