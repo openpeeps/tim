@@ -11,11 +11,14 @@ binDir        = "bin"
 # Dependencies
 
 requires "nim >= 1.6.0"
+# requires "toktok"
 requires "watchout"                 # required for compiling Timl to AST on live changes
 requires "bson"                     # required for building the AST to BSON
 # requires "klymene"                # required for compiling Timl as a binary CLI
 
-include ./tasks/watch
+
+after build:
+    exec "clear"
 
 task cli, "Compile for command line":
     exec "nimble build c src/cli.nim --gc:arc "

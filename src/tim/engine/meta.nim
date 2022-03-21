@@ -34,6 +34,8 @@ type
         layouts: TimlTemplateTable
         views: TimlTemplateTable
         partials: TimlTemplateTable
+        minified: bool
+        indent: int
 
     TimException* = object of CatchableError        # raise errors while setup Tim
     TimSyntaxError* = object of CatchableError      # raise errors from Tim language
@@ -46,6 +48,10 @@ type
 #     if templates.hasKey(key):
 #         result = templates[key]
 #     else: raise newException(TimException, "Unable to find a template for \"$1\" key")
+
+proc getIndent*[T: TimEngine](t: T): int = 
+    ## Get preferred indentation size (2 or 4 spaces). Default 4
+    result = t.indent
 
 proc getContents*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve code contents of current TimlTemplate
@@ -76,23 +82,47 @@ proc getAstSource*[T: TimlTemplate](t: T): string {.inline.} =
 proc hasAnySources*[T: TimEngine](e: T): bool {.inline.} =
     ## Determine if current TimEngine has any TimlDirectory
     ## objects stored in layouts, views or partials fields
-    result = len(e.layouts) != 0
+    result = len(e.views) != 0
 
-proc getLayouts*[T: TimEngine](e: var T): TimlTemplateTable =
+proc getLayouts*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of layouts as TimlTemplateTable
     result = e.layouts
 
-proc getViews*[T: TimEngine](e: var T): TimlTemplateTable =
+proc hasLayout*[T: TimEngine](e: T, key: string): bool =
+    let path = e.root & "/layouts/" & key & ".timl"
+    result = e.layouts.hasKey(path)
+
+proc getLayout*[T: TimEngine](e: T, key: string): TimlTemplate =
+    let path = e.root & "/layouts/" & key & ".timl"
+    result = e.layouts[path]
+
+proc getViews*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of views as TimlTemplateTable
     result = e.views
 
-proc getPartials*[T: TimEngine](e: var T): TimlTemplateTable =
+proc hasView*[T: TimEngine](e: T, key: string): bool =
+    ## Determine if view exists
+    let path = e.root & "/views/" & key & ".timl"
+    result = e.views.hasKey(path)
+
+proc getView*[T: TimEngine](e: T, key: string): TimlTemplate =
+    ## Retrieve a view template by key (file name)
+    let path = e.root & "/views/" & key & ".timl"
+    result = e.views[path]
+
+proc getPartials*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of partials as TimlTemplateTable
     result = e.partials
 
 proc getStoragePath*[T: TimEngine](e: var T): string =
     ## Retrieve the absolute path of TimEngine output directory
     result = e.output
+
+proc getBsonPath*[T: TimlTemplate](e: T): string = 
+    result = e.paths.ast
+
+proc shouldMinify*[T: TimEngine](e: T): bool =
+    result = e.minified
 
 proc hashTail(input: string): string =
     result = getMD5(input)
@@ -107,13 +137,13 @@ proc htmlPath(outputDir, filePath: string): string =
     result = getCurrentDir() & "/" & outputDir & "/html/" & hashTail(filePath) & ".html"
     normalizePath(result)
 
-proc writeBson*[E: TimEngine, T: TimlTemplate](e: var E, t: T, ast: string) =
+proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string) =
     ## Write current JSON AST to BSON
     var document = newBsonDocument()
     document["ast"] = ast
     writeFile(t.paths.ast, document.bytes)
 
-proc readBson*[E: TimENgine, T: TimlTemplate](e: var E, t: T): JsonNode =
+proc readBson*[E: TimENgine, T: TimlTemplate](e: E, t: T): JsonNode =
     ## Read current BSON and parse to JSON
     var document: Bson = newBsonDocument(readFile(t.paths.ast))
     result = parseJson(document["ast"])
@@ -147,7 +177,7 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
         else:
             result = files.split("\n")
 
-proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotreload: bool): TimEngine =
+proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotreload: bool, minified = true, indent: int): TimEngine =
     ## Initialize a new Tim Engine by providing the root path directory 
     ## to your templates (layouts, views and partials).
     ## Tim is able to auto-discover your .timl files
@@ -181,6 +211,8 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotrelo
                 for f in files:
                     let fname = splitPath(f)
                     var ftype: TimlTemplateType
+                    var filePath = f
+                    filePath.normalizePath()
                     case tdir:
                     of "layouts": ftype = Layout
                     of "views": ftype = View
@@ -188,21 +220,31 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotrelo
 
                     var tTemplate = TimlTemplate(
                         meta: (name: fname.tail, template_type: ftype),
-                        paths: (file: f, ast: bsonPath(timlInOutDirs[1], f), html: htmlPath(timlInOutDirs[1], f)),
-                        sourceCode: readFile(f)
+                        paths: (
+                            file: filePath,
+                            ast: bsonPath(timlInOutDirs[1], filePath),
+                            html: htmlPath(timlInOutDirs[1], filePath)
+                        ),
+                        sourceCode: readFile(filePath)
                     )
-                    
                     case ftype:
-                    of Layout: lTable[f] = tTemplate
-                    of View: vTable[f] = tTemplate
-                    of Partial: vTable[f] = tTemplate
+                    of Layout: lTable[filePath] = tTemplate
+                    of View: vTable[filePath] = tTemplate
+                    of Partial: vTable[filePath] = tTemplate
         else:
             createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
+    var
+        rootPath = getCurrentDir() & "/" & timlInOutDirs[0]
+        outputPath = getCurrentDir() & "/" & timlInOutDirs[1]
+    rootPath.normalizePath()
+    outputPath.normalizePath()
     result = timEngine(
-        root: timlInOutDirs[0],
-        output: timlInOutDirs[1],
+        root: rootPath,
+        output: outputPath,
         layouts: lTable,
         views: vTable,
-        partials: pTable
+        partials: pTable,
+        minified: minified,
+        indent: indent
     )

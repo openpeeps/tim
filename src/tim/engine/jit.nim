@@ -23,7 +23,8 @@ proc indentIfEnabled[T: JIT](c: var T, meta: JsonNode, fixTail = false) =
 
 proc hasNodes[T: JsonNode](node: T): bool =
     ## Determine if current JsonNode has any child nodes
-    result = node["nodes"].len != 0
+    if node.hasKey("htmlNode"): result = node["htmlNode"]["nodes"].len != 0
+    else:                       result = node["nodes"].len != 0
 
 proc hasAttributes[T: JsonNode](node: T): bool =
     ## Determine if current JsonNode has any HTML attributes attached 
@@ -32,9 +33,8 @@ proc hasAttributes[T: JsonNode](node: T): bool =
 proc writeAttributes[T: JIT](c: var T, node: JsonNode) =
     ## Inser HTML Attributes to current JsonNode
     let total: int = (node["attributes"].len - 1)
-    for aobj in node["attributes"].items:
-        for attrName in aobj.keys():
-            add c.html, ("$1=\"$2\"" % [attrName, aobj[attrName].getStr]).indent(1)
+    for attr in node["attributes"].items():
+        add c.html, ("$1=\"$2\"" % [attr["name"].getStr, attr["value"].getStr]).indent(1)
 
 proc hasIDAttribute[T: JsonNode](node: T): bool =
     ## Determine if current JsonNode has an HTML ID attribute attached to it
@@ -79,10 +79,15 @@ proc program[T: JIT](c: var T, childNodes: JsonNode = %*[], fixBr = false) =
             c.writeText(mainNode)
         else:
             if fixBr: add c.html, "\n"
-            c.writeTagStart(mainNode)                   # start tag
-            if mainNode.hasNodes():                     # parse child nodes, if any
-                c.program(mainNode["nodes"])               # TODO iteration over recursion
-            c.writeTagEnd(mainNode, true)               # end tag
+            if mainNode.hasNodes():                                     # parse child nodes, if any
+                if mainNode.hasKey("htmlNode"):
+                    c.writeTagStart(mainNode["htmlNode"])
+                    c.program(mainNode["htmlNode"]["nodes"])
+                    c.writeTagEnd(mainNode["htmlNode"], true)
+                else:
+                    c.writeTagStart(mainNode)
+                    c.program(mainNode["nodes"])
+                    c.writeTagEnd(mainNode, true)
         inc i
 
 proc init*[T: typedesc[JIT]](jit: T, jsonContents: JsonNode, minified: bool, asNode = true): JIT =

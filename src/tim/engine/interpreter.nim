@@ -59,6 +59,10 @@ proc getVar*[T: Interpreter](i: var T, key: string): JsonNode =
     if i.hasVar(key): result = i.data[key]
     else: result = newJNull()
 
+proc evaluate*[T: Interpreter](i: var T) =
+    ## Procedure for evulating conditional statements, data assignment,
+    ## iteration statements and other dynamic things.
+
 proc init*[T: typedesc[Interpreter]](newInterpreter: T, data: JsonNode): Interpreter =
     ## Initialize a Tim Interpreter
     var i = newInterpreter(data: data)

@@ -153,7 +153,7 @@ type
         attributes*: seq[HtmlAttribute]
         nodes*: seq[HtmlNode]
         meta*: MetaNode
-        conditional*: ConditionalNode
+        # conditional*: ConditionalNode
 
     VariableContentType* = enum
         ValueInvalid
@@ -203,6 +203,18 @@ type
         nodes*: seq[HtmlNode]
         meta*: MetaNode
 
+    NodeType* = enum
+        Conditional
+        HtmlElement
+    
+    Node* = ref object
+        nodeName*: string                       # symbol name of NodeType
+        case nodeType*: NodeType                # get the NodeType from current enum
+        of Conditional:
+            conditionNode*: ConditionalNode
+        of HtmlElement:
+            htmlNode*: HtmlNode
+
 proc isEmptyAttribute*[T: HtmlAttribute](attr: var T): bool = attr.name.len == 0 and attr.value.len == 0
 proc isEmptyAttribute*[T: IDAttribute](attr: var T): bool = attr.value.len == 0
 
@@ -222,8 +234,13 @@ proc getSymbolName*[T: VariableContentType](nodeType: T): string =
     result = toUpperAscii(nodeName[5 .. ^1])
 
 proc getSymbolName*[T: ComparatorType](nodeType: T): string =
+    ## Retrieve the stringified symbol name of ComparatorType
     var nodeName = nodeType.symbolName
     result = toUpperAscii(nodeName)
+
+proc getSymbolName*[T: NodeType](nodeType: T): string =
+    ## Retrieve the stringified symbol name of NodeType
+    result = nodeType.symbolName
 
 proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType = 
     result = case token.kind:
@@ -357,7 +374,7 @@ proc getConditionalNodeType*[T: TokenTuple](token: T): ConditionalType =
     else: ConditionInvalid
 
 proc newConditionNode*(nodeType: TokenTuple, meta: MetaNode): ConditionalNode = 
-    let ctype = getConditionalNodeTYpe(nodeType)
+    let ctype = getConditionalNodeType(nodeType)
     result = ConditionalNode(
         conditionType: ctype,
         nodeName: getSymbolName(ctype),
