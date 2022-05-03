@@ -10,7 +10,7 @@ _Work in progress_
 - [x] Emmet-syntax 🤓
 - [x] Multi-threading | Low memory foot-print 🍃
 - [x] Tim as **Nimble library** for Nim programming 👑
-- [x] **Tim as Binary** for calling from other programming languages 🥳
+- [x] **Tim as a standalone application** 🥳
 - [ ] `layouts`, `views` and `partials` logic
 - [ ] Variable Assignment
 - [ ] `for` Loops & Iterations
@@ -19,6 +19,7 @@ _Work in progress_
 - [ ] Just-in-time Compilation
 - [ ] Semantic Checker & SEO Optimizer
 - [ ] Language Extension `.timl` 😎
+- [x] Lexer based on [Toktok library](https://github.com/openpeep/toktok)
 - [x] Open Source | `MIT` License
 
 ## Installing
@@ -162,11 +163,81 @@ The following Comparison Operators are valid
 - [x] Greater than or Equal `$a >= $b`
 - [x] Less than or Equal `$a <= $b`
 
+
+# Code Syntax
+<details>
+    <summary>Sublime Text 4</summary>
+
+```yaml
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/syntax.html
+file_extensions:
+  - timl
+scope: source.timl
+variables:
+  ident: '[A-Za-z_][A-Za-z_0-9]*'
+contexts:
+  main:
+    # Strings begin and end with quotes, and use backslashes as an escape
+    # character
+    - match: '"'
+      scope: punctuation.definition.string.begin.timl
+      push: double_quoted_string
+
+    # Tim Engine allows single-line comments starting with `#` to end of line
+    - match: '#'
+      scope: punctuation.definition.comment.timl
+      push: line_comment
+
+    - match: '\|'
+      scope: markup.bold keyword.operator.logical
+
+    - match: '\*'
+      scope: entity.name.tag
+
+    - match: '>'
+      scope: punctuation
+
+    - match: ':'
+      scope: markup.bold variable.language
+
+    - match: '='
+      scope: markup.bold keyword.operator.assignment.timl
+
+    - match: '\b(html|head|meta|link|script|main|section|article|aside|div)\b'
+      scope: entity.name.tag.timl
+
+    - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span)\b'
+      scope: entity.name.type.timl
+
+    - match: '\b(-)?[0-9.]+\b'
+      scope: constant.numeric.timl
+
+    - match: '\b{{ident}}\b'
+      scope: punctuation.definition
+
+  double_quoted_string:
+    - meta_scope: string.quoted.double.timl
+    - match: '\\.'
+      scope: constant.character.escape.timl
+    - match: '"'
+      scope: punctuation.definition.string.end.timl
+      pop: true
+
+  line_comment:
+    - meta_scope: comment.line.timl
+    - match: $
+      pop: true
+```
+
+</details>
+
 ## Roadmap
 
 ### `0.1.0`
-- [ ] Lexer, Parser, AST, Compiler
-- [ ] Create Sublime Syntax
+- [x] Lexer, Parser, AST, Compiler
+- [x] Create Sublime Syntax
 - [ ] Create VSCode Syntax (yak)
 - [ ] Add tests
 - [ ] Talk about it on ycombinator / stackoverflow / producthunt
@@ -181,5 +252,5 @@ If you like this project you can contribute to Tim project by opening new issues
 
 ### 🎩 License
 Illustration of Tim Berners-Lee [made by Kagan McLeod](https://www.kaganmcleod.com).<br><br>
-This is an Open Source Software released under `MIT` license. [Developed by Humans from OpenPeep](https://github.com/openpeep).<br>
+This is an Open Source Software released under `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
 Copyright &copy; 2022 OpenPeep & Contributors &mdash; All rights reserved.
