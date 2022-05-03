@@ -1,9 +1,15 @@
+# 
 # High-performance, compiled template engine inspired by Emmet syntax.
+# 
+# Tim Engine can be used as a Nim library via Nimble,
+# or as a binary application for integrating Tim Engine with
+# other apps and programming languages.
 # 
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
 # https://github.com/openpeep/tim
-import std/[json, jsonutils, tables]
+
+import std/[json, jsonutils, tables, with]
 import ./tokens, ./lexer, ./ast, ./interpreter
 
 from ./meta import TimEngine, TimlTemplate, getContents, getFileData
@@ -21,13 +27,21 @@ type
         statements: seq[Node]
         prevln, currln, nextln: int
         prevlnEndWithContent: bool
-        parentNode, prevParentNode, subNode: HtmlNode
+        parentNode, prevParentNode, prevNode, subNode: HtmlNode
         interpreter*: Interpreter
         enableJit: bool
 
-proc setError[T: Parser](p: var T, msg: string) = p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
-proc hasError*[T: Parser](p: var T): bool = p.error.len != 0
-proc getError*[T: Parser](p: var T): string = p.error
+proc setError[T: Parser](p: var T, msg: string) =
+    p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
+
+proc hasError*[T: Parser](p: var T): bool =
+    result = p.error.len != 0 or p.lexer.error.len != 0
+
+proc getError*[T: Parser](p: var T): string = 
+    if p.error.len != 0:
+        result = p.error
+    elif p.lexer.error.len != 0:
+        result = p.lexer.error
 
 proc hasJIT*[T: Parser](p: var T): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
@@ -46,12 +60,9 @@ proc isElement(): bool =
     ## TODO
     discard
 
-proc isAttributeName(): bool =
+proc isAttributeOrText(token: TokenTuple): bool =
     ## Determine if current token is an attribute name based on its siblings.
-    ## For example `title` is by default considered an HTMLElement,
-    ## but it can be an HTMLAttribute too.
-    ## TODO
-    discard
+    result = token.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON}
 
 proc isInline[T: TokenTuple](token: T): bool =
     ## Determine if current token is an inliner HTML Node
@@ -122,7 +133,7 @@ proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
     ## Determine if given token kind is TK_EOF
     result = token.kind == TK_EOF
 
-template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
+template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
     var id: IDAttribute
@@ -159,8 +170,10 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
             jump p, 2
         elif p.current.kind == TK_COLON:
             if p.next.kind != TK_STRING:
-                p.setError("Missing string content for \"$1\" node" % [p.prev.value])
-                break
+                # Handle string content assignment or enter in a multi dimensional nest
+                if p.next.line > p.current.line == false:
+                    p.setError("Missing string content for \"$1\" node" % [p.prev.value])
+                    break
             else:
                 jump p
                 if (p.current.line == p.next.line) and not p.next.isEOF:
@@ -177,7 +190,6 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: HtmlNode): untyped =
             break
         else:
             break
-
     if hasAttributes:
         for attrName, attrValues in attributes.pairs:
             htmlNode.attributes.add(HtmlAttribute(name: attrName, value: attrValues.join(" ")))
@@ -244,6 +256,27 @@ proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
         inc i
     result = lazySeq[0]
 
+template parseNewNode(p: var Parser, ndepth: var int, childNodes: var seq[HtmlNode], isInlineNest = false) =
+    let htmlNodeType = getHtmlNodeType(p.current)
+    var htmlNode = new HtmlNode
+    with htmlNode:
+        nodeType = htmlNodeType
+        nodeName = htmlNodeType.getSymbolName
+        meta = (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
+    
+    if p.next.kind == TK_NEST_OP:
+        jump p
+        inc ndepth
+    
+    if p.next.isAttributeOrText():
+        # parse html attributes, `id`, `class`, or any other custom attributes
+        jump p
+        inc ndepth
+        p.setHTMLAttributes(htmlNode)
+    
+    if isInlineNest:
+        childNodes.add htmlNode
+
 proc walk(p: var Parser) =
     var 
         ndepth = 0
@@ -251,110 +284,58 @@ proc walk(p: var Parser) =
         htmlNode: HtmlNode
         conditionNode: ConditionalNode
         heads: OrderedTable[int, TokenTuple]
-    
     while p.hasError() == false and p.current.kind != TK_EOF:
-        if p.current.isNestable():
-            let htmlNodeType = getHtmlNodeType(p.current)
-
         var origin: TokenTuple = p.current
         while p.current.isNestable() and heads.hasKey(p.current.line) == false:
             # Handle current line headliner
             !> p # Ensure a good nest
-            heads[p.current.line] = p.current
+            p.currln = p.current.line
             let htmlNodeType = getHtmlNodeType(p.current)
-            htmlNode = HtmlNode(
-                nodeType: htmlNodeType,
-                nodeName: getSymbolName(htmlNodeType),
-                meta: (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
-            )
-
-            if origin.col == 0: p.prevParentNode = nil      # reset Node from `prevParentNode`
-
-            if p.next.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER}:
+            heads[p.current.line] = p.current   # add current HTML element to heads table
+            htmlNode = new HtmlNode
+            with htmlNode:
+                nodeType = htmlNodeType
+                nodeName = getSymbolName(htmlNodeType)
+                meta = (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
+            
+            if p.next.isAttributeOrText():
                 jump p
                 p.setHTMLAttributes(htmlNode)     # set available html attributes
-            elif p.next.kind == TK_NEST_OP:
-                if htmlNode != nil and p.parentNode == nil:
-                    if origin.col == 0:
-                        p.parentNode = htmlNode
-                    else:
-                        if p.prevParentNode == nil:
-                            p.parentNode = htmlNode
-                        else:
-                            p.subNode = htmlNode
-                inc ndepth
+            
+            p.parentNode = htmlNode
+            if p.next.kind == TK_NEST_OP:
+                # set as current ``htmlNode`` as ``parentNode`` in case current
+                # node has opened an inline nestable elements with `>`
                 jump p, 2
+                inc ndepth
                 break
-            else:
-                if origin.col == 0:
-                    p.parentNode = htmlNode
-                else:
-                    if p.prevParentNode == nil:
-                        p.parentNode = htmlNode
-                    else:
-                        p.subNode = htmlNode
-                jump p
-
-        var lazySeq: seq[HtmlNode]
-        var child, childNodes: HtmlNode
-
-        if p.current.line > p.currln:
-            p.prevln = p.currln
-            p.currln = p.current.line
-            ndepth = 0
-
-        while p.current.line == p.currln and p.current.isEOF == false:
-            # Walk along the line and collect single-line nests
-            !> p # Ensure a good nest
-            if p.current.isNestable():
-                let htmlNodeType = getHtmlNodeType(p.current)
-                child = HtmlNode(
-                    nodeType: htmlNodeType,
-                    nodeName: getSymbolName(htmlNodeType),
-                    meta: (column: p.current.col, indent: nindent(ndepth), line: p.current.line))
-
-                if origin.col == 0: p.prevParentNode = nil      # reset Node from `prevParentNode`
-                if p.next.kind == TK_NEST_OP:
-                    inc ndepth
-                    jump p
-                if p.next.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON}:
-                    jump p
-                    p.setHTMLAttributes(child)
-                    lazySeq.add(child)
-                else: lazySeq.add(child)
             jump p
 
-        if p.current.line > p.currln:
-            p.prevln = p.currln
-            p.currln = p.current.line
-            if p.parentNode == nil:
-                ndepth = 0
+        var childNodes: HtmlNode
+        var deferChildSeq: seq[HtmlNode]
+        while p.current.line == p.currln and p.current.isEOF == false:
+            # Walk along the line and collect single-line nests
+            if p.current.isNestable():
+                p.parseNewNode(ndepth, deferChildSeq, true)
+            jump p
 
-        if p.parentNode != nil:
-            if lazySeq.len != 0:
-                childNodes = rezolveInlineNest(lazySeq)
-            if childNodes != nil and p.parentNode != nil:
+        if htmlNode != nil:
+            if deferChildSeq.len != 0:
+                childNodes = rezolveInlineNest(deferChildSeq)
+            if childNodes != nil:
                 p.parentNode.nodes.add(childNodes)
-            if conditionNode != nil:
-                conditionNode.nodes.add(p.parentNode)
-                node = Node(nodeName: getSymbolName(Conditional), nodeType: Conditional, conditionNode: conditionNode)
-                p.statements.add(node)
-                conditionNode = nil
-            else:
-                node = Node(nodeName: getSymbolName(HtmlElement), nodeType: HtmlElement, htmlNode: p.parentNode)
-                p.statements.add(node)
-            p.prevParentNode = p.parentNode
-            node = nil
-            childNodes = nil
+
+            # Create a new AST node for current HtmlNode and its child elements
+            node = new Node
+            with node:
+                nodeName = getSymbolName(HtmlElement)
+                nodeType = HtmlElement
+                htmlNode = if p.parentNode != nil: p.parentNode else: htmlNode
+            p.statements.add(node)  # add current node to statements
+            # reset to default state
             p.parentNode = nil
-        elif p.prevParentNode != nil:
-            # Handle sub nodes for multi-line nests
-            if lazySeq.len != 0:
-                childNodes = rezolveInlineNest(lazySeq)
-            if childNodes != nil and p.subNode != nil:
-                p.subNode.nodes.add(childNodes)
-            p.prevParentNode.nodes.add(p.subNode)
-            node = nil
+            htmlNode = nil
+            ndepth = 0
 
 proc getStatements*[T: Parser](p: T, asNodes = true): seq[Node] =
     ## Return all HtmlNodes available in current document

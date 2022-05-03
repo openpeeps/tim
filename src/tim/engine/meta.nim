@@ -6,7 +6,7 @@
 import bson
 import std/[tables, json, md5]
 
-from std/strutils import `%`, strip, split
+from std/strutils import `%`, strip, split, contains
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
 from std/os import getCurrentDir, normalizePath, dirExists,
                    fileExists, walkDirRec, splitPath, createDir
@@ -100,15 +100,25 @@ proc getViews*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of views as TimlTemplateTable
     result = e.views
 
+proc getViewPath[T: TimEngine](e: T, key: string): string =
+    # Get absolute path of a view based on given key.
+    var tree: seq[string]
+    result = e.root & "/views/$1.timl"
+    if key.contains("."):
+        tree = key.split(".")
+        result = result % [tree.join("/")]
+    else:
+        result = result % [key]
+
 proc hasView*[T: TimEngine](e: T, key: string): bool =
     ## Determine if view exists
-    let path = e.root & "/views/" & key & ".timl"
-    result = e.views.hasKey(path)
+    ## This procedure provides view access via dot-annotation
+    result = e.views.hasKey(e.getViewPath(key))
 
 proc getView*[T: TimEngine](e: T, key: string): TimlTemplate =
-    ## Retrieve a view template by key (file name)
-    let path = e.root & "/views/" & key & ".timl"
-    result = e.views[path]
+    ## Retrieve a view template by key.
+    ## This procedure provides view access via dot-annotation
+    result = e.views[e.getViewPath(key)]
 
 proc getPartials*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of partials as TimlTemplateTable
@@ -119,12 +129,15 @@ proc getStoragePath*[T: TimEngine](e: var T): string =
     result = e.output
 
 proc getBsonPath*[T: TimlTemplate](e: T): string = 
+    ## Get the absolute path of BSON AST file
     result = e.paths.ast
 
 proc shouldMinify*[T: TimEngine](e: T): bool =
+    ## Determine if Tim Engine should minify the final HTML
     result = e.minified
 
 proc hashTail(input: string): string =
+    ## Create a MD5 hashed version of given input string
     result = getMD5(input)
 
 proc bsonPath(outputDir, filePath: string): string =

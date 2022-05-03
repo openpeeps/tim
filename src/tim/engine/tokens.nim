@@ -1,4 +1,9 @@
+# 
 # High-performance, compiled template engine inspired by Emmet syntax.
+# 
+# Tim Engine can be used as a Nim library via Nimble,
+# or as a binary application for integrating Tim Engine with
+# other apps and programming languages.
 # 
 # MIT License
 # Copyright (c) 2022 George Lemon from OpenPeep
