@@ -1,26 +1,32 @@
 # High-performance, compiled template engine inspired by Emmet syntax.
-# 
-# MIT License
-# Copyright (c) 2022 George Lemon from OpenPeep
-# https://github.com/openpeep/tim
+#
+# (c) 2022 Tim Engine is released under MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/tim
 
-import tim/engine/[parser, compiler, jit, meta]
+import tim/engine/[parser, compiler, meta]
 import std/[tables, json, strutils]
 
 import bson
 
 from tim/engine/ast import HtmlNode
-export parser, meta, jit, compiler
+export parser, meta, compiler
 
 proc render*[T: TimEngine](engine: T, key: string, data: JsonNode = %*{}): string =
-    ## Renders a template view with or without Json data
+    ## Renders a template view with or without a ``JSON`` data.
     ## Note that Tim is auto discovering your .timl templates inside /views directory,
-    ## so key parameter reflects the name of the view (filename) without .timl extension.
-    ## In this case for rendering `homepage.timl` you must specify `homepage`
+    ## so the ``key`` parameter reflects the name of the view (filename) without
+    ## specifying the file extension ``.timl``.
+    ##
+    ## Example, for rendering ``homepage.timl`` you must specify ``homepage``.
+    ## 
+    ## If you want to render a ``contact.timl`` view that is stored
+    ## in a sub directory like ``views/members``, then  you can use dot annotation.
+    ## Example ``engine.render("members.contact")``
     if engine.hasView(key):
         var responseStr = ""
         var layout: TimlTemplate = engine.getView(key)
-        let c = JIT.init(engine.readBson(layout), minified = engine.shouldMinify())
+        let c = Compiler.init(engine.readBson(layout), minified = engine.shouldMinify())
         # add responseStr, """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous"></head><body>"""
         add responseStr, c.getHtml
         # add responseStr, "</body></html>"
@@ -35,11 +41,11 @@ proc precompile*[T: TimEngine](engine: T, debug = false) =
 
     if engine.hasAnySources:
         for id, view in engine.getViews().pairs():
-            var p: Parser = engine.parse(view, data = data)
+            var p: Parser = engine.parse(view)
             if p.hasError():
                 raise newException(TimSyntaxError, "\n"&p.getError())
 
-            echo p.getStatementsStr(prettyString = true)
+            # echo p.getStatementsStr(prettyString = true)
             # echo engine.readBson(view)
             # AST Nodes to BSON AST
             # BSON files are saved to provided `output` path under `bson` directory.
@@ -58,6 +64,7 @@ proc precompile*[T: TimEngine](engine: T, debug = false) =
                 # let c = Compiler.init(parser = p, minified = false, asNodes = true)
                 # echo c.getHtml
             # Save the Abstract Syntax Tree of the current template as BSON
+            # echo p.getStatementsStr(prettyString = true)
             engine.writeBson(view, p.getStatementsStr())
     else: raise newException(TimException, "Unable to find any Timl templates")
 
@@ -73,4 +80,4 @@ when isMainModule:
 
     precompile(engine)
 
-    echo engine.render("test")
+    echo engine.render("members.contact")
