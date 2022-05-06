@@ -14,6 +14,7 @@ requires "nim >= 1.6.0"
 # requires "toktok"
 requires "watchout"                 # required for compiling Timl to AST on live changes
 requires "bson"                     # required for building the AST to BSON
+requires "jsony"
 # requires "klymene"                # required for compiling Timl as a binary CLI
 
 
