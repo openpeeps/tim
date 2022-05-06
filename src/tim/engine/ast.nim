@@ -153,7 +153,6 @@ type
         attributes*: seq[HtmlAttribute]
         nodes*: seq[HtmlNode]
         meta*: MetaNode
-        # conditional*: ConditionalNode
 
     VariableContentType* = enum
         ValueInvalid
@@ -214,6 +213,9 @@ type
             conditionNode*: ConditionalNode
         of HtmlElement:
             htmlNode*: HtmlNode
+
+    Program* = object
+        nodes*: seq[Node]
 
 proc isEmptyAttribute*[T: HtmlAttribute](attr: var T): bool = attr.name.len == 0 and attr.value.len == 0
 proc isEmptyAttribute*[T: IDAttribute](attr: var T): bool = attr.value.len == 0

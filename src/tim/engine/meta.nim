@@ -156,10 +156,10 @@ proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string) =
     document["ast"] = ast
     writeFile(t.paths.ast, document.bytes)
 
-proc readBson*[E: TimENgine, T: TimlTemplate](e: E, t: T): JsonNode =
+proc readBson*[E: TimENgine, T: TimlTemplate](e: E, t: T): string =
     ## Read current BSON and parse to JSON
     var document: Bson = newBsonDocument(readFile(t.paths.ast))
-    result = parseJson(document["ast"])
+    result = document["ast"]
 
 proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
     ## Short hand procedure for executing shell commands via execProcess

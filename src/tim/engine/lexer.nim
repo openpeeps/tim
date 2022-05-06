@@ -53,8 +53,10 @@ proc init*[T: typedesc[Lexer]](lex: T; fileContents: string): Lexer =
 proc handleNewLine[T: Lexer](lex: var T) =
     ## Handle new lines
     case lex.buf[lex.bufpos]
-    of '\c': lex.bufpos = lex.handleCR(lex.bufpos)
-    of '\n': lex.bufpos = lex.handleLF(lex.bufpos)
+    of '\c':
+        lex.bufpos = lex.handleCR(lex.bufpos)
+    of '\n':
+        lex.bufpos = lex.handleLF(lex.bufpos)
     else: discard
 
 proc skipToEOL[T: Lexer](lex: var T): int =
@@ -252,8 +254,7 @@ proc handleIdent[T: Lexer](lex: var T) =
             add lex.token, lex.buf[lex.bufpos]
             inc lex.bufpos
         else: break
-
-    skip lex
+    # skip lex
     if lex.buf[lex.bufpos] == '=':
         lex.kind = TK_IDENTIFIER
     else:
