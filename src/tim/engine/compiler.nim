@@ -19,14 +19,17 @@ type
         html: Rope
             ## A rope containg HTML code
 
-proc indentLine[T: Compiler](c: var T, meta: MetaNode, fixTail = false, isDeferred = false) =
+proc indentLine[T: Compiler](c: var T, meta: MetaNode, fixTail = false, brAfter = true, shiftIndent = false) =
     if c.minified == false:
         if meta.column != 0 and meta.indent != 0:
             var i: int
             i = meta.indent
             if fixTail:
-                i = if isDeferred: i - 4 else: i - 2
-            add c.html, indent("\n", i)
+                i = if shiftIndent: i - 4 else: i - 2
+            if brAfter:
+                add c.html, indent("\n", i)
+            else:
+                add c.html, indent("", i)
 
 proc hasAttributes(node: HtmlNode): bool =
     ## Determine if current ``HtmlNode`` has any HTML attributes
@@ -60,88 +63,69 @@ proc openTag[T: Compiler](compiler: var T, tag: string, node: HtmlNode) =
         compiler.writeAttributes(node)
     add compiler.html, ">"
 
-proc closeTag[T: Compiler](compiler: var T, tag: string, metaNode: MetaNode, isDeferred = false) =
-    ## Close HTML tag
+proc closeTag[T: Compiler](compiler: var T, tag: string, metaNode: MetaNode, brAfter = true, shiftIndent = false) =
+    ## Close an HTML tag
     add compiler.html, "</" & toLowerAscii(tag) & ">"
-    compiler.indentLine(metaNode, true, isDeferred)
+    compiler.indentLine(metaNode, fixTail = true, brAfter = brAfter, shiftIndent = shiftIndent)
 
 proc getLineIndent[C: Compiler](compiler: C, index: int): int =
     result = compiler.program.nodes[index].htmlNode.meta.column
 
-proc isDeferringClosingTag[C: Compiler](compiler: C, node: HtmlNode): bool =
-    ## Determine if next HtmlNode is child of current HtmlNode
-    ## In this case will defer the closing tag
-    let index = node.meta.line - 1
-    # if node.nodes.len == 1:    
-    #     if node.nodes[0].nodeType == HtmlText:
-    #         # echo node.nodeName
-    #         return false
-
+proc closeTagIfNotDeferred[C: Compiler](compiler: var C, htmlNode: HtmlNode, tag: string, index:int) = 
     let currentIndent = compiler.getLineIndent(index)
     try:
         let nextIndent = compiler.getLineIndent(index + 1)
         if nextIndent > currentIndent:
-            if node.nodes.len == 1:
-                if node.nodes[0].nodeType == Htmltext:
-                    return false
-            result = true
+            compiler.deferTags.add (tag: tag, meta: htmlNode.meta)
         elif nextIndent == currentIndent:
-            result = true
+            compiler.closeTag(tag, htmlNode.meta, shiftIndent = true, brAfter = false)
     except:
-        result = false
-
-proc closeTagIfNotDeferred[C: Compiler](compiler: var C, htmlNode: HtmlNode, tag: string, lineno: int) =
-    ## Handles closing tags based on depth level
-    if compiler.isDeferringClosingTag(htmlNode):
-        compiler.deferTags.add (tag: tag, meta: htmlNode.meta)
-    else:
-        compiler.closeTag(tag, htmlNode.meta)
+        compiler.closeTag(tag, htmlNode.meta, brAfter = true)
         if compiler.deferTags.len != 0:
-            var i = 0
             while true:
                 if compiler.deferTags.len == 0: break
-                let dtag = compiler.deferTags[i]
-                compiler.closeTag(dtag.tag, dtag.meta)
+                let dtag = compiler.deferTags[0]
+                compiler.closeTag(dtag.tag, dtag.meta, brAfter = true)
                 compiler.deferTags.delete(0)
 
-proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], lineno: int)
+proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], index: int)
 
-proc writeElement[T: Compiler](compiler: var T, htmlNode: HtmlNode, lineno: int) =
+proc writeElement[T: Compiler](compiler: var T, htmlNode: HtmlNode, index: int) =
     ## Write an HTML element and its sub HTML nodes, if any
     let tag = htmlNode.nodeName
     compiler.openTag(tag, htmlNode)
     if htmlNode.nodes.len != 0:
-        compiler.writeLine(htmlNode.nodes, lineno)
-    compiler.closeTagIfNotDeferred(htmlNode, tag, lineno)
+        compiler.writeLine(htmlNode.nodes, index)
+    compiler.closeTagIfNotDeferred(htmlNode, tag, index)
 
 proc writeTextElement[T: Compiler](compiler: var T, node: HtmlNode) =
     ## Write ``HtmlText`` content
     add compiler.html, node.text
 
-proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], lineno: int) =
+proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], index: int) =
     ## Write current line of HTML Nodes.
     for node in nodes:
         case node.nodeType:
         of HtmlText:
             compiler.writeTextElement(node)
         else:
-            compiler.writeElement(node, lineno)
+            compiler.writeElement(node, index)
 
 proc writeLine[C: Compiler](compiler: var C, fixBr = false) =
     ## Main procedure for writing HTMLelements line by line
     ## based on given BSON Abstract Syntax Tree
-    var lineno = 0
+    var index = 0
     compiler.line = 1
     let nodeslen = compiler.program.nodes.len
-    while lineno < nodeslen:
-        let node = compiler.program.nodes[lineno]
+    while index < nodeslen:
+        let node = compiler.program.nodes[index]
         if node.nodeType == NodeType.HtmlElement:
             let tag = node.htmlNode.nodeName
             compiler.openTag(tag, node.htmlNode)
             if node.htmlNode.nodes.len != 0:
-                compiler.writeLine(node.htmlNode.nodes, lineno)
-            compiler.closeTagIfNotDeferred(node.htmlNode, tag, lineno)
-        inc lineno
+                compiler.writeLine(node.htmlNode.nodes, index)
+            compiler.closeTagIfNotDeferred(node.htmlNode, tag, index)
+        inc index
 
 proc init*[C: typedesc[Compiler]](Compiler: C, astNodes: string, minified: bool, asNode = true): Compiler =
     ## By default, Tim engine output is pure minified.
