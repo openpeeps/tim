@@ -8,6 +8,7 @@ type
     Compiler* = object
         index, line: int
             ## The line number that is currently compiling
+        baseIndent: int
         minified: bool
             ## Whether to minify the output HTML or not
         program: Program
@@ -19,17 +20,29 @@ type
         html: Rope
             ## A rope containg the entire HTML code
 
-proc indentLine[T: Compiler](c: var T, meta: MetaNode, fixTail = false, brAfter = true, shiftIndent = false) =
-    if c.minified == false:
-        if meta.column != 0 and meta.indent != 0:
-            var i: int
-            i = meta.indent
-            if fixTail:
-                i = if shiftIndent: i - 4 else: i - 2
-            if brAfter:
-                add c.html, indent("\n", i)
-            else:
-                add c.html, indent("", i)
+proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, brAfter = true, shiftIndent = false) =
+    if meta.indent != 0:
+        var i: int
+        i = meta.indent
+        if fixTail:
+            i = if shiftIndent: i - 4 else: i - 2
+        if compiler.baseIndent != 0:
+            i = i - compiler.baseIndent * 2
+        if brAfter:
+            add compiler.html, indent("\n", i)
+        else:
+            add compiler.html, indent("", i)
+
+proc indentEndLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail = false, brAfter = false, shiftIndent = false) =
+    if meta.indent != 0:
+        var i: int
+        i = meta.indent
+        if fixTail:
+            i = if shiftIndent: i - 4 else: i - 2
+        if brAfter:
+            add compiler.html, indent("\n", i)
+        else:
+            add compiler.html, indent("", i)
 
 proc hasAttributes(node: HtmlNode): bool =
     ## Determine if current ``HtmlNode`` has any HTML attributes
@@ -55,7 +68,8 @@ proc getHtml*[T: Compiler](c: T): string {.inline.} =
 
 proc openTag[T: Compiler](compiler: var T, tag: string, node: HtmlNode) =
     ## Open tag of the current JsonNode element
-    compiler.indentLine(node.meta)
+    if not compiler.minified:
+        compiler.indentLine(node.meta)
     add compiler.html, "<" & toLowerAscii(tag)
     if node.hasIDAttribute:
         compiler.writeIDAttribute(node)
@@ -66,7 +80,8 @@ proc openTag[T: Compiler](compiler: var T, tag: string, node: HtmlNode) =
 proc closeTag[T: Compiler](compiler: var T, tag: string, metaNode: MetaNode, brAfter = true, shiftIndent = false) =
     ## Close an HTML tag
     add compiler.html, "</" & toLowerAscii(tag) & ">"
-    compiler.indentLine(metaNode, fixTail = true, brAfter = brAfter, shiftIndent = shiftIndent)
+    if not compiler.minified:
+        compiler.indentEndLine(metaNode, fixTail = true, brAfter = brAfter, shiftIndent = shiftIndent)
 
 proc getLineIndent[C: Compiler](compiler: C, index: int): int =
     result = compiler.program.nodes[index].htmlNode.meta.column
@@ -88,11 +103,13 @@ proc closeTagIfNotDeferred[C: Compiler](compiler: var C, htmlNode: HtmlNode, tag
         if nextIndent > currentIndent:
             compiler.deferTags.add (tag: tag, meta: htmlNode.meta) 
         elif nextIndent == currentIndent:
+            inc compiler.baseIndent
             compiler.closeTag(tag, htmlNode.meta, shiftIndent = true, brAfter = false)
         elif nextIndent == 0:
+            compiler.baseIndent = 0
             compiler.closeDeferredTags(brAfterAll = true)
-    except:
-        compiler.closeTag(tag, htmlNode.meta, brAfter = true)
+    except IndexDefect:
+        compiler.closeTag(tag, htmlNode.meta, brAfter = true, shiftIndent = true)
         compiler.closeDeferredTags()
 
 proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], index: int)      # defer proc
