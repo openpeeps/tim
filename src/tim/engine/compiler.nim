@@ -13,11 +13,11 @@ type
         program: Program
             ## All Nodes statements under a ``Program`` object instnace
         deferTags: seq[tuple[tag: string, meta: MetaNode]]
-            ## A sequence containing a ``tag`` name and its ``HtmlNode`` representation
-            ## used for rendering the closing tags after resolving
-            ## multi dimensional nodes
+            ## A sequence of tuple containing ``tag`` and its ``HtmlNode``
+            ## representation used for rendering the closing tags
+            ## after resolving multi dimensional nodes
         html: Rope
-            ## A rope containg HTML code
+            ## A rope containg the entire HTML code
 
 proc indentLine[T: Compiler](c: var T, meta: MetaNode, fixTail = false, brAfter = true, shiftIndent = false) =
     if c.minified == false:
@@ -71,24 +71,31 @@ proc closeTag[T: Compiler](compiler: var T, tag: string, metaNode: MetaNode, brA
 proc getLineIndent[C: Compiler](compiler: C, index: int): int =
     result = compiler.program.nodes[index].htmlNode.meta.column
 
+proc closeDeferredTags[C: Compiler](compiler: var C, brAfterAll = false) = 
+    if compiler.deferTags.len != 0:
+        while true:
+            if compiler.deferTags.len == 0: break
+            let dtag = compiler.deferTags[0]
+            compiler.closeTag(dtag.tag, dtag.meta, brAfter = true)
+            compiler.deferTags.delete(0)
+    if brAfterAll:
+        add compiler.html, indent("\n", 0)
+
 proc closeTagIfNotDeferred[C: Compiler](compiler: var C, htmlNode: HtmlNode, tag: string, index:int) = 
     let currentIndent = compiler.getLineIndent(index)
     try:
         let nextIndent = compiler.getLineIndent(index + 1)
         if nextIndent > currentIndent:
-            compiler.deferTags.add (tag: tag, meta: htmlNode.meta)
+            compiler.deferTags.add (tag: tag, meta: htmlNode.meta) 
         elif nextIndent == currentIndent:
             compiler.closeTag(tag, htmlNode.meta, shiftIndent = true, brAfter = false)
+        elif nextIndent == 0:
+            compiler.closeDeferredTags(brAfterAll = true)
     except:
         compiler.closeTag(tag, htmlNode.meta, brAfter = true)
-        if compiler.deferTags.len != 0:
-            while true:
-                if compiler.deferTags.len == 0: break
-                let dtag = compiler.deferTags[0]
-                compiler.closeTag(dtag.tag, dtag.meta, brAfter = true)
-                compiler.deferTags.delete(0)
+        compiler.closeDeferredTags()
 
-proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], index: int)
+proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], index: int)      # defer proc
 
 proc writeElement[T: Compiler](compiler: var T, htmlNode: HtmlNode, index: int) =
     ## Write an HTML element and its sub HTML nodes, if any

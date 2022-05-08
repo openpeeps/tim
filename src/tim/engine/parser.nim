@@ -81,35 +81,6 @@ proc isConditional*[T: TokenTuple](token: T): bool =
     ## as TK_IF, TK_ELIF, TK_ELSE
     result = token.kind in {TK_IF, TK_ELIF, TK_ELSE}
 
-proc isIdent[T: TokenTuple](token: T): bool =
-    result = token.kind == TK_IDENTIFIER
-
-# proc hasPrev[T: Parser](p: T, h: OrderedTable[int, TokenTuple]): bool =
-#     let prevln = if p.current.line == 1: 0 else: p.current.line - 1
-#     result = h.hasKey(prevln)
-
-# proc getPrev[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): TokenTuple = 
-#     ## Retrieve previous line from headliners
-#     let prevln = if p.current.line == 1: 0 else: p.current.line - 1
-#     result = h[prevln]
-
-# proc isChild[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): bool =
-#     result = p.hasPrev(h)
-#     if result and p.prevlnEndWithContent == false:
-#         result = p.getPrev(h).col < p.current.col;
-#     # result = childNode.col > parentNode.col
-#     # if result == true:
-#     #     result = (childNode.col and 1) != 1 and (parentNode.col and 1) != 1
-#     #     if result == false:
-#     #         p.setError("Bad indentation. Use 2 or 4 spaces to indent your code")
-
-proc isBadNest[T: Parser](p: var T, h: OrderedTable[int, TokenTuple]): bool =
-    ## Determine if current headline has a bad nest. This applies
-    ## only if previous line ends with a string content
-    if p.prevlnEndWithContent == true:
-        let prev = p.getPrev(h)
-        result = prev.col < p.current.col
-
 proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
     ## Determine if given token kind is TK_EOF
     result = token.kind == TK_EOF
@@ -151,15 +122,16 @@ template parseNewNode(p: var Parser, ndepth: var int, isDimensional = false) =
         nodeName = getSymbolName(htmlNodeType)
         meta = (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
     inc ndepth
-    if p.next.isAttributeOrText():
-        jump p
-        p.setHTMLAttributes(htmlNode)     # set available html attributes
-    elif p.next.kind == TK_NEST_OP:
+
+    if p.next.kind == TK_NEST_OP:
         # set as current ``htmlNode`` as ``parentNode`` in case current
         # node has opened an inline nestable elements with `>`
-        jump p, 2
+        jump p
+    elif p.next.isAttributeOrText():
+        jump p
+        p.setHTMLAttributes(htmlNode)     # set available html attributes
     else: jump p
-    p.htmlStatements[p.current.line] = htmlNode
+    p.htmlStatements[htmlNode.meta.line] = htmlNode
 
 template parseNewSubNode(p: var Parser, ndepth: var int) =
     p.prevln = p.currln
@@ -211,10 +183,10 @@ proc walk(p: var Parser) =
             if p.current.isNestable():
                 p.parseNewNode(ndepth, false)
             else:
-                p.setError("Invalid element")
+                p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
                 break
 
-        p.parseInlineNest(ndepth)   # Handle inline nestable nodes
+        p.parseInlineNest(ndepth)   # Handle inline nestable nodes, if any
 
         if htmlNode != nil:
             if deferChildSeq.len != 0:
