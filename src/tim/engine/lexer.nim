@@ -29,7 +29,8 @@ template setError(l: var Lexer; err: string): untyped =
     if l.error.len == 0:
         l.error = err
  
-proc hasError[T: Lexer](self: T): bool = self.error.len > 0
+proc hasError[T: Lexer](self: T): bool =
+    result = self.error.len > 0
 
 proc existsInBuffer[T: Lexer](lex: var T, pos: int, chars:set[char]): bool = 
     lex.buf[pos] in chars
@@ -413,9 +414,10 @@ proc getToken*[T: Lexer](lex: var T): TokenTuple =
     of '0'..'9': lex.handleNumber()
     of 'a'..'z', 'A'..'Z', '_', '-': lex.handleIdent()
     of '"', '\'': lex.handleString()
-    else: lex.setError("Unrecognized character $1" % [lex.token])
+    else: discard
+    
     if lex.kind == TK_INVALID:
-        lex.setError("Unrecognized character $1" % [lex.token])
+        lex.setError("Unrecognized character")
     elif lex.kind == TK_COMMENT:
         return lex.getToken()
     result = (kind: lex.kind, value: lex.token, wsno: lex.whitespaces, col: lex.startPos, line: lex.lineNumber)

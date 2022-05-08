@@ -32,10 +32,10 @@ proc hasError*[T: Parser](p: var T): bool =
     result = p.error.len != 0 or p.lexer.error.len != 0
 
 proc getError*[T: Parser](p: var T): string = 
-    if p.error.len != 0:
-        result = p.error
-    elif p.lexer.error.len != 0:
+    if p.lexer.error.len != 0:
         result = p.lexer.error
+    elif p.error.len != 0:
+        result = p.error
 
 proc hasJIT*[T: Parser](p: var T): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
@@ -157,6 +157,7 @@ template parseInlineNest(p: var Parser, depth: var int) =
     ## Walk along the line and collect single-line nests
     while p.current.line == p.currln.line:
         if p.current.isEOF: break
+        elif p.hasError(): break
         !> p
         if p.current.isNestable():
             p.parseNewSubNode(depth)
@@ -177,7 +178,6 @@ proc walk(p: var Parser) =
     p.statements = Program()
     while p.hasError() == false and p.current.kind != TK_EOF:
         var origin: TokenTuple = p.current
-
         # Handle current line headliner
         if not p.htmlStatements.hasKey(p.current.line):
             if p.current.isNestable():
