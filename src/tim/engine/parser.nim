@@ -21,7 +21,7 @@ type
         prevln, currln, nextln: TokenTuple
             # Holds TokenTuple representation of heads from prev, current and next 
         prevlnEndWithContent: bool
-        parentNode, prevNode, subNode, lastParent: HtmlNode
+        parentNode, prevNode, lastParent: HtmlNode
         interpreter*: Interpreter
         enableJit: bool
 
@@ -112,9 +112,16 @@ proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
 
 template parseNewNode(p: var Parser, ndepth: var int, isDimensional = false) =
     ## Parse a new HTML Node with HTML attributes, if any
-    # !> p # Ensure a good nest
+    !> p # Ensure a good nest
     p.prevln = p.currln
     p.currln = p.current
+
+    if p.current.col == 0:
+        ndepth = 0
+    elif p.prevNode != nil:
+        if p.prevNode.meta.column == p.current.col:
+            ndepth = p.prevNode.meta.indent - 4
+
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
@@ -132,6 +139,7 @@ template parseNewNode(p: var Parser, ndepth: var int, isDimensional = false) =
         p.setHTMLAttributes(htmlNode)     # set available html attributes
     else: jump p
     p.htmlStatements[htmlNode.meta.line] = htmlNode
+    p.prevNode = htmlNode
 
 template parseNewSubNode(p: var Parser, ndepth: var int) =
     p.prevln = p.currln
@@ -220,7 +228,7 @@ proc getStatementsStr*[T: Parser](p: T, prettyString = false): string =
     # if prettyString: 
     #     result = pretty(p.getStatements(asJsonNode = true))
     # else:
-    result = $(toJson(p.statements))
+    result = pretty(toJson(p.statements))
 
 proc parse*[T: TimEngine](engine: T, templateObject: TimlTemplate): Parser {.thread.} =
     var p: Parser = Parser(lexer: Lexer.init(templateObject.getSourceCode))

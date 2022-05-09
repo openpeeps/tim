@@ -1,10 +1,12 @@
 
 import ./ast
-import std/[json, ropes]
+import std/[json, ropes, tables]
 import jsony
 from std/strutils import toLowerAscii, `%`, indent
+from std/algorithm import reverse, SortOrder
 
 type
+    DeferTag = tuple[tag: string, meta: MetaNode, isInlineElement: bool]
     Compiler* = object
         index, line: int
             ## The line number that is currently compiling
@@ -17,8 +19,11 @@ type
             ## A sequence of tuple containing ``tag`` and its ``HtmlNode``
             ## representation used for rendering the closing tags
             ## after resolving multi dimensional nodes
+        tags: Table[int, seq[DeferTag]]
         html: Rope
             ## A rope containg the entire HTML code
+
+const NewLine = "\n"
 
 proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, brAfter = true, shiftIndent = false) =
     if meta.indent != 0:
@@ -29,16 +34,17 @@ proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, b
         if compiler.baseIndent != 0:
             i = i - compiler.baseIndent * 2
         if brAfter:
-            add compiler.html, indent("\n", i)
+            add compiler.html, indent(NewLine, i)
         else:
             add compiler.html, indent("", i)
+    else: add compiler.html, NewLine
 
 proc indentEndLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail = false, brAfter = false, shiftIndent = false) =
     if meta.indent != 0:
         var i: int
         i = meta.indent
         if fixTail:
-            i = if shiftIndent: i - 4 else: i - 2
+            i = if shiftIndent: i - 2 else: i - 2
         if brAfter:
             add compiler.html, indent("\n", i)
         else:
@@ -84,77 +90,107 @@ proc closeTag[T: Compiler](compiler: var T, tag: string, metaNode: MetaNode, brA
         compiler.indentEndLine(metaNode, fixTail = true, brAfter = brAfter, shiftIndent = shiftIndent)
 
 proc getLineIndent[C: Compiler](compiler: C, index: int): int =
-    result = compiler.program.nodes[index].htmlNode.meta.column
+    result = compiler.program.nodes[index].htmlNode.meta.indent
 
-proc closeDeferredTags[C: Compiler](compiler: var C, brAfterAll = false) = 
-    if compiler.deferTags.len != 0:
-        while true:
-            if compiler.deferTags.len == 0: break
-            let dtag = compiler.deferTags[0]
-            compiler.closeTag(dtag.tag, dtag.meta, brAfter = true)
-            compiler.deferTags.delete(0)
-    if brAfterAll:
-        add compiler.html, indent("\n", 0)
-
-proc closeTagIfNotDeferred[C: Compiler](compiler: var C, htmlNode: HtmlNode, tag: string, index:int) = 
-    let currentIndent = compiler.getLineIndent(index)
+proc nextIsChild[C: Compiler](c: var C, currentIndent, index: int): bool =
     try:
-        let nextIndent = compiler.getLineIndent(index + 1)
-        if nextIndent > currentIndent:
-            compiler.deferTags.add (tag: tag, meta: htmlNode.meta) 
-        elif nextIndent == currentIndent:
-            inc compiler.baseIndent
-            compiler.closeTag(tag, htmlNode.meta, shiftIndent = true, brAfter = false)
-        elif nextIndent == 0:
-            compiler.baseIndent = 0
-            compiler.closeDeferredTags(brAfterAll = true)
-    except IndexDefect:
-        compiler.closeTag(tag, htmlNode.meta, brAfter = true, shiftIndent = true)
-        compiler.closeDeferredTags()
+        let nextIndent = c.getLineIndent(index + 1)
+        result = nextIndent > currentIndent
+    except: discard
 
-proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], index: int)      # defer proc
+proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
+    ## Add closing tags to ``tags`` table for resolving later
+    let lineno = htmlNode.meta.line
+    if not c.tags.hasKey(lineno):
+        c.tags[lineno] = newSeq[DeferTag]()
+    var isInlineElement: bool
+    if htmlNode.nodes.len != 0:
+        isInlineElement = htmlNode.nodes[0].nodeType == Htmltext
+    c.tags[lineno].add (tag: tag, meta: htmlNode.meta, isInlineElement: isInlineElement)
 
-proc writeElement[T: Compiler](compiler: var T, htmlNode: HtmlNode, index: int) =
+proc resolveDeferredTags[C: Compiler](c: var C, lineno: int) =
+    ## Resolve all deferred closing tags and add to current ``Rope``
+    if c.tags.hasKey(lineno):
+        var tags = c.tags[lineno]
+        tags.reverse()
+        for tag in tags:
+            let htmlTag = "</" & toLowerAscii(tag.tag) & ">"
+            if tag.isInlineElement:     add c.html, htmlTag
+            else:                       add c.html, indent("\n" & htmlTag, tag.meta.indent)
+            c.tags[lineno].delete(0)
+        c.tags.del(lineno)
+
+proc resolveAllDeferredTags[C: Compiler](c: var C) =
+    ## Resolve remained deferred closing tags and add to current ``Rope``
+    var i = 0
+    var linesno: seq[int]
+    for k in c.tags.keys():
+        linesno.add(k)
+
+    while true:
+        if c.tags.len == 0: break
+        let lineno = linesno[i]
+        var tags = c.tags[lineno]
+        tags.reverse()
+        for tag in tags:
+            let htmlTag = "</" & toLowerAscii(tag.tag) & ">"
+            if tag.isInlineElement:     add c.html, htmlTag
+            else:                       add c.html, indent("\n" & htmlTag, tag.meta.indent)
+            c.tags[lineno].delete(0)
+        c.tags.del(lineno)
+        inc i
+
+proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: int)      # defer proc
+
+proc writeElement[C: Compiler](c: var C, htmlNode: HtmlNode, index: int) =
     ## Write an HTML element and its sub HTML nodes, if any
     let tag = htmlNode.nodeName
-    compiler.openTag(tag, htmlNode)
+    c.openTag(tag, htmlNode)
+    c.deferTag(tag, htmlNode)
     if htmlNode.nodes.len != 0:
-        compiler.writeLine(htmlNode.nodes, index)
-    compiler.closeTagIfNotDeferred(htmlNode, tag, index)
+        c.writeLine(htmlNode.nodes, index)
+    # compiler.closeTagIfNotDeferred(htmlNode, tag, index)
 
-proc writeTextElement[T: Compiler](compiler: var T, node: HtmlNode) =
+proc writeTextElement[C: Compiler](c: var C, node: HtmlNode) =
     ## Write ``HtmlText`` content
-    add compiler.html, node.text
+    add c.html, node.text
 
-proc writeLine[T: Compiler](compiler: var T, nodes: seq[HtmlNode], index: int) =
+proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: int) =
     ## Write current line of HTML Nodes.
     for node in nodes:
         case node.nodeType:
         of HtmlText:
-            compiler.writeTextElement(node)
+            c.writeTextElement(node)
         else:
-            compiler.writeElement(node, index)
+            c.writeElement(node, index)
 
-proc writeLine[C: Compiler](compiler: var C, fixBr = false) =
+proc writeLine[C: Compiler](c: var C, fixBr = false) =
     ## Main procedure for writing HTMLelements line by line
     ## based on given BSON Abstract Syntax Tree
     var index = 0
-    compiler.line = 1
-    let nodeslen = compiler.program.nodes.len
-    while index < nodeslen:
-        let node = compiler.program.nodes[index]
+    c.line = 1
+    let nodeslen = c.program.nodes.len
+    while true:
+        if index == nodeslen:
+            c.resolveAllDeferredTags()
+            break
+        let node = c.program.nodes[index]
         if node.nodeType == NodeType.HtmlElement:
             let tag = node.htmlNode.nodeName
-            compiler.openTag(tag, node.htmlNode)
+            c.openTag(tag, node.htmlNode)
+            c.deferTag(tag, node.htmlNode)
             if node.htmlNode.nodes.len != 0:
-                compiler.writeLine(node.htmlNode.nodes, index)
-            compiler.closeTagIfNotDeferred(node.htmlNode, tag, index)
+                c.writeLine(node.htmlNode.nodes, index)
+
+            if c.nextIsChild(node.htmlNode.meta.indent, index) == false:
+                c.resolveDeferredTags(node.htmlNode.meta.line)
+
         inc index
 
 proc init*[C: typedesc[Compiler]](Compiler: C, astNodes: string, minified: bool, asNode = true): Compiler =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
-    var compiler = Compiler(minified: minified)
-    compiler.program = fromJson(astNodes, Program)
-    compiler.writeLine(fixBr = true)
-    result = compiler
+    var c = Compiler(minified: minified)
+    c.program = fromJson(astNodes, Program)
+    c.writeLine(fixBr = true)
+    result = c

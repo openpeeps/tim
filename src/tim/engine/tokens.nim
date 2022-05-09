@@ -12,12 +12,12 @@
 type
     TokenKind* = enum
         TK_NONE
-        TK_COMMENT          # #
-        TK_DOCTYPE          # <!DOCTYPE>
-        TK_A                # a         <a></a>
-        TK_ABBR             # abbr      <abbr></abbr>
-        TK_ACRONYM          # acronym   <acronym></acronym>
-        TK_ADDRESS          # address   <address></address>
+        TK_COMMENT          # //
+        TK_DOCTYPE
+        TK_A
+        TK_ABBR
+        TK_ACRONYM
+        TK_ADDRESS
         TK_APPLET
         TK_AREA
         TK_ARTICLE
@@ -30,7 +30,7 @@ type
         TK_BDO
         TK_BIG
         TK_BLOCKQUOTE
-        TK_BODY             # body      <body></body>
+        TK_BODY
         TK_BR
         TK_BUTTON
         TK_CANVAS
@@ -70,7 +70,7 @@ type
         TK_HEAD
         TK_HEADER
         TK_HR
-        TK_HTML             # html      <html></html>
+        TK_HTML
         TK_I
         TK_IFRAME
         TK_IMG
@@ -133,7 +133,7 @@ type
         TK_U
         TK_UL
         TK_VAR
-        TK_VIDEO        # video         <video>
+        TK_VIDEO
         TK_WBR
 
         TK_ATTR
@@ -141,8 +141,8 @@ type
         TK_ATTR_ID      # #
         TK_ASSIGN       # =
         TK_COLON        # :
-        TK_INTEGER
-        TK_STRING
+        TK_INTEGER      # 0-9
+        TK_STRING       # `"`..`"`
         TK_NEST_OP      # >
         TK_IDENTIFIER
         TK_VARIABLE     # $[az_AZ_09]
@@ -161,5 +161,4 @@ type
         TK_VALUE_NIL
         TK_VALUE_STRING
         TK_INVALID
-        TK_EOL          # end of line
         TK_EOF          # end of file
