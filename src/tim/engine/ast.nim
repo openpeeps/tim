@@ -132,7 +132,7 @@ type
         HtmlVar
         HtmlVideo
         HtmlWbr
-        HtmlInvalid
+        HtmlInvalid         # TODO mark as custom HTML5 tags instead of invalid
 
     HtmlAttribute* = object
         name*: string
@@ -176,43 +176,62 @@ type
         meta*: MetaNode
 
     ConditionalType* = enum
-        ConditionInvalid
-        ConditionIf
-        ConditionElif
-        ConditionElse
+        If              = "if"
+        Elif            = "elif"
+        Else            = "else"
 
     ComparatorType* = enum
-        InvalidComparator
-        Equal
-        NotEqual
-        Great
-        GreatOrEqual
-        Less
-        LessOrEqual
+        Equal           = "=="
+        NotEqual        = "!="
+        Great           = ">"
+        GreatOrEqual    = ">="
+        Less            = "<"
+        LessOrEqual     = "<="
 
     ComparatorNode* = ref object
-        nodeType*: ComparatorType
-        nodeName*: string
-        variables*: seq[VariableNode]
+        comparator*: ComparatorType
+            ## The logical comparator used to compare ``aNode`` and ``bNode``.
+            ## It can be either ``Equal``, ``NotEqual``, ``Great``,
+            ## ``GreatOrEqual``, ``Less`` or ``LessOrEqual``
+        aNode*: VariableNode
+            ## A version of ``VariableNode``
+        bNode*: VariableNode
+            ## B version of ``VariableNode``
 
     ConditionalNode* = ref object
+        ## Object representation for conditional statements
         conditionType*: ConditionalType
+            ## It can be either, ``If``, ``Elif`` or ``Else``
         nodeName*: string
         comparatorNode*: ComparatorNode
+            ## The logical comparator used for current conditional statement
         nodes*: seq[HtmlNode]
+            ## A sequence holding one or more HtmlNode inside
+            ## current Conditional statement
         meta*: MetaNode
+            ## ``MetaNode`` of current statement
+
+    LoopNode* = ref object
+        ## Object representation for handling loop statements
+        ## TODO
 
     NodeType* = enum
-        Conditional
+        ConditionalStatement
         HtmlElement
+        LoopStatement
     
     Node* = ref object
-        nodeName*: string                       # symbol name of NodeType
-        case nodeType*: NodeType                # get the NodeType from current enum
-        of Conditional:
+        nodeName*: string
+            ## Symbol name of NodeType
+        case nodeType*: NodeType            ## get the NodeType from ``NodeType`` enum
+        of ConditionalStatement:
             conditionNode*: ConditionalNode
+                ## Handle ``ConditionalNode`` instances
         of HtmlElement:
             htmlNode*: HtmlNode
+                ## Handle ``HtmlNode`` instances
+        of LoopStatement:
+            loopNode*: LoopNode
 
     Program* = object
         nodes*: seq[Node]
@@ -369,11 +388,11 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     else: HtmlInvalid
 
 proc getConditionalNodeType*[T: TokenTuple](token: T): ConditionalType = 
-    result = case token.kind:
-    of TK_IF: ConditionIf
-    of TK_ELIF: ConditionElif
-    of TK_ELSE: ConditionElse
-    else: ConditionInvalid
+    case token.kind:
+        of TK_IF: result = If
+        of TK_ELIF: result = Elif
+        of TK_ELSE: result = Else
+        else: discard
 
 proc newConditionNode*(nodeType: TokenTuple, meta: MetaNode): ConditionalNode = 
     let ctype = getConditionalNodeType(nodeType)
@@ -384,18 +403,19 @@ proc newConditionNode*(nodeType: TokenTuple, meta: MetaNode): ConditionalNode =
     )
 
 proc getComparatorNodeType*[T: TokenTuple](token: T): ComparatorType =
-    result = case token.kind:
-        of TK_EQ: Equal
-        of TK_NEQ: NotEqual
-        else: InvalidComparator
+    case token.kind:
+        of TK_EQ: result = Equal
+        of TK_NEQ: result = NotEqual
+        else: discard
 
 proc newComparatorNode*(nodeType: TokenTuple, variables: seq[VariableNode]): ComparatorNode = 
-    let compNodeType = getComparatorNodeType(nodeType)
-    result = ComparatorNode(
-        nodeType: compNodeType,
-        nodeName: getSymbolName(compNodeType),
-        variables: variables
-    )
+    ## TODO
+    # let compNodeType = getComparatorNodeType(nodeType)
+    # result = ComparatorNode(
+    #     comparator: compNodeType,
+    #     nodeName: getSymbolName(compNodeType),
+    #     variables: variables
+    # )
 
 proc getVariableNodeType*[T: JsonNode](token: T): VariableContentType =
     result = case token.kind:

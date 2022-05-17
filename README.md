@@ -1,7 +1,7 @@
 <p align="center">
     <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="140px"><br>
     ⚡️ A high-performance compiled template engine inspired by Emmet syntax.<br>
-    <strong>Fast</strong> • <strong>Dependency free</strong> • Written in Nim language 👑
+    <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
 </p>
 
 _Work in progress_
@@ -10,14 +10,14 @@ _Work in progress_
 - [x] Emmet-syntax 🤓
 - [x] Multi-threading | Low memory foot-print 🍃
 - [x] Tim as **Nimble library** for Nim programming 👑
-- [x] **Tim as a standalone application** 🥳
+- [x] **Tim as a standalone application via REST API** 🥳
 - [ ] `layouts`, `views` and `partials` logic
 - [ ] Variable Assignment
 - [ ] `for` Loops & Iterations
 - [ ] `if`, `elif`, `else` Conditional Statements
 - [ ] `JSON` AST Generator
 - [ ] Just-in-time Compilation
-- [ ] Semantic Checker & SEO Optimizer
+- [ ] SEO Optimizer
 - [ ] Language Extension `.timl` 😎
 - [x] Lexer based on [Toktok library](https://github.com/openpeep/toktok)
 - [x] Open Source | `MIT` License
@@ -42,54 +42,6 @@ ln -s /path/to/your/tim /usr/local/bin
 Tim Compiler is separated in 2 phases. The first phase is involved in tokenizing the syntax via `Lexer` ➤ `Parser` ➤ `AST Nodes` Generation,
 and saves the AST output for using later in the second phase, `JIT`. In Just-in-time compilation the Compiler resolves `data assignments`,
 `conditional statements` and available `loops` or `iterations`.
-
-## Using Tim from other programming languages
-
-<details>
-    <summary>NodeJS example</summary>
-
-JIT compiler on request, using `.timl.ast`, `spawn`
-
-```js
-const http = require('http');
-const { spawn } = require('child_process');
-const server = http.createServer();
-
-const Views = {
-    'profile': './storage/tim/jit/profile.timl.ast'         // add content example of this timl.ast
-}
-
-const User = {
-    data: {
-        name: 'Tim Berners-Lee',
-        username: 'tim.berners.lee',
-    },
-    
-    json: () => JSON.stringify(User.data)
-}
-
-server.on('request', (request, response) => {
-    if (request.url === '/profile') {
-        var htmlPage = ""
-
-        // Spawn a process to Tim Engine for JIT of the given AST,
-        // providing data as a stringified JSON with `--data` flag
-        const tim = spawn('tim', ['--ast', Views.profile, '--data', User.json()]);
-        
-        process.stdin.pipe(tim.stdin)
-        for await (const html of tim.stdout) {
-            htmlPage += data
-        };
-        res.end(htmlPage)
-    } else {
-        res.writeHead(404, {'Content-Type': 'text/html'})
-        res.end('404 | Route not found')
-    }
-});
-
-server.listen(3000);
-```
-</details>
 
 ## Examples
 

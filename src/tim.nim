@@ -4,12 +4,11 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
+import bson
 import tim/engine/[parser, compiler, meta]
 import std/[tables, json, strutils]
 
-import bson
-
-from tim/engine/ast import HtmlNode
+# from tim/engine/ast import HtmlNode
 export parser, meta, compiler
 
 proc render*[T: TimEngine](engine: T, key: string, data: JsonNode = %*{}): string =
@@ -68,16 +67,19 @@ proc precompile*[T: TimEngine](engine: T, debug = false) =
             engine.writeBson(view, p.getStatementsStr())
     else: raise newException(TimException, "Unable to find any Timl templates")
 
-
 when isMainModule:
     var engine = TimEngine.init(
-        source = "../examples/templates",             # root dir to Timl templates
-        output = "../examples/storage/templates",     # dir path for storing BSON AST files 
-        hotreload = true,                             # automatically disabled when compiling with -d:release
+        source = "../examples/templates",
+            # directory path to find your `.timl` files
+        output = "../examples/storage/templates",
+            # directory path to store Binary JSON files for JIT compiler
+        hotreload = true,
+            # Useful when in dev mode to watch for changes over `.timl` files
         minified = false,
+            # Whether to minify the final HTML output (by default enabled)
         indent = 4
+            # Used to indent your HTML output (ignored when `minified` is true)
     )
 
     precompile(engine)
-
     echo engine.render("members.contact")

@@ -21,17 +21,45 @@ type
         prevln, currln, nextln: TokenTuple
             # Holds TokenTuple representation of heads from prev, current and next 
         prevlnEndWithContent: bool
-        parentNode, prevNode, lastParent: HtmlNode
+        parentNode, prevNode: HtmlNode
         interpreter*: Interpreter
         enableJit: bool
+            ## Determine if current Timl document needs a JIT compilation.
+            ## This is set true when current document contains either a
+            ## conditional statement or other dynamic statements.
+        warnings: seq[Warning]
+            ## Holds warning messages related to current HTML Rope
+            ## This messages are shown during compile-time
+
+    WarningType = enum
+        Semantics
+
+    Warning = ref object
+        ## Object for creating warnings during compile time
+        warnType: WarningType
+        element: string
+        line: int
+
+# proc newWarning[C: Compiler](c: var C, warnType: WarningType, element: string) =
+#     ## Create a new Warning to be shown during compile time
+#     let warning = new Warning
+#     with warning:
+#         warnType = warnType
+#         element = element
+#         line = line
+#     c.warnings.add(warning)
 
 proc setError[T: Parser](p: var T, msg: string) =
+    ## Set parser error
     p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
 
 proc hasError*[T: Parser](p: var T): bool =
+    ## Determine if current parser instance has any errors
     result = p.error.len != 0 or p.lexer.error.len != 0
 
 proc getError*[T: Parser](p: var T): string = 
+    ## Retrieve current parser instance errors,
+    ## including lexer-side unrecognized token errors
     if p.lexer.error.len != 0:
         result = p.lexer.error
     elif p.error.len != 0:
