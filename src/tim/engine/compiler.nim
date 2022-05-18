@@ -80,11 +80,13 @@ proc openTag[T: Compiler](compiler: var T, tag: string, node: HtmlNode) =
         compiler.writeAttributes(node)
     add compiler.html, ">"
 
-# proc closeTag[T: Compiler](compiler: var T, tag: string, metaNode: MetaNode, brAfter = true, shiftIndent = false) =
-#     ## Close an HTML tag
-#     add compiler.html, "</" & toLowerAscii(tag) & ">"
-#     if not compiler.minified:
-#         compiler.indentEndLine(metaNode, fixTail = true, brAfter = brAfter, shiftIndent = shiftIndent)
+proc closeTag[C: Compiler](c: var C, tag: DeferTag) =
+    ## Close an HTML tag
+    let htmlTag = "</" & toLowerAscii(tag.tag) & ">"
+    if tag.isInlineElement or c.minified:
+        add c.html, htmlTag
+    else:
+        add c.html, indent("\n" & htmlTag, tag.meta.indent)
 
 proc getLineIndent[C: Compiler](compiler: C, index: int): int =
     result = compiler.program.nodes[index].htmlNode.meta.indent
@@ -116,15 +118,9 @@ proc resolveDeferredTags[C: Compiler](c: var C, lineno: int, withOffset = false)
     let lineNo = if withOffset: lineno - c.offset else: lineno
     if c.tags.hasKey(lineNo):
         var tags = c.tags[lineNo]
-        tags.reverse()
+        tags.reverse() # tags list
         for tag in tags:
-            let htmlTag = "</" & toLowerAscii(tag.tag) & ">"
-            if tag.isInlineElement:     add c.html, htmlTag
-            else:
-                if c.minified:
-                    add c.html, htmlTag
-                else:
-                    add c.html, indent("\n" & htmlTag, tag.meta.indent)
+            c.closeTag(tag)
             c.tags[lineNo].delete(0)
         c.tags.del(lineNo)
 
@@ -134,16 +130,13 @@ proc resolveAllDeferredTags[C: Compiler](c: var C) =
     var linesno: seq[int]
     for k in c.tags.keys():
         linesno.add(k)
-
     while true:
         if c.tags.len == 0: break
         let lineno = linesno[i]
         var tags = c.tags[lineno]
-        tags.reverse()
+        tags.reverse() # tags list
         for tag in tags:
-            let htmlTag = "</" & toLowerAscii(tag.tag) & ">"
-            if tag.isInlineElement:     add c.html, htmlTag
-            else:                       add c.html, indent("\n" & htmlTag, tag.meta.indent)
+            c.closeTag(tag)
             c.tags[lineno].delete(0)
         c.tags.del(lineno)
         inc i
