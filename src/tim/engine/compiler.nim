@@ -162,26 +162,28 @@ proc writeLine[C: Compiler](c: var C, fixBr = false) =
     let nodeslen = c.program.nodes.len
 
     while true:
+        if index == nodeslen: break
         let node = c.program.nodes[index]
         if node.nodeType == NodeType.HtmlElement:
             let tag = node.htmlNode.nodeName
             c.openTag(tag, node.htmlNode)
             c.deferTag(tag, node.htmlNode)
+
             if node.htmlNode.nodes.len != 0:
                 c.writeLine(node.htmlNode.nodes, index)
             let next = c.getNextLevel(node.htmlNode.meta.indent, index)
             if next.upper:
                 c.resolveDeferredTags(node.htmlNode.meta.line, true)
-                dec c.offset
+                c.offset = 0
             elif next.same:
                 inc c.offset
-                c.resolveDeferredTags(node.htmlNode.meta.line)
+                c.resolveDeferredTags(node.htmlNode.meta.line, true)
             elif next.child:
                 inc c.offset
             else:
                 c.offset = 0
                 c.resolveAllDeferredTags()
-                break
+                # break
         inc index
 
 proc init*[C: typedesc[Compiler]](Compiler: C, astNodes: string, minified: bool, asNode = true): Compiler =
