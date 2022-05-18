@@ -247,7 +247,7 @@ proc getSymbolName*[T: HtmlNodeType](nodeType: T): string =
 proc getSymbolName*[T: ConditionalType](nodeType: T): string =
     ## Get stringified symbol name of the given ConditonalType
     var nodeName = nodeType.symbolName
-    result = toUpperAscii(nodeName[9 .. ^1])
+    result = toUpperAscii(nodeName)
 
 proc getSymbolName*[T: VariableContentType](nodeType: T): string =
     ## Get stringified symbol name of the given VariableContentType
@@ -387,19 +387,19 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_WBR: HtmlWbr
     else: HtmlInvalid
 
-proc getConditionalNodeType*[T: TokenTuple](token: T): ConditionalType = 
-    case token.kind:
+proc getConditionalNodeType*(kind: TokenKind): ConditionalType = 
+    case kind:
         of TK_IF: result = If
         of TK_ELIF: result = Elif
         of TK_ELSE: result = Else
         else: discard
 
-proc newConditionNode*(nodeType: TokenTuple, meta: MetaNode): ConditionalNode = 
-    let ctype = getConditionalNodeType(nodeType)
+proc newConditionNode*(token: TokenTuple): ConditionalNode = 
+    let ctype = getConditionalNodeType(token.kind)
     result = ConditionalNode(
         conditionType: ctype,
         nodeName: getSymbolName(ctype),
-        meta: meta
+        meta: (token.col, token.wsno, token.line)
     )
 
 proc getComparatorNodeType*[T: TokenTuple](token: T): ComparatorType =
@@ -417,7 +417,7 @@ proc newComparatorNode*(nodeType: TokenTuple, variables: seq[VariableNode]): Com
     #     variables: variables
     # )
 
-proc getVariableNodeType*[T: JsonNode](token: T): VariableContentType =
+proc getVarType[T: JsonNode](token: T): VariableContentType =
     result = case token.kind:
     of JBool: ValueBool
     of JInt: ValueInt
@@ -428,7 +428,7 @@ proc getVariableNodeType*[T: JsonNode](token: T): VariableContentType =
 
 proc newVariableNode*(varName: string, varValue: JsonNode): VariableNode =
     ## Create a new VariableNode using given varName and varValue
-    let varNodeType = getVariableNodeType(varValue)
+    let varNodeType = getVarType(varValue)
     var varNode = VariableNode(
         varName: varName,
         varType: varNodeType,

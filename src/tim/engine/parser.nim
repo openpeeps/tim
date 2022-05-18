@@ -89,10 +89,17 @@ proc hasID[T: HtmlNode](node: T): bool {.inline.} =
 #     ## Print a stringified representation of the current Abstract Syntax Tree
 #     echo pretty(toJson(nodes))
 
-proc nindent(depth: int = 0): int {.inline.} =
+proc nindent(depth: int = 0, shouldIncDepth = false): int {.inline.} =
     ## Sets indentation based on depth of nodes when minifier is turned off.
     ## TODO Support for base indent number: 2, 3, or 4 spaces (default 2)
-    result = if depth == 0: 0 else: 2 * depth
+    if shouldIncDepth:
+        result = if depth == 0: 0 else: 2 * depth
+    else:
+        result = depth
+
+const selfClosingTags* = {TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
+                         TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
+                         TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR}
 
 proc isNestable*[T: TokenTuple](token: T): bool =
     ## Determine if current token can contain more nodes
@@ -100,7 +107,7 @@ proc isNestable*[T: TokenTuple](token: T): bool =
     result = token.kind notin {
         TK_IDENTIFIER, TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_COLON,
         TK_INTEGER, TK_STRING, TK_NEST_OP, TK_INVALID, TK_EOF, TK_NONE
-    }
+    } + selfClosingTags
 
 include ./parseutils
 
@@ -143,20 +150,23 @@ template parseNewNode(p: var Parser, ndepth: var int, isDimensional = false) =
     !> p # Ensure a good nest
     p.prevln = p.currln
     p.currln = p.current
-
+    var shouldIncDepth = true
     if p.current.col == 0:
         ndepth = 0
     elif p.prevNode != nil:
         if p.prevNode.meta.column == p.current.col:
-            ndepth = p.prevNode.meta.indent - 4
+            ndepth = p.prevNode.meta.indent
+            shouldIncDepth = false
 
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
         nodeType = htmlNodeType
         nodeName = getSymbolName(htmlNodeType)
-        meta = (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
-    inc ndepth
+        meta = (column: p.current.col, indent: nindent(ndepth, shouldIncDepth), line: p.current.line)
+    
+    if shouldIncDepth:
+        inc ndepth
 
     if p.next.kind == TK_NEST_OP:
         # set as current ``htmlNode`` as ``parentNode`` in case current
@@ -172,12 +182,17 @@ template parseNewNode(p: var Parser, ndepth: var int, isDimensional = false) =
 template parseNewSubNode(p: var Parser, ndepth: var int) =
     p.prevln = p.currln
     p.currln = p.current
+    var shouldIncDepth = true
+    if p.prevNode != nil:
+        if p.prevNode.meta.column == p.current.col:
+            ndepth = p.prevNode.meta.indent
+            shouldIncDepth = false
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
         nodeType = htmlNodeType
         nodeName = htmlNodeType.getSymbolName
-        meta = (column: p.current.col, indent: nindent(ndepth), line: p.current.line)
+        meta = (column: p.current.col, indent: nindent(ndepth, shouldIncDepth), line: p.current.line)
     
     if p.next.kind == TK_NEST_OP:
         jump p
@@ -186,7 +201,8 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
         jump p
         p.setHTMLAttributes(htmlNode)
     else: jump p
-    inc ndepth
+    if shouldIncDepth:
+        inc ndepth
     deferChildSeq.add htmlNode
 
 template parseInlineNest(p: var Parser, depth: var int) =
@@ -213,14 +229,20 @@ proc walk(p: var Parser) =
 
     p.statements = Program()
     while p.hasError() == false and p.current.kind != TK_EOF:
-        var origin: TokenTuple = p.current
-        # Handle current line headliner
+        # if p.current.isConditional():
+        #     conditionNode = newConditionNode(p.current)
+        #     p.parseCondition(conditionNode)
+        #     continue
         if not p.htmlStatements.hasKey(p.current.line):
+            # Handle current line headliner
             if p.current.isNestable():
                 p.parseNewNode(ndepth, false)
             else:
-                p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
-                break
+                if p.current.kind in selfClosingTags:
+                    p.parseNewSubNode(ndepth)
+                else:
+                    p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
+                    break
 
         p.parseInlineNest(ndepth)   # Handle inline nestable nodes, if any
 
@@ -231,10 +253,13 @@ proc walk(p: var Parser) =
             if childNodes != nil:
                 p.htmlStatements[p.currln.line].nodes.add(childNodes)
                 childNodes = nil
+        elif conditionNode != nil:
+            echo "condition"    # TODO support conditional statements
         else:
-            ndepth = 0
+            # ndepth = 0
             htmlNode = nil
             p.parentNode = nil
+
     for k, n in pairs(p.htmlStatements):
         node = new Node
         with node:
@@ -258,10 +283,11 @@ proc getStatementsStr*[T: Parser](p: T, prettyString = false): string =
     # else:
     result = pretty(toJson(p.statements))
 
-proc parse*[T: TimEngine](engine: T, templateObject: TimlTemplate): Parser {.thread.} =
-    var p: Parser = Parser(lexer: Lexer.init(templateObject.getSourceCode))
-    # p.interpreter = Interpreter.init(data = data)
-
+proc parse*[T: TimEngine](engine: T, templateObject: TimlTemplate, data: JsonNode = %*{}): Parser {.thread.} =
+    var p: Parser = Parser(
+        lexer: Lexer.init(templateObject.getSourceCode),
+        interpreter: Interpreter.init(data)
+    )
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
     p.currln  = p.current

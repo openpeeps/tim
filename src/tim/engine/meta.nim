@@ -6,7 +6,7 @@
 import bson
 import std/[tables, json, md5]
 
-from std/strutils import `%`, strip, split, contains
+from std/strutils import `%`, strip, split, contains, join
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
 from std/os import getCurrentDir, normalizePath, dirExists,
                    fileExists, walkDirRec, splitPath, createDir

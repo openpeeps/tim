@@ -24,28 +24,15 @@ type
 
 const NewLine = "\n"
 
-proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, brAfter = true, shiftIndent = false) =
+proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, brAfter = true) =
     if meta.indent != 0:
         var i: int
         i = meta.indent
-        if fixTail:
-            i = if shiftIndent: i - 4 else: i - 2
         if brAfter:
             add compiler.html, indent(NewLine, i)
         else:
             add compiler.html, indent("", i)
     else: add compiler.html, NewLine
-
-# proc indentEndLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail = false, brAfter = false, shiftIndent = false) =
-#     if meta.indent != 0:
-#         var i: int
-#         i = meta.indent
-#         if fixTail:
-#             i = if shiftIndent: i - 2 else: i - 2
-#         if brAfter:
-#             add compiler.html, indent("\n", i)
-#         else:
-#             add compiler.html, indent("", i)
 
 proc hasAttributes(node: HtmlNode): bool =
     ## Determine if current ``HtmlNode`` has any HTML attributes
@@ -115,7 +102,9 @@ proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
 
 proc resolveDeferredTags[C: Compiler](c: var C, lineno: int, withOffset = false) =
     ## Resolve all deferred closing tags and add to current ``Rope``
-    let lineNo = if withOffset: lineno - c.offset else: lineno
+    var lineNo = lineno
+    if withOffset:
+        lineNo = if lineno > c.offset: lineno - c.offset else: c.offset - lineno
     if c.tags.hasKey(lineNo):
         var tags = c.tags[lineNo]
         tags.reverse() # tags list

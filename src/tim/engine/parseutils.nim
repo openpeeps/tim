@@ -36,7 +36,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode): untyped
                 p.setError("Missing value for \"$1\" attribute" % [attrName])
                 break
             if attributes.hasKey(attrName):
-                p.setError("Duplicate attribute name for \"$1\" identifier" % [attrName])
+                p.setError("Duplicate attribute name \"$1\"" % [attrName])
             else:
                 attributes[attrName] = @[p.next.value]
                 hasAttributes = true
@@ -70,10 +70,10 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode): untyped
 
 proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
     ## Parse and validate given VariableNode
-    var varNode: VariableNode
+    # var varNode: VariableNode
     let varName: string = tokenVar.value
     if not p.interpreter.hasVar(varName):
-        p.setError("Undeclared variable for \"$1\" identifier" % [varName])
+        p.setError("Undeclared variable \"$1\"" % [varName])
         return nil
     result = newVariableNode(varName, p.interpreter.getVar(varName))
 
