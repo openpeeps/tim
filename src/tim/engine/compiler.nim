@@ -1,7 +1,7 @@
 
 import ./ast
 import jsony, emitter
-import std/[json, ropes, tables, with]
+import std/[json, ropes, tables]
 from std/strutils import toLowerAscii, `%`, indent
 from std/algorithm import reverse, SortOrder
 
@@ -11,16 +11,16 @@ type
     Compiler* = object
         index, line, offset: int
             ## The line number that is currently compiling
-        minified: bool
-            ## Whether to minify the output HTML or not
         program: Program
-            ## All Nodes statements under a ``Program`` object instnace
+            ## All Nodes statements under a ``Program`` object instance
         tags: Table[int, seq[DeferTag]]
-            ## A sequence of tuple containing ``tag`` and its ``HtmlNode``
+            ## A sequence of tuple containing ``tag`` name and ``HtmlNode``
             ## representation used for rendering the closing tags
             ## after resolving multi dimensional nodes
+        minified: bool
+            ## Whether to minify the final HTML output (disabled by default)
         html: Rope
-            ## A rope containg the entire HTML code
+            ## A rope containg the final HTML output
 
 const NewLine = "\n"
 
@@ -36,16 +36,16 @@ proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, b
             add compiler.html, indent("", i)
     else: add compiler.html, NewLine
 
-proc indentEndLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail = false, brAfter = false, shiftIndent = false) =
-    if meta.indent != 0:
-        var i: int
-        i = meta.indent
-        if fixTail:
-            i = if shiftIndent: i - 2 else: i - 2
-        if brAfter:
-            add compiler.html, indent("\n", i)
-        else:
-            add compiler.html, indent("", i)
+# proc indentEndLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail = false, brAfter = false, shiftIndent = false) =
+#     if meta.indent != 0:
+#         var i: int
+#         i = meta.indent
+#         if fixTail:
+#             i = if shiftIndent: i - 2 else: i - 2
+#         if brAfter:
+#             add compiler.html, indent("\n", i)
+#         else:
+#             add compiler.html, indent("", i)
 
 proc hasAttributes(node: HtmlNode): bool =
     ## Determine if current ``HtmlNode`` has any HTML attributes
@@ -120,7 +120,11 @@ proc resolveDeferredTags[C: Compiler](c: var C, lineno: int, withOffset = false)
         for tag in tags:
             let htmlTag = "</" & toLowerAscii(tag.tag) & ">"
             if tag.isInlineElement:     add c.html, htmlTag
-            else:                       add c.html, indent("\n" & htmlTag, tag.meta.indent)
+            else:
+                if c.minified:
+                    add c.html, htmlTag
+                else:
+                    add c.html, indent("\n" & htmlTag, tag.meta.indent)
             c.tags[lineNo].delete(0)
         c.tags.del(lineNo)
 
@@ -150,7 +154,7 @@ proc writeElement[C: Compiler](c: var C, htmlNode: HtmlNode, index: var int) =
     ## Write an HTML element and its sub HTML nodes, if any
     let tag = htmlNode.nodeName
     c.openTag(tag, htmlNode)
-    c.deferTag(tag, htmlNode)
+    c.deferTag(tag, htmlNode)   # TODO handle Self Closing Elements
     if htmlNode.nodes.len != 0:
         c.writeLine(htmlNode.nodes, index)
 
@@ -186,13 +190,14 @@ proc writeLine[C: Compiler](c: var C, fixBr = false) =
             let next = c.getNextLevel(node.htmlNode.meta.indent, index)
             if next.upper:
                 c.resolveDeferredTags(node.htmlNode.meta.line, true)
-                c.offset = 0
+                dec c.offset
             elif next.same:
                 inc c.offset
                 c.resolveDeferredTags(node.htmlNode.meta.line)
             elif next.child:
                 inc c.offset
             else:
+                c.offset = 0
                 c.resolveAllDeferredTags()
                 break
         inc index
