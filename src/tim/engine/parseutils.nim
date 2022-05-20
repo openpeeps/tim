@@ -58,7 +58,6 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode): untyped
                     meta: (column: p.current.col, indent: p.current.wsno, line: p.current.line)
                 )
                 htmlNode.nodes.add(htmlTextNode)
-                p.prevlnEndWithContent = true
             break
         else: break
 
@@ -72,10 +71,10 @@ proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
     ## Parse and validate given VariableNode
     # var varNode: VariableNode
     let varName: string = tokenVar.value
-    if not p.interpreter.hasVar(varName):
+    if not p.data.hasVar(varName):
         p.setError("Undeclared variable \"$1\"" % [varName])
         return nil
-    result = newVariableNode(varName, p.interpreter.getVar(varName))
+    result = newVariableNode(varName, p.data.getVar(varName))
 
 template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 
@@ -102,3 +101,27 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
             p.setError("Invalid conditional. Missing comparison value")
             break
         break
+
+proc parseImport(p: var Parser) =
+    ## Parse a new Import statement.
+    ## Tim Engine allows importing ``.timl`` files at any level
+    if p.next.kind != TK_STRING:
+        p.setError("Missing name for import statement")
+    var filepath = p.next.value
+    let importLine = p.current.line
+    jump p, 2
+    let dirpath = parentDir(p.filePath)
+    filepath = if not filepath.endsWith(".timl"): filepath & ".timl" else: filepath
+    let viewpath = normalizedPath(dirpath & "/" & filepath)
+    if not fileExists(viewpath):
+        p.setError("File not found for \"$1\"" % [filepath])
+    else:
+        var subp = p.engine.parse(readFile(viewpath), viewpath, isMain = false)
+        if subp.hasError:
+            # set available errors from sub parser to main Parser.
+            p.setError(subp.getError)
+        else:
+            # p.includes.add(viewpath)
+            for subnode in subp.getStatements.nodes:
+                p.statements.nodes.add(subnode)
+            #     p.htmlStatements[importLine].nodes.add(subnode.htmlNode)

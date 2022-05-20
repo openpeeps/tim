@@ -6,23 +6,39 @@
 
 import std/[json, jsonutils]
 import std/[tables, with]
-import ./tokens, ./lexer, ./ast, ./interpreter
+import ./tokens, ./lexer, ./ast, ./data
 
 from ./meta import TimEngine, TimlTemplate, getContents, getFileData
-from std/strutils import `%`, isDigit, join
+from std/strutils import `%`, isDigit, join, endsWith
+from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
 type
     Parser* = object
+        isMain: bool
+            ## State of current Parser instance,
+            ## where Parsers instantiated from partials
+            ## will always have ``isMain`` set to ``false``.
+        engine: TimEngine
+            ## Holds current TimEngine instance
         lexer: Lexer
+            ## A TokTok Lexer instance
+        filePath: string
+            ## Path to current ``.timl`` template. This is mainly used
+            ## by internal Parser procs for 
+        includes: seq[string]
+            ## A sequence of file paths that are included
+            ## in current ``.timl`` template
         prev, current, next: TokenTuple
         error: string
         statements: Program
+            ## Holds the entire Abstract Syntax Tree representation
         htmlStatements: OrderedTable[int, HtmlNode]
+            ## An ``OrderedTable`` of ``HtmlNode``
         prevln, currln, nextln: TokenTuple
-            # Holds TokenTuple representation of heads from prev, current and next 
-        prevlnEndWithContent: bool
+            ## Holds TokenTuple representation of heads from prev, current and next 
         parentNode, prevNode: HtmlNode
-        interpreter*: Interpreter
+        data: Data
+            ## An instance of Data to be evaluated on runtime.
         enableJit: bool
             ## Determine if current Timl document needs a JIT compilation.
             ## This is set true when current document contains either a
@@ -65,9 +81,46 @@ proc getError*[T: Parser](p: var T): string =
     elif p.error.len != 0:
         result = p.error
 
+proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true): Parser
+
+proc getStatements*[T: Parser](p: T, asNodes = true): Program =
+    ## Return all HtmlNodes available in current document
+    result = p.statements
+
+# proc getStatements*[T: Parser](p: T, asJsonNode = true): string =
+#     ## Return all HtmlNodes available in current document as JsonNode
+#     result = toJson(p.statements)
+
+proc getStatementsStr*[T: Parser](p: T, prettyString = false): string = 
+    ## Retrieve all HtmlNodes available in current document as stringified JSON
+    # if prettyString: 
+    #     result = pretty(p.getStatements(asJsonNode = true))
+    # else:
+    result = pretty(toJson(p.statements))
+
 proc hasJIT*[T: Parser](p: var T): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
     result = p.enableJit == true
+
+proc insert[P: Parser](p: var P, newNodes: seq[Node], pos = 0) =
+    var j = len(p.statements.nodes) - 1
+    var i = j + len(newNodes)
+    if i == j: return
+    p.statements.nodes.setLen(i + 1)
+
+    # Move items after `pos` to the end of the sequence.
+    while j >= pos:
+        when defined(gcDestructors):
+            p.statements.nodes[i] = move(p.statements.nodes[j])
+        else:
+            p.statements.nodes[i].shallowCopy(p.statements.nodes[j])
+        dec(i)
+        dec(j)
+    # Insert items from `dest` into `dest` at `pos`
+    inc(j)
+    for item in newNodes:
+        p.statements.nodes[j] = item
+        inc(j)
 
 proc jump[T: Parser](p: var T, offset = 1) =
     var i = 0
@@ -187,6 +240,7 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
         if p.prevNode.meta.column == p.current.col:
             ndepth = p.prevNode.meta.indent
             shouldIncDepth = false
+
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
@@ -218,21 +272,27 @@ template parseInlineNest(p: var Parser, depth: var int) =
 proc walk(p: var Parser) =
     var 
         ndepth = 0
-        node: Node
         htmlNode: HtmlNode
         conditionNode: ConditionalNode
-        heads: OrderedTable[int, TokenTuple]
         isMultidimensional: bool
 
     var childNodes: HtmlNode
     var deferChildSeq: seq[HtmlNode]
+    var prevPos = -1
 
     p.statements = Program()
     while p.hasError() == false and p.current.kind != TK_EOF:
-        # if p.current.isConditional():
-        #     conditionNode = newConditionNode(p.current)
-        #     p.parseCondition(conditionNode)
-        #     continue
+        if p.current.isConditional():
+            conditionNode = newConditionNode(p.current)
+            p.parseCondition(conditionNode)
+            continue
+        elif p.current.kind == TK_IMPORT:
+            if not p.isMain:
+                p.setError("Import is only allowed at the main level")
+                break
+            p.parseImport()
+            continue
+
         if not p.htmlStatements.hasKey(p.current.line):
             # Handle current line headliner
             if p.current.isNestable():
@@ -253,6 +313,13 @@ proc walk(p: var Parser) =
             if childNodes != nil:
                 p.htmlStatements[p.currln.line].nodes.add(childNodes)
                 childNodes = nil
+            var node = new Node
+            with node:
+                nodeName = getSymbolName(HtmlElement)
+                nodeType = HtmlElement
+                htmlNode = p.htmlStatements[p.currln.line]
+            p.statements.nodes.add(node)
+
         elif conditionNode != nil:
             echo "condition"    # TODO support conditional statements
         else:
@@ -260,33 +327,21 @@ proc walk(p: var Parser) =
             htmlNode = nil
             p.parentNode = nil
 
-    for k, n in pairs(p.htmlStatements):
-        node = new Node
-        with node:
-            nodeName = getSymbolName(HtmlElement)
-            nodeType = HtmlElement
-            htmlNode = n
-        p.statements.nodes.add(node)
+    # for k, n in pairs(p.htmlStatements):
+    #     node = new Node
+    #     with node:
+    #         nodeName = getSymbolName(HtmlElement)
+    #         nodeType = HtmlElement
+    #         htmlNode = n
+    #     p.statements.nodes.add(node)
 
-proc getStatements*[T: Parser](p: T, asNodes = true): Program =
-    ## Return all HtmlNodes available in current document
-    result = p.statements
-
-# proc getStatements*[T: Parser](p: T, asJsonNode = true): string =
-#     ## Return all HtmlNodes available in current document as JsonNode
-#     result = toJson(p.statements)
-
-proc getStatementsStr*[T: Parser](p: T, prettyString = false): string = 
-    ## Retrieve all HtmlNodes available in current document as stringified JSON
-    # if prettyString: 
-    #     result = pretty(p.getStatements(asJsonNode = true))
-    # else:
-    result = pretty(toJson(p.statements))
-
-proc parse*[T: TimEngine](engine: T, templateObject: TimlTemplate, data: JsonNode = %*{}): Parser {.thread.} =
+proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true): Parser =
     var p: Parser = Parser(
-        lexer: Lexer.init(templateObject.getSourceCode),
-        interpreter: Interpreter.init(data)
+        engine: engine,
+        isMain: isMain,
+        lexer: Lexer.init(code),
+        data: Data.init(data),
+        filePath: path,
     )
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
