@@ -108,7 +108,7 @@ proc parseImport(p: var Parser) =
     if p.next.kind != TK_STRING:
         p.setError("Missing name for import statement")
     var filepath = p.next.value
-    let importLine = p.current.line
+    var lineno = p.current.line
     jump p, 2
     let dirpath = parentDir(p.filePath)
     filepath = if not filepath.endsWith(".timl"): filepath & ".timl" else: filepath
@@ -118,10 +118,8 @@ proc parseImport(p: var Parser) =
     else:
         var subp = p.engine.parse(readFile(viewpath), viewpath, isMain = false)
         if subp.hasError:
-            # set available errors from sub parser to main Parser.
-            p.setError(subp.getError)
+            p.setError(subp.getError) # retrieve error from sub parser to main
         else:
-            # p.includes.add(viewpath)
+            var symbolNode = HtmlNode(nodeType: ImportSymbol)
             for subnode in subp.getStatements.nodes:
-                p.statements.nodes.add(subnode)
-            #     p.htmlStatements[importLine].nodes.add(subnode.htmlNode)
+                p.statements.nodes.add(subNode)

@@ -29,7 +29,6 @@ type
             ## A sequence of file paths that are included
             ## in current ``.timl`` template
         prev, current, next: TokenTuple
-        error: string
         statements: Program
             ## Holds the entire Abstract Syntax Tree representation
         htmlStatements: OrderedTable[int, HtmlNode]
@@ -37,6 +36,8 @@ type
         prevln, currln, nextln: TokenTuple
             ## Holds TokenTuple representation of heads from prev, current and next 
         parentNode, prevNode: HtmlNode
+            ## While in ``walk`` proc, we temporarily hold ``parentNode``
+            ## and prevNode for each iteration.
         data: Data
             ## An instance of Data to be evaluated on runtime.
         enableJit: bool
@@ -45,7 +46,10 @@ type
             ## conditional statement or other dynamic statements.
         warnings: seq[Warning]
             ## Holds warning messages related to current HTML Rope
-            ## This messages are shown during compile-time
+            ## These messages are shown during compile-time
+            ## via command line interface.
+        error: string
+            ## A parser/lexer error
 
     WarningType = enum
         Semantics
@@ -86,6 +90,10 @@ proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, 
 proc getStatements*[T: Parser](p: T, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
     result = p.statements
+
+proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, HtmlNode] =
+    ## Return all ``HtmlNode`` available in current document
+    result = p.htmlStatements
 
 # proc getStatements*[T: Parser](p: T, asJsonNode = true): string =
 #     ## Return all HtmlNodes available in current document as JsonNode
@@ -242,8 +250,8 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
             shouldIncDepth = false
 
     let htmlNodeType = getHtmlNodeType(p.current)
-    htmlNode = new HtmlNode
-    with htmlNode:
+    var htmlSubNode = new HtmlNode
+    with htmlSubNode:
         nodeType = htmlNodeType
         nodeName = htmlNodeType.getSymbolName
         meta = (column: p.current.col, indent: nindent(ndepth, shouldIncDepth), line: p.current.line)
@@ -253,18 +261,18 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
     elif p.next.isAttributeOrText():
         # parse html attributes, `id`, `class`, or any other custom attributes
         jump p
-        p.setHTMLAttributes(htmlNode)
+        p.setHTMLAttributes(htmlSubNode)
     else: jump p
     if shouldIncDepth:
         inc ndepth
-    deferChildSeq.add htmlNode
+    deferChildSeq.add htmlSubNode
 
 template parseInlineNest(p: var Parser, depth: var int) =
     ## Walk along the line and collect single-line nests
     while p.current.line == p.currln.line:
         if p.current.isEOF: break
         elif p.hasError(): break
-        !> p
+        # !> p
         if p.current.isNestable():
             p.parseNewSubNode(depth)
         else: jump p
@@ -278,7 +286,6 @@ proc walk(p: var Parser) =
 
     var childNodes: HtmlNode
     var deferChildSeq: seq[HtmlNode]
-    var prevPos = -1
 
     p.statements = Program()
     while p.hasError() == false and p.current.kind != TK_EOF:
@@ -292,9 +299,7 @@ proc walk(p: var Parser) =
                 break
             p.parseImport()
             continue
-
         if not p.htmlStatements.hasKey(p.current.line):
-            # Handle current line headliner
             if p.current.isNestable():
                 p.parseNewNode(ndepth, false)
             else:
@@ -303,9 +308,7 @@ proc walk(p: var Parser) =
                 else:
                     p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
                     break
-
-        p.parseInlineNest(ndepth)   # Handle inline nestable nodes, if any
-
+        p.parseInlineNest(ndepth)
         if htmlNode != nil:
             if deferChildSeq.len != 0:
                 childNodes = rezolveInlineNest(deferChildSeq)
@@ -319,16 +322,14 @@ proc walk(p: var Parser) =
                 nodeType = HtmlElement
                 htmlNode = p.htmlStatements[p.currln.line]
             p.statements.nodes.add(node)
-
         elif conditionNode != nil:
             echo "condition"    # TODO support conditional statements
         else:
             # ndepth = 0
-            htmlNode = nil
             p.parentNode = nil
 
     # for k, n in pairs(p.htmlStatements):
-    #     node = new Node
+    #     var node = new Node
     #     with node:
     #         nodeName = getSymbolName(HtmlElement)
     #         nodeType = HtmlElement
