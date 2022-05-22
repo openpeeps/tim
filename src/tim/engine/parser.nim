@@ -7,10 +7,10 @@
 import std/[json, jsonutils]
 import std/[tables, with]
 import ./tokens, ./lexer, ./ast, ./data
+from ./resolver import resolvePartials
 
 from ./meta import TimEngine, TimlTemplate, getContents, getFileData
 from std/strutils import `%`, isDigit, join, endsWith
-from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
 type
     Parser* = object
@@ -18,6 +18,7 @@ type
             ## State of current Parser instance,
             ## where Parsers instantiated from partials
             ## will always have ``isMain`` set to ``false``.
+        offsetLine: int
         engine: TimEngine
             ## Holds current TimEngine instance
         lexer: Lexer
@@ -85,7 +86,7 @@ proc getError*[T: Parser](p: var T): string =
     elif p.error.len != 0:
         result = p.error
 
-proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true): Parser
+proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true, depth, offsetLine = 0): Parser
 
 proc getStatements*[T: Parser](p: T, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
@@ -110,29 +111,9 @@ proc hasJIT*[T: Parser](p: var T): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
     result = p.enableJit == true
 
-proc insert[P: Parser](p: var P, newNodes: seq[Node], pos = 0) =
-    var j = len(p.statements.nodes) - 1
-    var i = j + len(newNodes)
-    if i == j: return
-    p.statements.nodes.setLen(i + 1)
-
-    # Move items after `pos` to the end of the sequence.
-    while j >= pos:
-        when defined(gcDestructors):
-            p.statements.nodes[i] = move(p.statements.nodes[j])
-        else:
-            p.statements.nodes[i].shallowCopy(p.statements.nodes[j])
-        dec(i)
-        dec(j)
-    # Insert items from `dest` into `dest` at `pos`
-    inc(j)
-    for item in newNodes:
-        p.statements.nodes[j] = item
-        inc(j)
-
 proc jump[T: Parser](p: var T, offset = 1) =
     var i = 0
-    while offset > i: 
+    while offset != i: 
         p.prev = p.current
         p.current = p.next
         p.next = p.lexer.getToken()
@@ -206,13 +187,13 @@ proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
         inc i
     result = lazySeq[0]
 
-template parseNewNode(p: var Parser, ndepth: var int, isDimensional = false) =
+template parseNewNode(p: var Parser, ndepth: var int) =
     ## Parse a new HTML Node with HTML attributes, if any
     !> p # Ensure a good nest
     p.prevln = p.currln
     p.currln = p.current
     var shouldIncDepth = true
-    if p.current.col == 0:
+    if p.current.col == 0 and p.isMain == true:
         ndepth = 0
     elif p.prevNode != nil:
         if p.prevNode.meta.column == p.current.col:
@@ -277,31 +258,31 @@ template parseInlineNest(p: var Parser, depth: var int) =
             p.parseNewSubNode(depth)
         else: jump p
 
-proc walk(p: var Parser) =
+proc walk(p: var Parser, depth = 0) =
     var 
-        ndepth = 0
+        ndepth = depth
         htmlNode: HtmlNode
         conditionNode: ConditionalNode
         isMultidimensional: bool
 
     var childNodes: HtmlNode
     var deferChildSeq: seq[HtmlNode]
-
     p.statements = Program()
+
     while p.hasError() == false and p.current.kind != TK_EOF:
         if p.current.isConditional():
             conditionNode = newConditionNode(p.current)
             p.parseCondition(conditionNode)
             continue
-        elif p.current.kind == TK_IMPORT:
-            if not p.isMain:
-                p.setError("Import is only allowed at the main level")
-                break
-            p.parseImport()
-            continue
+        # elif p.current.kind == TK_IMPORT:
+        #     if not p.isMain:
+        #         p.setError("Import is only allowed at the main level")
+        #         break
+        #     # p.parseImport(ndepth)
+        #     continue
         if not p.htmlStatements.hasKey(p.current.line):
             if p.current.isNestable():
-                p.parseNewNode(ndepth, false)
+                p.parseNewNode(ndepth)
             else:
                 if p.current.kind in selfClosingTags:
                     p.parseNewSubNode(ndepth)
@@ -336,17 +317,19 @@ proc walk(p: var Parser) =
     #         htmlNode = n
     #     p.statements.nodes.add(node)
 
-proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true): Parser =
+proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true, depth, offsetLine = 0): Parser =
+    let fullCode = resolvePartials(code, path)
     var p: Parser = Parser(
         engine: engine,
         isMain: isMain,
-        lexer: Lexer.init(code),
+        lexer: Lexer.init(fullCode),
         data: Data.init(data),
-        filePath: path,
+        filePath: path
     )
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
     p.currln  = p.current
-
-    p.walk()
+    
+    p.walk(depth)
+    p.lexer.close()
     result = p

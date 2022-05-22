@@ -101,25 +101,3 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
             p.setError("Invalid conditional. Missing comparison value")
             break
         break
-
-proc parseImport(p: var Parser) =
-    ## Parse a new Import statement.
-    ## Tim Engine allows importing ``.timl`` files at any level
-    if p.next.kind != TK_STRING:
-        p.setError("Missing name for import statement")
-    var filepath = p.next.value
-    var lineno = p.current.line
-    jump p, 2
-    let dirpath = parentDir(p.filePath)
-    filepath = if not filepath.endsWith(".timl"): filepath & ".timl" else: filepath
-    let viewpath = normalizedPath(dirpath & "/" & filepath)
-    if not fileExists(viewpath):
-        p.setError("File not found for \"$1\"" % [filepath])
-    else:
-        var subp = p.engine.parse(readFile(viewpath), viewpath, isMain = false)
-        if subp.hasError:
-            p.setError(subp.getError) # retrieve error from sub parser to main
-        else:
-            var symbolNode = HtmlNode(nodeType: ImportSymbol)
-            for subnode in subp.getStatements.nodes:
-                p.statements.nodes.add(subNode)

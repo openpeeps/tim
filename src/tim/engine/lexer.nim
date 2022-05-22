@@ -394,6 +394,10 @@ proc getToken*[T: Lexer](lex: var T): TokenTuple =
     of EndOfFile:
         lex.startPos = lex.getColNumber(lex.bufpos)
         lex.kind = TK_EOF
+    of '@':
+        if lex.next('i') and lex.next('m', 2) and lex.next('p', 3) and
+            lex.next('o', 4) and lex.next('r', 5) and lex.next('t', 6):
+            lex.setToken(TK_IMPORT, 7)
     of '/':
         if lex.next('/'):
             lex.setTokenMulti(TK_COMMENT, 2, lex.nextToEOL.pos)
