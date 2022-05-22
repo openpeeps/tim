@@ -132,7 +132,7 @@ type
         HtmlVar
         HtmlVideo
         HtmlWbr
-        HtmlInvalid         # TODO mark as custom HTML5 tags instead of invalid
+        HtmlUnknown
 
     HtmlAttribute* = object
         name*: string
@@ -385,7 +385,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_VAR: HtmlVar
     of TK_VIDEO: HtmlVideo
     of TK_WBR: HtmlWbr
-    else: HtmlInvalid
+    else: HtmlUnknown
 
 proc getConditionalNodeType*(kind: TokenKind): ConditionalType = 
     case kind:
@@ -395,6 +395,7 @@ proc getConditionalNodeType*(kind: TokenKind): ConditionalType =
         else: discard
 
 proc newConditionNode*(token: TokenTuple): ConditionalNode = 
+    ## Create new Conditional Node
     let ctype = getConditionalNodeType(token.kind)
     result = ConditionalNode(
         conditionType: ctype,

@@ -40,6 +40,8 @@ type
     TimException* = object of CatchableError        # raise errors while setup Tim
     TimSyntaxError* = object of CatchableError      # raise errors from Tim language
 
+const timVersion = "0.1.0"
+
 # proc getTemplates*[T: TimlTemplateTable](t: var T): TimlTemplateTable {.inline.} =
 #     result = t.templates
 
@@ -63,7 +65,7 @@ proc getName*[T: TimlTemplate](t: T): string {.inline.} =
 
 proc getFilePath*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve the file path of the current TimlTemplate
-    result = t.filePath
+    result = t.paths.file
 
 proc getFileData*[T: TimlTemplate](t: T): JsonNode {.inline.} =
     ## Retrieve JSON data exposed to TimlTemplate
@@ -154,6 +156,7 @@ proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string) =
     ## Write current JSON AST to BSON
     var document = newBsonDocument()
     document["ast"] = ast
+    document["version"] = timVersion
     writeFile(t.paths.ast, document.bytes)
 
 proc readBson*[E: TimENgine, T: TimlTemplate](e: E, t: T): string =
@@ -215,7 +218,7 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotrelo
                 if not dirExists(innerDir): createDir(innerDir)
 
     var lTable, vTable, pTable: OrderedTable[string, TimlTemplate]
-    for tdir in @["layouts", "views", "partials"]:
+    for tdir in @["views"]:
         var tdirpath = getCurrentDir() & "/" & timlInOutDirs[0] & "/" & tdir
         if dirExists(tdirpath):
             # TODO look for .timl files only
@@ -227,9 +230,9 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotrelo
                     var filePath = f
                     filePath.normalizePath()
                     case tdir:
-                    of "layouts": ftype = Layout
-                    of "views": ftype = View
-                    of "partials": ftype = Partial
+                        of "layouts": ftype = Layout
+                        of "views": ftype = View
+                        of "partials": ftype = Partial
 
                     var tTemplate = TimlTemplate(
                         meta: (name: fname.tail, template_type: ftype),
@@ -241,9 +244,9 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotrelo
                         sourceCode: readFile(filePath)
                     )
                     case ftype:
-                    of Layout: lTable[filePath] = tTemplate
-                    of View: vTable[filePath] = tTemplate
-                    of Partial: vTable[filePath] = tTemplate
+                        of Layout: lTable[filePath] = tTemplate
+                        of View: vTable[filePath] = tTemplate
+                        of Partial: vTable[filePath] = tTemplate
         else:
             createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
