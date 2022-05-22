@@ -1,6 +1,6 @@
 
 import ./ast
-import jsony, emitter
+import jsony
 import std/[json, ropes, tables]
 from std/strutils import toLowerAscii, `%`, indent
 from std/algorithm import reverse, SortOrder
@@ -29,9 +29,8 @@ proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, b
         var i: int
         i = meta.indent
         if brAfter:
-            add compiler.html, indent(NewLine, i)
-        else:
-            add compiler.html, indent("", i)
+            add compiler.html, NewLine
+        add compiler.html, indent("", i)
     else: add compiler.html, NewLine
 
 proc hasAttributes(node: HtmlNode): bool =
@@ -154,6 +153,27 @@ proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int) =
         else:
             c.writeElement(node, index)
 
+proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int) =
+    let tag = node.htmlNode.nodeName
+    c.openTag(tag, node.htmlNode)
+    c.deferTag(tag, node.htmlNode)
+
+    if node.htmlNode.nodes.len != 0:
+        c.writeLine(node.htmlNode.nodes, index)
+    let next = c.getNextLevel(node.htmlNode.meta.indent, index)
+    if next.upper:
+        c.resolveDeferredTags(node.htmlNode.meta.line, true)
+        dec c.offset
+        # c.offset = 0
+    elif next.same:
+        inc c.offset
+        c.resolveDeferredTags(node.htmlNode.meta.line, true)
+    elif next.child:
+        inc c.offset
+    else:
+        c.offset = 0
+        c.resolveAllDeferredTags()
+
 proc writeLine[C: Compiler](c: var C, fixBr = false) =
     ## Main procedure for writing HTMLelements line by line
     ## based on given BSON Abstract Syntax Tree
@@ -165,25 +185,7 @@ proc writeLine[C: Compiler](c: var C, fixBr = false) =
         if index == nodeslen: break
         let node = c.program.nodes[index]
         if node.nodeType == NodeType.HtmlElement:
-            let tag = node.htmlNode.nodeName
-            c.openTag(tag, node.htmlNode)
-            c.deferTag(tag, node.htmlNode)
-
-            if node.htmlNode.nodes.len != 0:
-                c.writeLine(node.htmlNode.nodes, index)
-            let next = c.getNextLevel(node.htmlNode.meta.indent, index)
-            if next.upper:
-                c.resolveDeferredTags(node.htmlNode.meta.line, true)
-                c.offset = 0
-            elif next.same:
-                inc c.offset
-                c.resolveDeferredTags(node.htmlNode.meta.line, true)
-            elif next.child:
-                inc c.offset
-            else:
-                c.offset = 0
-                c.resolveAllDeferredTags()
-                # break
+            c.writeHtmlElement(node, index)
         inc index
 
 proc init*[C: typedesc[Compiler]](Compiler: C, astNodes: string, minified: bool, asNode = true): Compiler =
@@ -191,14 +193,5 @@ proc init*[C: typedesc[Compiler]](Compiler: C, astNodes: string, minified: bool,
     ## Set `minified` to false to disable this feature.
     var c = Compiler(minified: minified)
     c.program = fromJson(astNodes, Program)
-
-    Event.listen("timl.jit.enabled") do(args: varargs[Arg]):
-        # Listener for enabling the JIT Compiler
-        # triggered when a `.timl` template contains any
-        # dynamic data that needs to be computed at runtime,
-        # like for example conditional statements, data assignments
-        # and so on...
-        echo "TODO"
-
     c.writeLine(fixBr = true)
     result = c
