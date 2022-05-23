@@ -31,7 +31,11 @@ template jump[I: Importer](p: var I, offset = 1) =
         p.next = p.lex.getToken()
         inc i
 
-template loadPartial[T: Importer](p: var T, indent: int) =
+template loadCode[T: Importer](p: var T, indent: int) =
+    ## Find ``.timl`` partials and store source contents.
+    ## Once requested, a partial code is stored in a
+    ## memory ``Table``, so it can be inserted in any view
+    ## without calling ``readFile`` again.
     var filepath = p.current.value
     filepath = if not endsWith(filepath, ".timl"): filepath & ".timl" else: filepath
     let dirpath = parentDir(p.currentFilePath)
@@ -45,14 +49,16 @@ template loadPartial[T: Importer](p: var T, indent: int) =
             p.sources[path] = readFile(path)
             p.partials[p.current.line] = (indent, path)
 
-template findPartial[T: Importer](p: var T) =
+template parsePartial[T: Importer](p: var T) =
+    ## Look for all ``TK_IMPORT`` tokens and try
+    ## to load partial file contents inside of the main view
     if p.current.kind == TK_IMPORT:
         let indent = p.current.col
         if p.next.kind != TK_STRING:
             p.error = "Invalid import statement missing file path."
             break
         jump p
-        loadPartial(p, indent)
+        loadCode(p, indent)
 
 proc resolvePartials*(viewCode: string, currentFilePath: string): string =
     ## Resolve ``@import`` statements in main view code.
@@ -60,7 +66,7 @@ proc resolvePartials*(viewCode: string, currentFilePath: string): string =
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:
-        p.findPartial()
+        p.parsePartial()
         jump p
     if p.error.len != 0:
         echo p.error # todo
