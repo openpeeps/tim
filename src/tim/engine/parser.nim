@@ -6,7 +6,8 @@
 
 import std/[json, jsonutils]
 import std/[tables, with]
-import ./tokens, ./lexer, ./ast, ./data
+
+import ./tokens, ./ast, ./data
 from ./resolver import resolvePartials
 
 from ./meta import TimEngine, TimlTemplate, getContents, getFileData
@@ -76,13 +77,13 @@ proc setError[T: Parser](p: var T, msg: string) =
 
 proc hasError*[T: Parser](p: var T): bool =
     ## Determine if current parser instance has any errors
-    result = p.error.len != 0 or p.lexer.error.len != 0
+    result = p.error.len != 0 or p.lexer.hasError()
 
 proc getError*[T: Parser](p: var T): string = 
     ## Retrieve current parser instance errors,
     ## including lexer-side unrecognized token errors
-    if p.lexer.error.len != 0:
-        result = p.lexer.error
+    if p.lexer.hasError():
+        result = p.lexer.getError()
     elif p.error.len != 0:
         result = p.error
 
@@ -148,7 +149,7 @@ proc isNestable*[T: TokenTuple](token: T): bool =
     ## TODO filter only nestable tokens
     result = token.kind notin {
         TK_IDENTIFIER, TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_COLON,
-        TK_INTEGER, TK_STRING, TK_NEST_OP, TK_INVALID, TK_EOF, TK_NONE
+        TK_INTEGER, TK_STRING, TK_NEST_OP, TK_UNKNOWN, TK_EOF, TK_NONE
     } + selfClosingTags
 
 include ./parseutils
@@ -331,5 +332,5 @@ proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, 
     p.currln  = p.current
     
     p.walk(depth)
-    p.lexer.close()
+    # p.lexer.close()
     result = p

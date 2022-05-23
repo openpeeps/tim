@@ -1,164 +1,157 @@
+# A High-performance, compiled template engine
+# inspired by Emmmet Syntax.
 # 
-# High-performance, compiled template engine inspired by Emmet syntax.
+# Tim Engine can be used as a Nim Library via Nimble
+# or as a binary application for language agnostic
+# projects.
 # 
-# Tim Engine can be used as a Nim library via Nimble,
-# or as a binary application for integrating Tim Engine with
-# other apps and programming languages.
-# 
-# MIT License
-# Copyright (c) 2022 George Lemon from OpenPeep
-# https://github.com/openpeep/tim
+#       (c) 2022 George Lemon | Released under MIT License
+#       Made by Humans from OpenPeep
+#       https://github.com/openpeep/tim
+import toktok
 
-type
-    TokenKind* = enum
-        TK_NONE
-        TK_COMMENT          # //
-        TK_DOCTYPE
-        TK_A
-        TK_ABBR
-        TK_ACRONYM
-        TK_ADDRESS
-        TK_APPLET
-        TK_AREA
-        TK_ARTICLE
-        TK_ASIDE
-        TK_AUDIO
-        TK_B
-        TK_BASE
-        TK_BASEFONT
-        TK_BDI
-        TK_BDO
-        TK_BIG
-        TK_BLOCKQUOTE
-        TK_BODY
-        TK_BR
-        TK_BUTTON
-        TK_CANVAS
-        TK_CAPTION
-        TK_CENTER
-        TK_CITE
-        TK_CODE
-        TK_COL
-        TK_COLGROUP
-        TK_DATA
-        TK_DATALIST
-        TK_DD
-        TK_DEL
-        TK_DETAILS
-        TK_DFN
-        TK_DIALOG
-        TK_DIR
-        TK_DIV
-        TK_DL
-        TK_DT
-        TK_EM
-        TK_EMBED
-        TK_FIELDSET
-        TK_FIGCAPTION
-        TK_FIGURE
-        TK_FONT
-        TK_FOOTER
-        TK_FORM
-        TK_FRAME
-        TK_FRAMESET
-        TK_H1
-        TK_H2
-        TK_H3
-        TK_H4
-        TK_H5
-        TK_H6
-        TK_HEAD
-        TK_HEADER
-        TK_HR
-        TK_HTML
-        TK_I
-        TK_IFRAME
-        TK_IMG
-        TK_INPUT
-        TK_INS
-        TK_KBD
-        TK_LABEL
-        TK_LEGEND
-        TK_LI
-        TK_LINK
-        TK_MAIN
-        TK_MAP
-        TK_MARK
-        TK_META
-        TK_METER
-        TK_NAV
-        TK_NOFRAMES
-        TK_NOSCRIPT
-        TK_OBJECT
-        TK_OL
-        TK_OPTGROUP
-        TK_OPTION
-        TK_OUTPUT
-        TK_P
-        TK_PARAM
-        TK_PRE
-        TK_PROGRESS
-        TK_Q
-        TK_RP
-        TK_RT
-        TK_RUBY
-        TK_S
-        TK_SAMP
-        TK_SCRIPT
-        TK_SECTION
-        TK_SELECT
-        TK_SMALL
-        TK_SOURCE
-        TK_SPAN
-        TK_STRIKE
-        TK_STRONG
-        TK_STYLE
-        TK_SUB
-        TK_SUMMARY
-        TK_SUP
-        TK_SVG
-        TK_TABLE
-        TK_TBODY
-        TK_TD
-        TK_TEMPLATE
-        TK_TEXTAREA
-        TK_TFOOT
-        TK_TH
-        TK_THEAD
-        TK_TIME
-        TK_TITLE
-        TK_TR
-        TK_TRACK
-        TK_TT
-        TK_U
-        TK_UL
-        TK_VAR
-        TK_VIDEO
-        TK_WBR
+tokens:
+    A_Link       > "a"
+    Abbr         > "abbr"
+    Acronym      > "acronym"
+    Address      > "address"
+    Applet       > "applet"
+    Area         > "area"
+    Article      > "article"
+    Aside        > "aside"
+    Audio        > "audio"
+    Bold         > "b"
+    Base         > "base"
+    Basefont     > "basefont"
+    Bdi          > "bdi"
+    Bdo          > "bdo"
+    Big          > "big"
+    Blockquote   > "blockquote"
+    Body         > "body"
+    Br           > "br"
+    Button       > "button"
+    Comment      > "//" .. EOL
+    Canvas       > "canvas"
+    Caption      > "caption"
+    Center       > "center"
+    Cite         > "cite"
+    Code         > "code"
+    Col          > "col"
+    Colgroup     > "colgroup"
+    Data         > "data"
+    Datalist     > "datalist"
+    DD           > "dd"
+    Del          > "del"
+    Details      > "details"
+    DFN          > "dfn"
+    Dialog       > "dialog"
+    Dir          > "dir"
+    Div          > "div"
+    Doctype      > "doctype"
+    DL           > "dl"
+    DT           > "dt"
+    EM           > "em"
+    Embed        > "embed"
+    Fieldset     > "fieldset"
+    Figcaption   > "figcaption"
+    Figure       > "figure"
+    Font         > "font"
+    Footer       > "footer"
+    Form         > "form"
+    Frame        > "frame"
+    Frameset     > "frameset"
+    H1           > "h1"
+    H2           > "h2"
+    H3           > "h3"
+    H4           > "h4"
+    H5           > "h5"
+    H6           > "h6"
+    Head         > "head"
+    Header       > "header"
+    Hr           > "hr"
+    Html         > "html"
+    Italic       > "i"
+    Iframe       > "iframe"
+    Img          > "img"
+    Input        > "input"
+    Ins          > "ins"
+    Kbd          > "kbd"
+    Label        > "label"
+    Legend       > "legend"
+    Li           > "li"
+    Link         > "link"
+    Main         > "main"
+    Map          > "map"
+    Mark         > "mark"
+    Meta         > "meta"
+    Meter        > "meter"
+    Nav          > "nav"
+    Noframes     > "noframes"
+    Noscript     > "noscript"
+    Object       > "object"
+    Ol           > "ol"
+    Optgroup     > "optgroup"
+    Option       > "option"
+    Output       > "output"
+    Paragraph    > "pargraph"
+    Param        > "param"
+    Pre          > "pre"
+    Progress     > "progress"
+    Quotation    > "q"
+    RP           > "rp"
+    RT           > "rt"
+    Ruby         > "ruby"
+    Strike       > "s"
+    Samp         > "samp"
+    Script       > "script"
+    Section      > "section"
+    Select       > "select"
+    Small        > "small"
+    Source       > "source"
+    Span         > "span"
+    Strike_Long  > "strike"
+    Strong       > "strong"
+    Style        > "style"
+    Sub          > "sub"
+    Summary      > "summary"
+    Sup          > "sup"
+    SVG          > "svg"
+    Table        > "table"
+    Tbody        > "tbody"
+    TD           > "td"
+    Template     > "template"
+    Textarea     > "textarea"
+    Tfoot        > "tfoot"
+    TH           > "th"
+    Thead        > "thead"
+    Time         > "time"
+    Title        > "title"
+    TR           > "tr"
+    Track        > "track"
+    TT           > "tt"
+    Underline    > "u"  
+    UL           > "ul"
+    Var          > "var"
+    Video        > "video"
+    WBR          > "wbr"
+    Attr
+    Attr_Class   > '.'
+    Attr_ID      > '#'
+    Assign       > '='
+    Colon        > ':' 
+    Nest_OP      > '>'
+    Variable     > '$'
+    If           > "if"
+    Elif         > "elif"
+    Else         > "else"
+    For          > "for"
+    In           > "in"
+    Or           > "or"
+    Eq           > ('=', '=')
+    Neq          > ('!', '=')
+    Import       > ('@', 'i', 'm', 'p', 'o','r', 't')
+    Xor          > ('%', '*')
+    None
 
-        TK_ATTR
-        TK_ATTR_CLASS   # .
-        TK_ATTR_ID      # #
-        TK_ASSIGN       # =
-        TK_COLON        # :
-        TK_INTEGER      # 0-9
-        TK_STRING       # `"`..`"`
-        TK_NEST_OP      # >
-        TK_IDENTIFIER
-        TK_VARIABLE     # $[az_AZ_09]
-        TK_IF           # if
-        TK_ELIF         # elif
-        TK_ELSE         # else
-        TK_FOR          # for
-        TK_IN           # in
-        TK_OR           # or
-        TK_EQ           # ==
-        TK_NEQ          # !=
-        TK_VALUE_BOOL
-        TK_VALUE_FLOAT
-        TK_VALUE_INT
-        TK_VALUE_JSON
-        TK_VALUE_NIL
-        TK_VALUE_STRING
-        TK_INVALID
-        TK_EOF          # end of file
+
+export TokenTuple, TokenKind

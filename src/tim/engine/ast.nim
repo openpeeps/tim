@@ -7,8 +7,8 @@
 from std/strutils import toUpperAscii
 from std/enumutils import symbolName, symbolRank
 from std/json import JsonNode, JsonNodeKind
-from ./lexer import TokenTuple
-from ./tokens import TokenKind
+# from ./lexer import TokenTuple
+from ./tokens import TokenKind, TokenTuple
 
 type
     HtmlNodeType* = enum
@@ -266,7 +266,7 @@ proc getSymbolName*[T: NodeType](nodeType: T): string =
 proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType = 
     result = case token.kind:
     of TK_DOCTYPE: HtmlDoctype
-    of TK_A: HtmlA
+    of TK_A_LINK: HtmlA
     of TK_ABBR: HtmlAbbr
     of TK_ACRONYM: HtmlAcronym
     of TK_ADDRESS: HtmlAddress
@@ -275,7 +275,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_ARTICLE: HtmlArticle
     of TK_ASIDE: HtmlAside
     of TK_AUDIO: HtmlAudio
-    of TK_B: HtmlB
+    of TK_BOLD: HtmlB
     of TK_BASE: HtmlBase
     of TK_BASEFONT: HtmlBasefont
     of TK_BDI: HtmlBdi
@@ -322,7 +322,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_HEAD: HtmlHead
     of TK_HR: HtmlHr
     of TK_HTML: HtmlHtml
-    of TK_I: HtmlI
+    of TK_Italic: HtmlI
     of TK_IFRAME: HtmlIframe
     of TK_IMG: HtmlImg
     of TK_INPUT: HtmlInput
@@ -345,15 +345,15 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_OPTGROUP: HtmlOptgroup
     of TK_OPTION: HtmlOption
     of TK_OUTPUT: HtmlOutput
-    of TK_P: HtmlP
+    of TK_Paragraph: HtmlP
     of TK_PARAM: HtmlParam
     of TK_PRE: HtmlPre
     of TK_PROGRESS: HtmlProgress
-    of TK_Q: HtmlQ
+    of TK_QUOTATION: HtmlQ
     of TK_RP: HtmlRp
     of TK_RT: HtmlRT
     of TK_RUBY: HtmlRuby
-    of TK_S: HtmlS
+    of TK_STRIKE: HtmlS
     of TK_SAMP: HtmlSamp
     of TK_SCRIPT: HtmlScript
     of TK_SECTION: HtmlSection
@@ -362,7 +362,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_SMALL: HtmlSmall
     of TK_SOURCE: HtmlSource
     of TK_SPAN: HtmlSpan
-    of TK_STRIKE: HtmlStrike
+    of TK_STRIKE_LONG: HtmlStrike
     of TK_STRONG: HtmlStrong
     of TK_STYLE: HtmlStyle
     of TK_SUB: HtmlSub
@@ -381,7 +381,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_TR: HtmlTr
     of TK_TRACK: HtmlTrack
     of TK_TT: HtmlTt
-    of TK_U: HtmlU
+    of TK_UNDERLINE: HtmlU
     of TK_VAR: HtmlVar
     of TK_VIDEO: HtmlVideo
     of TK_WBR: HtmlWbr

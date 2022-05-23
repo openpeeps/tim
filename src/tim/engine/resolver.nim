@@ -10,17 +10,19 @@ import std/[streams, tables, ropes]
 from std/strutils import endsWith, `%`, indent
 from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
-tokens:
-    Import > '@'
+import ./tokens
 
 type
+    SourcePath = string
+    SourceCode = string
     Importer = object
         lex: Lexer
         rope: Rope
         error: string
         currentFilePath: string
         current, next: TokenTuple
-        partials: OrderedTable[int, tuple[indent: int, code: string]]
+        partials: OrderedTable[int, tuple[indentSize: int, source: SourcePath]]
+        sources: Table[string, SourceCode]
 
 template jump[I: Importer](p: var I, offset = 1) =
     var i = 0
@@ -31,23 +33,21 @@ template jump[I: Importer](p: var I, offset = 1) =
 
 template loadPartial[T: Importer](p: var T, indent: int) =
     var filepath = p.current.value
-    let dirpath = p.currentFilePath.parentDir()
-    filepath = if not filepath.endsWith(".timl"): filepath & ".timl" else: filepath
-    let partialPath = normalizedPath(dirpath & "/" & filepath)
-    if not fileExists(partialPath):
-        p.error = "File not found for \"$1\"" % [filepath]
+    filepath = if not endsWith(filepath, ".timl"): filepath & ".timl" else: filepath
+    let dirpath = parentDir(p.currentFilePath)
+    let path = normalizedPath(dirpath & "/" & filepath)
+    if p.sources.hasKey(path):
+        p.partials[p.current.line] = (indent, path)
     else:
-        p.partials[p.current.line] = (indent, readFile(partialPath))
+        if not fileExists(path):
+            p.error = "File not found for \"$1\"" % [filepath]
+        else:
+            p.sources[path] = readFile(path)
+            p.partials[p.current.line] = (indent, path)
 
 template findPartial[T: Importer](p: var T) =
-    if p.current.kind == TK_UNKNOWN:
-        inc p.lex
     if p.current.kind == TK_IMPORT:
         let indent = p.current.col
-        if p.next.kind != TK_IDENTIFIER or p.next.value != "import":
-            p.error = "Invalid import statement"
-            break
-        jump p
         if p.next.kind != TK_STRING:
             p.error = "Invalid import statement missing file path."
             break
@@ -57,13 +57,11 @@ template findPartial[T: Importer](p: var T) =
 proc resolvePartials*(viewCode: string, currentFilePath: string): string =
     ## Resolve ``@import`` statements in main view code.
     var p = Importer(lex: Lexer.init(viewCode), currentFilePath: currentFilePath)
-    var partials: seq[string]
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:
         p.findPartial()
         jump p
-
     if p.error.len != 0:
         echo p.error # todo
 
@@ -71,10 +69,13 @@ proc resolvePartials*(viewCode: string, currentFilePath: string): string =
     var lineno = 1
     for line in lines(codeStream):
         if p.partials.hasKey(lineno):
-            let indentSize = p.partials[lineno].indent
-            p.rope.add indent(p.partials[lineno].code, p.partials[lineno].indent)
+            let path: SourcePath = p.partials[lineno].source
+            let code: SourceCode = p.sources[path]
+            let indentSize = p.partials[lineno].indentSize
+            p.rope.add indent(code, indentSize)
             p.rope.add "\n"
         else:
             p.rope.add line & "\n"
         inc lineno
     result = $p.rope
+    # echo $p.rope
