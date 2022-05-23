@@ -14,15 +14,52 @@ import ./tokens
 
 type
     SourcePath = string
+        ## Partial Source Path
     SourceCode = string
-    Importer = object
+        ## Partial Source Code
+    Importer* = object
         lex: Lexer
+            ## An instance of TokTok Lexer
         rope: Rope
+            ## The entire view containing resolved partials
         error: string
+            ## An error message to be shown
+        error_line, error_column: int
+            ## Error line and column
+        error_trace: string
+            ## A preview of a ``.timl`` code highlighting error
         currentFilePath: string
+            ## The absoulte file path for ``.timl`` view
         current, next: TokenTuple
         partials: OrderedTable[int, tuple[indentSize: int, source: SourcePath]]
-        sources: Table[string, SourceCode]
+            ## An ``OrderedTable`` with ``int`` based key representing
+            ## the line of the ``@import`` statement, with a tuple-based value.
+            ## - ``indentSize`` field  to preserve indentation size from the view side
+            ## - ``source`` field pointing to an absolute path for ``.timl`` partial.
+        sources: Table[SourcePath, SourceCode]
+            ## A ``Table`` containing the source code of all imported partials.
+
+proc hasError*[I: Importer](p: var I): bool =
+    result = p.error.len != 0
+
+proc setError*[I: Importer](p: var I, msg: string, path: string) =
+    p.error = msg
+    p.error_line = p.current.line
+    p.error_column = p.current.col
+    if p.sources.hasKey(path):
+        p.error_trace = p.sources[path]
+
+proc getError*[I: Importer](p: var I): string =
+    result = p.error
+
+proc getErrorColumn*[I: Importer](p: var I): int =
+    result = p.error_column
+
+proc getErrorLine*[I: Importer](p: var I): int =
+    result = p.error_line
+
+proc getFullCode*[I: Importer](p: var I): string =
+    result = $p.rope
 
 template jump[I: Importer](p: var I, offset = 1) =
     var i = 0
@@ -44,8 +81,11 @@ template loadCode[T: Importer](p: var T, indent: int) =
         p.partials[p.current.line] = (indent, path)
     else:
         if not fileExists(path):
-            p.error = "File not found for \"$1\"" % [filepath]
+            p.setError "File not found for \"$1\"" % [filepath], filepath
         else:
+            if path == p.currentFilePath:
+                p.setError "Cannot import itself", filepath
+                break
             p.sources[path] = readFile(path)
             p.partials[p.current.line] = (indent, path)
 
@@ -55,12 +95,12 @@ template parsePartial[T: Importer](p: var T) =
     if p.current.kind == TK_IMPORT:
         let indent = p.current.col
         if p.next.kind != TK_STRING:
-            p.error = "Invalid import statement missing file path."
+            p.setError "Invalid import statement missing file path.", p.currentFilePath
             break
         jump p
         loadCode(p, indent)
 
-proc resolvePartials*(viewCode: string, currentFilePath: string): string =
+proc resolveWithImports*(viewCode: string, currentFilePath: string): Importer =
     ## Resolve ``@import`` statements in main view code.
     var p = Importer(lex: Lexer.init(viewCode), currentFilePath: currentFilePath)
     p.current = p.lex.getToken()
@@ -68,20 +108,17 @@ proc resolvePartials*(viewCode: string, currentFilePath: string): string =
     while p.error.len == 0 and p.current.kind != TK_EOF:
         p.parsePartial()
         jump p
-    if p.error.len != 0:
-        echo p.error # todo
-
-    var codeStream = newStringStream(viewCode)
-    var lineno = 1
-    for line in lines(codeStream):
-        if p.partials.hasKey(lineno):
-            let path: SourcePath = p.partials[lineno].source
-            let code: SourceCode = p.sources[path]
-            let indentSize = p.partials[lineno].indentSize
-            p.rope.add indent(code, indentSize)
-            p.rope.add "\n"
-        else:
-            p.rope.add line & "\n"
-        inc lineno
-    result = $p.rope
-    # echo $p.rope
+    if p.error.len == 0:
+        var codeStream = newStringStream(viewCode)
+        var lineno = 1
+        for line in lines(codeStream):
+            if p.partials.hasKey(lineno):
+                let path: SourcePath = p.partials[lineno].source
+                let code: SourceCode = p.sources[path]
+                let indentSize = p.partials[lineno].indentSize
+                p.rope.add indent(code, indentSize)
+                p.rope.add "\n"
+            else:
+                p.rope.add line & "\n"
+            inc lineno
+    result = p

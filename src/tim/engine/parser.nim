@@ -8,7 +8,7 @@ import std/[json, jsonutils]
 import std/[tables, with]
 
 import ./tokens, ./ast, ./data
-from ./resolver import resolvePartials
+from ./resolver import resolveWithImports, hasError, getError, getErrorLine, getErrorColumn, getFullCode
 
 from ./meta import TimEngine, TimlTemplate, getContents, getFileData
 from std/strutils import `%`, isDigit, join, endsWith
@@ -71,9 +71,15 @@ type
 #         line = line
 #     c.warnings.add(warning)
 
-proc setError[T: Parser](p: var T, msg: string) =
+proc setError[P: Parser](p: var P, msg: string) =
     ## Set parser error
     p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
+
+proc setError[P: Parser](p: var P, msg: string, line, col: int) =
+    ## Set a Parser error on a specific line and col number
+    p.current.line = line
+    p.current.col = col
+    p.setError(msg)
 
 proc hasError*[T: Parser](p: var T): bool =
     ## Determine if current parser instance has any errors
@@ -319,18 +325,21 @@ proc walk(p: var Parser, depth = 0) =
     #     p.statements.nodes.add(node)
 
 proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true, depth, offsetLine = 0): Parser =
-    let fullCode = resolvePartials(code, path)
-    var p: Parser = Parser(
-        engine: engine,
-        isMain: isMain,
-        lexer: Lexer.init(fullCode),
-        data: Data.init(data),
-        filePath: path
-    )
+    var importHandler = resolveWithImports(code, path)
+    var p: Parser = Parser(engine: engine, isMain: isMain)
+
+    if importHandler.hasError():
+        p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
+        return p
+    else:
+        p.lexer = Lexer.init(importHandler.getFullCode())
+        p.data = Data.init(data)
+        p.filePath = path
+
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
     p.currln  = p.current
     
     p.walk(depth)
-    # p.lexer.close()
+    p.lexer.close()
     result = p
