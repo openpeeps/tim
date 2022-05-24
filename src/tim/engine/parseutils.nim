@@ -72,9 +72,10 @@ proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
     # var varNode: VariableNode
     let varName: string = tokenVar.value
     if not p.data.hasVar(varName):
-        p.setError("Undeclared variable \"$1\"" % [varName])
+        p.setError "Undeclared variable \"$1\"" % [varName]
         return nil
     result = newVariableNode(varName, p.data.getVar(varName))
+    jit p
 
 template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 
@@ -84,7 +85,7 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
     var comparatorNode: ComparatorNode
     while true:
         if p.current.kind == TK_IF and p.next.kind != TK_VARIABLE:
-            p.setError("Missing variable identifier for conditional statement")
+            p.setError("Invalid conditional statement missing var identifier")
             break
         jump p
         varNode1 = p.parseVariable(p.current)
@@ -101,3 +102,4 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
             p.setError("Invalid conditional. Missing comparison value")
             break
         break
+    jit p

@@ -7,18 +7,14 @@
 import std/[json, jsonutils]
 import std/[tables, with]
 
-import ./tokens, ./ast, ./data
-from ./resolver import resolveWithImports, hasError, getError, getErrorLine, getErrorColumn, getFullCode
+import tokens, ast, data
+from resolver import resolveWithImports, hasError, getError, getErrorLine, getErrorColumn, getFullCode
 
-from ./meta import TimEngine, TimlTemplate, getContents, getFileData
+from meta import TimEngine, TimlTemplate, getContents, getFileData
 from std/strutils import `%`, isDigit, join, endsWith
 
 type
     Parser* = object
-        isMain: bool
-            ## State of current Parser instance,
-            ## where Parsers instantiated from partials
-            ## will always have ``isMain`` set to ``false``.
         offsetLine: int
         engine: TimEngine
             ## Holds current TimEngine instance
@@ -93,7 +89,7 @@ proc getError*[T: Parser](p: var T): string =
     elif p.error.len != 0:
         result = p.error
 
-proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true, depth, offsetLine = 0): Parser
+proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}): Parser
 
 proc getStatements*[T: Parser](p: T, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
@@ -113,6 +109,11 @@ proc getStatementsStr*[T: Parser](p: T, prettyString = false): string =
     #     result = pretty(p.getStatements(asJsonNode = true))
     # else:
     result = pretty(toJson(p.statements))
+
+template jit[T: Parser](p: var T) =
+    ## Enable jit flag When current document contains
+    ## either conditionals, or variable assignments
+    if p.enableJit == false: p.enableJit = true
 
 proc hasJIT*[T: Parser](p: var T): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
@@ -173,13 +174,12 @@ template `!>`[T: Parser](p: var T): untyped =
     ## Ensure nest token `>` exists for inline statements
     if p.current.isNestable() and p.next.isNestable():
         if p.current.line == p.next.line:
-            p.setError("Missing `>` token for single line nest")
+            p.setError("Invalid nest missing `>` token for inline declarations")
             break
-
-template jit[T: Parser](p: var T): untyped =
-    ## Enable jit flag When current document contains
-    ## either conditionals, or variable assignments
-    if p.enableJit == false: p.enableJit = true
+    elif p.current.isNestable() and not p.next.isNestable():
+        if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON}:
+            p.setError("Invalid nest declaration")
+            break
 
 proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
     ## Rezolve lazy sequence of nodes collected from last inline nest
@@ -200,7 +200,7 @@ template parseNewNode(p: var Parser, ndepth: var int) =
     p.prevln = p.currln
     p.currln = p.current
     var shouldIncDepth = true
-    if p.current.col == 0 and p.isMain == true:
+    if p.current.col == 0:
         ndepth = 0
     elif p.prevNode != nil:
         if p.prevNode.meta.column == p.current.col:
@@ -260,33 +260,25 @@ template parseInlineNest(p: var Parser, depth: var int) =
     while p.current.line == p.currln.line:
         if p.current.isEOF: break
         elif p.hasError(): break
-        # !> p
+        !> p
         if p.current.isNestable():
             p.parseNewSubNode(depth)
         else: jump p
 
-proc walk(p: var Parser, depth = 0) =
+proc walk(p: var Parser) =
     var 
-        ndepth = depth
+        ndepth = 0
         htmlNode: HtmlNode
         conditionNode: ConditionalNode
         isMultidimensional: bool
-
-    var childNodes: HtmlNode
-    var deferChildSeq: seq[HtmlNode]
+        childNodes: HtmlNode
+        deferChildSeq: seq[HtmlNode]
     p.statements = Program()
-
     while p.hasError() == false and p.current.kind != TK_EOF:
         if p.current.isConditional():
             conditionNode = newConditionNode(p.current)
             p.parseCondition(conditionNode)
             continue
-        # elif p.current.kind == TK_IMPORT:
-        #     if not p.isMain:
-        #         p.setError("Import is only allowed at the main level")
-        #         break
-        #     # p.parseImport(ndepth)
-        #     continue
         if not p.htmlStatements.hasKey(p.current.line):
             if p.current.isNestable():
                 p.parseNewNode(ndepth)
@@ -316,17 +308,9 @@ proc walk(p: var Parser, depth = 0) =
             # ndepth = 0
             p.parentNode = nil
 
-    # for k, n in pairs(p.htmlStatements):
-    #     var node = new Node
-    #     with node:
-    #         nodeName = getSymbolName(HtmlElement)
-    #         nodeType = HtmlElement
-    #         htmlNode = n
-    #     p.statements.nodes.add(node)
-
-proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, isMain = true, depth, offsetLine = 0): Parser =
+proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}): Parser =
     var importHandler = resolveWithImports(code, path)
-    var p: Parser = Parser(engine: engine, isMain: isMain)
+    var p: Parser = Parser(engine: engine)
 
     if importHandler.hasError():
         p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
@@ -340,6 +324,6 @@ proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}, 
     p.next    = p.lexer.getToken()
     p.currln  = p.current
     
-    p.walk(depth)
+    p.walk()
     p.lexer.close()
     result = p
