@@ -12,7 +12,6 @@ requires "nim >= 1.6.0"
 requires "toktok"
 requires "bson"
 requires "jsony"
-requires "emitter"
 
 task tests, "Run tests":
     exec "testament p 'tests/*.nim'"
