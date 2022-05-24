@@ -42,7 +42,7 @@ proc precompile*[T: TimEngine](engine: T, debug = false) =
             # Save the Abstract Syntax Tree of the current template as BSON
             # echo p.getStatementsStr(prettyString = true) # debug
             engine.writeBson(view, p.getStatementsStr())
-    else: raise newException(TimException, "Unable to find any Timl templates")
+    # else: raise newException(TimException, "Unable to find any Timl templates")
 
 when isMainModule:
     var engine = TimEngine.init(
