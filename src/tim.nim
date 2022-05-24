@@ -6,7 +6,7 @@
 
 import bson
 import tim/engine/[parser, compiler, meta]
-import std/[tables, json, strutils]
+import std/[tables, json]
 
 # from tim/engine/ast import HtmlNode
 export parser, meta, compiler
@@ -23,47 +23,24 @@ proc render*[T: TimEngine](engine: T, key: string, data: JsonNode = %*{}): strin
     ## in a sub directory like ``views/members``, then  you can use dot annotation.
     ## Example ``engine.render("members.contact")``
     if engine.hasView(key):
-        var responseStr = ""
         var layout: TimlTemplate = engine.getView(key)
         let c = Compiler.init(engine.readBson(layout), minified = engine.shouldMinify())
-        # add responseStr, """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous"></head><body>"""
-        add responseStr, c.getHtml
-        # add responseStr, "</body></html>"
-        result = responseStr
+        result.add c.getHtml
 
 proc precompile*[T: TimEngine](engine: T, debug = false) =
-    ## Precompile Tim's views to BSON Abstract Syntax Tree
-    var data = %*{
-        "firstname": "George",
-        "lastname": "Lemon"
-    }
-
+    ## Pre compile from ``.timl`` to AST in BSON format.
     if engine.hasAnySources:
         for id, view in engine.getViews().pairs():
-            var p: Parser = engine.parse(view)
+            var p: Parser = engine.parse(view.getSourceCode(), view.getFilePath())
             if p.hasError():
                 raise newException(TimSyntaxError, "\n"&p.getError())
-
-            # echo p.getStatementsStr(prettyString = true)
-            # echo engine.readBson(view)
             # AST Nodes to BSON AST
             # BSON files are saved to provided `output` path under `bson` directory.
             # Each BSON template is named using MD5 based on its absolute path
             # if p.hasJIT:
-                # RUNTIME!
-                # Now, this is supposed to be done on runtime (on request).
-                # Here we get the BSON AST and, if needed it will be sent 
-                # to the evaluator to determine what should be displayed or not
-                # TODO
-                # let c = JIT.init(engine.readBson(view), minified = false)
-                # echo c.getHtml
             # else:
-                # echo "compile to html"
-                # Finally, compile the AST to HTML
-                # let c = Compiler.init(parser = p, minified = false, asNodes = true)
-                # echo c.getHtml
             # Save the Abstract Syntax Tree of the current template as BSON
-            # echo p.getStatementsStr(prettyString = true)
+            # echo p.getStatementsStr(prettyString = true) # debug
             engine.writeBson(view, p.getStatementsStr())
     else: raise newException(TimException, "Unable to find any Timl templates")
 
@@ -81,5 +58,11 @@ when isMainModule:
             # Used to indent your HTML output (ignored when `minified` is true)
     )
 
-    precompile(engine)
-    echo engine.render("members.contact")
+    # If you're not using Tim's Command Line Interface you have to
+    # to call this proc manually in main state of your app so
+    # tim can precompile ``.timl`` to either :
+    # ``.html`` for static templates
+    # ``.bson`` for templates requiring runtime computation,
+    # like conditional statements, iterations, var assignments and so on.
+    engine.precompile()
+    # echo engine.render("members.contact")
