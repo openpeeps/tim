@@ -30,7 +30,7 @@ tokens:
     Body         > "body"
     Br           > "br"
     Button       > "button"
-    Comment      > "//" .. EOL
+    Comment      > '/' .. EOL  # TODO TokTok: Handle strings like "//" .. EOL
     Canvas       > "canvas"
     Caption      > "caption"
     Center       > "center"
@@ -140,7 +140,7 @@ tokens:
     Assign       > '='
     Colon        > ':' 
     Nest_OP      > '>'
-    Variable     > '$'
+    Variable     > identWith('$')
     If           > "if"
     Elif         > "elif"
     Else         > "else"
@@ -149,7 +149,7 @@ tokens:
     Or           > "or"
     Eq           > ('=', '=')
     Neq          > ('!', '=')
-    Import       > ('@', 'i', 'm', 'p', 'o','r', 't')
+    Import       > ('@', "import")
     Xor          > ('%', '*')
     None
 
