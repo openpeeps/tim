@@ -121,4 +121,5 @@ proc resolveWithImports*(viewCode: string, currentFilePath: string): Importer =
             else:
                 p.rope.add line & "\n"
             inc lineno
+        codeStream.close()
     result = p
