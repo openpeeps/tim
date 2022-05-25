@@ -93,7 +93,7 @@ tokens:
     Optgroup     > "optgroup"
     Option       > "option"
     Output       > "output"
-    Paragraph    > "pargraph"
+    Paragraph    > "p"
     Param        > "param"
     Pre          > "pre"
     Progress     > "progress"
