@@ -202,12 +202,16 @@ template parseNewNode(p: var Parser, ndepth: var int) =
     var shouldIncDepth = true
     if p.current.col == 0:
         ndepth = 0
-    elif ndepth != 0:
-        if p.parentNode != nil:
-            if p.parentNode.meta.indent == p.current.col:
-                p.current.col = p.parentNode.meta.indent
-                shouldIncDepth = false
-                ndepth = 2 # TODO calculate based on base indent
+    if ndepth != 0:
+        echo p.parentNode.meta
+        if p.parentNode.meta.indent == p.current.col:
+            # check if current headliner is at the same level
+            # with previous `parentNode` (headliner)
+            shouldIncDepth = false
+        else:
+            if p.current.col != 0:
+                p.current.col = p.prevNode.meta.indent + 4
+            else: shouldIncDepth = false
 
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
@@ -231,10 +235,10 @@ template parseNewNode(p: var Parser, ndepth: var int) =
 
 template parseNewSubNode(p: var Parser, ndepth: var int) =
     p.currln = p.current
-    if ndepth == 1:
+    if ndepth in {0, 1}:
         p.current.col = 4 # TODO calculate based on base indent
     else:
-        p.current.col = ndepth * 4 # TODO calculate based on base indent
+        p.current.col = p.prevNode.meta.indent + 4 # TODO calculate based on base indent
 
     let htmlNodeType = getHtmlNodeType(p.current)
     var htmlSubNode = new HtmlNode
