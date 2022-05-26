@@ -13,7 +13,7 @@ type
             ## The line number that is currently compiling
         program: Program
             ## All Nodes statements under a ``Program`` object instance
-        tags: Table[int, seq[DeferTag]]
+        tags: OrderedTable[int, seq[DeferTag]]
             ## A sequence of tuple containing ``tag`` name and ``HtmlNode``
             ## representation used for rendering the closing tags
             ## after resolving multi dimensional nodes
@@ -118,11 +118,11 @@ proc resolveAllDeferredTags[C: Compiler](c: var C) =
     var linesno: seq[int]
     for k in c.tags.keys():
         linesno.add(k)
+    linesno.reverse()
     while true:
         if c.tags.len == 0: break
         let lineno = linesno[i]
         var tags = c.tags[lineno]
-        tags.reverse() # tags list
         for tag in tags:
             c.closeTag(tag)
             c.tags[lineno].delete(0)
@@ -177,9 +177,9 @@ proc writeLine[C: Compiler](c: var C, fixBr = false) =
     ## Main procedure for writing HTMLelements line by line
     ## based on given BSON Abstract Syntax Tree
     var index = 0
-    c.line = 1
     let nodeslen = c.program.nodes.len
-
+    if nodeslen != 0:
+        c.line = c.program.nodes[0].htmlNode.meta.line # start line
     while true:
         if index == nodeslen: break
         let node = c.program.nodes[index]
