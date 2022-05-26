@@ -99,10 +99,6 @@ proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, HtmlNode] =
     ## Return all ``HtmlNode`` available in current document
     result = p.htmlStatements
 
-# proc getStatements*[T: Parser](p: T, asJsonNode = true): string =
-#     ## Return all HtmlNodes available in current document as JsonNode
-#     result = toJson(p.statements)
-
 proc getStatementsStr*[T: Parser](p: T, prettyString = false): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
     # if prettyString: 
@@ -197,22 +193,17 @@ proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
 template parseNewNode(p: var Parser, ndepth: var int) =
     ## Parse a new HTML Node with HTML attributes, if any
     !> p # Ensure a good nest
-    p.prevln = p.currln
     p.currln = p.current
     var shouldIncDepth = true
     if p.current.col == 0:
         ndepth = 0
-    if ndepth != 0:
-        echo p.parentNode.meta
+    else:
         if p.parentNode.meta.indent == p.current.col:
-            # check if current headliner is at the same level
-            # with previous `parentNode` (headliner)
+            # handle nodes at the same level
             shouldIncDepth = false
         else:
-            if p.current.col != 0:
-                p.current.col = p.prevNode.meta.indent + 4
-            else: shouldIncDepth = false
-
+            p.current.col = ndepth * 4
+    let nodeIndent = p.current.col
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
@@ -221,15 +212,14 @@ template parseNewNode(p: var Parser, ndepth: var int) =
         meta = (column: p.current.col, indent: p.current.col, line: p.current.line)
 
     if p.next.kind == TK_NEST_OP:
-        # set as current ``htmlNode`` as ``parentNode`` in case current
-        # node has opened an inline nestable elements with `>`
         jump p
     elif p.next.isAttributeOrText():
         jump p
-        p.setHTMLAttributes(htmlNode)     # set available html attributes
+        p.setHTMLAttributes(htmlNode, nodeIndent)     # set available html attributes
     else: jump p
     p.htmlStatements[htmlNode.meta.line] = htmlNode
     p.parentNode = htmlNode
+    p.prevln = p.currln
     if shouldIncDepth:
         inc ndepth
 
@@ -238,7 +228,7 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
     if ndepth in {0, 1}:
         p.current.col = 4 # TODO calculate based on base indent
     else:
-        p.current.col = p.prevNode.meta.indent + 4 # TODO calculate based on base indent
+        p.current.col = 4 * ndepth
 
     let htmlNodeType = getHtmlNodeType(p.current)
     var htmlSubNode = new HtmlNode
@@ -271,6 +261,7 @@ template parseInlineNest(p: var Parser, depth: var int) =
             p.parseNewSubNode(depth)
             inc count
         else: jump p
+    ndepth = ndepth - count
 
 proc walk(p: var Parser) =
     var 

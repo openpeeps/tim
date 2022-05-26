@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode): untyped =
+template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeIndent = 0 ): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
     var id: IDAttribute
@@ -60,7 +60,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode): untyped
                     nodeType: HtmlText,
                     nodeName: getSymbolName(HtmlText),
                     text: p.current.value,
-                    meta: (column: p.current.col, indent: p.current.wsno, line: p.current.line)
+                    meta: (column: p.current.col, indent: nodeIndent, line: p.current.line)
                 )
                 htmlNode.nodes.add(htmlTextNode)
             break
