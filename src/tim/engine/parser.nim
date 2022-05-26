@@ -143,7 +143,7 @@ proc nindent(depth: int = 0, shouldIncDepth = false): int {.inline.} =
     ## Sets indentation based on depth of nodes when minifier is turned off.
     ## TODO Support for base indent number: 2, 3, or 4 spaces (default 2)
     if shouldIncDepth:
-        result = if depth == 0: 0 else: 2 * depth
+        result = if depth == 0: 0 else: depth * 2
     else:
         result = depth
 
@@ -236,6 +236,7 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
         if p.prevNode.meta.column == p.current.col:
             ndepth = p.prevNode.meta.indent
             shouldIncDepth = false
+        # elif p.current.col > p.prevNode.meta.column:
 
     let htmlNodeType = getHtmlNodeType(p.current)
     var htmlSubNode = new HtmlNode

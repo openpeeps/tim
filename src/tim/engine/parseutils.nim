@@ -48,9 +48,14 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode): untyped
                 break
             else:
                 jump p
+                p.current.col = htmlNode.meta.column # get base column from ``htmlMeta`` node
                 if (p.current.line == p.next.line) and not p.next.isEOF:
-                    p.setError("Bad indentation after enclosed string")      # TODO a better error message?
+                    p.setError("Bad indentation after enclosed string")
                     break
+                elif (p.next.line > p.current.line) and (p.next.col > p.current.col):
+                    p.setError("Bad identation")
+                    break
+
                 let htmlTextNode = HtmlNode(
                     nodeType: HtmlText,
                     nodeName: getSymbolName(HtmlText),
