@@ -162,9 +162,8 @@ proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int) =
         c.writeLine(node.htmlNode.nodes, index)
     let next = c.getNextLevel(node.htmlNode.meta.indent, index)
     if next.upper:
-        dec c.offset
         c.resolveDeferredTags(node.htmlNode.meta.line, true)
-        # c.offset = 0
+        dec c.offset
     elif next.same:
         inc c.offset
         c.resolveDeferredTags(node.htmlNode.meta.line, true)

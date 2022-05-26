@@ -202,20 +202,19 @@ template parseNewNode(p: var Parser, ndepth: var int) =
     var shouldIncDepth = true
     if p.current.col == 0:
         ndepth = 0
-    elif p.prevNode != nil:
-        if p.prevNode.meta.column == p.current.col:
-            ndepth = p.prevNode.meta.indent
-            shouldIncDepth = false
+    elif ndepth != 0:
+        if p.parentNode != nil:
+            if p.parentNode.meta.indent == p.current.col:
+                p.current.col = p.parentNode.meta.indent
+                shouldIncDepth = false
+                ndepth = 2 # TODO calculate based on base indent
 
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
         nodeType = htmlNodeType
         nodeName = getSymbolName(htmlNodeType)
-        meta = (column: p.current.col, indent: nindent(ndepth, shouldIncDepth), line: p.current.line)
-    
-    if shouldIncDepth:
-        inc ndepth
+        meta = (column: p.current.col, indent: p.current.col, line: p.current.line)
 
     if p.next.kind == TK_NEST_OP:
         # set as current ``htmlNode`` as ``parentNode`` in case current
@@ -226,25 +225,24 @@ template parseNewNode(p: var Parser, ndepth: var int) =
         p.setHTMLAttributes(htmlNode)     # set available html attributes
     else: jump p
     p.htmlStatements[htmlNode.meta.line] = htmlNode
-    p.prevNode = htmlNode
+    p.parentNode = htmlNode
+    if shouldIncDepth:
+        inc ndepth
 
 template parseNewSubNode(p: var Parser, ndepth: var int) =
-    p.prevln = p.currln
     p.currln = p.current
-    var shouldIncDepth = true
-    if p.prevNode != nil:
-        if p.prevNode.meta.column == p.current.col:
-            ndepth = p.prevNode.meta.indent
-            shouldIncDepth = false
-        # elif p.current.col > p.prevNode.meta.column:
+    if ndepth == 1:
+        p.current.col = 4 # TODO calculate based on base indent
+    else:
+        p.current.col = ndepth * 4 # TODO calculate based on base indent
 
     let htmlNodeType = getHtmlNodeType(p.current)
     var htmlSubNode = new HtmlNode
     with htmlSubNode:
         nodeType = htmlNodeType
         nodeName = htmlNodeType.getSymbolName
-        meta = (column: p.current.col, indent: nindent(ndepth, shouldIncDepth), line: p.current.line)
-    
+        meta = (column: p.current.col, indent: p.current.col, line: p.current.line)
+
     if p.next.kind == TK_NEST_OP:
         jump p
     elif p.next.isAttributeOrText():
@@ -252,18 +250,22 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
         jump p
         p.setHTMLAttributes(htmlSubNode)
     else: jump p
-    if shouldIncDepth:
-        inc ndepth
+
     deferChildSeq.add htmlSubNode
+    p.prevln = p.currln
+    p.prevNode = htmlSubNode
+    inc ndepth
 
 template parseInlineNest(p: var Parser, depth: var int) =
     ## Walk along the line and collect single-line nests
+    var count: int
     while p.current.line == p.currln.line:
         if p.current.isEOF: break
         elif p.hasError(): break
         !> p
         if p.current.isNestable():
             p.parseNewSubNode(depth)
+            inc count
         else: jump p
 
 proc walk(p: var Parser) =
@@ -305,9 +307,9 @@ proc walk(p: var Parser) =
             p.statements.nodes.add(node)
         elif conditionNode != nil:
             echo "condition"    # TODO support conditional statements
-        else:
+        # else:
             # ndepth = 0
-            p.parentNode = nil
+            # p.parentNode = nil
 
 proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}): Parser =
     var importHandler = resolveWithImports(code, path)
