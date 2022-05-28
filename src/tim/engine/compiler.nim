@@ -128,6 +128,7 @@ proc resolveAllDeferredTags[C: Compiler](c: var C) =
         inc i
 
 proc resolveTag[C: Compiler](c: var C, lineno: int) =
+    ## Resolve a deferred tag by specified line number
     if c.tags.hasKey(lineno):
         var tags = c.tags[lineno]
         tags.reverse()
@@ -137,6 +138,7 @@ proc resolveTag[C: Compiler](c: var C, lineno: int) =
         c.tags.del(lineno)
 
 proc getAstLine(nodeName: string, indentSize: int) =
+    ## Used for debug-only
     echo indent(nodeName, indentSize)
 
 proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int)
@@ -190,7 +192,6 @@ proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int) =
         c.resolveTag(node.htmlNode.meta.line)
     of Child:
         discard
-        # inc c.offset
     else:
         c.resolveAllDeferredTags()
 

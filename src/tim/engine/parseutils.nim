@@ -11,8 +11,10 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
     var hasAttributes: bool
     var attributes: Table[string, seq[string]]
     while true:
-        if p.current.kind == TK_ATTR_CLASS and p.next.kind == TK_IDENTIFIER:
-            # TODO check for wsno for `.` token and prevent mess
+        if p.current.kind == TK_ATTR_CLASS:
+            if p.next.kind != TK_IDENTIFIER:
+                p.setError("Invalid class name \"$1\"" % [p.next.value])
+                break
             hasAttributes = true
             if attributes.hasKey("class"):
                 if p.next.value in attributes["class"]:
@@ -25,6 +27,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
             # TODO check for wsno for `#` token
             if htmlNode.hasID():
                 p.setError("Elements can hold a single ID attribute.")
+                break
             id = IDAttribute(value: p.next.value)
             if id != nil: htmlNode.id = id
             jump p, 2
@@ -60,7 +63,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
                     nodeType: HtmlText,
                     nodeName: getSymbolName(HtmlText),
                     text: p.current.value,
-                    meta: (column: p.current.col, indent: nodeIndent, line: p.current.line)
+                    meta: (column: p.current.col, indent: nodeIndent, line: p.current.line, childOf: 0, depth: 0)
                 )
                 htmlNode.nodes.add(htmlTextNode)
             break
