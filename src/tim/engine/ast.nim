@@ -141,7 +141,7 @@ type
     IDAttribute* = ref object
         value*: string
 
-    MetaNode* = tuple[column, indent, line: int]
+    MetaNode* = tuple[column, indent, line, childOf, depth: int]
 
     HtmlNode* = ref object
         case nodeType*: HtmlNodeType
@@ -153,6 +153,7 @@ type
         attributes*: seq[HtmlAttribute]
         nodes*: seq[HtmlNode]
         meta*: MetaNode
+        # siblings: seq[int]
 
     VariableContentType* = enum
         ValueInvalid
@@ -400,7 +401,7 @@ proc newConditionNode*(token: TokenTuple): ConditionalNode =
     result = ConditionalNode(
         conditionType: ctype,
         nodeName: getSymbolName(ctype),
-        meta: (token.col, token.wsno, token.line)
+        meta: (token.col, token.wsno, token.line, 0, 0)
     )
 
 proc getComparatorNodeType*[T: TokenTuple](token: T): ComparatorType =
