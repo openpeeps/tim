@@ -12,10 +12,12 @@ from resolver import resolveWithImports, hasError, getError, getErrorLine, getEr
 
 from meta import TimEngine, TimlTemplate, getContents, getFileData
 from std/strutils import `%`, isDigit, join, endsWith
+from std/math import splitDecimal
 
 type
     Parser* = object
-        offsetLine: int
+        depth: int
+            ## Incremented depth of levels while parsing inline nests
         engine: TimEngine
             ## Holds current TimEngine instance
         lexer: Lexer
@@ -131,18 +133,6 @@ proc hasID[T: HtmlNode](node: T): bool {.inline.} =
     ## Determine if current HtmlNode has an ID attribute
     result = node.id != nil
 
-# proc toJsonStr*(nodes: HtmlNode) =
-#     ## Print a stringified representation of the current Abstract Syntax Tree
-#     echo pretty(toJson(nodes))
-
-proc nindent(depth: int = 0, shouldIncDepth = false): int {.inline.} =
-    ## Sets indentation based on depth of nodes when minifier is turned off.
-    ## TODO Support for base indent number: 2, 3, or 4 spaces (default 2)
-    if shouldIncDepth:
-        result = if depth == 0: 0 else: depth * 2
-    else:
-        result = depth
-
 const selfClosingTags* = {TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
                          TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
                          TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR}
@@ -154,6 +144,41 @@ proc isNestable*[T: TokenTuple](token: T): bool =
         TK_IDENTIFIER, TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_COLON,
         TK_INTEGER, TK_STRING, TK_NEST_OP, TK_UNKNOWN, TK_EOF, TK_NONE
     } + selfClosingTags
+
+proc getParentLine[P: Parser](p: var P): int =
+    if p.current.col == 0:
+        p.depth = 0
+        result = 0
+    elif p.parentNode != nil:
+        if p.parentNode.meta.column > p.current.col:
+            # Handle `Upper` levels
+            var found: bool
+            var prevlineno = p.parentNode.meta.childOf
+            while true:
+                let prevline = p.htmlStatements[prevlineno]
+                if prevline.meta.column == p.current.col:
+                    p.depth = prevline.meta.indent
+                    p.current.col = p.depth
+                    result = prevline.meta.childOf
+                    found = true
+                    break
+                dec prevlineno
+            if not found:
+                result = p.current.line
+        elif p.parentNode.meta.column == p.current.col:
+            # Handle `Same` levels
+            p.depth = p.parentNode.meta.depth
+            result = p.parentNode.meta.childOf
+            p.current.col = p.depth
+        elif p.current.col > p.parentNode.meta.column:
+            # Handle `Child` levels
+            if p.parentNode.meta.column == 0:
+                inc p.depth, 4
+            else:
+                p.depth = p.parentNode.meta.indent
+                inc p.depth, 4
+            result = p.parentNode.meta.line
+            p.current.col = p.depth
 
 include ./parseutils
 
@@ -190,26 +215,41 @@ proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
         inc i
     result = lazySeq[0]
 
-template parseNewNode(p: var Parser, ndepth: var int) =
+template parseNewNode(p: var Parser) =
     ## Parse a new HTML Node with HTML attributes, if any
     !> p # Ensure a good nest
     p.currln = p.current
     var shouldIncDepth = true
-    if p.current.col == 0:
-        ndepth = 0
-    else:
-        if p.parentNode.meta.indent == p.current.col:
-            # handle nodes at the same level
-            shouldIncDepth = false
-        else:
-            p.current.col = ndepth * 4
+    let initialCol = p.current.col
+    
+    # if p.parentNode.meta.column == p.current.col:
+    #     # handle nodes at the same level
+    #     shouldIncDepth = false
+    #     p.current.col = p.parentNode.meta.indent
+    #     ndepth = p.parentNode.meta.column # back to initial depth based on parentNode col number
+    # elif p.parentNode.meta.column > p.current.col:
+    #     # Handle upper levels of nodes
+    #     let level = splitDecimal(p.parentNode.meta.column / p.current.col).intpart
+    #     dec ndepth, level.int
+    #     p.current.col = ndepth * 4
+    #     shouldIncDepth = false
+    # elif p.current.col > p.parentNode.meta.column:
+    #     echo ndepth
+    #     echo p.current
+    #     p.current.col = ndepth * 4
+    #     if p.next.isNestable():
+    #         if p.next.col < p.current.col:
+    #             shouldIncDepth = false
+    #             dec ndepth
+
     let nodeIndent = p.current.col
+    let childOfLineno = p.getParentLine()
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
         nodeType = htmlNodeType
         nodeName = getSymbolName(htmlNodeType)
-        meta = (column: p.current.col, indent: p.current.col, line: p.current.line)
+        meta = (column: initialCol, indent: p.current.col, line: p.current.line, childOf: childOfLineno, depth: p.depth)
 
     if p.next.kind == TK_NEST_OP:
         jump p
@@ -220,22 +260,19 @@ template parseNewNode(p: var Parser, ndepth: var int) =
     p.htmlStatements[htmlNode.meta.line] = htmlNode
     p.parentNode = htmlNode
     p.prevln = p.currln
-    if shouldIncDepth:
-        inc ndepth
 
-template parseNewSubNode(p: var Parser, ndepth: var int) =
+template parseNewSubNode(p: var Parser) =
     p.currln = p.current
-    if ndepth in {0, 1}:
-        p.current.col = 4 # TODO calculate based on base indent
-    else:
-        p.current.col = 4 * ndepth
-
+    let initialCol = p.current.col
+    p.current.col = 4 + p.depth
+    
     let htmlNodeType = getHtmlNodeType(p.current)
+    # let childOfLine = p.getParentLine()
     var htmlSubNode = new HtmlNode
     with htmlSubNode:
         nodeType = htmlNodeType
         nodeName = htmlNodeType.getSymbolName
-        meta = (column: p.current.col, indent: p.current.col, line: p.current.line)
+        meta = (column: initialCol, indent: p.current.col, line: p.current.line, childOf: 0, depth: p.depth)
 
     if p.next.kind == TK_NEST_OP:
         jump p
@@ -248,24 +285,20 @@ template parseNewSubNode(p: var Parser, ndepth: var int) =
     deferChildSeq.add htmlSubNode
     p.prevln = p.currln
     p.prevNode = htmlSubNode
-    inc ndepth
 
-template parseInlineNest(p: var Parser, depth: var int) =
+template parseInlineNest(p: var Parser) =
     ## Walk along the line and collect single-line nests
-    var count: int
     while p.current.line == p.currln.line:
         if p.current.isEOF: break
         elif p.hasError(): break
         !> p
         if p.current.isNestable():
-            p.parseNewSubNode(depth)
-            inc count
+            p.parseNewSubNode()
+            inc p.depth, 4
         else: jump p
-    ndepth = ndepth - count
 
 proc walk(p: var Parser) =
     var 
-        ndepth = 0
         htmlNode: HtmlNode
         conditionNode: ConditionalNode
         isMultidimensional: bool
@@ -279,14 +312,14 @@ proc walk(p: var Parser) =
             continue
         if not p.htmlStatements.hasKey(p.current.line):
             if p.current.isNestable():
-                p.parseNewNode(ndepth)
+                p.parseNewNode()
             else:
                 if p.current.kind in selfClosingTags:
-                    p.parseNewSubNode(ndepth)
+                    p.parseNewSubNode()
                 else:
                     p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
                     break
-        p.parseInlineNest(ndepth)
+        p.parseInlineNest()
         if htmlNode != nil:
             if deferChildSeq.len != 0:
                 childNodes = rezolveInlineNest(deferChildSeq)
@@ -309,7 +342,7 @@ proc walk(p: var Parser) =
 proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}): Parser =
     var importHandler = resolveWithImports(code, path)
     var p: Parser = Parser(engine: engine)
-
+    # echo importHandler.getFullCode()
     if importHandler.hasError():
         p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
         return p
