@@ -1,4 +1,3 @@
-
 import ./ast
 import jsony
 import std/[json, ropes, tables]
@@ -7,6 +6,9 @@ from std/algorithm import reverse, SortOrder
 
 type
     DeferTag = tuple[tag: string, meta: MetaNode, isInlineElement: bool]
+
+    TypeLevel = enum
+        None, Upper, Same, Child
 
     Compiler* = object
         index, line, offset: int
@@ -74,20 +76,18 @@ proc closeTag[C: Compiler](c: var C, tag: DeferTag) =
     else:
         add c.html, indent("\n" & htmlTag, tag.meta.indent)
 
-proc getLineIndent[C: Compiler](compiler: C, index: int): int =
-    result = compiler.program.nodes[index].htmlNode.meta.indent
-
-proc getNextLevel[C: Compiler](c: var C, currentIndent, index: int): tuple[child, same, upper: bool] =
+proc getNextLevel[C: Compiler](c: var C, currentIndent, index: int): tuple[meta: MetaNode, typeLevel: TypeLevel] =
     try:
-        let nextIndent = c.getLineIndent(index + 1)
+        let next = c.program.nodes[index + 1].htmlNode
+        let nextIndent = next.meta.indent
         if nextIndent > currentIndent:
-            result = (true, false, false)
+            result = (next.meta, Child)
         elif nextIndent == currentIndent:
-            result = (false, true, false)
+            result = (next.meta, Same)
         elif nextIndent < currentIndent:
-            result = (false, false, true)
+            result = (next.meta, Upper)
     except:
-        result = (false, false, false)
+        result = (meta: (0, 0, 0, 0, 0), typeLevel: None)
 
 proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
     ## Add closing tags to ``tags`` table for resolving later
@@ -101,16 +101,13 @@ proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
 
 proc resolveDeferredTags[C: Compiler](c: var C, lineno: int, withOffset = false) =
     ## Resolve all deferred closing tags and add to current ``Rope``
-    var lineNo = lineno
-    if withOffset:
-        lineNo = if lineno > c.offset: lineno - c.offset else: c.offset - lineno
-    if c.tags.hasKey(lineNo):
-        var tags = c.tags[lineNo]
+    if c.tags.hasKey(lineno):
+        var tags = c.tags[lineno]
         tags.reverse() # tags list
         for tag in tags:
             c.closeTag(tag)
-            c.tags[lineNo].delete(0)
-        c.tags.del(lineNo)
+            c.tags[lineno].delete(0)
+        c.tags.del(lineno)
 
 proc resolveAllDeferredTags[C: Compiler](c: var C) =
     ## Resolve remained deferred closing tags and add to current ``Rope``
@@ -123,11 +120,24 @@ proc resolveAllDeferredTags[C: Compiler](c: var C) =
         if c.tags.len == 0: break
         let lineno = linesno[i]
         var tags = c.tags[lineno]
+        tags.reverse()
         for tag in tags:
             c.closeTag(tag)
             c.tags[lineno].delete(0)
         c.tags.del(lineno)
         inc i
+
+proc resolveTag[C: Compiler](c: var C, lineno: int) =
+    if c.tags.hasKey(lineno):
+        var tags = c.tags[lineno]
+        tags.reverse()
+        for tag in tags:
+            c.closeTag(tag)
+            c.tags[lineno].delete(0)
+        c.tags.del(lineno)
+
+proc getAstLine(nodeName: string, indentSize: int) =
+    echo indent(nodeName, indentSize)
 
 proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int)
 
@@ -161,16 +171,27 @@ proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int) =
     if node.htmlNode.nodes.len != 0:
         c.writeLine(node.htmlNode.nodes, index)
     let next = c.getNextLevel(node.htmlNode.meta.indent, index)
-    if next.upper:
-        c.resolveDeferredTags(node.htmlNode.meta.line, true)
-        dec c.offset
-    elif next.same:
-        inc c.offset
-        c.resolveDeferredTags(node.htmlNode.meta.line, true)
-    elif next.child:
-        inc c.offset
+    case next.typeLevel:
+    of Upper:        
+        var i = index
+        while true:
+            let prev = c.program.nodes[i - 1].htmlNode.meta
+            if prev.column == next.meta.column:
+                if c.tags.hasKey(prev.line):
+                    # defTagLines.add prev.line
+                    c.resolveTag(prev.line)
+                break
+            elif prev.column > next.meta.column:
+                if c.tags.hasKey(prev.line):
+                    # defTagLines.add prev.line
+                    c.resolveTag(prev.line)
+            dec i
+    of Same:
+        c.resolveTag(node.htmlNode.meta.line)
+    of Child:
+        discard
+        # inc c.offset
     else:
-        c.offset = 0
         c.resolveAllDeferredTags()
 
 proc writeLine[C: Compiler](c: var C, fixBr = false) =
