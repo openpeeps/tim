@@ -199,7 +199,7 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
         else:
             result = files.split("\n")
 
-proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, hotreload: bool, minified = true, indent: int): TimEngine =
+proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minified = true, indent: int): TimEngine =
     ## Initialize a new Tim Engine by providing the root path directory 
     ## to your templates (layouts, views and partials).
     ## Tim is able to auto-discover your .timl files
