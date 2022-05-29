@@ -52,18 +52,35 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
             else:
                 jump p
                 p.current.col = htmlNode.meta.column # get base column from ``htmlMeta`` node
-                if (p.current.line == p.next.line) and not p.next.isEOF:
+                if (p.current.line == p.next.line) and not p.next.isEOF and p.next.kind != TK_AND:
                     p.setError("Bad indentation after enclosed string")
                     break
                 elif (p.next.line > p.current.line) and (p.next.col > p.current.col):
-                    p.setError("Bad identation")
+                    p.setError("Bad indentation after enclosed string")
                     break
+
+                let col = p.current.col
+                let line = p.current.line
+                if p.next.kind == TK_AND:
+                    # If provided, Tim can handle string concatenations like
+                    # a: "Click here" & span: "to buy" which output to
+                    # <a>Click here <span>to buy</span</a>
+                    if p.next.line == p.current.line:
+                        # handle inline string concatenations using `&` separator
+                        jump p
+                        while true:
+                            if p.current.line != line: break
+                            # echo p.current
+                            jump p
+                    else:
+                        p.setError("Invalid string concatenation")
+                        break
 
                 let htmlTextNode = HtmlNode(
                     nodeType: HtmlText,
                     nodeName: getSymbolName(HtmlText),
                     text: p.current.value,
-                    meta: (column: p.current.col, indent: nodeIndent, line: p.current.line, childOf: 0, depth: 0)
+                    meta: (column: col, indent: nodeIndent, line: line, childOf: 0, depth: 0)
                 )
                 htmlNode.nodes.add(htmlTextNode)
             break

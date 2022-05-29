@@ -197,7 +197,7 @@ proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
 template `!>`[T: Parser](p: var T): untyped =
     ## Ensure nest token `>` exists for inline statements
     if p.current.isNestable() and p.next.isNestable():
-        if p.current.line == p.next.line:
+        if p.current.line == p.next.line and p.current.kind != TK_AND:
             p.setError("Invalid nest missing `>` token for inline declarations")
             break
     elif p.current.isNestable() and not p.next.isNestable():
