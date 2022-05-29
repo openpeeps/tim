@@ -129,6 +129,7 @@ type
         HtmlTrack
         HtmlTt
         HtmlU
+        HtmlUl
         HtmlVar
         HtmlVideo
         HtmlWbr
@@ -388,6 +389,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_TRACK: HtmlTrack
     of TK_TT: HtmlTt
     of TK_UNDERLINE: HtmlU
+    of TK_UL: HtmlUl
     of TK_VAR: HtmlVar
     of TK_VIDEO: HtmlVideo
     of TK_WBR: HtmlWbr
