@@ -140,6 +140,7 @@ tokens:
     Assign       > '='
     Colon        > ':' 
     Nest_OP      > '>'
+    And          > '&'
     Variable     > identWith('$')
     If           > "if"
     Elif         > "elif"
