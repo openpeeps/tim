@@ -310,7 +310,7 @@ proc walk(p: var Parser) =
                     break
 
         p.parseInlineNest()
-        shouldCloseNode = true
+        shouldCloseNode = true # temporary need to figure
 
         if htmlNode != nil:
             if deferChildSeq.len != 0:
@@ -337,14 +337,12 @@ proc walk(p: var Parser) =
                     iterationNode = iterationNode
                 p.statements.nodes.add(node)
             node = nil
-        # else:
-            # ndepth = 0
-            # p.parentNode = nil
 
 proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}): Parser =
     var importHandler = resolveWithImports(code, path)
     var p: Parser = Parser(engine: engine)
     # echo importHandler.getFullCode()
+
     if importHandler.hasError():
         p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
         return p

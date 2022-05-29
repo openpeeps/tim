@@ -44,18 +44,8 @@ proc precompile*[T: TimEngine](engine: T, debug = false) =
             # engine.writeBson(view, p.getStatementsStr())
 
             let c = Compiler.init(p.getStatementsStr(), minified = engine.shouldMinify())
-            echo c.getHtml
             engine.writeHtml(view, c.getHtml)
     # else: raise newException(TimException, "Unable to find any Timl templates")
-
-# var Tim*: TimEngine
-
-# proc initTim*(source, output: string) =
-#     ## Initialize a singleton of TimEngine instance,
-#     ## where ``source`` is a relative path to ``.timl`` source files
-#     ## and the ``output`` is reserved for saving the final HTML output
-#     Tim = TimEngine.init(source, output, hotreload = true, minified = false, indent = 4)
-#     Tim.precompile()
 
 when isMainModule:
     var engine = TimEngine.init(
