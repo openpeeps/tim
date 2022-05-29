@@ -10,13 +10,13 @@ _Work in progress_
 - [x] Emmet-syntax 🤓
 - [x] Multi-threading | Low memory foot-print 🍃
 - [x] Tim as **Nimble library** for Nim programming 👑
-- [x] **Tim as a standalone application via REST API** 🥳
+- [ ] Tim as a Native NodeJS addon
 - [ ] `layouts`, `views` and `partials` logic
 - [ ] Variable Assignment
 - [ ] `for` Loops & Iterations
 - [ ] `if`, `elif`, `else` Conditional Statements
 - [ ] `JSON` AST Generator
-- [ ] Just-in-time Compilation
+- [ ] Just-in-time Computation
 - [ ] SEO Optimizer
 - [ ] Language Extension `.timl` 😎
 - [x] Lexer based on [Toktok library](https://github.com/openpeep/toktok)
@@ -68,6 +68,8 @@ section > div.container > div.row.vh-100.align-items-center
 
 ### About Tim Engine
 
+#### Layouts, Views and Partials
+A `view` represent a screen page. It can be wrapped in a specific `layout` and can contain multiple `partials`. All files must end with ``.timl`` extension.
 
 #### Variables
 Are simple identifiers that reflects your json object `data`. So a variable can be an `array`, `bool`, `float`, `int`, `object`, `null`, or `string`.
