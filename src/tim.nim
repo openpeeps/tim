@@ -24,8 +24,7 @@ proc render*[T: TimEngine](engine: T, key: string, data: JsonNode = %*{}): strin
     ## Example ``engine.render("members.contact")``
     if engine.hasView(key):
         var layout: TimlTemplate = engine.getView(key)
-        let c = Compiler.init(engine.readBson(layout), minified = engine.shouldMinify())
-        result.add c.getHtml
+        result = layout.getHtmlCode()
 
 proc precompile*[T: TimEngine](engine: T, debug = false) =
     ## Pre compile from ``.timl`` to AST in BSON format.
@@ -39,10 +38,24 @@ proc precompile*[T: TimEngine](engine: T, debug = false) =
             # Each BSON template is named using MD5 based on its absolute path
             # if p.hasJIT:
             # else:
+
             # Save the Abstract Syntax Tree of the current template as BSON
             # echo p.getStatementsStr(prettyString = true) # debug
-            engine.writeBson(view, p.getStatementsStr())
+            # engine.writeBson(view, p.getStatementsStr())
+
+            let c = Compiler.init(p.getStatementsStr(), minified = engine.shouldMinify())
+            echo c.getHtml
+            engine.writeHtml(view, c.getHtml)
     # else: raise newException(TimException, "Unable to find any Timl templates")
+
+# var Tim*: TimEngine
+
+# proc initTim*(source, output: string) =
+#     ## Initialize a singleton of TimEngine instance,
+#     ## where ``source`` is a relative path to ``.timl`` source files
+#     ## and the ``output`` is reserved for saving the final HTML output
+#     Tim = TimEngine.init(source, output, hotreload = true, minified = false, indent = 4)
+#     Tim.precompile()
 
 when isMainModule:
     var engine = TimEngine.init(
@@ -50,8 +63,6 @@ when isMainModule:
             # directory path to find your `.timl` files
         output = "../examples/storage/templates",
             # directory path to store Binary JSON files for JIT compiler
-        hotreload = true,
-            # Useful when in dev mode to watch for changes over `.timl` files
         minified = false,
             # Whether to minify the final HTML output (by default enabled)
         indent = 4
@@ -65,4 +76,4 @@ when isMainModule:
     # ``.bson`` for templates requiring runtime computation,
     # like conditional statements, iterations, var assignments and so on.
     engine.precompile()
-    # echo engine.render("members.contact")
+    echo engine.render("members.contact")

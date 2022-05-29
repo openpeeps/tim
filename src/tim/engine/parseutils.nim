@@ -122,7 +122,6 @@ template parseIteration[P: Parser](p: var P, interationNode: IterationNode): unt
 
 template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 
-    let currln: int = p.current.line
     var compToken: TokenTuple
     var varNode1, varNode2: VariableNode
     var comparatorNode: ComparatorNode

@@ -222,29 +222,7 @@ template parseNewNode(p: var Parser) =
     ## Parse a new HTML Node with HTML attributes, if any
     !> p # Ensure a good nest
     p.currln = p.current
-    var shouldIncDepth = true
     let initialCol = p.current.col
-    
-    # if p.parentNode.meta.column == p.current.col:
-    #     # handle nodes at the same level
-    #     shouldIncDepth = false
-    #     p.current.col = p.parentNode.meta.indent
-    #     ndepth = p.parentNode.meta.column # back to initial depth based on parentNode col number
-    # elif p.parentNode.meta.column > p.current.col:
-    #     # Handle upper levels of nodes
-    #     let level = splitDecimal(p.parentNode.meta.column / p.current.col).intpart
-    #     dec ndepth, level.int
-    #     p.current.col = ndepth * 4
-    #     shouldIncDepth = false
-    # elif p.current.col > p.parentNode.meta.column:
-    #     echo ndepth
-    #     echo p.current
-    #     p.current.col = ndepth * 4
-    #     if p.next.isNestable():
-    #         if p.next.col < p.current.col:
-    #             shouldIncDepth = false
-    #             dec ndepth
-
     let nodeIndent = p.current.col
     let childOfLineno = p.getParentLine()
     let htmlNodeType = getHtmlNodeType(p.current)
@@ -308,7 +286,6 @@ proc walk(p: var Parser) =
         conditionNode: ConditionalNode
         iterationNode: IterationNode
 
-        isMultidimensional: bool
         childNodes: HtmlNode
         deferChildSeq: seq[HtmlNode]
     p.statements = Program()
