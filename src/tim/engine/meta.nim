@@ -15,7 +15,6 @@ type
     TimlTemplateType = enum
         Layout, View, Partial
 
-
     TimlTemplate* = object
         meta: tuple [
             name: string,                           # name of the current TimlTemplate representing file name
@@ -74,6 +73,10 @@ proc getFileData*[T: TimlTemplate](t: T): JsonNode {.inline.} =
 proc getSourceCode*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve source code of current TimlTemplate object
     result = t.sourceCode
+
+proc getHtmlCode*[T: TimlTemplate](t: T): string {.inline.} =
+    ## Retrieve the HTML code for given ``TimlTemplate`` object
+    result = readFile(t.paths.html)
 
 proc setAstSource*[T: TimlTemplate](t: var T, ast: string) {.inline.} =
     t.astSource = ast
@@ -163,6 +166,9 @@ proc readBson*[E: TimENgine, T: TimlTemplate](e: E, t: T): string =
     ## Read current BSON and parse to JSON
     var document: Bson = newBsonDocument(readFile(t.paths.ast))
     result = document["ast"]
+
+proc writeHtml*[E: TimEngine, T: TimlTemplate](e: E, t: T, output: string) =
+    writeFile(t.paths.html, output)
 
 proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
     ## Short hand procedure for executing shell commands via execProcess

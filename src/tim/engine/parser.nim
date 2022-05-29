@@ -327,7 +327,7 @@ proc walk(p: var Parser) =
                 p.parseNewNode()
             else:
                 if p.current.kind in selfClosingTags:
-                    p.parseNewSubNode()
+                    p.parseNewNode()
                 else:
                     p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
                     break

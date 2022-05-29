@@ -393,6 +393,12 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_WBR: HtmlWbr
     else: HtmlUnknown
 
+proc isSelfClosingTag*(nodeType: HtmlNodeType): bool =
+    result = nodeType in {HtmlArea, HtmlBase, HtmlBr, HtmlCol, HtmlEmbed,
+                         HtmlHr, HtmlImg, HtmlInput, HtmlLink, HtmlMeta,
+                         HtmlParam, HtmlSource, HtmlTrack, HtmlWbr}
+
+
 proc getConditionalNodeType*(kind: TokenKind): ConditionalType = 
     case kind:
         of TK_IF: result = If

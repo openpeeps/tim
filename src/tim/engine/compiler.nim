@@ -66,6 +66,8 @@ proc openTag[T: Compiler](compiler: var T, tag: string, node: HtmlNode) =
         compiler.writeIDAttribute(node)
     if node.hasAttributes:
         compiler.writeAttributes(node)
+    if node.nodeType.isSelfClosingTag:
+        add compiler.html, "/"
     add compiler.html, ">"
 
 proc closeTag[C: Compiler](c: var C, tag: DeferTag) =
@@ -91,13 +93,14 @@ proc getNextLevel[C: Compiler](c: var C, currentIndent, index: int): tuple[meta:
 
 proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
     ## Add closing tags to ``tags`` table for resolving later
-    let lineno = htmlNode.meta.line
-    if not c.tags.hasKey(lineno):
-        c.tags[lineno] = newSeq[DeferTag]()
-    var isInlineElement: bool
-    if htmlNode.nodes.len != 0:
-        isInlineElement = htmlNode.nodes[0].nodeType == Htmltext
-    c.tags[lineno].add (tag: tag, meta: htmlNode.meta, isInlineElement: isInlineElement)
+    if not htmlNode.nodeType.isSelfClosingTag:
+        let lineno = htmlNode.meta.line
+        if not c.tags.hasKey(lineno):
+            c.tags[lineno] = newSeq[DeferTag]()
+        var isInlineElement: bool
+        if htmlNode.nodes.len != 0:
+            isInlineElement = htmlNode.nodes[0].nodeType == Htmltext
+        c.tags[lineno].add (tag: tag, meta: htmlNode.meta, isInlineElement: isInlineElement)
 
 proc resolveDeferredTags[C: Compiler](c: var C, lineno: int, withOffset = false) =
     ## Resolve all deferred closing tags and add to current ``Rope``
@@ -195,7 +198,7 @@ proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int) =
     else:
         c.resolveAllDeferredTags()
 
-proc writeLine[C: Compiler](c: var C, fixBr = false) =
+proc writeLine[C: Compiler](c: var C) =
     ## Main procedure for writing HTMLelements line by line
     ## based on given BSON Abstract Syntax Tree
     var index = 0
@@ -214,5 +217,5 @@ proc init*[C: typedesc[Compiler]](Compiler: C, astNodes: string, minified: bool,
     ## Set `minified` to false to disable this feature.
     var c = Compiler(minified: minified)
     c.program = fromJson(astNodes, Program)
-    c.writeLine(fixBr = true)
+    c.writeLine()
     result = c
