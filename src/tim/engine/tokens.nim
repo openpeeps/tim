@@ -150,7 +150,6 @@ tokens:
     Eq           > ('=', '=')
     Neq          > ('!', '=')
     Import       > ('@', "import")
-    Xor          > ('%', '*')
     None
 
 

@@ -12,9 +12,9 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
     var attributes: Table[string, seq[string]]
     while true:
         if p.current.kind == TK_ATTR_CLASS:
-            if p.next.kind != TK_IDENTIFIER:
-                p.setError("Invalid class name \"$1\"" % [p.next.value])
-                break
+            # if p.next.kind != TK_IDENTIFIER:
+            #     p.setError("Invalid class name \"$1\"" % [p.next.value])
+            #     break
             hasAttributes = true
             if attributes.hasKey("class"):
                 if p.next.value in attributes["class"]:
@@ -84,6 +84,24 @@ proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
         return nil
     result = newVariableNode(varName, p.data.getVar(varName))
     jit p
+
+template parseIteration[P: Parser](p: var P, interationNode: IterationNode): untyped =
+    if p.next.kind != TK_VARIABLE:
+        p.setError("Invalid iteration missing variable identifier")
+        break
+    jump p
+    let varItemName = p.current.value
+    if p.next.kind != TK_IN:
+        p.setError("Invalid iteration missing")
+        break
+    jump p
+    if p.next.kind != TK_VARIABLE:
+        p.setError("Invalid iteration missing variable identifier")
+        break
+    iterationNode.varItemName = varItemName
+    iterationNode.varItemsName = p.next.value
+    jump p, 2
+    jit p  # enable JIT compilation flag
 
 template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 

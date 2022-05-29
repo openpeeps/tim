@@ -187,6 +187,9 @@ proc isConditional*[T: TokenTuple](token: T): bool =
     ## as TK_IF, TK_ELIF, TK_ELSE
     result = token.kind in {TK_IF, TK_ELIF, TK_ELSE}
 
+proc isIteration*[T: TokenTuple](token: T): bool =
+    result = token.kind == TK_FOR
+
 proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
     ## Determine if given token kind is TK_EOF
     result = token.kind == TK_EOF
@@ -299,8 +302,12 @@ template parseInlineNest(p: var Parser) =
 
 proc walk(p: var Parser) =
     var 
+        shouldCloseNode: bool
+        node: Node
         htmlNode: HtmlNode
         conditionNode: ConditionalNode
+        iterationNode: IterationNode
+
         isMultidimensional: bool
         childNodes: HtmlNode
         deferChildSeq: seq[HtmlNode]
@@ -310,6 +317,11 @@ proc walk(p: var Parser) =
             conditionNode = newConditionNode(p.current)
             p.parseCondition(conditionNode)
             continue
+        elif p.current.isIteration():
+            iterationNode = IterationNode()
+            p.parseIteration(iterationNode)
+            continue
+
         if not p.htmlStatements.hasKey(p.current.line):
             if p.current.isNestable():
                 p.parseNewNode()
@@ -319,7 +331,10 @@ proc walk(p: var Parser) =
                 else:
                     p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
                     break
+
         p.parseInlineNest()
+        shouldCloseNode = true
+
         if htmlNode != nil:
             if deferChildSeq.len != 0:
                 childNodes = rezolveInlineNest(deferChildSeq)
@@ -327,14 +342,24 @@ proc walk(p: var Parser) =
             if childNodes != nil:
                 p.htmlStatements[p.currln.line].nodes.add(childNodes)
                 childNodes = nil
-            var node = new Node
+            node = new Node
             with node:
                 nodeName = getSymbolName(HtmlElement)
                 nodeType = HtmlElement
                 htmlNode = p.htmlStatements[p.currln.line]
-            p.statements.nodes.add(node)
-        elif conditionNode != nil:
-            echo "condition"    # TODO support conditional statements
+            if iterationNode != nil:
+                iterationNode.nodes.add(node)
+            else:
+                p.statements.nodes.add(node)
+        if shouldCloseNode:
+            if iterationNode != nil:
+                node = new Node
+                with node:
+                    nodeName = getSymbolName(LoopStatement)
+                    nodeType = LoopStatement
+                    iterationNode = iterationNode
+                p.statements.nodes.add(node)
+            node = nil
         # else:
             # ndepth = 0
             # p.parentNode = nil

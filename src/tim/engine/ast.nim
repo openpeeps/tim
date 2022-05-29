@@ -212,9 +212,14 @@ type
         meta*: MetaNode
             ## ``MetaNode`` of current statement
 
-    LoopNode* = ref object
+    IterationNode* = ref object
         ## Object representation for handling loop statements
-        ## TODO
+        varItemName*: string
+            ## A temporary variable name available for current iteration
+        varItemsName*: string
+            ## The variable name that contains data
+        nodes*: seq[Node]
+            # A sequence containing `HtmlNode` for the current iteration
 
     NodeType* = enum
         ConditionalStatement
@@ -232,7 +237,7 @@ type
             htmlNode*: HtmlNode
                 ## Handle ``HtmlNode`` instances
         of LoopStatement:
-            loopNode*: LoopNode
+            iterationNode*: IterationNode
 
     Program* = object
         nodes*: seq[Node]
