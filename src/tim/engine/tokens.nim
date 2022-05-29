@@ -149,8 +149,7 @@ tokens:
     Or           > "or"
     Eq           > ('=', '=')
     Neq          > ('!', '=')
-    Import       > ('@', "import")
+    Include       > ('@', "include")
     None
-
 
 export TokenTuple, TokenKind

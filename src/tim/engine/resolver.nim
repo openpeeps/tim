@@ -90,9 +90,9 @@ template loadCode[T: Importer](p: var T, indent: int) =
             p.partials[p.current.line] = (indent, path)
 
 template parsePartial[T: Importer](p: var T) =
-    ## Look for all ``TK_IMPORT`` tokens and try
+    ## Look for all ``TK_INCLUDE`` tokens and try
     ## to load partial file contents inside of the main view
-    if p.current.kind == TK_IMPORT:
+    if p.current.kind == TK_INCLUDE:
         let indent = p.current.col
         if p.next.kind != TK_STRING:
             p.setError "Invalid import statement missing file path.", p.currentFilePath
@@ -101,7 +101,7 @@ template parsePartial[T: Importer](p: var T) =
         loadCode(p, indent)
 
 proc resolveWithImports*(viewCode: string, currentFilePath: string): Importer =
-    ## Resolve ``@import`` statements in main view code.
+    ## Resolve ``@include`` statements in main view code.
     var p = Importer(lex: Lexer.init(viewCode), currentFilePath: currentFilePath)
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
