@@ -10,6 +10,7 @@ _Work in progress_
 - [x] Emmet-syntax 🤓
 - [x] Multi-threading | Low memory foot-print 🍃
 - [x] Tim as **Nimble library** for Nim programming 👑
+- [x] SVG Support
 - [ ] Tim as a Native NodeJS addon
 - [ ] `layouts`, `views` and `partials` logic
 - [ ] Variable Assignment
@@ -27,7 +28,42 @@ _Work in progress_
 nimble install tim
 ```
 
-TODO
+## Examples
+In most examples we'll use Bootstrap.
+
+1. Create a `<head>` with `meta`, `title` and other things.
+```tim
+html
+    head
+        meta charset="UTF-8"
+        title: "My Awesome App"
+        link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css"
+        link rel="stylesheet" href="/assets/app.css"
+```
+
+P.S. There is no need for `<!DOCTYPE html>`, this is auto-inserted by Tim Engine for each `layout` inside `layouts` directory 👍
+
+2. Create a simple hero-like section.
+```tim
+div.container > div.row.vh-100.align-items-center > div.col-8.mx-auto.text-center
+    h1.display-2.fw-bold: "Tim Engine is Awesome"
+    p.display-5: "⚡️ A high-performance compiled template engine inspired by Emmet syntax"
+```
+
+3. Working with `partials` is easy! This is how you can include `.timl` partials inside your `views`.
+_TODO Support named includes for partials_
+```tim
+div.container > div.row
+    @include "../partials/products/topbar"
+```
+
+4. SVG is cool, here is how you can create a pulse-like SVG icon for your button.
+```tim
+a.btn.btn-dark.px-4
+    svg viewBox="0 0 24 24" width="24" height="24" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
+        polyline points="22 12 18 12 15 21 9 3 6 12 2 12"
+    span: "Update now"
+```
 
 # Code Syntax
 <details>
