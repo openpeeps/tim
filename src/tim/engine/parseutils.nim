@@ -31,8 +31,9 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
             id = IDAttribute(value: p.next.value)
             if id != nil: htmlNode.id = id
             jump p, 2
-        elif p.current.kind == TK_IDENTIFIER and p.next.kind == TK_ASSIGN:
+        elif p.current.kind in {TK_IDENTIFIER, TK_STYLE} and p.next.kind == TK_ASSIGN:
             # TODO check for wsno for other `attr` token
+            p.current.kind = TK_IDENTIFIER
             let attrName = p.current.value
             jump p
             if p.next.kind != TK_STRING:

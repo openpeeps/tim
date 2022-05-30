@@ -143,7 +143,7 @@ proc isNestable*[T: TokenTuple](token: T): bool =
     result = token.kind notin {
         TK_IDENTIFIER, TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_COLON,
         TK_INTEGER, TK_STRING, TK_NEST_OP, TK_UNKNOWN, TK_EOF, TK_NONE
-    } + selfClosingTags
+    }
 
 proc getParentLine[P: Parser](p: var P): int =
     if p.current.col == 0:
