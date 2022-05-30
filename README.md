@@ -28,6 +28,36 @@ _Work in progress_
 nimble install tim
 ```
 
+## Setup
+Setup Tim Engine for your application.
+
+Tim is indexing templates and store in a built-in memory, so I recommend you to use Tim as a singleton.
+
+```nim
+import tim
+export render, precompile
+
+var Tim*: TimEngine.init(
+            source = "./templates",
+                # directory path to find your `.timl` files
+            output = "./storage/templates",
+                # directory path to store Binary JSON files for JIT compiler
+            minified = false,
+                # Whether to minify the final HTML output (enabled by default)
+            indent = 4
+                # Used to indent your HTML output (ignored when `minified` is true)
+        )
+
+# Precompile your `.timl` templates
+Tim.precompile()
+
+
+# In your `home` controller you can call render a specific view by name
+
+res.send(Tim.render("homepage"))
+
+```
+
 ## Examples
 In most examples we'll use Bootstrap.
 
