@@ -9,18 +9,19 @@ _Work in progress_
 ## 😍 Key Features
 - [x] Emmet-syntax 🤓
 - [x] Multi-threading | Low memory foot-print 🍃
-- [x] Tim as **Nimble library** for Nim programming 👑
+- [ ] Mixins
 - [x] SVG Support
-- [ ] Tim as a Native NodeJS addon
 - [ ] `layouts`, `views` and `partials` logic
 - [ ] Variable Assignment
 - [ ] `for` Loops & Iterations
 - [ ] `if`, `elif`, `else` Conditional Statements
 - [ ] `JSON` AST Generator
 - [ ] Just-in-time Computation
-- [ ] SEO Optimizer
+- [ ] SEO / Semantic Checker
 - [ ] Language Extension `.timl` 😎
 - [x] Lexer based on [Toktok library](https://github.com/openpeep/toktok)
+- [x] Tim as a **Nimble library** for Nim programming 👑
+- [ ] Tim as a Native NodeJS addon
 - [x] Open Source | `MIT` License
 
 ## Installing
@@ -91,6 +92,18 @@ a.btn.btn-dark.px-4
     svg viewBox="0 0 24 24" width="24" height="24" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
         polyline points="22 12 18 12 15 21 9 3 6 12 2 12"
     span: "Update now"
+```
+
+## Features explained
+
+#### Mixins
+Mixins allow you to define attributes that can be re-used throughout your views. Mixins are useful to avoid rewriting attributes when dealing with SVG icons (for example).
+
+``tim
+let getSvgAttrs = viewBox="0 0 24 24" width="24" height="24" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
+
+svg getSvgAttrs()
+    polyline points="22 12 18 12 15 21 9 3 6 12 2 12"
 ```
 
 # Code Syntax
@@ -164,8 +177,17 @@ contexts:
 
 ## Roadmap
 
-### `0.1.0`
+### `0.1.x`
 - [x] Lexer, Parser, AST, Compiler
+- [x] SVG Support
+- [x] Support for Output indentation (2 or 4 spaces)
+- [x] Output Minifier
+- [ ] Variable Assignments
+- [ ] Conditional Statements
+- [ ] Loops / Iterations
+- [ ] Mixins implementation
+- [ ] SEO Checker
+- [ ] Semantic Checker
 - [x] Create Sublime Syntax
 - [ ] Create VSCode Syntax (yak)
 - [ ] Add tests
