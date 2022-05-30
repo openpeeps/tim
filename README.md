@@ -51,9 +51,7 @@ var Tim*: TimEngine.init(
 # Precompile your `.timl` templates
 Tim.precompile()
 
-
-# In your `home` controller you can call render a specific view by name
-
+# Render a specific view by name (filename, or subdir.filename_without_ext)
 res.send(Tim.render("homepage"))
 
 ```
