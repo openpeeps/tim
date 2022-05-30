@@ -4,7 +4,7 @@
 # Copyright (c) 2022 George Lemon from OpenPeep
 # https://github.com/openpeep/tim
 
-from std/strutils import toUpperAscii
+from std/strutils import toUpperAscii, startsWith
 from std/enumutils import symbolName, symbolRank
 from std/json import JsonNode, JsonNodeKind
 # from ./lexer import TokenTuple
@@ -114,7 +114,72 @@ type
         HtmlSub
         HtmlSummary
         HtmlSup
+        #
+        # AST SVG Support
+        #
         HtmlSvg
+        HtmlSvgAnimate
+        HtmlSvgAnimateMotion
+        HtmlSvgAnimateTransform
+        HtmlSvgCircle
+        HtmlSvgClipPath
+        HtmlSvgDefs
+        HtmlSvgDesc
+        HtmlSvgDiscard
+        HtmlSvgEllipse
+        HtmlSvgFeBlend
+        HtmlSvgFeColorMatrix
+        HtmlSvgFeComponentTransfer
+        HtmlSvgFeComposite
+        HtmlSvgFeConvolveMatrix
+        HtmlSvgFeDiffuseLighting
+        HtmlSvgFeDisplacementMap
+        HtmlSvgFeDistantMap
+        HtmlSvgFeDistantLight
+        HtmlSvgFeDropShadow
+        HtmlSvgFeFlood
+        HtmlSvgFeFuncA
+        HtmlSvgFeFuncB
+        HtmlSvgFeFuncG
+        HtmlSvgFeFuncR
+        HtmlSvgFeGaussianBlur
+        HtmlSvgFeImage
+        HtmlSvgFeMerge
+        HtmlSvgFeMorphology
+        HtmlSvgFeOffset
+        HtmlSvgFePointLight
+        HtmlSvgFeSpecularLighting
+        HtmlSvgFeSpotLight
+        HtmlSvgFeTitle
+        HtmlSvgFeTurbulence
+        HtmlSvgFilter
+        HtmlSvgForeignObject
+        HtmlSvgG
+        HtmlSvgHatch
+        HtmlSvgHatchPath
+        HtmlSvgImage
+        HtmlSvgLine
+        HtmlSvgLinearGradient
+        HtmlSvgMarker
+        HtmlSvgMask
+        HtmlSvgMetadata
+        HtmlSvgMPath
+        HtmlSvgPath
+        HtmlSvgPattern
+        HtmlSvgPolygon
+        HtmlSvgPolyline
+        HtmlSvgRadialGradient
+        HtmlSvgRect
+        HtmlSvgSet
+        HtmlSvgStop
+        HtmlSvgSwitch
+        HtmlSvgSymbol
+        HtmlSvgText
+        HtmlSvgTextpath
+        HtmlSvgTspan
+        HtmlSvgUse
+        HtmlSvgView
+
         HtmlText
         HtmlTable
         HtmlTbody
@@ -249,7 +314,10 @@ proc isEmptyAttribute*[T: IDAttribute](attr: var T): bool = attr.value.len == 0
 proc getSymbolName*[T: HtmlNodeType](nodeType: T): string =
     ## Get stringified symbol name of the given HtmlNodeType
     var nodeName = nodeType.symbolName
-    result = toUpperAscii(nodeName[4 .. ^1])
+    if nodeName.startsWith("HtmlSvg") and nodeName != "HtmlSvg":
+        result = toUpperAscii(nodeName[7 .. ^1])
+    else:
+        result = toUpperAscii(nodeName[4 .. ^1])
 
 proc getSymbolName*[T: ConditionalType](nodeType: T): string =
     ## Get stringified symbol name of the given ConditonalType
@@ -376,6 +444,66 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_SUMMARY: HtmlSummary
     of TK_SUP: HtmlSup
     of TK_SVG: HtmlSvg
+    of TK_SVG_ANIMATE: HtmlSvgAnimate
+    of TK_SVG_ANIMATEMOTION: HtmlSvgAnimateMotion
+    of TK_SVG_ANIMATETRANSFORM: HtmlSvgAnimateTransform
+    of TK_SVG_CIRCLE: HtmlSvgCircle
+    of TK_SVG_CLIPPATH: HtmlSvgClipPath
+    of TK_SVG_DEFS: HtmlSvgDefs
+    of TK_SVG_DESC: HtmlSvgDesc
+    of TK_SVG_DISCARD: HtmlSvgDiscard
+    of TK_SVG_ELLIPSE: HtmlSvgEllipse
+    of TK_SVG_FE_BLEND: HtmlSvgFe_Blend
+    of TK_SVG_FE_COLORMATRIX: HtmlSvgFeColorMatrix
+    of TK_SVG_FE_COMPONENTTRANSFER: HtmlSvgFeComponentTransfer
+    of TK_SVG_FE_COMPOSITE: HtmlSvgFeComposite
+    of TK_SVG_FE_CONVOLVEMATRIX: HtmlSvgFeConvolveMatrix
+    of TK_SVG_FE_DIFFUSELIGHTING: HtmlSvgFeDiffuseLighting
+    of TK_SVG_FE_DISPLACEMENTMAP: HtmlSvgFeDisplacementMap
+    of TK_SVG_FE_DISTANTLIGHT: HtmlSvgFeDistantLight
+    of TK_SVG_FE_DROPSHADOW: HtmlSvgFeDropShadow
+    of TK_SVG_FE_FLOOD: HtmlSvgFe_Flood
+    of TK_SVG_FE_FUNCA: HtmlSvgFe_FuncA
+    of TK_SVG_FE_FUNCB: HtmlSvgFe_FuncB
+    of TK_SVG_FE_FUNCG: HtmlSvgFe_FuncG
+    of TK_SVG_FE_FUNCR: HtmlSvgFe_FuncR
+    of TK_SVG_FE_GAUSSIANBLUR: HtmlSvgFeGaussianBlur
+    of TK_SVG_FE_IMAGE: HtmlSvgFeImage
+    of TK_SVG_FE_MERGE: HtmlSvgFeMerge
+    of TK_SVG_FE_MORPHOLOGY: HtmlSvgFeMorphology
+    of TK_SVG_FE_OFFSET: HtmlSvgFeOffset
+    of TK_SVG_FE_POINTLIGHT: HtmlSvgFePointLight
+    of TK_SVG_FE_SPECULARLIGHTING: HtmlSvgFeSpecularLighting
+    of TK_SVG_FE_SPOTLIGHT: HtmlSvgFeSpotLight
+    of TK_SVG_FE_TITLE: HtmlSvgFeTitle
+    of TK_SVG_FE_TURBULENCE: HtmlSvgFeTurbulence
+    of TK_SVG_FILTER: HtmlSvgFilter
+    of TK_SVG_FOREIGNOBJECT: HtmlSvgforeignObject
+    of TK_SVG_G: HtmlSvgG
+    of TK_SVG_HATCH: HtmlSvgHatch
+    of TK_SVG_HATCHPATH: HtmlSvgHatchPath
+    of TK_SVG_IMAGE: HtmlSvgImage
+    of TK_SVG_LINE: HtmlSvgLine
+    of TK_SVG_LINEARGRADIENT: HtmlSvgLinearGradient
+    of TK_SVG_MARKER: HtmlSvgMarker
+    of TK_SVG_MASK: HtmlSvgMask
+    of TK_SVG_METADATA: HtmlSvgMetadata
+    of TK_SVG_MPATH: HtmlSvgMpath
+    of TK_SVG_PATH: HtmlSvgPath
+    of TK_SVG_PATTERN: HtmlSvgPattern
+    of TK_SVG_POLYGON: HtmlSvgPolygon
+    of TK_SVG_POLYLINE: HtmlSvgPolyline
+    of TK_SVG_RADIALGRADIENT: HtmlSvgRadialGradient
+    of TK_SVG_RECT: HtmlSvgRect
+    of TK_SVG_SET: HtmlSvgSet
+    of TK_SVG_STOP: HtmlSvgStop
+    of TK_SVG_SWITCH: HtmlSvgSwitch
+    of TK_SVG_SYMBOL: HtmlSvgSymbol
+    of TK_SVG_TEXT: HtmlSvgText
+    of TK_SVG_TEXTPATH: HtmlSvgTextPath
+    of TK_SVG_TSPAN: HtmlSvgTSpan
+    of TK_SVG_USE: HtmlSvgUse
+    of TK_SVG_VIEW: HtmlSvgView
     of TK_TABLE: HtmlTable
     of TK_TBODY: HtmlTbody
     of TK_TD: HtmlTd
@@ -395,10 +523,12 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_WBR: HtmlWbr
     else: HtmlUnknown
 
+const SvgSelfClosingTags = {HtmlSvgPath, HtmlSvgCircle, HtmlSvgPolyline}
+
 proc isSelfClosingTag*(nodeType: HtmlNodeType): bool =
     result = nodeType in {HtmlArea, HtmlBase, HtmlBr, HtmlCol, HtmlEmbed,
                          HtmlHr, HtmlImg, HtmlInput, HtmlLink, HtmlMeta,
-                         HtmlParam, HtmlSource, HtmlTrack, HtmlWbr}
+                         HtmlParam, HtmlSource, HtmlTrack, HtmlWbr} + SvgSelfClosingTags
 
 
 proc getConditionalNodeType*(kind: TokenKind): ConditionalType = 

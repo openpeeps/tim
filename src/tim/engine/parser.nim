@@ -133,9 +133,11 @@ proc hasID[T: HtmlNode](node: T): bool {.inline.} =
     ## Determine if current HtmlNode has an ID attribute
     result = node.id != nil
 
-const selfClosingTags* = {TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
+
+const svgSelfClosingTags = {TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_Polyline}
+const selfClosingTags = {TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
                          TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
-                         TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR}
+                         TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR} + svgSelfClosingTags
 
 proc isNestable*[T: TokenTuple](token: T): bool =
     ## Determine if current token can contain more nodes
