@@ -1,6 +1,7 @@
 import ./ast
-import jsony
+# import jsony
 import std/[json, ropes, tables]
+
 from std/strutils import toLowerAscii, `%`, indent
 from std/algorithm import reverse, SortOrder
 
@@ -212,10 +213,11 @@ proc writeLine[C: Compiler](c: var C) =
             c.writeHtmlElement(node, index)
         inc index
 
-proc init*[C: typedesc[Compiler]](Compiler: C, astNodes: string, minified: bool, asNode = true): Compiler =
+proc init*[C: typedesc[Compiler]](Compiler: C, astProgram: Program, minified: bool): Compiler =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
     var c = Compiler(minified: minified)
-    c.program = fromJson(astNodes, Program)
+    # c.program = fromJson(astNodes, Program)
+    c.program = astProgram
     c.writeLine()
     result = c

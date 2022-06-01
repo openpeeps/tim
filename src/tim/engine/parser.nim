@@ -10,9 +10,8 @@ import std/[tables, with]
 import tokens, ast, data
 from resolver import resolveWithImports, hasError, getError, getErrorLine, getErrorColumn, getFullCode
 
-from meta import TimEngine, TimlTemplate, getContents, getFileData
+from meta import TimEngine, TimlTemplate, TimlTemplateType, getContents, getFileData
 from std/strutils import `%`, isDigit, join, endsWith
-from std/math import splitDecimal
 
 type
     Parser* = object
@@ -91,7 +90,7 @@ proc getError*[T: Parser](p: var T): string =
     elif p.error.len != 0:
         result = p.error
 
-proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}): Parser
+proc parse*[T: TimEngine](engine: T, code, path: string, templateType: TimlTemplateType, data: JsonNode = %*{}): Parser
 
 proc getStatements*[T: Parser](p: T, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
@@ -134,7 +133,7 @@ proc hasID[T: HtmlNode](node: T): bool {.inline.} =
     result = node.id != nil
 
 
-const svgSelfClosingTags = {TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_Polyline}
+const svgSelfClosingTags = {TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE}
 const selfClosingTags = {TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
                          TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
                          TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR} + svgSelfClosingTags
@@ -340,11 +339,10 @@ proc walk(p: var Parser) =
                 p.statements.nodes.add(node)
             node = nil
 
-proc parse*[T: TimEngine](engine: T, code, path: string, data: JsonNode = %*{}): Parser =
-    var importHandler = resolveWithImports(code, path)
+proc parse*[T: TimEngine](engine: T, code, path: string, templateType: TimlTemplateType, data: JsonNode = %*{} ): Parser =
+    var importHandler = resolveWithImports(code, path, templateType)
     var p: Parser = Parser(engine: engine)
     # echo importHandler.getFullCode()
-
     if importHandler.hasError():
         p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
         return p

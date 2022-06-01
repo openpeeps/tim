@@ -7,6 +7,7 @@
 import toktok
 import std/[streams, tables, ropes]
 
+from ./meta import TimlTemplateType
 from std/strutils import endsWith, `%`, indent
 from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
@@ -38,6 +39,9 @@ type
             ## - ``source`` field pointing to an absolute path for ``.timl`` partial.
         sources: Table[SourcePath, SourceCode]
             ## A ``Table`` containing the source code of all imported partials.
+        templateType: TimlTemplateType
+
+const htmlHeadElements = {TK_HEAD, TK_TITLE, TK_BASE, TK_LINK, TK_META, TK_SCRIPT, TK_BODY}
 
 proc hasError*[I: Importer](p: var I): bool =
     result = p.error.len != 0
@@ -92,6 +96,10 @@ template loadCode[T: Importer](p: var T, indent: int) =
 template parsePartial[T: Importer](p: var T) =
     ## Look for all ``TK_INCLUDE`` tokens and try
     ## to load partial file contents inside of the main view
+    if p.current.kind in htmlHeadElements and p.templateType != TimlTemplateType.Layout:
+        p.setError "Views cannot contain Head elements. Use a layout instead", p.currentFilePath
+        break
+
     if p.current.kind == TK_INCLUDE:
         let indent = p.current.col
         if p.next.kind != TK_STRING:
@@ -100,9 +108,9 @@ template parsePartial[T: Importer](p: var T) =
         jump p
         loadCode(p, indent)
 
-proc resolveWithImports*(viewCode: string, currentFilePath: string): Importer =
+proc resolveWithImports*(viewCode, currentFilePath: string, templateType: TimlTemplateType): Importer =
     ## Resolve ``@include`` statements in main view code.
-    var p = Importer(lex: Lexer.init(viewCode), currentFilePath: currentFilePath)
+    var p = Importer(lex: Lexer.init(viewCode), currentFilePath: currentFilePath, templateType: templateType)
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:

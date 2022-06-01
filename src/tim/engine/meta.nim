@@ -6,23 +6,22 @@
 import bson
 import std/[tables, json, md5]
 
-from std/strutils import `%`, strip, split, contains, join
+from std/strutils import `%`, strip, split, contains, join, endsWith
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
 from std/os import getCurrentDir, normalizePath, dirExists,
                    fileExists, walkDirRec, splitPath, createDir
 
 type 
-    TimlTemplateType = enum
+    TimlTemplateType* = enum
         Layout, View, Partial
 
     TimlTemplate* = object
         meta: tuple [
             name: string,                           # name of the current TimlTemplate representing file name
-            template_type: TimlTemplateType         # type of TimlTemplate, either Layout, View or Partial
+            templateType: TimlTemplateType         # type of TimlTemplate, either Layout, View or Partial
         ]
         paths: tuple[file, ast, html: string]
         data: JsonNode                              # JSON data exposed to TimlTemplate
-        sourceCode: string
         astSource*: string
     
     TimlTemplateTable = OrderedTable[string, TimlTemplate]
@@ -54,13 +53,16 @@ proc getIndent*[T: TimEngine](t: T): int =
     ## Get preferred indentation size (2 or 4 spaces). Default 4
     result = t.indent
 
+proc getType*[T: TimlTemplate](t: T): TimlTemplateType =
+    result = t.meta.templateType
+
 proc getContents*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve code contents of current TimlTemplate
     result = t.fileContents
 
 proc getName*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve the file name (including extension) of the current TimlTemplate
-    result = t.fileName
+    result = t.meta.name
 
 proc getFilePath*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve the file path of the current TimlTemplate
@@ -72,7 +74,7 @@ proc getFileData*[T: TimlTemplate](t: T): JsonNode {.inline.} =
 
 proc getSourceCode*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve source code of current TimlTemplate object
-    result = t.sourceCode
+    result = readFile(t.paths.file)
 
 proc getHtmlCode*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve the HTML code for given ``TimlTemplate`` object
@@ -89,41 +91,43 @@ proc hasAnySources*[T: TimEngine](e: T): bool {.inline.} =
     ## objects stored in layouts, views or partials fields
     result = len(e.views) != 0
 
-proc getLayouts*[T: TimEngine](e: T): TimlTemplateTable =
-    ## Retrieve entire table of layouts as TimlTemplateTable
-    result = e.layouts
-
-proc hasLayout*[T: TimEngine](e: T, key: string): bool =
-    let path = e.root & "/layouts/" & key & ".timl"
-    result = e.layouts.hasKey(path)
-
-proc getLayout*[T: TimEngine](e: T, key: string): TimlTemplate =
-    let path = e.root & "/layouts/" & key & ".timl"
-    result = e.layouts[path]
-
-proc getViews*[T: TimEngine](e: T): TimlTemplateTable =
-    ## Retrieve entire table of views as TimlTemplateTable
-    result = e.views
-
-proc getViewPath[T: TimEngine](e: T, key: string): string =
-    # Get absolute path of a view based on given key.
+proc getPath[T: TimEngine](e: T, key, pathType: string): string =
+    ## Retrieve path key for either a partial, view or layout
     var tree: seq[string]
-    result = e.root & "/views/$1.timl"
+    result = e.root & "/" & pathType & "/$1.timl"
     if key.contains("."):
         tree = key.split(".")
         result = result % [tree.join("/")]
     else:
         result = result % [key]
 
+proc getLayouts*[T: TimEngine](e: T): TimlTemplateTable =
+    ## Retrieve entire table of layouts as TimlTemplateTable
+    result = e.layouts
+
+proc hasLayout*[T: TimEngine](e: T, key: string): bool =
+    ## Determine if specified layout exists
+    ## Use dot annotation for accessing views in subdirectories
+    result = e.views.hasKey(e.getPath(key, "layouts"))
+
+proc getLayout*[T: TimEngine](e: T, key: string): TimlTemplate =
+    ## Get a layout object as ``TimlTemplate``
+    ## Use dot annotation for accessing views in subdirectories
+    result = e.views[e.getPath(key, "layouts")]
+
+proc getViews*[T: TimEngine](e: T): TimlTemplateTable =
+    ## Retrieve entire table of views as TimlTemplateTable
+    result = e.views
+
 proc hasView*[T: TimEngine](e: T, key: string): bool =
-    ## Determine if view exists
-    ## This procedure provides view access via dot-annotation
-    result = e.views.hasKey(e.getViewPath(key))
+    ## Determine if a specific view exists by name.
+    ## Use dot annotation for accessing views in subdirectories
+    result = e.views.hasKey(e.getPath(key, "views"))
 
 proc getView*[T: TimEngine](e: T, key: string): TimlTemplate =
     ## Retrieve a view template by key.
-    ## This procedure provides view access via dot-annotation
-    result = e.views[e.getViewPath(key)]
+    ## Use dot annotation for accessing views in subdirectories
+    result = e.views[e.getPath(key, "views")]
 
 proc getPartials*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of partials as TimlTemplateTable
@@ -183,11 +187,12 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
     ## by extension and/or visibility (dot files)
     ##
     ## This procedure is using `find` for Unix systems, while
-    ## on Windows is making use of walkDirRec's Nim iterator and Regex module.
+    ## on Windows is making use of walkDirRec's Nim iterator.
     when defined windows:
         var files: seq[string]
         for file in walkDirRec(getCurrentDir()):
-            if file.match re".*\.timl":
+            if file.endsWith(".timl"):
+                # if file.match re".*\.timl":
                 files.add(file)
         result = files
     else:
@@ -223,8 +228,8 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
                 let innerDir = path & "/" & inDir
                 if not dirExists(innerDir): createDir(innerDir)
 
-    var lTable, vTable, pTable: OrderedTable[string, TimlTemplate]
-    for tdir in @["views"]:
+    var LayoutsTable, ViewsTable, PartialsTable: OrderedTable[string, TimlTemplate]
+    for tdir in @["views", "layouts", "partials"]:
         var tdirpath = getCurrentDir() & "/" & timlInOutDirs[0] & "/" & tdir
         if dirExists(tdirpath):
             # TODO look for .timl files only
@@ -241,18 +246,17 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
                         of "partials": ftype = Partial
 
                     var tTemplate = TimlTemplate(
-                        meta: (name: fname.tail, template_type: ftype),
+                        meta: (name: fname.tail, templateType: ftype),
                         paths: (
                             file: filePath,
                             ast: bsonPath(timlInOutDirs[1], filePath),
                             html: htmlPath(timlInOutDirs[1], filePath)
-                        ),
-                        sourceCode: readFile(filePath)
+                        )
                     )
                     case ftype:
-                        of Layout: lTable[filePath] = tTemplate
-                        of View: vTable[filePath] = tTemplate
-                        of Partial: vTable[filePath] = tTemplate
+                        of Layout: LayoutsTable[filePath] = tTemplate
+                        of View: ViewsTable[filePath] = tTemplate
+                        of Partial: PartialsTable[filePath] = tTemplate
         else:
             createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
@@ -264,9 +268,9 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
     result = timEngine(
         root: rootPath,
         output: outputPath,
-        layouts: lTable,
-        views: vTable,
-        partials: pTable,
+        layouts: LayoutsTable,
+        views: ViewsTable,
+        partials: PartialsTable,
         minified: minified,
         indent: indent
     )

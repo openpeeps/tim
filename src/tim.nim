@@ -8,10 +8,14 @@ import bson
 import tim/engine/[parser, compiler, meta]
 import std/[tables, json]
 
-# from tim/engine/ast import HtmlNode
+from std/times import cpuTime
+
+when compileOption("threads"):
+    import std/threadpool
+
 export parser, meta, compiler
 
-proc render*[T: TimEngine](engine: T, key: string, data: JsonNode = %*{}): string =
+proc render*[T: TimEngine](engine: T, key: string, layout = "base", data: JsonNode = %*{}): string =
     ## Renders a template view with or without a ``JSON`` data.
     ## Note that Tim is auto discovering your .timl templates inside /views directory,
     ## so the ``key`` parameter reflects the name of the view (filename) without
@@ -23,31 +27,33 @@ proc render*[T: TimEngine](engine: T, key: string, data: JsonNode = %*{}): strin
     ## in a sub directory like ``views/members``, then  you can use dot annotation.
     ## Example ``engine.render("members.contact")``
     if engine.hasView(key):
-        var layout: TimlTemplate = engine.getView(key)
-        result = layout.getHtmlCode()
+        var view: TimlTemplate = engine.getView(key)
+        result = "<!DOCTYPE html>"
+        result.add view.getHtmlCode()
+
+proc preCompileTemplate[T: TimEngine](engine: T, view: TimlTemplate) =
+    var p: Parser = engine.parse(view.getSourceCode(), view.getFilePath(), templateType = view.getType())
+    if p.hasError():
+        raise newException(TimSyntaxError, "\n"&p.getError())
+    let c = Compiler.init(p.getStatements(), minified = engine.shouldMinify())
+    engine.writeHtml(view, c.getHtml) # write HTML output without layout wrap
 
 proc precompile*[T: TimEngine](engine: T, debug = false) =
     ## Pre compile from ``.timl`` to AST in BSON format.
     if engine.hasAnySources:
         for id, view in engine.getViews().pairs():
-            var p: Parser = engine.parse(view.getSourceCode(), view.getFilePath())
-            if p.hasError():
-                raise newException(TimSyntaxError, "\n"&p.getError())
-            # AST Nodes to BSON AST
-            # BSON files are saved to provided `output` path under `bson` directory.
-            # Each BSON template is named using MD5 based on its absolute path
-            # if p.hasJIT:
-            # else:
-
             # Save the Abstract Syntax Tree of the current template as BSON
             # echo p.getStatementsStr(prettyString = true) # debug
             # engine.writeBson(view, p.getStatementsStr())
+            spawn engine.preCompileTemplate(view)
+        sync()
 
-            let c = Compiler.init(p.getStatementsStr(), minified = engine.shouldMinify())
-            engine.writeHtml(view, c.getHtml)
-    # else: raise newException(TimException, "Unable to find any Timl templates")
+        for id, layout in engine.getLayouts().pairs():
+            spawn engine.preCompileTemplate(layout)
+        sync()
 
 when isMainModule:
+    let initTime = cpuTime()
     var engine = TimEngine.init(
         source = "../examples/templates",
             # directory path to find your `.timl` files
@@ -65,5 +71,8 @@ when isMainModule:
     # ``.html`` for static templates
     # ``.bson`` for templates requiring runtime computation,
     # like conditional statements, iterations, var assignments and so on.
+    
     engine.precompile()
-    echo engine.render("members.contact")
+    # echo engine.render("index")
+
+    echo "Done in " & $(cpuTime() - initTime)
