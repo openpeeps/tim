@@ -96,10 +96,27 @@ a.btn.btn-dark.px-4
 
 ## Features explained
 
+#### Conditionals
+```tim
+if $userIsLoggedin:
+    a.btn.btn-link href="/logout": "Logout"
+else:
+    a.btn.btn-link href="/login": "Login"
+```
+
+#### Loops
+```tim
+div.container > div.row
+    for $product in $products:
+        div.col-12 > div.p-4
+            h4: $product.title
+            p.text-muted: $product.description
+```
+
 #### Mixins
 Mixins allow you to define attributes that can be re-used throughout your views. Mixins are useful to avoid rewriting attributes when dealing with SVG icons (for example).
 
-``tim
+```tim
 let getSvgAttrs = viewBox="0 0 24 24" width="24" height="24" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
 
 svg getSvgAttrs()
@@ -175,6 +192,10 @@ contexts:
 
 </details>
 
+## Benchmarks
+TODO
+
+
 ## Roadmap
 
 ### `0.1.x`
@@ -191,6 +212,7 @@ contexts:
 - [x] Create Sublime Syntax
 - [ ] Create VSCode Syntax (yak)
 - [ ] Add tests
+- [ ] Add Benchmarks
 - [ ] Talk about it on ycombinator / stackoverflow / producthunt
 
 ### ❤ Contributions
