@@ -16,13 +16,13 @@ requires "jsony"
 task tests, "Run tests":
     exec "testament p 'tests/*.nim'"
 
-task cli, "Compile for command line":
+task cli, "Build Tim CLI":
     exec "nimble build c src/cli.nim --gc:arc "
     exec "nim -d:release --gc:arc --threads:on -d:useMalloc --opt:size --spellSuggest --out:bin/tim_cli c src/cli"
 
 task dev, "Compile Tim":
     echo "\n✨ Compiling..." & "\n"
-    exec "nim --gc:arc -d:useMalloc --out:bin/tim --hints:off c src/tim.nim"
+    exec "nim --gc:arc -d:useMalloc --out:bin/tim --hints:off --threads:on c src/tim.nim"
 
 task prod, "Compile Tim for release":
     echo "\n✨ Compiling..." & $version & "\n"
