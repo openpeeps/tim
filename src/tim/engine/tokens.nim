@@ -30,7 +30,8 @@ tokens:
     Body         > "body"
     Br           > "br"
     Button       > "button"
-    Comment      > '/' .. EOL  # TODO TokTok: Handle strings like "//" .. EOL
+    Divide       > '/':
+        Comment  ? '/' .. EOL   # Inline commnet ollecting everything to EOL
     Canvas       > "canvas"
     Caption      > "caption"
     Center       > "center"
@@ -118,7 +119,7 @@ tokens:
     # 
     # SVG Support
     # 
-    SVG          > "svg"
+    SVG                  > "svg"
     SVG_Animate          > "animate"
     SVG_AnimateMotion    > "animateMotion"
     SVG_AnimateTransform > "animateTransform"
@@ -128,8 +129,8 @@ tokens:
     SVG_Desc             > "desc"
     SVG_Discard          > "discard"
     SVG_Ellipse          > "ellipse"
-    SVG_Fe_Blend          > "feBlend"
-    SVG_Fe_ColorMatrix    > "feColorMatrix"
+    SVG_Fe_Blend         > "feBlend"
+    SVG_Fe_ColorMatrix   > "feColorMatrix"
     SVG_Fe_ComponentTransfer    > "feComponentTransfer"
     SVG_Fe_Composite            > "feComposite"
     SVG_Fe_ConvolveMatrix       > "feConvolveMatrix"
@@ -198,7 +199,7 @@ tokens:
     Var          > "var"
     Video        > "video"
     WBR          > "wbr"
-    Attr
+    Attr                        # TK_IDENTIFIER followed by `=` becomes TK_ATTR
     Attr_Class   > '.'
     Attr_ID      > '#'
     Assign       > '='
@@ -214,7 +215,11 @@ tokens:
     Or           > "or"
     Eq           > ('=', '=')
     Neq          > ('!', '=')
-    Include       > ('@', "include")
+    Include      > ('@', "include")
+    Plus         > '+'
+    Minus        > '-'
+    Multiply     > '*'
+    Defer        > "defer"
     None
 
 export TokenTuple, TokenKind
