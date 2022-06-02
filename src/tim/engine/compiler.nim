@@ -1,9 +1,9 @@
 import ./ast
-# import jsony
 import std/[json, ropes, tables]
 
 from std/strutils import toLowerAscii, `%`, indent
 from std/algorithm import reverse, SortOrder
+from ./meta import TimlTemplateType
 
 type
     DeferTag = tuple[tag: string, meta: MetaNode, isInlineElement: bool]
@@ -22,12 +22,13 @@ type
             ## after resolving multi dimensional nodes
         minified: bool
             ## Whether to minify the final HTML output (disabled by default)
-        html: Rope
+        html, htmlTails: Rope
             ## A rope containg the final HTML output
+        templateType: TimlTemplateType
 
 const NewLine = "\n"
 
-proc indentLine[T: Compiler](compiler: var T, meta: MetaNode, fixTail = false, brAfter = true) =
+proc indentLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail = false, brAfter = true) =
     if meta.indent != 0:
         var i: int
         i = meta.indent
@@ -40,7 +41,7 @@ proc hasAttributes(node: HtmlNode): bool =
     ## Determine if current ``HtmlNode`` has any HTML attributes
     result = node.attributes.len != 0
 
-proc writeAttributes[T: Compiler](c: var T, node: HtmlNode) =
+proc writeAttributes[C: Compiler](c: var C, node: HtmlNode) =
     ## write one or more HTML attributes
     for attr in node.attributes.items():
         add c.html, ("$1=\"$2\"" % [attr.name, attr.value]).indent(1)
@@ -49,16 +50,11 @@ proc hasIDAttribute(node: HtmlNode): bool =
     ## Determine if current JsonNode has an HTML ID attribute attached to it
     result = node.id != nil
 
-proc writeIDAttribute[T: Compiler](compiler: var T, node: HtmlNode) =
+proc writeIDAttribute[C: Compiler](compiler: var C, node: HtmlNode) =
     ## Write an ID HTML attribute to current HTML Element
     add compiler.html, ("id=\"$1\"" % [node.id.value]).indent(1)
 
-proc getHtml*[T: Compiler](c: T): string {.inline.} =
-    ## Return compiled timl as html. By default the output is minfied,
-    ## Set `minified` to `false` for regular output.
-    result = $(c.html)
-
-proc openTag[T: Compiler](compiler: var T, tag: string, node: HtmlNode) =
+proc openTag[C: Compiler](compiler: var C, tag: string, node: HtmlNode) =
     ## Open tag of the current JsonNode element
     if not compiler.minified:
         compiler.indentLine(node.meta)
@@ -71,13 +67,18 @@ proc openTag[T: Compiler](compiler: var T, tag: string, node: HtmlNode) =
         add compiler.html, "/"
     add compiler.html, ">"
 
-proc closeTag[C: Compiler](c: var C, tag: DeferTag) =
+proc closeTag[C: Compiler](c: var C, tag: DeferTag, templateType = View) =
     ## Close an HTML tag
     let htmlTag = "</" & toLowerAscii(tag.tag) & ">"
+    var closingTag: string
     if tag.isInlineElement or c.minified:
-        add c.html, htmlTag
+        closingTag = htmlTag
     else:
-        add c.html, indent("\n" & htmlTag, tag.meta.indent)
+        closingTag = indent("\n" & htmlTag, tag.meta.indent)
+    if templateType == View:
+        add c.html, closingTag
+    else:
+        add c.htmlTails, closingTag
 
 proc getNextLevel[C: Compiler](c: var C, currentIndent, index: int): tuple[meta: MetaNode, typeLevel: TypeLevel] =
     try:
@@ -126,7 +127,7 @@ proc resolveAllDeferredTags[C: Compiler](c: var C) =
         var tags = c.tags[lineno]
         tags.reverse()
         for tag in tags:
-            c.closeTag(tag)
+            c.closeTag(tag, c.templateType)
             c.tags[lineno].delete(0)
         c.tags.del(lineno)
         inc i
@@ -213,10 +214,19 @@ proc writeLine[C: Compiler](c: var C) =
             c.writeHtmlElement(node, index)
         inc index
 
-proc init*[C: typedesc[Compiler]](Compiler: C, astProgram: Program, minified: bool): Compiler =
+proc getHtml*[C: Compiler](c: C): string {.inline.} =
+    ## Return compiled timl as html. By default the output is minfied,
+    ## Set `minified` to `false` for regular output.
+    result = $(c.html)
+
+proc getHtmlTails*[C: Compiler](c: C): string {.inline.} =
+    ## Retrieve the tails and deferred elements for current layout
+    result = $(c.htmlTails)
+
+proc init*[C: typedesc[Compiler]](Compiler: C, astProgram: Program, minified: bool, templateType: TimlTemplateType): Compiler =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
-    var c = Compiler(minified: minified)
+    var c = Compiler(minified: minified, templateType: templateType)
     # c.program = fromJson(astNodes, Program)
     c.program = astProgram
     c.writeLine()

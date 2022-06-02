@@ -20,7 +20,7 @@ type
             name: string,                           # name of the current TimlTemplate representing file name
             templateType: TimlTemplateType         # type of TimlTemplate, either Layout, View or Partial
         ]
-        paths: tuple[file, ast, html: string]
+        paths: tuple[file, ast, html, tails: string]
         data: JsonNode                              # JSON data exposed to TimlTemplate
         astSource*: string
     
@@ -73,12 +73,18 @@ proc getFileData*[T: TimlTemplate](t: T): JsonNode {.inline.} =
     result = t.data
 
 proc getSourceCode*[T: TimlTemplate](t: T): string {.inline.} =
-    ## Retrieve source code of current TimlTemplate object
+    ## Retrieve source code of a TimlTemplate object
     result = readFile(t.paths.file)
 
 proc getHtmlCode*[T: TimlTemplate](t: T): string {.inline.} =
     ## Retrieve the HTML code for given ``TimlTemplate`` object
+    ## TODO retrieve source code from built-in memory table
     result = readFile(t.paths.html)
+
+proc getHtmlTailsCode*[T: TimlTemplate](t: T): string {.inline.} =
+    ## Retrieve the HTML tags for a layout
+    ## TODO retrieve source code from built-in memory table
+    result = readFile(t.paths.tails)
 
 proc setAstSource*[T: TimlTemplate](t: var T, ast: string) {.inline.} =
     t.astSource = ast
@@ -108,12 +114,12 @@ proc getLayouts*[T: TimEngine](e: T): TimlTemplateTable =
 proc hasLayout*[T: TimEngine](e: T, key: string): bool =
     ## Determine if specified layout exists
     ## Use dot annotation for accessing views in subdirectories
-    result = e.views.hasKey(e.getPath(key, "layouts"))
+    result = e.layouts.hasKey(e.getPath(key, "layouts"))
 
 proc getLayout*[T: TimEngine](e: T, key: string): TimlTemplate =
     ## Get a layout object as ``TimlTemplate``
     ## Use dot annotation for accessing views in subdirectories
-    result = e.views[e.getPath(key, "layouts")]
+    result = e.layouts[e.getPath(key, "layouts")]
 
 proc getViews*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of views as TimlTemplateTable
@@ -154,9 +160,10 @@ proc bsonPath(outputDir, filePath: string): string =
     result = getCurrentDir() & "/" & outputDir & "/bson/" & hashTail(filePath) & ".ast.bson"
     normalizePath(result)
 
-proc htmlPath(outputDir, filePath: string): string =
+proc htmlPath(outputDir, filePath: string, isTail = false): string =
     ## Set the HTML output path and return the string
-    result = getCurrentDir() & "/" & outputDir & "/html/" & hashTail(filePath) & ".html"
+    var suffix = if isTail: "_" else: ""
+    result = getCurrentDir() & "/" & outputDir & "/html/" & hashTail(filePath) & suffix & ".html"
     normalizePath(result)
 
 proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string) =
@@ -171,8 +178,9 @@ proc readBson*[E: TimENgine, T: TimlTemplate](e: E, t: T): string =
     var document: Bson = newBsonDocument(readFile(t.paths.ast))
     result = document["ast"]
 
-proc writeHtml*[E: TimEngine, T: TimlTemplate](e: E, t: T, output: string) =
-    writeFile(t.paths.html, output)
+proc writeHtml*[E: TimEngine, T: TimlTemplate](e: E, t: T, output: string, isTail = false) =
+    let filePath = if not isTail: t.paths.html else: t.paths.tails
+    writeFile(filePath, output)
 
 proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
     ## Short hand procedure for executing shell commands via execProcess
@@ -250,7 +258,8 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
                         paths: (
                             file: filePath,
                             ast: bsonPath(timlInOutDirs[1], filePath),
-                            html: htmlPath(timlInOutDirs[1], filePath)
+                            html: htmlPath(timlInOutDirs[1], filePath),
+                            tails: htmlPath(timlInOutDirs[1], filePath, true)
                         )
                     )
                     case ftype:
