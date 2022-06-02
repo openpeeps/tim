@@ -58,18 +58,22 @@ proc precompile*[T: TimEngine](engine: T, debug = false) =
     ## compile-time and merged within the view.
     if engine.hasAnySources:
         echo "Tim Engine precompiles:"
-        for id, view in engine.getViews().pairs():
-            # Save the Abstract Syntax Tree of the current template as BSON
-            # echo p.getStatementsStr(prettyString = true) # debug
-            # engine.writeBson(view, p.getStatementsStr())
-            echo indent(view.getName(), 2)
-            spawn engine.preCompileTemplate(view)
-        sync()
-
-        for id, layout in engine.getLayouts().pairs():
-            echo indent(layout.getName(), 2)
-            spawn engine.preCompileTemplate(layout)
-        sync()
+        when compileOption("threads"):
+            for id, view in engine.getViews().pairs():
+                echo indent(view.getName(), 2)
+                spawn engine.preCompileTemplate(view)
+            sync()
+            for id, layout in engine.getLayouts().pairs():
+                echo indent(layout.getName(), 2)
+                spawn engine.preCompileTemplate(layout)
+            sync()
+        else:
+            for id, view in engine.getViews().pairs():
+                echo indent(view.getName(), 2)
+                engine.preCompileTemplate(view)
+            for id, layout in engine.getLayouts().pairs():
+                echo indent(layout.getName(), 2)
+                engine.preCompileTemplate(layout)
 
 when isMainModule:
     let initTime = cpuTime()
