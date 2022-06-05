@@ -67,6 +67,7 @@ type
         HtmlH5
         HtmlH6
         HtmlHead
+        HtmlHeader
         HtmlHr
         HtmlHtml
         HtmlI
@@ -395,6 +396,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_H5: HtmlH5
     of TK_h6: HtmlH6
     of TK_HEAD: HtmlHead
+    of TK_HEADER: HtmlHeader
     of TK_HR: HtmlHr
     of TK_HTML: HtmlHtml
     of TK_Italic: HtmlI
