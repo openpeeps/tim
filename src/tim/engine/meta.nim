@@ -9,7 +9,8 @@ import std/[tables, json, md5]
 from std/strutils import `%`, strip, split, contains, join, endsWith
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
 from std/os import getCurrentDir, normalizePath, dirExists,
-                   fileExists, walkDirRec, splitPath, createDir
+                   fileExists, walkDirRec, splitPath, createDir,
+                   isHidden
 
 type 
     TimlTemplateType* = enum
@@ -199,8 +200,8 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
     when defined windows:
         var files: seq[string]
         for file in walkDirRec(getCurrentDir()):
+            if file.isHidden(): continue
             if file.endsWith(".timl"):
-                # if file.match re".*\.timl":
                 files.add(file)
         result = files
     else:
@@ -210,7 +211,9 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
         if files.len == 0: # "Unable to find any files at given location"
             result = @[]
         else:
-            result = files.split("\n")
+            for file in files.split("\n"):
+                if file.isHidden(): continue
+                result.add file
 
 proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minified = true, indent: int): TimEngine =
     ## Initialize a new Tim Engine by providing the root path directory 
