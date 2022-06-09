@@ -50,29 +50,28 @@ proc preCompileTemplate[T: TimEngine](engine: T, temp: TimlTemplate) =
         engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
     engine.writeHtml(temp, c.getHtml())
 
-proc precompile*[T: TimEngine](engine: T, debug = false) =
+proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discardable.} =
     ## Pre-compile ``views`` and ``layouts``
     ## from ``.timl`` to HTML or BSON.
     ##
     ## Note that ``partials`` code is collected on
     ## compile-time and merged within the view.
     if engine.hasAnySources:
-        echo "Tim Engine precompiles:"
         when compileOption("threads"):
             for id, view in engine.getViews().pairs():
-                echo indent(view.getName(), 2)
+                result.add view.getName()
                 spawn engine.preCompileTemplate(view)
             sync()
             for id, layout in engine.getLayouts().pairs():
-                echo indent(layout.getName(), 2)
+                result.add layout.getName()
                 spawn engine.preCompileTemplate(layout)
             sync()
         else:
             for id, view in engine.getViews().pairs():
-                echo indent(view.getName(), 2)
+                result.add view.getName()
                 engine.preCompileTemplate(view)
             for id, layout in engine.getLayouts().pairs():
-                echo indent(layout.getName(), 2)
+                result.add layout.getName()
                 engine.preCompileTemplate(layout)
 
 when isMainModule:

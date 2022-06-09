@@ -199,7 +199,7 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
     ## on Windows is making use of walkDirRec's Nim iterator.
     when defined windows:
         var files: seq[string]
-        for file in walkDirRec(getCurrentDir()):
+        for file in walkDirRec(path):
             if file.isHidden(): continue
             if file.endsWith(".timl"):
                 files.add(file)
