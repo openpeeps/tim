@@ -70,7 +70,7 @@ html
         link rel="stylesheet" href="/assets/app.css"
 ```
 
-P.S. There is no need for `<!DOCTYPE html>`, this is auto-inserted by Tim Engine for each `layout` inside `layouts` directory 👍
+Note: No need to insert `<!DOCTYPE html>`. This tag is auto-inserted at compile-time.
 
 2. Create a simple hero-like section.
 ```tim
