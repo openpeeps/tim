@@ -43,30 +43,8 @@ type
             ## Determine if current Timl document needs a JIT compilation.
             ## This is set true when current document contains either a
             ## conditional statement or other dynamic statements.
-        warnings: seq[Warning]
-            ## Holds warning messages related to current HTML Rope
-            ## These messages are shown during compile-time
-            ## via command line interface.
         error: string
             ## A parser/lexer error
-
-    WarningType = enum
-        Semantics
-
-    Warning = ref object
-        ## Object for creating warnings during compile time
-        warnType: WarningType
-        element: string
-        line: int
-
-# proc newWarning[C: Compiler](c: var C, warnType: WarningType, element: string) =
-#     ## Create a new Warning to be shown during compile time
-#     let warning = new Warning
-#     with warning:
-#         warnType = warnType
-#         element = element
-#         line = line
-#     c.warnings.add(warning)
 
 proc setError[P: Parser](p: var P, msg: string) =
     ## Set parser error
@@ -202,7 +180,8 @@ template `!>`[T: Parser](p: var T): untyped =
             p.setError("Invalid nest missing `>` token for inline declarations")
             break
     elif p.current.isNestable() and not p.next.isNestable():
-        if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON}:
+        # echo p.next
+        if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE}:
             p.setError("Invalid nest declaration")
             break
 

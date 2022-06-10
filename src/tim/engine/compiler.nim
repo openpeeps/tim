@@ -159,6 +159,9 @@ proc writeElement[C: Compiler](c: var C, htmlNode: HtmlNode, index: var int) =
 proc writeTextElement[C: Compiler](c: var C, node: HtmlNode) =
     ## Write ``HtmlText`` content
     add c.html, node.text
+    if node.concat.len != 0:
+        for nodeConcat in node.concat:
+            add c.html, indent(nodeConcat.text, 1)
 
 proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int) =
     ## Write current line of HTML Nodes.

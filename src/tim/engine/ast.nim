@@ -214,13 +214,14 @@ type
         case nodeType*: HtmlNodeType
         of HtmlText:
             text*: string
+            vasAssignment*: VariableNode
+            concat*: seq[HtmlNode]
         else: nil
         nodeName*: string
         id*: IDAttribute
         attributes*: seq[HtmlAttribute]
         nodes*: seq[HtmlNode]
         meta*: MetaNode
-        # siblings: seq[int]
 
     VariableContentType* = enum
         ValueInvalid
@@ -539,6 +540,16 @@ proc getConditionalNodeType*(kind: TokenKind): ConditionalType =
         of TK_ELIF: result = Elif
         of TK_ELSE: result = Else
         else: discard
+
+proc newTextNode*(nodeTextValue: string,
+    metaTuple: tuple[column, indent, line, childOf, depth: int], nodeConcat: seq[HtmlNode] = @[]): HtmlNode =
+    result = HtmlNode(
+        nodeType: HtmlText,
+        nodeName: getSymbolName(HtmlText),
+        text: nodeTextValue,
+        concat: nodeConcat,
+        meta: metaTuple
+    )
 
 proc newConditionNode*(token: TokenTuple): ConditionalNode = 
     ## Create new Conditional Node

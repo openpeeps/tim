@@ -46,12 +46,15 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
                 hasAttributes = true
             jump p, 2
         elif p.current.kind == TK_COLON:
-            if p.next.kind != TK_STRING:
+            if p.next.kind notin {TK_STRING, TK_VARIABLE}:
                 # Handle string content assignment or enter in a multi dimensional nest
-                p.setError("Expecting string content for \"$1\" node" % [htmlNode.nodeName])
+                p.setError("Expect content assignment for \"$1\" node" % [htmlNode.nodeName])
                 break
             else:
                 jump p
+                var varName: string
+                if p.current.kind == TK_VARIABLE:
+                    varName = p.current.value
                 p.current.col = htmlNode.meta.column # get base column from ``htmlMeta`` node
                 if (p.current.line == p.next.line) and not p.next.isEOF and p.next.kind != TK_AND:
                     p.setError("Bad indentation after enclosed string")
@@ -60,6 +63,8 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
                     p.setError("Bad indentation after enclosed string")
                     break
 
+                var currentTextValue = p.current.value
+                var nodeConcat: seq[HtmlNode]
                 let col = p.current.col
                 let line = p.current.line
                 if p.next.kind == TK_AND:
@@ -71,18 +76,18 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
                         jump p
                         while true:
                             if p.current.line != line: break
-                            # echo p.current
+                            if p.current.kind == TK_AND:
+                                jump p
+                                continue
+                            elif p.current.kind in {TK_STRING, TK_VARIABLE}:
+                                nodeConcat.add newTextNode(p.current.value, (col, nodeIndent, line, 0, 0))
                             jump p
                     else:
                         p.setError("Invalid string concatenation")
                         break
-
-                let htmlTextNode = HtmlNode(
-                    nodeType: HtmlText,
-                    nodeName: getSymbolName(HtmlText),
-                    text: p.current.value,
-                    meta: (column: col, indent: nodeIndent, line: line, childOf: 0, depth: 0)
-                )
+                var htmlTextNode = newTextNode(currentTextValue, (col, nodeIndent, line, 0, 0), nodeConcat)
+                if varName.len != 0:
+                    htmlTextNode.vasAssignment = newVariableNode(varName, p.data.getVar(varName))
                 htmlNode.nodes.add(htmlTextNode)
             break
         else: break
