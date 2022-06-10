@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeIndent = 0 ): untyped =
+template setHTMLAttributes[P: Parser](p: var P, htmlNode: var HtmlNode, nodeIndent = 0 ): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
     var id: IDAttribute
@@ -52,7 +52,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
                 var varName: string
                 if p.current.kind == TK_VARIABLE:
                     varName = p.current.value
-                p.current.col = htmlNode.meta.column # get base column from ``htmlMeta`` node
+                p.current.col = htmlNode.meta.column # get base column from `htmlMeta` node
                 if (p.current.line == p.next.line) and not p.next.isEOF and p.next.kind != TK_AND:
                     p.setError InvalidIndentation, true
                 elif (p.next.line > p.current.line) and (p.next.col > p.current.col):
@@ -91,7 +91,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
         hasAttributes = false
     clear(attributes)
 
-proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
+proc parseVariable[P: Parser](p: var P, tokenVar: TokenTuple): VariableNode =
     ## Parse and validate given VariableNode
     # var varNode: VariableNode
     let varName: string = tokenVar.value
@@ -116,7 +116,7 @@ template parseIteration[P: Parser](p: var P, interationNode: IterationNode): unt
     jump p, 2
     jit p  # enable JIT compilation flag
 
-template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): untyped =
+template parseCondition[P: Parser](p: var P, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 
     var compToken: TokenTuple
     var varNode1, varNode2: VariableNode
@@ -140,3 +140,7 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
             p.setError InvalidConditionalStmt, true
         break
     jit p
+
+template parseDeferBlock[P: Parser](p: var P) =
+    ## Parse `defer` block statements
+    ## TODO

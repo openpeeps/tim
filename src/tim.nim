@@ -30,6 +30,7 @@ proc render*[T: TimEngine](engine: T, key: string, layoutKey = "base", data: Jso
     ## Layouts output is separated in 2 files:
     ##  - The top side (for head elements)
     ##  - The bottom side (for ending head elements and resolving deferred scripts)
+
     if engine.hasView(key):
         var view: TimlTemplate = engine.getView(key)
         var layout: TimlTemplate = engine.getLayout(layoutKey)
@@ -43,6 +44,8 @@ proc preCompileTemplate[T: TimEngine](engine: T, temp: TimlTemplate) =
     var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = templateType)
     if p.hasError():
         raise newException(TimSyntaxError, "\n"&p.getError())
+    # if templateType == View:
+    #     echo p.getStatementsStr()
     let c = Compiler.init(p.getStatements(), minified = engine.shouldMinify(), templateType = templateType)
 
     if templateType == Layout:
@@ -59,29 +62,29 @@ proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discarda
     if engine.hasAnySources:
         when compileOption("threads"):
             for id, view in engine.getViews().pairs():
-                result.add view.getName()
                 spawn engine.preCompileTemplate(view)
+                result.add view.getName()
             sync()
             for id, layout in engine.getLayouts().pairs():
-                result.add layout.getName()
                 spawn engine.preCompileTemplate(layout)
+                result.add layout.getName()
             sync()
         else:
             for id, view in engine.getViews().pairs():
-                result.add view.getName()
                 engine.preCompileTemplate(view)
+                result.add view.getName()
             for id, layout in engine.getLayouts().pairs():
-                result.add layout.getName()
                 engine.preCompileTemplate(layout)
+                result.add layout.getName()
 
 when isMainModule:
     let initTime = cpuTime()
-    var engine = TimEngine.init(
+    var Tim = TimEngine.init(
         source = "../examples/templates",
             # directory path to find your `.timl` files
         output = "../examples/storage/templates",
             # directory path to store Binary JSON files for JIT compiler
-        minified = true,
+        minified = false,
             # Whether to minify the final HTML output (by default enabled)
         indent = 4
             # Used to indent your HTML output (ignored when `minified` is true)
@@ -93,7 +96,10 @@ when isMainModule:
     # ``.html`` for static templates
     # ``.bson`` for templates requiring runtime computation,
     # like conditional statements, iterations, var assignments and so on.
-    
-    engine.precompile()
-    echo engine.render("index")
+
+    Tim.precompile()
+    var data = %*{
+        "name": "George Lemon"
+    }
+    echo Tim.render("index", data = data)
     echo "Done in " & $(cpuTime() - initTime)

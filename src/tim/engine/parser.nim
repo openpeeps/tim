@@ -76,11 +76,11 @@ proc setError[P: Parser](p: var P, msg: string, line, col: int) =
     p.current.col = col
     p.setError(msg)
 
-proc hasError*[T: Parser](p: var T): bool =
+proc hasError*[P: Parser](p: var P): bool =
     ## Determine if current parser instance has any errors
     result = p.error.len != 0 or p.lexer.hasError()
 
-proc getError*[T: Parser](p: var T): string = 
+proc getError*[P: Parser](p: var P): string = 
     ## Retrieve current parser instance errors,
     ## including lexer-side unrecognized token errors
     if p.lexer.hasError():
@@ -90,7 +90,7 @@ proc getError*[T: Parser](p: var T): string =
 
 proc parse*[T: TimEngine](engine: T, code, path: string, templateType: TimlTemplateType, data: JsonNode = %*{}): Parser
 
-proc getStatements*[T: Parser](p: T, asNodes = true): Program =
+proc getStatements*[P: Parser](p: P, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
     result = p.statements
 
@@ -98,23 +98,23 @@ proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, HtmlNode] =
     ## Return all ``HtmlNode`` available in current document
     result = p.htmlStatements
 
-proc getStatementsStr*[T: Parser](p: T, prettyString = false): string = 
+proc getStatementsStr*[P: Parser](p: P, prettyString = false): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
     # if prettyString: 
     #     result = pretty(p.getStatements(asJsonNode = true))
     # else:
     result = pretty(toJson(p.statements))
 
-template jit[T: Parser](p: var T) =
+template jit[P: Parser](p: var P) =
     ## Enable jit flag When current document contains
     ## either conditionals, or variable assignments
     if p.enableJit == false: p.enableJit = true
 
-proc hasJIT*[T: Parser](p: var T): bool {.inline.} =
+proc hasJIT*[P: Parser](p: var P): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
     result = p.enableJit == true
 
-proc jump[T: Parser](p: var T, offset = 1) =
+proc jump[P: Parser](p: var P, offset = 1) =
     var i = 0
     while offset != i: 
         p.prev = p.current
@@ -193,7 +193,7 @@ proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
     ## Determine if given token kind is TK_EOF
     result = token.kind == TK_EOF
 
-template `!>`[T: Parser](p: var T): untyped =
+template `!>`[P: Parser](p: var P): untyped =
     ## Ensure nest token `>` exists for inline statements
     if p.current.isNestable() and p.next.isNestable():
         if p.current.line == p.next.line and p.current.kind != TK_AND:
