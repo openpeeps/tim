@@ -46,7 +46,27 @@ type
         error: string
             ## A parser/lexer error
 
-proc setError[P: Parser](p: var P, msg: string) =
+const
+    InvalidIndentation = "Invalid indentation"
+    DuplicateClassName = "Duplicate class entry found for \"$1\""
+    InvalidAttributeId = "Invalid ID attribute"
+    InvalidAttributeValue = "Missing value for \"$1\" attribute"
+    DuplicateAttributeKey = "Duplicate attribute name for \"$1\""
+    InvalidTextNodeAssignment = "Expect text assignment for \"$1\" node"
+    UndeclaredVariable = "Undeclared variable \"$1\""
+    InvalidIterationMissingVar = "Invalid iteration missing variable identifier"
+    InvalidIteration = "Invalid iteration"
+    InvalidConditionalStmt = "Invalid conditional statement"
+    InvalidInlineNest = "Invalid inline nest missing `>`"
+    InvalidNestDeclaration = "Invalid nest declaration"
+    InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
+
+template setError[P: Parser](p: var P, msg: string, breakStmt: bool) =
+    ## Set parser error
+    p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
+    break
+
+template setError[P: Parser](p: var P, msg: string) =
     ## Set parser error
     p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
 
@@ -177,13 +197,11 @@ template `!>`[T: Parser](p: var T): untyped =
     ## Ensure nest token `>` exists for inline statements
     if p.current.isNestable() and p.next.isNestable():
         if p.current.line == p.next.line and p.current.kind != TK_AND:
-            p.setError("Invalid nest missing `>` token for inline declarations")
-            break
+            p.setError InvalidInlineNest, true
     elif p.current.isNestable() and not p.next.isNestable():
         # echo p.next
         if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE}:
-            p.setError("Invalid nest declaration")
-            break
+            p.setError InvalidNestDeclaration, true
 
 proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
     ## Rezolve lazy sequence of nodes collected from last inline nest
@@ -286,7 +304,7 @@ proc walk(p: var Parser) =
                 if p.current.kind in selfClosingTags:
                     p.parseNewNode()
                 else:
-                    p.setError("Invalid HTMLElement name \"$1\"" % [p.current.value])
+                    p.setError InvalidHTMLElementName % [p.current.value], true
                     break
 
         p.parseInlineNest()

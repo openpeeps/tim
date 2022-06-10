@@ -18,7 +18,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
             hasAttributes = true
             if attributes.hasKey("class"):
                 if p.next.value in attributes["class"]:
-                    p.setError("Duplicate class entry found for \"$1\"" % [p.next.value])
+                    p.setError DuplicateClassName % [p.next.value], true
                 else: attributes["class"].add(p.next.value)
             else:
                 attributes["class"] = @[p.next.value]
@@ -26,8 +26,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
         elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
             # TODO check for wsno for `#` token
             if htmlNode.hasID():
-                p.setError("Elements can hold a single ID attribute.")
-                break
+                p.setError InvalidAttributeId, true
             id = IDAttribute(value: p.next.value)
             if id != nil: htmlNode.id = id
             jump p, 2
@@ -37,10 +36,9 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
             let attrName = p.current.value
             jump p
             if p.next.kind != TK_STRING:
-                p.setError("Missing value for \"$1\" attribute" % [attrName])
-                break
+                p.setError InvalidAttributeValue % [attrName], true
             if attributes.hasKey(attrName):
-                p.setError("Duplicate attribute name \"$1\"" % [attrName])
+                p.setError DuplicateAttributeKey % [attrName], true
             else:
                 attributes[attrName] = @[p.next.value]
                 hasAttributes = true
@@ -48,8 +46,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
         elif p.current.kind == TK_COLON:
             if p.next.kind notin {TK_STRING, TK_VARIABLE}:
                 # Handle string content assignment or enter in a multi dimensional nest
-                p.setError("Expect content assignment for \"$1\" node" % [htmlNode.nodeName])
-                break
+                p.setError InvalidTextNodeAssignment % [htmlNode.nodeName], true
             else:
                 jump p
                 var varName: string
@@ -57,12 +54,9 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
                     varName = p.current.value
                 p.current.col = htmlNode.meta.column # get base column from ``htmlMeta`` node
                 if (p.current.line == p.next.line) and not p.next.isEOF and p.next.kind != TK_AND:
-                    p.setError("Bad indentation after enclosed string")
-                    break
+                    p.setError InvalidIndentation, true
                 elif (p.next.line > p.current.line) and (p.next.col > p.current.col):
-                    p.setError("Bad indentation after enclosed string")
-                    break
-
+                    p.setError InvalidIndentation, true
                 var currentTextValue = p.current.value
                 var nodeConcat: seq[HtmlNode]
                 let col = p.current.col
@@ -83,8 +77,7 @@ template setHTMLAttributes[T: Parser](p: var T, htmlNode: var HtmlNode, nodeInde
                                 nodeConcat.add newTextNode(p.current.value, (col, nodeIndent, line, 0, 0))
                             jump p
                     else:
-                        p.setError("Invalid string concatenation")
-                        break
+                        p.setError InvalidIndentation, true
                 var htmlTextNode = newTextNode(currentTextValue, (col, nodeIndent, line, 0, 0), nodeConcat)
                 if varName.len != 0:
                     htmlTextNode.vasAssignment = newVariableNode(varName, p.data.getVar(varName))
@@ -103,24 +96,21 @@ proc parseVariable[T: Parser](p: var T, tokenVar: TokenTuple): VariableNode =
     # var varNode: VariableNode
     let varName: string = tokenVar.value
     if not p.data.hasVar(varName):
-        p.setError "Undeclared variable \"$1\"" % [varName]
+        p.setError UndeclaredVariable % [varName]
         return nil
     result = newVariableNode(varName, p.data.getVar(varName))
     jit p
 
 template parseIteration[P: Parser](p: var P, interationNode: IterationNode): untyped =
     if p.next.kind != TK_VARIABLE:
-        p.setError("Invalid iteration missing variable identifier")
-        break
+        p.setError InvalidIterationMissingVar, true
     jump p
     let varItemName = p.current.value
     if p.next.kind != TK_IN:
-        p.setError("Invalid iteration missing")
-        break
+        p.setError InvalidIteration, true
     jump p
     if p.next.kind != TK_VARIABLE:
-        p.setError("Invalid iteration missing variable identifier")
-        break
+        p.setError InvalidIterationMissingVar, true
     iterationNode.varItemName = varItemName
     iterationNode.varItemsName = p.next.value
     jump p, 2
@@ -133,7 +123,7 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
     var comparatorNode: ComparatorNode
     while true:
         if p.current.kind == TK_IF and p.next.kind != TK_VARIABLE:
-            p.setError("Invalid conditional statement missing var identifier")
+            p.setError InvalidConditionalStmt, true
             break
         jump p
         varNode1 = p.parseVariable(p.current)
@@ -147,7 +137,6 @@ template parseCondition[T: Parser](p: var T, conditionNode: ConditionalNode): un
             comparatorNode = newComparatorNode(compToken, @[varNode1, varNode2])
             conditionNode.comparatorNode = comparatorNode
         elif p.next.kind != TK_STRING:
-            p.setError("Invalid conditional. Missing comparison value")
-            break
+            p.setError InvalidConditionalStmt, true
         break
     jit p
