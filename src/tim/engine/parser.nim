@@ -130,8 +130,10 @@ proc hasID[T: HtmlNode](node: T): bool {.inline.} =
     ## Determine if current HtmlNode has an ID attribute
     result = node.id != nil
 
-
-const svgSelfClosingTags = {TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE}
+const svgSelfClosingTags = {TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
+                            TK_SVG_ANIMATETRANSFORM, TK_SVG_ANIMATEMOTION,
+                            TK_SVG_FE_BLEND, TK_SVG_FE_COLORMATRIX, TK_SVG_FE_COMPOSITE,
+                            TK_SVG_FE_CONVOLVEMATRIX, TK_SVG_FE_DISPLACEMENTMAP}
 const selfClosingTags = {TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
                          TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
                          TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR} + svgSelfClosingTags
