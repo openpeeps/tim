@@ -17,25 +17,30 @@ type
     Parser* = object
         depth: int
             ## Incremented depth of levels while parsing inline nests
+        baseIndent: int
+            ## The preferred indentation size, It can be either 2 or 4
         engine: TimEngine
             ## Holds current TimEngine instance
         lexer: Lexer
             ## A TokTok Lexer instance
         filePath: string
-            ## Path to current ``.timl`` template. This is mainly used
+            ## Path to current `.timl` template. This is mainly used
             ## by internal Parser procs for 
         includes: seq[string]
             ## A sequence of file paths that are included
-            ## in current ``.timl`` template
+            ## in current `.timl` template
         prev, current, next: TokenTuple
+            ## Hold `Tokentuple` siblinngs while parsing
         statements: Program
             ## Holds the entire Abstract Syntax Tree representation
         htmlStatements: OrderedTable[int, HtmlNode]
-            ## An ``OrderedTable`` of ``HtmlNode``
+            ## An `OrderedTable` of `HtmlNode`
+        deferredStatements: OrderedTable[int, HtmlNode]
+            ## An `OrderedTable of `HtmlNode` holding deferred elements
         prevln, currln, nextln: TokenTuple
             ## Holds TokenTuple representation of heads from prev, current and next 
         parentNode, prevNode: HtmlNode
-            ## While in ``walk`` proc, we temporarily hold ``parentNode``
+            ## While in `walk` proc, we temporarily hold `parentNode`
             ## and prevNode for each iteration.
         data: Data
             ## An instance of Data to be evaluated on runtime.
@@ -95,7 +100,7 @@ proc getStatements*[P: Parser](p: P, asNodes = true): Program =
     result = p.statements
 
 proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, HtmlNode] =
-    ## Return all ``HtmlNode`` available in current document
+    ## Return all `HtmlNode` available in current document
     result = p.htmlStatements
 
 proc getStatementsStr*[P: Parser](p: P, prettyString = false): string = 
@@ -113,6 +118,10 @@ template jit[P: Parser](p: var P) =
 proc hasJIT*[P: Parser](p: var P): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
     result = p.enableJit == true
+
+proc getBaseIndent*[P: Parser](p: var P): int {.inline.} =
+    ## Get the preferred indentation size
+    result = p.baseIndent
 
 proc jump[P: Parser](p: var P, offset = 1) =
     var i = 0
@@ -156,13 +165,14 @@ proc getParentLine[P: Parser](p: var P): int =
             var found: bool
             var prevlineno = p.parentNode.meta.childOf
             while true:
-                let prevline = p.htmlStatements[prevlineno]
-                if prevline.meta.column == p.current.col:
-                    p.depth = prevline.meta.indent
-                    p.current.col = p.depth
-                    result = prevline.meta.childOf
-                    found = true
-                    break
+                if p.htmlStatements.hasKey(prevlineno):
+                    let prevline = p.htmlStatements[prevlineno]
+                    if prevline.meta.column == p.current.col:
+                        p.depth = prevline.meta.indent
+                        p.current.col = p.depth
+                        result = prevline.meta.childOf
+                        found = true
+                        break
                 dec prevlineno
             if not found:
                 result = p.current.line
@@ -218,7 +228,7 @@ proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
         inc i
     result = lazySeq[0]
 
-template parseNewNode(p: var Parser) =
+template parseNewNode(p: var Parser, isSelfClosing = false) =
     ## Parse a new HTML Node with HTML attributes, if any
     !> p # Ensure a good nest
     p.currln = p.current
@@ -241,6 +251,8 @@ template parseNewNode(p: var Parser) =
     p.htmlStatements[htmlNode.meta.line] = htmlNode
     p.parentNode = htmlNode
     p.prevln = p.currln
+    # TODO, check if `isSelfClosing` and prevent
+    # nestables or text assignment for self closing tags.
 
 template parseNewSubNode(p: var Parser) =
     p.currln = p.current
@@ -289,6 +301,7 @@ proc walk(p: var Parser) =
         childNodes: HtmlNode
         deferChildSeq: seq[HtmlNode]
     p.statements = Program()
+    jit p
     while p.hasError() == false and p.current.kind != TK_EOF:
         if p.current.isConditional():
             conditionNode = newConditionNode(p.current)
@@ -304,7 +317,7 @@ proc walk(p: var Parser) =
                 p.parseNewNode()
             else:
                 if p.current.kind in selfClosingTags:
-                    p.parseNewNode()
+                    p.parseNewNode(isSelfClosing = true)
                 else:
                     p.setError InvalidHTMLElementName % [p.current.value], true
                     break
