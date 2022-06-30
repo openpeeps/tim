@@ -6,7 +6,8 @@
 import bson
 import std/[tables, json, md5]
 
-from std/strutils import `%`, strip, split, contains, join, endsWith
+from std/math import sgn
+from std/strutils import `%`, strip, split, contains, join, endsWith, replace, parseInt
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
 from std/os import getCurrentDir, normalizePath, dirExists,
                    fileExists, walkDirRec, splitPath, createDir,
@@ -38,6 +39,7 @@ type
 
     TimException* = object of CatchableError        # raise errors while setup Tim
     TimSyntaxError* = object of CatchableError      # raise errors from Tim language
+    TimDefect* = object of CatchableError
 
 const timVersion = "0.1.0"
 
@@ -100,13 +102,19 @@ proc hasAnySources*[T: TimEngine](e: T): bool {.inline.} =
 
 proc getPath[T: TimEngine](e: T, key, pathType: string): string =
     ## Retrieve path key for either a partial, view or layout
+    var k: string
     var tree: seq[string]
-    result = e.root & "/" & pathType & "/$1.timl"
+    result = e.root & "/" & pathType & "/$1"
+    if key.endsWith(".timl"):
+        k = key[0 .. ^6]
+    else:
+        k = key
     if key.contains("."):
-        tree = key.split(".")
+        tree = k.split(".")
         result = result % [tree.join("/")]
     else:
-        result = result % [key]
+        result = result % [k]
+    result &= ".timl"
 
 proc getLayouts*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of layouts as TimlTemplateTable
@@ -135,6 +143,11 @@ proc getView*[T: TimEngine](e: T, key: string): TimlTemplate =
     ## Retrieve a view template by key.
     ## Use dot annotation for accessing views in subdirectories
     result = e.views[e.getPath(key, "views")]
+
+proc hasPartial*[T: TimEngine](e: T, key: string): bool =
+    ## Determine if a specific view exists by name.
+    ## Use dot annotation for accessing views in subdirectories
+    result = e.partials.hasKey(e.getPath(key, "partials"))
 
 proc getPartials*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of partials as TimlTemplateTable
@@ -167,16 +180,33 @@ proc htmlPath(outputDir, filePath: string, isTail = false): string =
     result = getCurrentDir() & "/" & outputDir & "/html/" & hashTail(filePath) & suffix & ".html"
     normalizePath(result)
 
-proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string) =
+proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): TimlTemplate =
+    ## Return `TimlTemplate` object representation for given file `filePath`
+    if engine.views.hasKey(filePath):
+        result = engine.views[filePath]
+    elif engine.layouts.hasKey(filePath):
+        result = engine.layouts[filePath]
+
+proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string, baseIndent: int) =
     ## Write current JSON AST to BSON
     var document = newBsonDocument()
     document["ast"] = ast
     document["version"] = timVersion
+    document["baseIndent"] = baseIndent
     writeFile(t.paths.ast, document.bytes)
 
-proc readBson*[E: TimENgine, T: TimlTemplate](e: E, t: T): string =
+proc checkDocVersion(docVersion: string): bool =
+    let docv = parseInt replace(docVersion, ".", "")
+    let currv = parseInt replace(timVersion, ".", "")
+    result = sgn(docv - currv) != -1
+
+proc readBson*[E: TimEngine, T: TimlTemplate](e: E, t: T): string {.thread.} =
     ## Read current BSON and parse to JSON
-    var document: Bson = newBsonDocument(readFile(t.paths.ast))
+    let document: Bson = newBsonDocument(readFile(t.paths.ast))
+    let docv: string = document["version"]
+    if not checkDocVersion(docv):
+        raise newException(TimDefect,
+            "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, timVersion])
     result = document["ast"]
 
 proc writeHtml*[E: TimEngine, T: TimlTemplate](e: E, t: T, output: string, isTail = false) =
