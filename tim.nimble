@@ -9,9 +9,10 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.6.0"
+requires "pkginfo"
 requires "toktok"
 requires "bson"
-requires "jsony"
+requires "jsony >= 1.1.3"
 
 task tests, "Run tests":
     exec "testament p 'tests/*.nim'"
@@ -26,4 +27,4 @@ task dev, "Compile Tim":
 
 task prod, "Compile Tim for release":
     echo "\n✨ Compiling..." & $version & "\n"
-    exec "nim --gc:arc --threads:on -d:release -d:useMalloc --hints:off --opt:size --spellSuggest --out:bin/tim cpp src/tim.nim"
+    exec "nim --gc:arc --threads:on -d:release -d:useMalloc --hints:off --opt:size --spellSuggest --out:bin/tim c src/tim.nim"
