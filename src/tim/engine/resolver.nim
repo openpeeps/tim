@@ -7,7 +7,7 @@
 import toktok
 import std/[streams, tables, ropes]
 
-from ./meta import TimlTemplateType
+from ./meta import TimEngine, TimlTemplateType, TimlTemplate, addDependentView, getTemplateByPath
 from std/strutils import endsWith, `%`, indent
 from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
@@ -34,9 +34,9 @@ type
         current, next: TokenTuple
         partials: OrderedTable[int, tuple[indentSize: int, source: SourcePath]]
             ## An ``OrderedTable`` with ``int`` based key representing
-            ## the line of the ``@import`` statement, with a tuple-based value.
-            ## - ``indentSize`` field  to preserve indentation size from the view side
-            ## - ``source`` field pointing to an absolute path for ``.timl`` partial.
+            ## the line of the ``@import`` statement and a tuple-based value.
+            ##      - ``indentSize`` field  to preserve indentation size from the view side
+            ##      - ``source`` field pointing to an absolute path for ``.timl`` partial.
         sources: Table[SourcePath, SourceCode]
             ## A ``Table`` containing the source code of all imported partials.
         templateType: TimlTemplateType
@@ -72,7 +72,7 @@ template jump[I: Importer](p: var I, offset = 1) =
         p.next = p.lex.getToken()
         inc i
 
-template loadCode[T: Importer](p: var T, indent: int) =
+template loadCode[T: Importer](p: var T, engine: TimEngine, indent: int) =
     ## Find ``.timl`` partials and store source contents.
     ## Once requested, a partial code is stored in a
     ## memory ``Table``, so it can be inserted in any view
@@ -92,8 +92,10 @@ template loadCode[T: Importer](p: var T, indent: int) =
                 break
             p.sources[path] = readFile(path)
             p.partials[p.current.line] = (indent, path)
+            # echo p.currentFilePath
+            getTemplateByPath(engine, path).addDependentView(p.currentFilePath)
 
-template parsePartial[T: Importer](p: var T) =
+template parsePartial[T: Importer](p: var T, engine: TimEngine) =
     ## Look for all ``TK_INCLUDE`` tokens and try
     ## to load partial file contents inside of the main view
     if p.current.kind in htmlHeadElements and p.templateType != TimlTemplateType.Layout:
@@ -106,15 +108,15 @@ template parsePartial[T: Importer](p: var T) =
             p.setError "Invalid import statement missing file path.", p.currentFilePath
             break
         jump p
-        loadCode(p, indent)
+        loadCode(p, engine, indent)
 
-proc resolveWithImports*(viewCode, currentFilePath: string, templateType: TimlTemplateType): Importer =
+proc resolveWithImports*(viewCode, currentFilePath: string, engine: TimEngine, templateType: TimlTemplateType): Importer =
     ## Resolve ``@include`` statements in main view code.
     var p = Importer(lex: Lexer.init(viewCode), currentFilePath: currentFilePath, templateType: templateType)
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:
-        p.parsePartial()
+        p.parsePartial(engine)
         jump p
     if p.error.len == 0:
         var codeStream = newStringStream(viewCode)

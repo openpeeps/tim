@@ -93,7 +93,8 @@ proc getError*[P: Parser](p: var P): string =
     elif p.error.len != 0:
         result = p.error
 
-proc parse*[T: TimEngine](engine: T, code, path: string, templateType: TimlTemplateType, data: JsonNode = %*{}): Parser
+proc parse*[T: TimEngine](engine: T, code, path: string,
+                        templateType: TimlTemplateType, data: JsonNode = %*{}): Parser
 
 proc getStatements*[P: Parser](p: P, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
@@ -351,10 +352,10 @@ proc walk(p: var Parser) =
                 p.statements.nodes.add(node)
             node = nil
 
-proc parse*[T: TimEngine](engine: T, code, path: string, templateType: TimlTemplateType, data: JsonNode = %*{} ): Parser =
-    var importHandler = resolveWithImports(code, path, templateType)
+proc parse*[T: TimEngine](engine: T, code, path: string,
+                          templateType: TimlTemplateType, data: JsonNode = %*{}): Parser =
+    var importHandler = resolveWithImports(code, path, engine, templateType)
     var p: Parser = Parser(engine: engine)
-    # echo importHandler.getFullCode()
     if importHandler.hasError():
         p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
         return p

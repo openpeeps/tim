@@ -33,13 +33,13 @@ proc render*[T: TimEngine](engine: T, key: string, layoutKey = "base", data: Jso
         result.add view.getHtmlCode()
         result.add layout.getHtmlTailsCode()
 
-proc preCompileTemplate[T: TimEngine](engine: T, temp: TimlTemplate) =
-    let templateType = temp.getType()
-    var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = templateType)
+proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
+    let tpType = temp.getType()
+    var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = tpType)
     if p.hasError():
         raise newException(TimSyntaxError, "\n"&p.getError())
-    let c = Compiler.init(p.getStatements(), minified = engine.shouldMinify(), templateType = templateType)
-    if templateType == Layout:
+    let c = Compiler.init(p.getStatements(), minified = engine.shouldMinify(), templateType = tpType)
+    if tpType == Layout:
         # Save layout tails in a separate .html file, suffixed with `_`
         engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
     # if p.hasJIT:
@@ -63,13 +63,18 @@ proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discarda
                     let initTime = cpuTime()
                     echo "\n✨ Watchout resolve changes"
                     echo file.getName()
-                    engine.preCompileTemplate(
-                        getTemplateByPath(engine, file.getPath())
-                    )
+                    var timlTemplate = getTemplateByPath(engine, file.getPath())
+                    if timlTemplate.isPartial:
+                        for dependentView in timlTemplate.getDependentViews():
+                            engine.preCompileTemplate(
+                                getTemplateByPath(engine, dependentView)
+                            )
+                    else:
+                        engine.preCompileTemplate(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
                 var watchFiles: seq[string]
                 when compileOption("threads"):
-                    for id, view in engine.getViews().pairs():
+                    for id, view in engine.getViews().mpairs():
                         engine.preCompileTemplate(view)
                         watchFiles.add view.getFilePath()
                         result.add view.getName()
@@ -78,7 +83,7 @@ proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discarda
                         # Watch for changes in `partials` directory.
                         watchFiles.add partial.getFilePath()
 
-                    for id, layout in engine.getLayouts().pairs():
+                    for id, layout in engine.getLayouts().mpairs():
                         engine.preCompileTemplate(layout)
                         watchFiles.add layout.getFilePath()
                         result.add layout.getName()
@@ -87,13 +92,13 @@ proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discarda
                     Watchout.startThread(watchoutCallback, watchFiles, 200)
                     return
 
-        for id, view in engine.getViews().pairs():
-            engine.preCompileTemplate(view)
-            result.add view.getName()
+        # for id, view in engine.getViews().mpairs():
+        #     engine.preCompileTemplate(view)
+        #     result.add view.getName()
 
-        for id, layout in engine.getLayouts().pairs():
-            engine.preCompileTemplate(layout)
-            result.add layout.getName()
+        # for id, layout in engine.getLayouts().mpairs():
+        #     engine.preCompileTemplate(layout)
+        #     result.add layout.getName()
 
 
 when isMainModule:

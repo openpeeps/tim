@@ -18,15 +18,19 @@ type
         Layout, View, Partial
 
     TimlTemplate* = object
+        case timlType: TimlTemplateType
+        of Partial:
+            dependents: seq[string]                # a sequence containing all views that include this partial
+        else: discard
         meta: tuple [
-            name: string,                           # name of the current TimlTemplate representing file name
+            name: string,                          # name of the current TimlTemplate representing file name
             templateType: TimlTemplateType         # type of TimlTemplate, either Layout, View or Partial
         ]
         paths: tuple[file, ast, html, tails: string]
         data: JsonNode                              # JSON data exposed to TimlTemplate
         astSource*: string
     
-    TimlTemplateTable = OrderedTable[string, TimlTemplate]
+    TimlTemplateTable = OrderedTableRef[string, TimlTemplate]
 
     TimEngine* = object
         root: string                                # root path to your Timl templates
@@ -43,7 +47,7 @@ type
 
 const timVersion = "0.1.0"
 
-# proc getTemplates*[T: TimlTemplateTable](t: var T): TimlTemplateTable {.inline.} =
+# proc getTemplates*[T: TimlTemplateTable](t: var T): TimlTemplateTable =
 #     result = t.templates
 
 # proc getTemplate*[T: TimlTemplateTable](t: var T, key: string): TimlTemplate =
@@ -59,43 +63,58 @@ proc getIndent*[T: TimEngine](t: T): int =
 proc getType*[T: TimlTemplate](t: T): TimlTemplateType =
     result = t.meta.templateType
 
-proc getContents*[T: TimlTemplate](t: T): string {.inline.} =
+proc getContents*[T: TimlTemplate](t: T): string =
     ## Retrieve code contents of current TimlTemplate
     result = t.fileContents
 
-proc getName*[T: TimlTemplate](t: T): string {.inline.} =
+proc getName*[T: TimlTemplate](t: T): string =
     ## Retrieve the file name (including extension) of the current TimlTemplate
     result = t.meta.name
 
-proc getFilePath*[T: TimlTemplate](t: T): string {.inline.} =
+proc isPartial*[T: TimlTemplate](t: T): bool =
+    ## Determine if current template is a `partial`
+    result = t.timlType == Partial
+
+proc addDependentView*[T: TimlTemplate](t: var T, path: string) =
+    ## Add a new view that includes the current partial.
+    ## This is mainly used to auto reload (recompile) views
+    ## when a partial get modified
+    t.dependents.add(path)
+
+proc getDependentViews*[T: TimlTemplate](t: var T): seq[string] =
+    ## Retrieve all views that includes the current partial.
+    ## Used for recompiling views when in development mode
+    result = t.dependents
+
+proc getFilePath*[T: TimlTemplate](t: T): string =
     ## Retrieve the file path of the current TimlTemplate
     result = t.paths.file
 
-proc getFileData*[T: TimlTemplate](t: T): JsonNode {.inline.} =
+proc getFileData*[T: TimlTemplate](t: T): JsonNode =
     ## Retrieve JSON data exposed to TimlTemplate
     result = t.data
 
-proc getSourceCode*[T: TimlTemplate](t: T): string {.inline.} =
+proc getSourceCode*[T: TimlTemplate](t: T): string =
     ## Retrieve source code of a TimlTemplate object
     result = readFile(t.paths.file)
 
-proc getHtmlCode*[T: TimlTemplate](t: T): string {.inline.} =
+proc getHtmlCode*[T: TimlTemplate](t: T): string =
     ## Retrieve the HTML code for given ``TimlTemplate`` object
     ## TODO retrieve source code from built-in memory table
     result = readFile(t.paths.html)
 
-proc getHtmlTailsCode*[T: TimlTemplate](t: T): string {.inline.} =
+proc getHtmlTailsCode*[T: TimlTemplate](t: T): string =
     ## Retrieve the HTML tags for a layout
     ## TODO retrieve source code from built-in memory table
     result = readFile(t.paths.tails)
 
-proc setAstSource*[T: TimlTemplate](t: var T, ast: string) {.inline.} =
+proc setAstSource*[T: TimlTemplate](t: var T, ast: string) =
     t.astSource = ast
 
-proc getAstSource*[T: TimlTemplate](t: T): string {.inline.} =
+proc getAstSource*[T: TimlTemplate](t: T): string =
     result = t.astSource
 
-proc hasAnySources*[T: TimEngine](e: T): bool {.inline.} =
+proc hasAnySources*[T: TimEngine](e: T): bool =
     ## Determine if current TimEngine has any TimlDirectory
     ## objects stored in layouts, views or partials fields
     result = len(e.views) != 0
@@ -180,12 +199,14 @@ proc htmlPath(outputDir, filePath: string, isTail = false): string =
     result = getCurrentDir() & "/" & outputDir & "/html/" & hashTail(filePath) & suffix & ".html"
     normalizePath(result)
 
-proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): TimlTemplate =
+proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): var TimlTemplate =
     ## Return `TimlTemplate` object representation for given file `filePath`
     if engine.views.hasKey(filePath):
         result = engine.views[filePath]
     elif engine.layouts.hasKey(filePath):
         result = engine.layouts[filePath]
+    else:
+        result = engine.partials[filePath]
 
 proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string, baseIndent: int) =
     ## Write current JSON AST to BSON
@@ -269,7 +290,7 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
                 let innerDir = path & "/" & inDir
                 if not dirExists(innerDir): createDir(innerDir)
 
-    var LayoutsTable, ViewsTable, PartialsTable: OrderedTable[string, TimlTemplate]
+    var LayoutsTable, ViewsTable, PartialsTable = newOrderedTable[string, TimlTemplate]()
     for tdir in @["views", "layouts", "partials"]:
         var tdirpath = getCurrentDir() & "/" & timlInOutDirs[0] & "/" & tdir
         if dirExists(tdirpath):
@@ -278,27 +299,42 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
             if files.len != 0:
                 for f in files:
                     let fname = splitPath(f)
-                    var ftype: TimlTemplateType
                     var filePath = f
                     filePath.normalizePath()
                     case tdir:
-                        of "layouts": ftype = Layout
-                        of "views": ftype = View
-                        of "partials": ftype = Partial
-
-                    var tTemplate = TimlTemplate(
-                        meta: (name: fname.tail, templateType: ftype),
-                        paths: (
-                            file: filePath,
-                            ast: bsonPath(timlInOutDirs[1], filePath),
-                            html: htmlPath(timlInOutDirs[1], filePath),
-                            tails: htmlPath(timlInOutDirs[1], filePath, true)
-                        )
-                    )
-                    case ftype:
-                        of Layout: LayoutsTable[filePath] = tTemplate
-                        of View: ViewsTable[filePath] = tTemplate
-                        of Partial: PartialsTable[filePath] = tTemplate
+                        of "layouts":
+                            LayoutsTable[filePath] = TimlTemplate(
+                                timlType: Layout,
+                                meta: (name: fname.tail, templateType: Layout),
+                                paths: (
+                                    file: filePath,
+                                    ast: bsonPath(timlInOutDirs[1], filePath),
+                                    html: htmlPath(timlInOutDirs[1], filePath),
+                                    tails: htmlPath(timlInOutDirs[1], filePath, true)
+                                )
+                            )                            
+                        of "views":
+                            ViewsTable[filePath] = TimlTemplate(
+                                timlType: View,
+                                meta: (name: fname.tail, templateType: View),
+                                paths: (
+                                    file: filePath,
+                                    ast: bsonPath(timlInOutDirs[1], filePath),
+                                    html: htmlPath(timlInOutDirs[1], filePath),
+                                    tails: htmlPath(timlInOutDirs[1], filePath, true)
+                                )
+                            )
+                        of "partials":
+                            PartialsTable[filePath] = TimlTemplate(
+                                timlType: Partial,
+                                meta: (name: fname.tail, templateType: Partial),
+                                paths: (
+                                    file: filePath,
+                                    ast: bsonPath(timlInOutDirs[1], filePath),
+                                    html: htmlPath(timlInOutDirs[1], filePath),
+                                    tails: htmlPath(timlInOutDirs[1], filePath, true)
+                                )
+                            )
         else:
             createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
