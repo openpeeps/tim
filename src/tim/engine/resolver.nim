@@ -7,7 +7,7 @@
 import toktok
 import std/[streams, tables, ropes]
 
-from ./meta import TimEngine, TimlTemplateType, TimlTemplate, addDependentView, getTemplateByPath
+from ./meta import TimEngine, TimlTemplateType, TimlTemplate, addDependentView, getTemplateByPath, getPathDir
 from std/strutils import endsWith, `%`, indent
 from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
@@ -40,6 +40,8 @@ type
         sources: Table[SourcePath, SourceCode]
             ## A ``Table`` containing the source code of all imported partials.
         templateType: TimlTemplateType
+        partialPath: string
+            ## The current `partial` path
 
 const htmlHeadElements = {TK_HEAD, TK_TITLE, TK_BASE, TK_LINK, TK_META, TK_SCRIPT, TK_BODY}
 
@@ -80,8 +82,10 @@ template loadCode[T: Importer](p: var T, engine: TimEngine, indent: int) =
     var filepath = p.current.value
     filepath = if not endsWith(filepath, ".timl"): filepath & ".timl" else: filepath
     let dirpath = parentDir(p.currentFilePath)
-    let path = normalizedPath(dirpath & "/" & filepath)
+    let path = engine.getPathDir("partials") & "/" & filepath
     if p.sources.hasKey(path):
+        # When included multiple times in a view, will get the
+        # partial source code from `sources` table.
         p.partials[p.current.line] = (indent, path)
     else:
         if not fileExists(path):
@@ -92,7 +96,6 @@ template loadCode[T: Importer](p: var T, engine: TimEngine, indent: int) =
                 break
             p.sources[path] = readFile(path)
             p.partials[p.current.line] = (indent, path)
-            # echo p.currentFilePath
             getTemplateByPath(engine, path).addDependentView(p.currentFilePath)
 
 template parsePartial[T: Importer](p: var T, engine: TimEngine) =

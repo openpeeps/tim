@@ -40,6 +40,7 @@ type
         partials: TimlTemplateTable
         minified: bool
         indent: int
+        paths: tuple[layouts, views, partials: string]
 
     TimException* = object of CatchableError        # raise errors while setup Tim
     TimSyntaxError* = object of CatchableError      # raise errors from Tim language
@@ -70,6 +71,14 @@ proc getContents*[T: TimlTemplate](t: T): string =
 proc getName*[T: TimlTemplate](t: T): string =
     ## Retrieve the file name (including extension) of the current TimlTemplate
     result = t.meta.name
+
+proc getPathDir*[T: TimEngine](engine: T, key: string): string =
+    if key == "layouts":
+        result = engine.paths.layouts
+    elif key == "views":
+        result = engine.paths.views
+    else:
+        result = engine.paths.partials
 
 proc isPartial*[T: TimlTemplate](t: T): bool =
     ## Determine if current template is a `partial`
@@ -350,5 +359,10 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
         views: ViewsTable,
         partials: PartialsTable,
         minified: minified,
-        indent: indent
+        indent: indent,
+        paths: (
+            layouts: rootPath & "/layouts",
+            views: rootPath & "/views",
+            partials: rootPath & "/partials"
+        )
     )
