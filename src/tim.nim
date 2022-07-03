@@ -14,9 +14,6 @@ from std/strutils import indent
 when requires "watchout":
     import watchout
 
-when compileOption("threads"):
-    import std/threadpool
-
 export parser, meta, compiler
 
 const Docktype = "<!DOCTYPE html>"
