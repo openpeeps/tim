@@ -89,7 +89,7 @@ template loadCode[T: Importer](p: var T, engine: TimEngine, indent: int) =
         p.partials[p.current.line] = (indent, path)
     else:
         if not fileExists(path):
-            p.setError "File not found for \"$1\"" % [filepath], filepath
+            p.setError "Could not import \"$1\"" % [filepath], filepath
         else:
             if path == p.currentFilePath:
                 p.setError "Cannot import itself", filepath

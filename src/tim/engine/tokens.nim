@@ -199,10 +199,12 @@ tokens:
     Var          > "var"
     Video        > "video"
     WBR          > "wbr"
-    Attr                        # TK_IDENTIFIER followed by `=` becomes TK_ATTR
+    Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
     Attr_Class   > '.'
     Attr_ID      > '#'
     Assign       > '='
+        # Eq       ? '='
+    Eq           > ('=', '=')
     Colon        > ':' 
     Nest_OP      > '>'
     And          > '&'
@@ -213,7 +215,6 @@ tokens:
     For          > "for"
     In           > "in"
     Or           > "or"
-    Eq           > ('=', '=')
     Neq          > ('!', '=')
     Include      > ('@', "include")
     Plus         > '+'

@@ -143,7 +143,7 @@ proc resolveTag[C: Compiler](c: var C, lineno: int) =
         c.tags.del(lineno)
 
 proc getAstLine(nodeName: string, indentSize: int) =
-    ## Used for debug-only
+    # Used for debug-only
     echo indent(nodeName, indentSize)
 
 proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int)
@@ -217,9 +217,12 @@ proc writeLine[C: Compiler](c: var C) =
             c.writeHtmlElement(node, index)
         inc index
 
+proc getHtmlJit*[C: Compiler](c: C): string {.inline.} =
+    ## Return compiled timl code as HTML
+    result = $(c.html)
+
 proc getHtml*[C: Compiler](c: C): string {.inline.} =
-    ## Return compiled timl as html. By default the output is minfied,
-    ## Set `minified` to `false` for regular output.
+    ## Return compiled timl code as HTML.
     result = $(c.html)
 
 proc getHtmlTails*[C: Compiler](c: C): string {.inline.} =
