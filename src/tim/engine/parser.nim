@@ -212,8 +212,7 @@ template `!>`[P: Parser](p: var P): untyped =
         if p.current.line == p.next.line and p.current.kind != TK_AND:
             p.setError InvalidInlineNest, true
     elif p.current.isNestable() and not p.next.isNestable():
-        # echo p.next
-        if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE}:
+        if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE, TK_EOF}:
             p.setError InvalidNestDeclaration, true
 
 proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
