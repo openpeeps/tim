@@ -9,7 +9,7 @@ import std/[tables, json, md5]
 from std/math import sgn
 from std/strutils import `%`, strip, split, contains, join, endsWith, replace, parseInt
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
-from std/os import getCurrentDir, normalizePath, dirExists,
+from std/os import getCurrentDir, normalizePath, normalizedPath, dirExists,
                    fileExists, walkDirRec, splitPath, createDir,
                    isHidden
 
@@ -143,6 +143,7 @@ proc getPath[T: TimEngine](e: T, key, pathType: string): string =
     else:
         result = result % [k]
     result &= ".timl"
+    result = normalizedPath(result) # normalize path for Windows
 
 proc getLayouts*[T: TimEngine](e: T): TimlTemplateTable =
     ## Retrieve entire table of layouts as TimlTemplateTable

@@ -89,13 +89,13 @@ proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discarda
                     Watchout.startThread(watchoutCallback, watchFiles, 200)
                     return
 
-        # for id, view in engine.getViews().mpairs():
-        #     engine.preCompileTemplate(view)
-        #     result.add view.getName()
+        for id, view in engine.getViews().mpairs():
+            engine.preCompileTemplate(view)
+            result.add view.getName()
 
-        # for id, layout in engine.getLayouts().mpairs():
-        #     engine.preCompileTemplate(layout)
-        #     result.add layout.getName()
+        for id, layout in engine.getLayouts().mpairs():
+            engine.preCompileTemplate(layout)
+            result.add layout.getName()
 
 
 when isMainModule:
