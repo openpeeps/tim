@@ -211,12 +211,13 @@ proc htmlPath(outputDir, filePath: string, isTail = false): string =
 
 proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): var TimlTemplate =
     ## Return `TimlTemplate` object representation for given file `filePath`
-    if engine.views.hasKey(filePath):
-        result = engine.views[filePath]
-    elif engine.layouts.hasKey(filePath):
-        result = engine.layouts[filePath]
+    let fp = normalizedPath(filePath)
+    if engine.views.hasKey(fp):
+        result = engine.views[fp]
+    elif engine.layouts.hasKey(fp):
+        result = engine.layouts[fp]
     else:
-        result = engine.partials[filePath]
+        result = engine.partials[fp]
 
 proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string, baseIndent: int) =
     ## Write current JSON AST to BSON

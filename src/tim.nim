@@ -86,7 +86,7 @@ proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discarda
                         result.add layout.getName()
 
                     # Start a new Thread with Watchout watching for live changes
-                    Watchout.startThread(watchoutCallback, watchFiles, 200)
+                    Watchout.startThread(watchoutCallback, watchFiles, 550)
                     return
 
         for id, view in engine.getViews().mpairs():
