@@ -13,6 +13,8 @@ from std/strutils import indent
 
 when requires "watchout":
     import watchout
+when requires "emitter":
+    import emitter
 
 export parser, meta, compiler
 
@@ -28,6 +30,30 @@ proc render*[T: TimEngine](engine: T, key: string, layoutKey = "base", data: Jso
         result = Docktype
         result.add layout.getHtmlCode()
         result.add view.getHtmlCode()
+        when requires "supranim":
+            when not defined release:
+                proc watchoutLiveReload(): string =
+                    result = """
+<script type="text/javascript">
+document.addEventListener("DOMContentLoaded", function() {
+    var prevTime = localStorage.getItem("watchout") || 0
+    let watchoutLiveReload = function() {
+        fetch('/watchout')
+            .then(response => response.json())
+            .then(body => {
+                if(body.state == 0) return
+                if(body.state > prevTime) {
+                    localStorage.setItem("watchout", body.state)
+                    location.reload()
+                }
+            }).catch(function() {});
+        setTimeout(watchoutLiveReload, 500)
+    }
+    watchoutLiveReload();
+});
+</script>
+"""
+                result.add watchoutLiveReload()
         result.add layout.getHtmlTailsCode()
 
 proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
@@ -45,7 +71,7 @@ proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
     # else:
     engine.writeHtml(temp, c.getHtml())
 
-proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discardable.} =
+proc precompile*[T: TimEngine](engine: T, callback: proc() {.gcsafe.}, debug = false): seq[string] {.discardable.} =
     ## Pre-compile ``views`` and ``layouts``
     ## from ``.timl`` to HTML or BSON.
     ##
@@ -69,6 +95,7 @@ proc precompile*[T: TimEngine](engine: T, debug = false): seq[string] {.discarda
                     else:
                         engine.preCompileTemplate(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
+                    callback()
                 var watchFiles: seq[string]
                 when compileOption("threads"):
                     for id, view in engine.getViews().mpairs():
