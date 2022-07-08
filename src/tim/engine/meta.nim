@@ -32,6 +32,9 @@ type
     
     TimlTemplateTable = OrderedTableRef[string, TimlTemplate]
 
+    HotReloadType* = enum
+        None, HttpReloader, WsReloader
+
     TimEngine* = object
         root: string                                # root path to your Timl templates
         output: string                              # root path for HTML and BSON AST output
@@ -41,6 +44,7 @@ type
         minified: bool
         indent: int
         paths: tuple[layouts, views, partials: string]
+        reloader: HotReloadType
 
     TimException* = object of CatchableError        # raise errors while setup Tim
     TimSyntaxError* = object of CatchableError      # raise errors from Tim language
@@ -168,29 +172,29 @@ proc hasView*[T: TimEngine](e: T, key: string): bool =
     ## Use dot annotation for accessing views in subdirectories
     result = e.views.hasKey(e.getPath(key, "views"))
 
-proc getView*[T: TimEngine](e: T, key: string): TimlTemplate =
+method getView*(e: TimEngine, key: string): TimlTemplate =
     ## Retrieve a view template by key.
     ## Use dot annotation for accessing views in subdirectories
     result = e.views[e.getPath(key, "views")]
 
-proc hasPartial*[T: TimEngine](e: T, key: string): bool =
+method hasPartial*(e: TimEngine, key: string): bool =
     ## Determine if a specific view exists by name.
     ## Use dot annotation for accessing views in subdirectories
     result = e.partials.hasKey(e.getPath(key, "partials"))
 
-proc getPartials*[T: TimEngine](e: T): TimlTemplateTable =
+method getPartials*(e: TimEngine): TimlTemplateTable =
     ## Retrieve entire table of partials as TimlTemplateTable
     result = e.partials
 
-proc getStoragePath*[T: TimEngine](e: var T): string =
+method getStoragePath*(e: var TimEngine): string =
     ## Retrieve the absolute path of TimEngine output directory
     result = e.output
 
-proc getBsonPath*[T: TimlTemplate](e: T): string = 
+method getBsonPath*(e: TimlTemplate): string = 
     ## Get the absolute path of BSON AST file
     result = e.paths.ast
 
-proc shouldMinify*[T: TimEngine](e: T): bool =
+method shouldMinify*(e: TimEngine): bool =
     ## Determine if Tim Engine should minify the final HTML
     result = e.minified
 
@@ -231,6 +235,9 @@ proc checkDocVersion(docVersion: string): bool =
     let docv = parseInt replace(docVersion, ".", "")
     let currv = parseInt replace(timVersion, ".", "")
     result = sgn(docv - currv) != -1
+
+method getReloadType*(engine: TimEngine): HotReloadType =
+    result = engine.reloader
 
 proc readBson*[E: TimEngine, T: TimlTemplate](e: E, t: T): string {.thread.} =
     ## Read current BSON and parse to JSON
@@ -277,7 +284,8 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
                 if file.isHidden(): continue
                 result.add file
 
-proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minified = true, indent: int): TimEngine =
+proc init*[T: typedesc[TimEngine]](timEngine: T, source,
+    output: string, indent: int, minified = true, reloader: HotReloadType = None): TimEngine =
     ## Initialize a new Tim Engine by providing the root path directory 
     ## to your templates (layouts, views and partials).
     ## Tim is able to auto-discover your .timl files
@@ -368,3 +376,7 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source, output: string, minifie
             partials: rootPath & "/partials"
         )
     )
+
+    when not defined release:
+        # Enable Hot Reloader when in dev mode
+        result.reloader = reloader

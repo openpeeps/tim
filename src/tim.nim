@@ -26,13 +26,17 @@ proc render*[T: TimEngine](engine: T, key: string, layoutKey = "base", data: Jso
     if engine.hasView(key):
         # TODO handle templates marked with JIT
         var view: TimlTemplate = engine.getView(key)
+        if not engine.hasLayout(layoutKey):
+            raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
         var layout: TimlTemplate = engine.getLayout(layoutKey)
         result = Docktype
         result.add layout.getHtmlCode()
         result.add view.getHtmlCode()
         when requires "supranim":
             when not defined release:
-                proc watchoutLiveReload(): string =
+                proc httpReloader(): string =
+                    # Reload Supranim application using
+                    # the HttpReloader method
                     result = """
 <script type="text/javascript">
 document.addEventListener("DOMContentLoaded", function() {
@@ -53,7 +57,19 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 """
-                result.add watchoutLiveReload()
+                proc wsReloader(): string =
+                    # Reload Supranim application using
+                    # a WebSocket Connection 
+                    # TODO
+                    result = ""
+
+                case engine.getReloadType():
+                of HttpReloader:
+                    result.add httpReloader()
+                of WSReloader:
+                    result.add wsReloader()
+                else: discard
+
         result.add layout.getHtmlTailsCode()
 
 proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
