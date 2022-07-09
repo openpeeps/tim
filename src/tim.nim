@@ -9,7 +9,6 @@ import tim/engine/[parser, compiler, meta]
 import std/[tables, json]
 
 from std/times import cpuTime
-from std/strutils import indent
 
 when requires "watchout":
     import watchout
@@ -161,7 +160,7 @@ when isMainModule:
     # ``.bson`` for templates requiring runtime computation,
     # like conditional statements, iterations, var assignments and so on.
 
-    Tim.precompile()
+    Tim.precompile(callback = proc() = "")
     var data = %*{
         "name": "George Lemon"
     }

@@ -172,29 +172,29 @@ proc hasView*[T: TimEngine](e: T, key: string): bool =
     ## Use dot annotation for accessing views in subdirectories
     result = e.views.hasKey(e.getPath(key, "views"))
 
-method getView*(e: TimEngine, key: string): TimlTemplate =
+method getView*(e: TimEngine, key: string): TimlTemplate {.base.} =
     ## Retrieve a view template by key.
     ## Use dot annotation for accessing views in subdirectories
     result = e.views[e.getPath(key, "views")]
 
-method hasPartial*(e: TimEngine, key: string): bool =
+method hasPartial*(e: TimEngine, key: string): bool {.base.} =
     ## Determine if a specific view exists by name.
     ## Use dot annotation for accessing views in subdirectories
     result = e.partials.hasKey(e.getPath(key, "partials"))
 
-method getPartials*(e: TimEngine): TimlTemplateTable =
+method getPartials*(e: TimEngine): TimlTemplateTable {.base.} =
     ## Retrieve entire table of partials as TimlTemplateTable
     result = e.partials
 
-method getStoragePath*(e: var TimEngine): string =
+method getStoragePath*(e: var TimEngine): string {.base.} =
     ## Retrieve the absolute path of TimEngine output directory
     result = e.output
 
-method getBsonPath*(e: TimlTemplate): string = 
+method getBsonPath*(e: TimlTemplate): string {.base.} = 
     ## Get the absolute path of BSON AST file
     result = e.paths.ast
 
-method shouldMinify*(e: TimEngine): bool =
+method shouldMinify*(e: TimEngine): bool {.base.} =
     ## Determine if Tim Engine should minify the final HTML
     result = e.minified
 
@@ -236,7 +236,7 @@ proc checkDocVersion(docVersion: string): bool =
     let currv = parseInt replace(timVersion, ".", "")
     result = sgn(docv - currv) != -1
 
-method getReloadType*(engine: TimEngine): HotReloadType =
+method getReloadType*(engine: TimEngine): HotReloadType {.base.} =
     result = engine.reloader
 
 proc readBson*[E: TimEngine, T: TimlTemplate](e: E, t: T): string {.thread.} =
