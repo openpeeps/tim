@@ -160,7 +160,7 @@ when isMainModule:
     # ``.bson`` for templates requiring runtime computation,
     # like conditional statements, iterations, var assignments and so on.
 
-    Tim.precompile(callback = proc() = "")
+    Tim.precompile(callback = proc() = discard)
     var data = %*{
         "name": "George Lemon"
     }
