@@ -359,7 +359,7 @@ proc parse*[T: TimEngine](engine: T, code, path: string,
         p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
         return p
     else:
-        p.lexer = Lexer.init(importHandler.getFullCode())
+        p.lexer = Lexer.init(importHandler.getFullCode(), allowMultilineStrings = true)
         p.data = Data.init(data)
         p.filePath = path
 
