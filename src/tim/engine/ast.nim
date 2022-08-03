@@ -115,6 +115,7 @@ type
         HtmlSub
         HtmlSummary
         HtmlSup
+        HtmlTextarea
         #
         # AST SVG Support
         #
@@ -445,6 +446,7 @@ proc getHtmlNodeType*[T: TokenTuple](token: T): HtmlNodeType =
     of TK_STYLE: HtmlStyle
     of TK_SUB: HtmlSub
     of TK_SUMMARY: HtmlSummary
+    of TK_TEXTAREA: HtmlTextarea
     of TK_SUP: HtmlSup
     of TK_SVG: HtmlSvg
     of TK_SVG_ANIMATE: HtmlSvgAnimate
