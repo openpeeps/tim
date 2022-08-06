@@ -284,8 +284,8 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
                 if file.isHidden(): continue
                 result.add file
 
-proc init*[T: typedesc[TimEngine]](timEngine: T, source,
-    output: string, indent: int, minified = true, reloader: HotReloadType = None): TimEngine =
+proc init*(timEngine: var TimEngine, source, output: string,
+            indent: int, minified = true, reloader: HotReloadType = None) =
     ## Initialize a new Tim Engine by providing the root path directory 
     ## to your templates (layouts, views and partials).
     ## Tim is able to auto-discover your .timl files
@@ -362,7 +362,7 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source,
         outputPath = getCurrentDir() & "/" & timlInOutDirs[1]
     rootPath.normalizePath()
     outputPath.normalizePath()
-    result = timEngine(
+    timEngine = TimEngine(
         root: rootPath,
         output: outputPath,
         layouts: LayoutsTable,
@@ -379,4 +379,4 @@ proc init*[T: typedesc[TimEngine]](timEngine: T, source,
 
     when not defined release:
         # Enable Hot Reloader when in dev mode
-        result.reloader = reloader
+        timEngine.reloader = reloader

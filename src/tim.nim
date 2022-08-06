@@ -15,9 +15,15 @@ when requires "watchout":
 when requires "emitter":
     import emitter
 
-export parser, meta, compiler
+export parser, compiler
+export meta except TimEngine
 
 const Docktype = "<!DOCTYPE html>"
+
+when compileOption("threads"):
+    var Tim* {.threadvar.}: TimEngine
+else:
+    var Tim*: TimEngine
 
 proc render*[T: TimEngine](engine: T, key: string, layoutKey = "base", data: JsonNode = %*{}): string =
     ## Renders a template view by name. Use dot-annotations
@@ -86,83 +92,56 @@ proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
     # else:
     engine.writeHtml(temp, c.getHtml())
 
-proc precompile*[T: TimEngine](engine: T, callback: proc() {.gcsafe.}, debug = false): seq[string] {.discardable.} =
+proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
+                debug = false): seq[string] {.discardable.} =
     ## Pre-compile ``views`` and ``layouts``
     ## from ``.timl`` to HTML or BSON.
     ##
     ## Note that ``partials`` contents are collected on
     ## compile-time and merged within the view.
-    if engine.hasAnySources:
+    if Tim.hasAnySources:
         when not defined release:
             # Enable auto precompile when in development mode
             when requires "watchout":
                 # Will use `watchout` to watch for changes in `/templates` dir
-                proc watchoutCallback(file: watchout.File) {.gcsafe.} =
+                proc watchoutCallback(file: watchout.File) {.thread, nimcall.} =
                     let initTime = cpuTime()
                     echo "\n✨ Watchout resolve changes"
                     echo file.getName()
-                    var timlTemplate = getTemplateByPath(engine, file.getPath())
+                    var timlTemplate = getTemplateByPath(Tim, file.getPath())
                     if timlTemplate.isPartial:
                         for dependentView in timlTemplate.getDependentViews():
-                            engine.preCompileTemplate(
-                                getTemplateByPath(engine, dependentView)
+                            Tim.preCompileTemplate(
+                                getTemplateByPath(Tim, dependentView)
                             )
                     else:
-                        engine.preCompileTemplate(timlTemplate)
+                        Tim.preCompileTemplate(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
-                    callback()
+                    # callback()
                 var watchFiles: seq[string]
                 when compileOption("threads"):
-                    for id, view in engine.getViews().mpairs():
-                        engine.preCompileTemplate(view)
+                    for id, view in Tim.getViews().mpairs():
+                        Tim.preCompileTemplate(view)
                         watchFiles.add view.getFilePath()
                         result.add view.getName()
                     
-                    for id, partial in engine.getPartials().pairs():
+                    for id, partial in Tim.getPartials().pairs():
                         # Watch for changes in `partials` directory.
                         watchFiles.add partial.getFilePath()
 
-                    for id, layout in engine.getLayouts().mpairs():
-                        engine.preCompileTemplate(layout)
+                    for id, layout in Tim.getLayouts().mpairs():
+                        Tim.preCompileTemplate(layout)
                         watchFiles.add layout.getFilePath()
                         result.add layout.getName()
 
                     # Start a new Thread with Watchout watching for live changes
-                    Watchout.startThread(watchoutCallback, watchFiles, 550)
+                    startThread(watchoutCallback, watchFiles, 550)
                     return
 
-        for id, view in engine.getViews().mpairs():
-            engine.preCompileTemplate(view)
+        for id, view in Tim.getViews().mpairs():
+            Tim.preCompileTemplate(view)
             result.add view.getName()
 
-        for id, layout in engine.getLayouts().mpairs():
-            engine.preCompileTemplate(layout)
+        for id, layout in Tim.getLayouts().mpairs():
+            Tim.preCompileTemplate(layout)
             result.add layout.getName()
-
-
-when isMainModule:
-    let initTime = cpuTime()
-    var Tim = TimEngine.init(
-        source = "../examples/templates",
-            # directory path to find your `.timl` files
-        output = "../examples/storage/templates",
-            # directory path to store Binary JSON files for JIT compiler
-        minified = false,
-            # Whether to minifying the final HTML output (by default enabled)
-        indent = 4
-            # Used to indent your HTML output (ignored when `minified` is true)
-    )
-
-    # If you're not using Tim's Command Line Interface you have to
-    # to call this proc manually in main state of your app so
-    # Tim can precompile ``.timl`` to either :
-    # ``.html`` for static templates
-    # ``.bson`` for templates requiring runtime computation,
-    # like conditional statements, iterations, var assignments and so on.
-
-    Tim.precompile(callback = proc() = discard)
-    var data = %*{
-        "name": "George Lemon"
-    }
-    echo Tim.render("index", data = data)
-    echo "Done in " & $(cpuTime() - initTime)
