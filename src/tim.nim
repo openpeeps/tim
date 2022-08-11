@@ -9,6 +9,7 @@ import tim/engine/[parser, compiler, meta]
 import std/[tables, json]
 
 from std/times import cpuTime
+from std/strutils import `%`
 
 when requires "watchout":
     import watchout
@@ -145,3 +146,18 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
         for id, layout in Tim.getLayouts().mpairs():
             Tim.preCompileTemplate(layout)
             result.add layout.getName()
+
+when isMainModule:
+    proc refresh() =
+        echo "refresh"
+    Tim.init(
+        source = "../examples/templates",
+        output = "../examples/storage",
+        indent = 4,
+        minified = true,
+        reloader = HttpReloader
+    )
+    let timTemplates = Tim.precompile do(): refresh()
+    for k, timTemplate in timTemplates.pairs():
+        let count = k + 1
+        echo "$1. $2" % [$count, timTemplate]

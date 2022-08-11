@@ -1,8 +1,9 @@
 # High-performance, compiled template engine inspired by Emmet syntax.
-# 
-# MIT License
-# Copyright (c) 2022 George Lemon from OpenPeep
-# https://github.com/openpeep/tim
+#
+# (c) 2022 Tim Engine is released under MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/tim
+
 import bson
 import std/[tables, json, md5]
 

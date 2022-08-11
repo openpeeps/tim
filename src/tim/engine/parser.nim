@@ -68,17 +68,17 @@ const
 
 template setError[P: Parser](p: var P, msg: string, breakStmt: bool) =
     ## Set parser error
-    p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
+    p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.pos]
     break
 
 template setError[P: Parser](p: var P, msg: string) =
     ## Set parser error
-    p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.col]
+    p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.pos]
 
 proc setError[P: Parser](p: var P, msg: string, line, col: int) =
     ## Set a Parser error on a specific line and col number
     p.current.line = line
-    p.current.col = col
+    p.current.pos = col
     p.setError(msg)
 
 proc hasError*[P: Parser](p: var P): bool =
@@ -157,32 +157,32 @@ proc isNestable*[T: TokenTuple](token: T): bool =
     }
 
 proc getParentLine[P: Parser](p: var P): int =
-    if p.current.col == 0:
+    if p.current.pos == 0:
         p.depth = 0
         result = 0
     elif p.parentNode != nil:
-        if p.parentNode.meta.column > p.current.col:
+        if p.parentNode.meta.column > p.current.pos:
             # Handle `Upper` levels
             var found: bool
             var prevlineno = p.parentNode.meta.childOf
             while true:
                 if p.htmlStatements.hasKey(prevlineno):
                     let prevline = p.htmlStatements[prevlineno]
-                    if prevline.meta.column == p.current.col:
+                    if prevline.meta.column == p.current.pos:
                         p.depth = prevline.meta.indent
-                        p.current.col = p.depth
+                        p.current.pos = p.depth
                         result = prevline.meta.childOf
                         found = true
                         break
                 dec prevlineno
             if not found:
                 result = p.current.line
-        elif p.parentNode.meta.column == p.current.col:
+        elif p.parentNode.meta.column == p.current.pos:
             # Handle `Same` levels
             p.depth = p.parentNode.meta.depth
             result = p.parentNode.meta.childOf
-            p.current.col = p.depth
-        elif p.current.col > p.parentNode.meta.column:
+            p.current.pos = p.depth
+        elif p.current.pos > p.parentNode.meta.column:
             # Handle `Child` levels
             if p.parentNode.meta.column == 0:
                 inc p.depth, 4
@@ -190,7 +190,7 @@ proc getParentLine[P: Parser](p: var P): int =
                 p.depth = p.parentNode.meta.indent
                 inc p.depth, 4
             result = p.parentNode.meta.line
-            p.current.col = p.depth
+            p.current.pos = p.depth
 
 include ./parseutils
 
@@ -232,15 +232,15 @@ template parseNewNode(p: var Parser, isSelfClosing = false) =
     ## Parse a new HTML Node with HTML attributes, if any
     !> p # Ensure a good nest
     p.currln = p.current
-    let initialCol = p.current.col
-    let nodeIndent = p.current.col
+    let initialCol = p.current.pos
+    let nodeIndent = p.current.pos
     let childOfLineno = p.getParentLine()
     let htmlNodeType = getHtmlNodeType(p.current)
     htmlNode = new HtmlNode
     with htmlNode:
         nodeType = htmlNodeType
         nodeName = getSymbolName(htmlNodeType)
-        meta = (column: initialCol, indent: p.current.col, line: p.current.line, childOf: childOfLineno, depth: p.depth)
+        meta = (column: initialCol, indent: p.current.pos, line: p.current.line, childOf: childOfLineno, depth: p.depth)
 
     if p.next.kind == TK_NEST_OP:
         jump p
@@ -256,8 +256,8 @@ template parseNewNode(p: var Parser, isSelfClosing = false) =
 
 template parseNewSubNode(p: var Parser) =
     p.currln = p.current
-    let initialCol = p.current.col
-    p.current.col = 4 + p.depth
+    let initialCol = p.current.pos
+    p.current.pos = 4 + p.depth
     
     let htmlNodeType = getHtmlNodeType(p.current)
     # let childOfLine = p.getParentLine()
@@ -265,7 +265,7 @@ template parseNewSubNode(p: var Parser) =
     with htmlSubNode:
         nodeType = htmlNodeType
         nodeName = htmlNodeType.getSymbolName
-        meta = (column: initialCol, indent: p.current.col, line: p.current.line, childOf: 0, depth: p.depth)
+        meta = (column: initialCol, indent: p.current.pos, line: p.current.line, childOf: 0, depth: p.depth)
 
     if p.next.kind == TK_NEST_OP:
         jump p

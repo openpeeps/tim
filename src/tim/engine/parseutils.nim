@@ -52,14 +52,14 @@ template setHTMLAttributes[P: Parser](p: var P, htmlNode: var HtmlNode, nodeInde
                 var varName: string
                 if p.current.kind == TK_VARIABLE:
                     varName = p.current.value
-                p.current.col = htmlNode.meta.column # get base column from `htmlMeta` node
+                p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
                 if (p.current.line == p.next.line) and not p.next.isEOF and p.next.kind != TK_AND:
                     p.setError InvalidIndentation, true
-                elif (p.next.line > p.current.line) and (p.next.col > p.current.col):
+                elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
                     p.setError InvalidIndentation, true
                 var currentTextValue = p.current.value
                 var nodeConcat: seq[HtmlNode]
-                let col = p.current.col
+                let col = p.current.pos
                 let line = p.current.line
                 if p.next.kind == TK_AND:
                     # If provided, Tim can handle string concatenations like

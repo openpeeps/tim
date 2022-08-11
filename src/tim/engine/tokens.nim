@@ -1,14 +1,12 @@
 # A High-performance, compiled template engine
 # inspired by Emmmet Syntax.
-# 
-# Tim Engine can be used as a Nim Library via Nimble
-# or as a binary application for language agnostic
-# projects.
-# 
-#       (c) 2022 George Lemon | Released under MIT License
-#       Made by Humans from OpenPeep
-#       https://github.com/openpeep/tim
+#
+# (c) 2022 Made by Humans from OpenPeep | MIT License
+#          https://github.com/openpeep/toktok
 import toktok
+
+static:
+    Program.settings(true, "TK_")
 
 tokens:
     A_Link       > "a"
@@ -31,7 +29,7 @@ tokens:
     Br           > "br"
     Button       > "button"
     Divide       > '/':
-        Comment  ? '/' .. EOL   # Inline commnet ollecting everything to EOL
+        Comment  > '/' .. EOL
     Canvas       > "canvas"
     Caption      > "caption"
     Center       > "center"
@@ -202,9 +200,8 @@ tokens:
     Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
     Attr_Class   > '.'
     Attr_ID      > '#'
-    Assign       > '='
-        # Eq       ? '='
-    Eq           > ('=', '=')
+    Assign       > '=':
+        Eq       > '='
     Colon        > ':' 
     Nest_OP      > '>'
     And          > '&'
@@ -215,8 +212,10 @@ tokens:
     For          > "for"
     In           > "in"
     Or           > "or"
-    Neq          > ('!', '=')
-    Include      > ('@', "include")
+    Not          > '!':
+        NEQ      > '='
+    At           > '@':
+        Include  > "include"
     Plus         > '+'
     Minus        > '-'
     Multiply     > '*'
