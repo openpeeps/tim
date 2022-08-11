@@ -21,12 +21,12 @@ export meta except TimEngine
 
 const Docktype = "<!DOCTYPE html>"
 
-when compileOption("threads"):
-    var Tim* {.threadvar.}: TimEngine
-else:
-    var Tim*: TimEngine
+# when compileOption("threads"):
+#     var Tim* {.threadvar, global.}: TimEngine
+# else:
+var Tim* {.global.}: TimEngine
 
-proc render*[T: TimEngine](engine: T, key: string, layoutKey = "base", data: JsonNode = %*{}): string =
+proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode = %*{}): string =
     ## Renders a template view by name. Use dot-annotations
     ## for rendering views in nested directories.
     if engine.hasView(key):
@@ -68,7 +68,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     # a WebSocket Connection 
                     # TODO
                     result = ""
-
                 case engine.getReloadType():
                 of HttpReloader:
                     result.add httpReloader()
@@ -78,7 +77,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         result.add layout.getHtmlTailsCode()
 
-proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
+proc preCompileTemplate(engine: TimEngine, temp: var TimlTemplate) =
     let tpType = temp.getType()
     var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = tpType)
     if p.hasError():
@@ -92,10 +91,6 @@ proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
     if tpType == Layout:
         # Save layout tails in a separate .html file, suffixed with `_`
         engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
-    # if p.hasJIT:
-    #     engine.writeBson(temp, c.getHtml(), p.getBaseIndent())
-    #     discard engine.readBson(temp)
-    # else:
     engine.writeHtml(temp, c.getHtml())
 
 proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
@@ -110,7 +105,7 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
             # Enable auto precompile when in development mode
             when requires "watchout":
                 # Will use `watchout` to watch for changes in `/templates` dir
-                proc watchoutCallback(file: watchout.File) {.thread, nimcall.} =
+                proc watchoutCallback(file: watchout.File) {.closure.} =
                     let initTime = cpuTime()
                     echo "\n✨ Watchout resolve changes"
                     echo file.getName()
@@ -123,7 +118,7 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
                     else:
                         Tim.preCompileTemplate(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
-                    # callback()
+                    callback()
                 var watchFiles: seq[string]
                 when compileOption("threads"):
                     for id, view in Tim.getViews().mpairs():

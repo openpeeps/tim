@@ -53,7 +53,8 @@ template setHTMLAttributes[P: Parser](p: var P, htmlNode: var HtmlNode, nodeInde
                 if p.current.kind == TK_VARIABLE:
                     varName = p.current.value
                 p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
-                if (p.current.line == p.next.line) and not p.next.isEOF and p.next.kind != TK_AND:
+                if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
+                    echo p.next
                     p.setError InvalidIndentation, true
                 elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
                     p.setError InvalidIndentation, true
