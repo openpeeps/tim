@@ -17,8 +17,6 @@ type
     Parser* = object
         depth: int
             ## Incremented depth of levels while parsing inline nests
-        baseIndent: int
-            ## The preferred indentation size, It can be either 2 or 4
         engine: TimEngine
             ## Holds current TimEngine instance
         lexer: Lexer
@@ -119,10 +117,6 @@ template jit[P: Parser](p: var P) =
 proc hasJIT*[P: Parser](p: var P): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
     result = p.enableJit == true
-
-proc getBaseIndent*[P: Parser](p: var P): int {.inline.} =
-    ## Get the preferred indentation size
-    result = p.baseIndent
 
 proc jump[P: Parser](p: var P, offset = 1) =
     var i = 0

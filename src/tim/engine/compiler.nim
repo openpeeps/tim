@@ -25,17 +25,23 @@ type
         html, htmlTails: Rope
             ## A rope containg the final HTML output
         templateType: TimlTemplateType
+        baseIndent: int
 
 const NewLine = "\n"
 
-proc indentLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail = false, brAfter = true) =
+method getIndent(compiler: var Compiler, nodeIndent: int): int =
+    if compiler.baseIndent == 2:
+        return int(nodeIndent / compiler.baseIndent)
+    result = nodeIndent
+
+proc indentLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail, skipBr = false) =
     if meta.indent != 0:
-        var i: int
-        i = meta.indent
-        if brAfter:
+        if not skipBr:
             add compiler.html, NewLine
-        add compiler.html, indent("", i)
-    else: add compiler.html, NewLine
+        add compiler.html, indent("", compiler.getIndent(meta.indent))
+    else:
+        if not skipBr:
+            add compiler.html, NewLine
 
 proc hasAttributes(node: HtmlNode): bool =
     ## Determine if current ``HtmlNode`` has any HTML attributes
@@ -54,10 +60,10 @@ proc writeIDAttribute[C: Compiler](compiler: var C, node: HtmlNode) =
     ## Write an ID HTML attribute to current HTML Element
     add compiler.html, ("id=\"$1\"" % [node.id.value]).indent(1)
 
-proc openTag[C: Compiler](compiler: var C, tag: string, node: HtmlNode) =
+proc openTag[C: Compiler](compiler: var C, tag: string, node: HtmlNode, skipBr = false) =
     ## Open tag of the current JsonNode element
     if not compiler.minified:
-        compiler.indentLine(node.meta)
+        compiler.indentLine(node.meta, skipBr = skipBr)
     add compiler.html, "<" & toLowerAscii(tag)
     if node.hasIDAttribute:
         compiler.writeIDAttribute(node)
@@ -74,7 +80,7 @@ proc closeTag[C: Compiler](c: var C, tag: DeferTag, templateType = View) =
     if tag.isInlineElement or c.minified:
         closingTag = htmlTag
     else:
-        closingTag = indent("\n" & htmlTag, tag.meta.indent)
+        closingTag = indent("\n" & htmlTag, c.getIndent(tag.meta.indent))
     if templateType == View:
         add c.html, closingTag
     else:
@@ -173,9 +179,9 @@ proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int) =
         else:
             c.writeElement(node, index)
 
-proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int) =
+proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int, skipBr = false) =
     let tag = node.htmlNode.nodeName
-    c.openTag(tag, node.htmlNode)
+    c.openTag(tag, node.htmlNode, skipBr = skipBr)
     c.deferTag(tag, node.htmlNode)
 
     if node.htmlNode.nodes.len != 0:
@@ -214,7 +220,7 @@ proc writeLine[C: Compiler](c: var C) =
         if index == nodeslen: break
         let node = c.program.nodes[index]
         if node.nodeType == NodeType.HtmlElement:
-            c.writeHtmlElement(node, index)
+            c.writeHtmlElement(node, index, index == 0)
         inc index
 
 proc getHtmlJit*[C: Compiler](c: C): string {.inline.} =
@@ -229,10 +235,11 @@ proc getHtmlTails*[C: Compiler](c: C): string {.inline.} =
     ## Retrieve the tails and deferred elements for current layout
     result = $(c.htmlTails)
 
-proc init*[C: typedesc[Compiler]](Compiler: C, astProgram: Program, minified: bool, templateType: TimlTemplateType): Compiler =
+proc init*(compilerInstance: typedesc[Compiler], astProgram: Program,
+        minified: bool, templateType: TimlTemplateType, baseIndent: int): Compiler =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
-    var c = Compiler(minified: minified, templateType: templateType)
+    var c = compilerInstance(minified: minified, templateType: templateType, baseIndent: baseIndent)
     # c.program = fromJson(astNodes, Program)
     c.program = astProgram
     c.writeLine()

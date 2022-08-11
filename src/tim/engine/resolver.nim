@@ -113,9 +113,12 @@ template parsePartial[T: Importer](p: var T, engine: TimEngine) =
         jump p
         loadCode(p, engine, indent)
 
-proc resolveWithImports*(viewCode, currentFilePath: string, engine: TimEngine, templateType: TimlTemplateType): Importer =
+proc resolveWithImports*(viewCode, currentFilePath: string,
+                        engine: TimEngine, templateType: TimlTemplateType): Importer =
     ## Resolve ``@include`` statements in main view code.
-    var p = Importer(lex: Lexer.init(viewCode), currentFilePath: currentFilePath, templateType: templateType)
+    var p = Importer(lex: Lexer.init(viewCode),
+                    currentFilePath: currentFilePath,
+                    templateType: templateType)
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:

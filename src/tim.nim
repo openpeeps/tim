@@ -83,7 +83,12 @@ proc preCompileTemplate[T: TimEngine](engine: T, temp: var TimlTemplate) =
     var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = tpType)
     if p.hasError():
         raise newException(TimSyntaxError, "\n"&p.getError())
-    let c = Compiler.init(p.getStatements(), minified = engine.shouldMinify(), templateType = tpType)
+    let c = Compiler.init(
+        p.getStatements(),
+        minified = engine.shouldMinify(),
+        templateType = tpType,
+        baseIndent = engine.getIndent()
+    )
     if tpType == Layout:
         # Save layout tails in a separate .html file, suffixed with `_`
         engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
@@ -153,8 +158,8 @@ when isMainModule:
     Tim.init(
         source = "../examples/templates",
         output = "../examples/storage",
-        indent = 4,
-        minified = true,
+        indent = 2,
+        minified = false,
         reloader = HttpReloader
     )
     let timTemplates = Tim.precompile do(): refresh()
