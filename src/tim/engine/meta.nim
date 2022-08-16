@@ -205,13 +205,13 @@ proc hashTail(input: string): string =
 
 proc bsonPath(outputDir, filePath: string): string =
     ## Set the BSON AST path and return the string
-    result = getCurrentDir() & "/" & outputDir & "/bson/" & hashTail(filePath) & ".ast.bson"
+    result = outputDir & "/bson/" & hashTail(filePath) & ".ast.bson"
     normalizePath(result)
 
 proc htmlPath(outputDir, filePath: string, isTail = false): string =
     ## Set the HTML output path and return the string
     var suffix = if isTail: "_" else: ""
-    result = getCurrentDir() & "/" & outputDir & "/html/" & hashTail(filePath) & suffix & ".html"
+    result = outputDir & "/html/" & hashTail(filePath) & suffix & ".html"
     normalizePath(result)
 
 proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): var TimlTemplate =
@@ -292,12 +292,11 @@ proc init*(timEngine: var TimEngine, source, output: string,
     ## Tim is able to auto-discover your .timl files
     var timlInOutDirs: seq[string]
     for path in @[source, output]:
-        var tpath = getCurrentDir() & "/" & path
+        var tpath = path
         tpath.normalizePath()
         if not tpath.dirExists():
             # raise newException(TimException, "Unable to find Tim source directory at\n$1" % [tpath])
             createDir(tpath)
-
         timlInOutDirs.add(path)
         if path == output:
             # create `bson` and `html` dirs inside `output` directory
@@ -312,7 +311,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
 
     var LayoutsTable, ViewsTable, PartialsTable = newOrderedTable[string, TimlTemplate]()
     for tdir in @["views", "layouts", "partials"]:
-        var tdirpath = getCurrentDir() & "/" & timlInOutDirs[0] & "/" & tdir
+        var tdirpath = timlInOutDirs[0] & "/" & tdir
         if dirExists(tdirpath):
             # TODO look for .timl files only
             let files = finder(findArgs = @["-type", "f", "-print"], path = tdirpath)
@@ -359,8 +358,8 @@ proc init*(timEngine: var TimEngine, source, output: string,
             createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
     var
-        rootPath = getCurrentDir() & "/" & timlInOutDirs[0]
-        outputPath = getCurrentDir() & "/" & timlInOutDirs[1]
+        rootPath = timlInOutDirs[0]
+        outputPath = timlInOutDirs[1]
     rootPath.normalizePath()
     outputPath.normalizePath()
     timEngine = TimEngine(

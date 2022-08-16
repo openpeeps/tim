@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-template setHTMLAttributes[P: Parser](p: var P, htmlNode: var HtmlNode, nodeIndent = 0 ): untyped =
+template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0 ): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
     var id: IDAttribute
@@ -92,7 +92,7 @@ template setHTMLAttributes[P: Parser](p: var P, htmlNode: var HtmlNode, nodeInde
         hasAttributes = false
     clear(attributes)
 
-proc parseVariable[P: Parser](p: var P, tokenVar: TokenTuple): VariableNode =
+proc parseVariable(p: var Parser, tokenVar: TokenTuple): VariableNode =
     ## Parse and validate given VariableNode
     # var varNode: VariableNode
     let varName: string = tokenVar.value
@@ -102,7 +102,7 @@ proc parseVariable[P: Parser](p: var P, tokenVar: TokenTuple): VariableNode =
     result = newVariableNode(varName, p.data.getVar(varName))
     jit p
 
-template parseIteration[P: Parser](p: var P, interationNode: IterationNode): untyped =
+template parseIteration(p: var Parser, interationNode: IterationNode): untyped =
     if p.next.kind != TK_VARIABLE:
         p.setError InvalidIterationMissingVar, true
     jump p
@@ -117,7 +117,7 @@ template parseIteration[P: Parser](p: var P, interationNode: IterationNode): unt
     jump p, 2
     jit p  # enable JIT compilation flag
 
-template parseCondition[P: Parser](p: var P, conditionNode: ConditionalNode): untyped =
+template parseCondition(p: var Parser, conditionNode: ConditionalNode): untyped =
     ## Parse and validate given ConditionalNode 
     var compToken: TokenTuple
     var varNode1, varNode2: VariableNode
@@ -142,6 +142,6 @@ template parseCondition[P: Parser](p: var P, conditionNode: ConditionalNode): un
         break
     jit p
 
-template parseDeferBlock[P: Parser](p: var P) =
+template parseDeferBlock(p: var Parser) =
     ## Parse `defer` block statements
     ## TODO
