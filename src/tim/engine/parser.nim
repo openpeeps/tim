@@ -160,6 +160,7 @@ proc getParentLine[P: Parser](p: var P): int =
             var found: bool
             var prevlineno = p.parentNode.meta.childOf
             while true:
+                if prevlineno == 0: break
                 if p.htmlStatements.hasKey(prevlineno):
                     let prevline = p.htmlStatements[prevlineno]
                     if prevline.meta.column == p.current.pos:

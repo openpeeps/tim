@@ -4,15 +4,15 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import pkginfo, bson
+import pkginfo
 import tim/engine/[parser, compiler, meta]
 import std/[tables, json]
-
-from std/times import cpuTime
 from std/strutils import `%`
 
 when requires "watchout":
     import watchout
+    from std/times import cpuTime
+
 when requires "emitter":
     import emitter
 
@@ -161,3 +161,4 @@ when isMainModule:
     for k, timTemplate in timTemplates.pairs():
         let count = k + 1
         echo "$1. $2" % [$count, timTemplate]
+    echo Tim.render "index"

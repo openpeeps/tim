@@ -191,7 +191,11 @@ proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int, skipBr 
     of Upper:        
         var i = index
         while true:
-            let prev = c.program.nodes[i - 1].htmlNode.meta
+            var prev: MetaNode
+            try:
+                prev = c.program.nodes[i - 1].htmlNode.meta
+            except IndexDefect:
+                break
             if prev.column == next.meta.column:
                 if c.tags.hasKey(prev.line):
                     # defTagLines.add prev.line
