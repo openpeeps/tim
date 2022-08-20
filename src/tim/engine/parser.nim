@@ -4,8 +4,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import std/[json, jsonutils]
-import std/[tables, with]
+import std/[tables, with, json, jsonutils]
 
 import tokens, ast, data
 from resolver import resolveWithImports, hasError, getError, getErrorLine, getErrorColumn, getFullCode

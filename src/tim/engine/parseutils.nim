@@ -62,12 +62,12 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
                 if p.current.kind == TK_VARIABLE:
                     varName = p.current.value
                     jit p
-                p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
-                if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
-                    echo p.next
-                    p.setError InvalidIndentation, true
-                elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
-                    p.setError InvalidIndentation, true
+                else:
+                    p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
+                    if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
+                        p.setError InvalidIndentation, true
+                    elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
+                        p.setError InvalidIndentation, true
                 var currentTextValue = p.current.value
                 var nodeConcat: seq[HtmlNode]
                 let col = p.current.pos

@@ -24,7 +24,18 @@ const DockType = "<!DOCTYPE html>"
 var Tim* {.global.}: TimEngine
 
 proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, escape: bool): string =
-    let c = Compiler.init(
+    # JIT compilation layout
+    let clayout = Compiler.init(
+        astProgram = fromJson(engine.readBson(layout), Program),
+        minified = engine.shouldMinify(),
+        templateType = TimlTemplateType.Layout,
+        baseIndent = engine.getIndent(),
+        data = data,
+        safeEscape = escape
+    )
+
+    # JIT compilation view template
+    let cview = Compiler.init(
         astProgram = fromJson(engine.readBson(view), Program),
         minified = engine.shouldMinify(),
         templateType = view.getType(),
@@ -32,7 +43,8 @@ proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, esca
         data = data,
         safeEscape = escape
     )
-    result = c.getHtml()
+    result = clayout.getHtml()
+    result.add cview.getHtml()
 
 proc staticHtml(engine: TimEngine, view, layout: TimlTemplate): string =
     result.add view.getHtmlCode()
@@ -46,13 +58,14 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
         if not engine.hasLayout(layoutKey):
             raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
         var layout: TimlTemplate = engine.getLayout(layoutKey)
+        
         result = DockType
-        result.add layout.getHtmlCode()
         if view.isJitEnabled():
             # When enabled, compile `timl` code to `html` on the fly
             result.add engine.jitHtml(view, layout, data, escape)
         else:
             # Otherwise render precompiled templates
+            result.add layout.getHtmlCode()
             result.add engine.staticHtml(view, layout)
 
         when requires "supranim":
@@ -125,10 +138,8 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                     echo file.getName()
                     var timlTemplate = getTemplateByPath(Tim, file.getPath())
                     if timlTemplate.isPartial:
-                        for dependentView in timlTemplate.getDependentViews():
-                            Tim.preCompileTemplate(
-                                getTemplateByPath(Tim, dependentView)
-                            )
+                        for depView in timlTemplate.getDependentViews():
+                            Tim.preCompileTemplate(getTemplateByPath Tim, depView)
                     else:
                         Tim.preCompileTemplate(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
@@ -170,6 +181,9 @@ when isMainModule:
         minified = false
     )
     let timTemplates = Tim.precompile()
-    echo Tim.render("index", data = %*{
-        "name": "George Lemon <script>"
-    }, escape = false)
+    echo Tim.render("index",
+        data = %*{
+            "app_name": "My application",
+            "name": "George Lemon"
+        }
+    )

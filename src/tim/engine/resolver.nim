@@ -7,7 +7,8 @@
 import toktok
 import std/[streams, tables, ropes]
 
-from ./meta import TimEngine, TimlTemplateType, TimlTemplate, addDependentView, getTemplateByPath, getPathDir
+from ./meta import TimEngine, TimlTemplateType, TimlTemplate,
+                    addDependentView, getTemplateByPath, getPathDir
 from std/strutils import endsWith, `%`, indent
 from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
