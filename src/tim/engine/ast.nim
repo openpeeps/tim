@@ -215,7 +215,7 @@ type
         case nodeType*: HtmlNodeType
         of HtmlText:
             text*: string
-            vasAssignment*: VariableNode
+            varAssignment*: VariableNode
             concat*: seq[HtmlNode]
         else: nil
         nodeName*: string
@@ -586,9 +586,13 @@ proc getVarType[T: JsonNode](token: T): VariableContentType =
     of JNull: ValueNull
     else: ValueInvalid
 
-proc newVariableNode*(varName: string, varValue: JsonNode): VariableNode =
+proc getVarName*(node: VariableNode): string =
+    result = node.varName
+
+proc newVariableNode*(varName: string, varValue: string): VariableNode =
     ## Create a new VariableNode using given varName and varValue
-    let varNodeType = getVarType(varValue)
+    # let varNodeType = getVarType(varValue)
+    let varNodeType = ValueString
     var varNode = VariableNode(
         varName: varName,
         varType: varNodeType,

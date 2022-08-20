@@ -21,7 +21,8 @@ type
     TimlTemplate* = object
         case timlType: TimlTemplateType
         of Partial:
-            dependents: seq[string]                # a sequence containing all views that include this partial
+            dependents: seq[string]
+                # a sequence containing all views that include this partial
         else: discard
         meta: tuple [
             name: string,                          # name of the current TimlTemplate representing file name
@@ -30,6 +31,7 @@ type
         paths: tuple[file, ast, html, tails: string]
         data: JsonNode                              # JSON data exposed to TimlTemplate
         astSource*: string
+        jit: bool
     
     TimlTemplateTable = OrderedTableRef[string, TimlTemplate]
 
@@ -76,6 +78,12 @@ proc getContents*[T: TimlTemplate](t: T): string =
 proc getName*[T: TimlTemplate](t: T): string =
     ## Retrieve the file name (including extension) of the current TimlTemplate
     result = t.meta.name
+
+proc enableJIT*(t: var TimlTemplate) =
+    t.jit = true
+
+proc isJITEnabled*(t: TimlTemplate): bool =
+    result = t.jit
 
 proc getPathDir*[T: TimEngine](engine: T, key: string): string =
     if key == "layouts":
@@ -240,7 +248,7 @@ proc checkDocVersion(docVersion: string): bool =
 method getReloadType*(engine: TimEngine): HotReloadType {.base.} =
     result = engine.reloader
 
-proc readBson*[E: TimEngine, T: TimlTemplate](e: E, t: T): string {.thread.} =
+proc readBson*[E: TimEngine, T: TimlTemplate](e: E, t: T): string =
     ## Read current BSON and parse to JSON
     let document: Bson = newBsonDocument(readFile(t.paths.ast))
     let docv: string = document["version"]

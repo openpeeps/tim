@@ -4,8 +4,8 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import pkginfo
-import tim/engine/[parser, compiler, meta]
+import pkginfo, jsony
+import tim/engine/[ast, parser, compiler, meta]
 import std/[tables, json]
 from std/strutils import `%`
 
@@ -19,12 +19,63 @@ when requires "emitter":
 export parser, compiler
 export meta except TimEngine
 
-const Docktype = "<!DOCTYPE html>"
+const DockType = "<!DOCTYPE html>"
 
-# when compileOption("threads"):
-#     var Tim* {.threadvar, global.}: TimEngine
-# else:
 var Tim* {.global.}: TimEngine
+
+proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode) =
+    echo "jit compilation"
+    # var jitProgram = fromJson(engine.readBson(view), Program)
+    echo engine.readBson(view)
+    let c = Compiler.init(
+        astProgram = fromJson(engine.readBson(view), Program),
+        minified = engine.shouldMinify(),
+        templateType = view.getType(),
+        baseIndent = engine.getIndent(),
+        data = data
+    )
+    echo c.getHtml()
+    # echo jitProgram.nodes.len
+
+proc staticHtml(engine: TimEngine, view, layout: TimlTemplate): string =
+    result = DockType
+    result.add layout.getHtmlCode()
+    result.add view.getHtmlCode()
+    when requires "supranim":
+        when not defined release:
+            proc httpReloader(): string =
+                result = """
+<script type="text/javascript">
+document.addEventListener("DOMContentLoaded", function() {
+    var prevTime = localStorage.getItem("watchout") || 0
+    function liveChanges() {
+        fetch('/watchout')
+            .then(res => res.json())
+            .then(body => {
+                if(body.state == 0) return
+                if(body.state > prevTime) {
+                    localStorage.setItem("watchout", body.state)
+                    location.reload()
+                }
+            }).catch(function() {});
+        setTimeout(liveChanges, 500)
+    }
+    liveChanges();
+});
+</script>
+"""
+            proc wsReloader(): string =
+                # Reload Supranim application using
+                # a WebSocket Connection 
+                # TODO
+                result = ""
+            case engine.getReloadType():
+            of HttpReloader:
+                result.add httpReloader()
+            of WSReloader:
+                result.add wsReloader()
+            else: discard
+    result.add layout.getHtmlTailsCode()
 
 proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode = %*{}): string =
     ## Renders a template view by name. Use dot-annotations
@@ -35,65 +86,32 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
         if not engine.hasLayout(layoutKey):
             raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
         var layout: TimlTemplate = engine.getLayout(layoutKey)
-        result = Docktype
-        result.add layout.getHtmlCode()
-        result.add view.getHtmlCode()
-        when requires "supranim":
-            when not defined release:
-                proc httpReloader(): string =
-                    # Reload Supranim application using
-                    # the HttpReloader method
-                    result = """
-<script type="text/javascript">
-document.addEventListener("DOMContentLoaded", function() {
-    var prevTime = localStorage.getItem("watchout") || 0
-    let watchoutLiveReload = function() {
-        fetch('/watchout')
-            .then(response => response.json())
-            .then(body => {
-                if(body.state == 0) return
-                if(body.state > prevTime) {
-                    localStorage.setItem("watchout", body.state)
-                    location.reload()
-                }
-            }).catch(function() {});
-        setTimeout(watchoutLiveReload, 500)
-    }
-    watchoutLiveReload();
-});
-</script>
-"""
-                proc wsReloader(): string =
-                    # Reload Supranim application using
-                    # a WebSocket Connection 
-                    # TODO
-                    result = ""
-                case engine.getReloadType():
-                of HttpReloader:
-                    result.add httpReloader()
-                of WSReloader:
-                    result.add wsReloader()
-                else: discard
-
-        result.add layout.getHtmlTailsCode()
+        if view.isJitEnabled():
+            engine.jitHtml(view, layout, data)
+        else:
+            result = engine.staticHtml(view, layout)
 
 proc preCompileTemplate(engine: TimEngine, temp: var TimlTemplate) =
     let tpType = temp.getType()
     var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = tpType)
     if p.hasError():
         raise newException(TimSyntaxError, "\n"&p.getError())
-    let c = Compiler.init(
-        p.getStatements(),
-        minified = engine.shouldMinify(),
-        templateType = tpType,
-        baseIndent = engine.getIndent()
-    )
-    if tpType == Layout:
-        # Save layout tails in a separate .html file, suffixed with `_`
-        engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
-    engine.writeHtml(temp, c.getHtml())
+    if p.hasJIT():
+        temp.enableJIT()
+        engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
+    else:
+        let c = Compiler.init(
+            p.getStatements(),
+            minified = engine.shouldMinify(),
+            templateType = tpType,
+            baseIndent = engine.getIndent()
+        )
+        if tpType == Layout:
+            # Save layout tails in a separate .html file, suffixed with `_`
+            engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
+        engine.writeHtml(temp, c.getHtml())
 
-proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
+proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
                 debug = false): seq[string] {.discardable.} =
     ## Pre-compile ``views`` and ``layouts``
     ## from ``.timl`` to HTML or BSON.
@@ -118,7 +136,8 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
                     else:
                         Tim.preCompileTemplate(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
-                    callback()
+                    if callback != nil:
+                        callback()
                 var watchFiles: seq[string]
                 when compileOption("threads"):
                     for id, view in Tim.getViews().mpairs():
@@ -148,17 +167,13 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.},
             result.add layout.getName()
 
 when isMainModule:
-    proc refresh() =
-        echo "refresh"
     Tim.init(
         source = "../examples/templates",
         output = "../examples/storage",
         indent = 2,
-        minified = false,
-        reloader = HttpReloader
+        minified = false
     )
-    let timTemplates = Tim.precompile do(): refresh()
-    for k, timTemplate in timTemplates.pairs():
-        let count = k + 1
-        echo "$1. $2" % [$count, timTemplate]
-    echo Tim.render "index"
+    let timTemplates = Tim.precompile()
+    echo Tim.render("index", data = %*{
+        "name": "George Lemon"
+    })

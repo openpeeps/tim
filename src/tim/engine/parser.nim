@@ -91,8 +91,8 @@ proc getError*[P: Parser](p: var P): string =
     elif p.error.len != 0:
         result = p.error
 
-proc parse*[T: TimEngine](engine: T, code, path: string,
-                        templateType: TimlTemplateType, data: JsonNode = %*{}): Parser
+proc parse*(engine: TimEngine, code, path: string,
+            templateType: TimlTemplateType): Parser
 
 proc getStatements*[P: Parser](p: P, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
@@ -104,10 +104,10 @@ proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, HtmlNode] =
 
 proc getStatementsStr*[P: Parser](p: P, prettyString = false): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
-    # if prettyString: 
-    #     result = pretty(p.getStatements(asJsonNode = true))
-    # else:
-    result = pretty(toJson(p.statements))
+    if prettyString: 
+        result = pretty(toJson(p.getStatements()))
+    else:
+        result = $(toJson(p.statements))
 
 template jit[P: Parser](p: var P) =
     ## Enable jit flag When current document contains
@@ -128,7 +128,7 @@ proc jump[P: Parser](p: var P, offset = 1) =
 
 proc isAttributeOrText(token: TokenTuple): bool =
     ## Determine if current token is an attribute name based on its siblings.
-    result = token.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON}
+    result = token.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE}
 
 proc hasID[T: HtmlNode](node: T): bool {.inline.} =
     ## Determine if current HtmlNode has an ID attribute
@@ -296,13 +296,14 @@ proc walk(p: var Parser) =
         childNodes: HtmlNode
         deferChildSeq: seq[HtmlNode]
     p.statements = Program()
-    jit p
     while p.hasError() == false and p.current.kind != TK_EOF:
         if p.current.isConditional():
+            jit p
             conditionNode = newConditionNode(p.current)
             p.parseCondition(conditionNode)
             continue
         elif p.current.isIteration():
+            jit p
             iterationNode = IterationNode()
             p.parseIteration(iterationNode)
             continue
@@ -346,8 +347,8 @@ proc walk(p: var Parser) =
                 p.statements.nodes.add(node)
             node = nil
 
-proc parse*[T: TimEngine](engine: T, code, path: string,
-                          templateType: TimlTemplateType, data: JsonNode = %*{}): Parser =
+proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
+    ## Parse a new Tim document
     var importHandler = resolveWithImports(code, path, engine, templateType)
     var p: Parser = Parser(engine: engine)
     if importHandler.hasError():
@@ -355,7 +356,7 @@ proc parse*[T: TimEngine](engine: T, code, path: string,
         return p
     else:
         p.lexer = Lexer.init(importHandler.getFullCode(), allowMultilineStrings = true)
-        p.data = Data.init(data)
+        # p.data = Data.init(data)
         p.filePath = path
 
     p.current = p.lexer.getToken()

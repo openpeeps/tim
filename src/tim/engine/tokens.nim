@@ -205,7 +205,7 @@ tokens:
     Colon        > ':' 
     Nest_OP      > '>'
     And          > '&'
-    Variable     > tokenize(indentHandler, '$')
+    Variable     > tokenize(handleCustomIdent, '$')
     If           > "if"
     Elif         > "elif"
     Else         > "else"

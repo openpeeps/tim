@@ -3,6 +3,15 @@
 # (c) 2022 Tim Engine is released under MIT License
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
+proc parseVariable(p: var Parser, tokenVar: TokenTuple): VariableNode =
+    ## Parse and validate given VariableNode
+    # var varNode: VariableNode
+    let varName: string = tokenVar.value
+    # if not p.data.hasVar(varName):
+    #     p.setError UndeclaredVariable % [varName]
+    #     return nil
+    result = newVariableNode(varName, "")
+    jit p
 
 template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0 ): untyped =
     ## Set HTML attributes for current HtmlNode, this template covers
@@ -52,6 +61,7 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
                 var varName: string
                 if p.current.kind == TK_VARIABLE:
                     varName = p.current.value
+                    jit p
                 p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
                 if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
                     echo p.next
@@ -81,7 +91,8 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
                         p.setError InvalidIndentation, true
                 var htmlTextNode = newTextNode(currentTextValue, (col, nodeIndent, line, 0, 0), nodeConcat)
                 if varName.len != 0:
-                    htmlTextNode.vasAssignment = newVariableNode(varName, p.data.getVar(varName))
+                    htmlTextNode.varAssignment = newVariableNode(varName, "")
+                    jump p
                 htmlNode.nodes.add(htmlTextNode)
             break
         else: break
@@ -91,16 +102,6 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
             htmlNode.attributes.add(HtmlAttribute(name: attrName, value: attrValues.join(" ")))
         hasAttributes = false
     clear(attributes)
-
-proc parseVariable(p: var Parser, tokenVar: TokenTuple): VariableNode =
-    ## Parse and validate given VariableNode
-    # var varNode: VariableNode
-    let varName: string = tokenVar.value
-    if not p.data.hasVar(varName):
-        p.setError UndeclaredVariable % [varName]
-        return nil
-    result = newVariableNode(varName, p.data.getVar(varName))
-    jit p
 
 template parseIteration(p: var Parser, interationNode: IterationNode): untyped =
     if p.next.kind != TK_VARIABLE:

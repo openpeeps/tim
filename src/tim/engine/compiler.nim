@@ -15,9 +15,9 @@ type
         index, line, offset: int
             ## The line number that is currently compiling
         program: Program
-            ## All Nodes statements under a ``Program`` object instance
+            ## All Nodes statements under a `Program` object instance
         tags: OrderedTable[int, seq[DeferTag]]
-            ## A sequence of tuple containing ``tag`` name and ``HtmlNode``
+            ## A sequence of tuple containing `tag` name and `HtmlNode`
             ## representation used for rendering the closing tags
             ## after resolving multi dimensional nodes
         minified: bool
@@ -26,6 +26,7 @@ type
             ## A rope containg the final HTML output
         templateType: TimlTemplateType
         baseIndent: int
+        data: JsonNode
 
 const NewLine = "\n"
 
@@ -44,7 +45,7 @@ proc indentLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail, skipBr = 
             add compiler.html, NewLine
 
 proc hasAttributes(node: HtmlNode): bool =
-    ## Determine if current ``HtmlNode`` has any HTML attributes
+    ## Determine if current `HtmlNode` has any HTML attributes
     result = node.attributes.len != 0
 
 proc writeAttributes[C: Compiler](c: var C, node: HtmlNode) =
@@ -100,7 +101,7 @@ proc getNextLevel[C: Compiler](c: var C, currentIndent, index: int): tuple[meta:
         result = (meta: (0, 0, 0, 0, 0), typeLevel: None)
 
 proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
-    ## Add closing tags to ``tags`` table for resolving later
+    ## Add closing tags to `tags` table for resolving later
     if not htmlNode.nodeType.isSelfClosingTag:
         let lineno = htmlNode.meta.line
         if not c.tags.hasKey(lineno):
@@ -110,8 +111,8 @@ proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
             isInlineElement = htmlNode.nodes[0].nodeType == Htmltext
         c.tags[lineno].add (tag: tag, meta: htmlNode.meta, isInlineElement: isInlineElement)
 
-proc resolveDeferredTags[C: Compiler](c: var C, lineno: int, withOffset = false) =
-    ## Resolve all deferred closing tags and add to current ``Rope``
+proc resolveDeferredTags(c: var Compiler, lineno: int, withOffset = false) =
+    ## Resolve all deferred closing tags and add to current `Rope`
     if c.tags.hasKey(lineno):
         var tags = c.tags[lineno]
         tags.reverse() # tags list
@@ -120,8 +121,8 @@ proc resolveDeferredTags[C: Compiler](c: var C, lineno: int, withOffset = false)
             c.tags[lineno].delete(0)
         c.tags.del(lineno)
 
-proc resolveAllDeferredTags[C: Compiler](c: var C) =
-    ## Resolve remained deferred closing tags and add to current ``Rope``
+proc resolveAllDeferredTags(c: var Compiler) =
+    ## Resolve remained deferred closing tags and add to current `Rope`
     var i = 0
     var linesno: seq[int]
     for k in c.tags.keys():
@@ -138,7 +139,7 @@ proc resolveAllDeferredTags[C: Compiler](c: var C) =
         c.tags.del(lineno)
         inc i
 
-proc resolveTag[C: Compiler](c: var C, lineno: int) =
+proc resolveTag(c: var Compiler, lineno: int) =
     ## Resolve a deferred tag by specified line number
     if c.tags.hasKey(lineno):
         var tags = c.tags[lineno]
@@ -152,9 +153,9 @@ proc getAstLine(nodeName: string, indentSize: int) =
     # Used for debug-only
     echo indent(nodeName, indentSize)
 
-proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int)
+proc writeLine(c: var Compiler, nodes: seq[HtmlNode], index: var int)
 
-proc writeElement[C: Compiler](c: var C, htmlNode: HtmlNode, index: var int) =
+proc writeElement(c: var Compiler, htmlNode: HtmlNode, index: var int) =
     ## Write an HTML element and its sub HTML nodes, if any
     let tag = htmlNode.nodeName
     c.openTag(tag, htmlNode)
@@ -162,24 +163,31 @@ proc writeElement[C: Compiler](c: var C, htmlNode: HtmlNode, index: var int) =
     if htmlNode.nodes.len != 0:
         c.writeLine(htmlNode.nodes, index)
 
-proc writeTextElement[C: Compiler](c: var C, node: HtmlNode) =
-    ## Write ``HtmlText`` content
+proc writeTextElement(c: var Compiler, node: HtmlNode) =
+    ## Write `HtmlText` content
     add c.html, node.text
     if node.concat.len != 0:
         for nodeConcat in node.concat:
             add c.html, indent(nodeConcat.text, 1)
 
-proc writeLine[C: Compiler](c: var C, nodes: seq[HtmlNode], index: var int) =
+proc writeVarTextElement(c: var Compiler, node: HtmlNode) =
+    ## Write `HtmlText` content from a variable
+    add c.html, c.data[node.varAssignment.getVarName()].getStr
+
+proc writeLine(c: var Compiler, nodes: seq[HtmlNode], index: var int) =
     ## Write current line of HTML Nodes.
     for node in nodes:
         case node.nodeType:
         of HtmlText:
-            c.writeTextElement(node)
+            if node.varAssignment != nil:
+                c.writeVarTextElement(node)
+            else:
+                c.writeTextElement(node)
             c.resolveDeferredTags(node.meta.line)
         else:
             c.writeElement(node, index)
 
-proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int, skipBr = false) =
+proc writeHtmlElement(c: var Compiler, node: Node, index: var int, skipBr = false) =
     let tag = node.htmlNode.nodeName
     c.openTag(tag, node.htmlNode, skipBr = skipBr)
     c.deferTag(tag, node.htmlNode)
@@ -188,7 +196,7 @@ proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int, skipBr 
         c.writeLine(node.htmlNode.nodes, index)
     let next = c.getNextLevel(node.htmlNode.meta.indent, index)
     case next.typeLevel:
-    of Upper:        
+    of Upper:
         var i = index
         while true:
             var prev: MetaNode
@@ -213,7 +221,7 @@ proc writeHtmlElement[C: Compiler](c: var C, node: Node, index: var int, skipBr 
     else:
         c.resolveAllDeferredTags()
 
-proc writeLine[C: Compiler](c: var C) =
+proc writeLine(c: var Compiler) =
     ## Main procedure for writing HTMLelements line by line
     ## based on given BSON Abstract Syntax Tree
     var index = 0
@@ -227,24 +235,28 @@ proc writeLine[C: Compiler](c: var C) =
             c.writeHtmlElement(node, index, index == 0)
         inc index
 
-proc getHtmlJit*[C: Compiler](c: C): string {.inline.} =
-    ## Return compiled timl code as HTML
+proc getHtmlJit*(c: Compiler): string {.inline.} =
+    ## Returns compiled HTML based on dynamic data
     result = $(c.html)
 
-proc getHtml*[C: Compiler](c: C): string {.inline.} =
-    ## Return compiled timl code as HTML.
+proc getHtml*(c: Compiler): string {.inline.} =
+    ## Returns compiled HTML for static `timl` templates
     result = $(c.html)
 
-proc getHtmlTails*[C: Compiler](c: C): string {.inline.} =
+proc getHtmlTails*(c: Compiler): string {.inline.} =
     ## Retrieve the tails and deferred elements for current layout
     result = $(c.htmlTails)
 
 proc init*(compilerInstance: typedesc[Compiler], astProgram: Program,
-        minified: bool, templateType: TimlTemplateType, baseIndent: int): Compiler =
+        minified: bool, templateType: TimlTemplateType, baseIndent: int, data = %*{}): Compiler =
     ## By default, Tim engine output is pure minified.
     ## Set `minified` to false to disable this feature.
-    var c = compilerInstance(minified: minified, templateType: templateType, baseIndent: baseIndent)
-    # c.program = fromJson(astNodes, Program)
+    var c = compilerInstance(
+        minified: minified,
+        templateType: templateType,
+        baseIndent: baseIndent,
+        data: data
+    )
     c.program = astProgram
     c.writeLine()
     result = c
