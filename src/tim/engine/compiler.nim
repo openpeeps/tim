@@ -1,7 +1,7 @@
 import ./ast
 import std/[json, ropes, tables]
 
-from std/strutils import toLowerAscii, `%`, indent
+from std/strutils import toLowerAscii, `%`, indent, multiReplace
 from std/algorithm import reverse, SortOrder
 from ./meta import TimlTemplateType
 
@@ -27,6 +27,7 @@ type
         templateType: TimlTemplateType
         baseIndent: int
         data: JsonNode
+        safeEscape: bool
 
 const NewLine = "\n"
 
@@ -172,7 +173,17 @@ proc writeTextElement(c: var Compiler, node: HtmlNode) =
 
 proc writeVarTextElement(c: var Compiler, node: HtmlNode) =
     ## Write `HtmlText` content from a variable
-    add c.html, c.data[node.varAssignment.getVarName()].getStr
+    var varValue = c.data[node.varAssignment.getVarName()].getStr
+    if c.safeEscape:
+        varValue = multiReplace(varValue,
+            ("^", "&amp;"),
+            ("<", "&lt;"),
+            (">", "&gt;"),
+            ("\"", "&quot;"),
+            ("'", "&#x27;"),
+            ("`", "&grave;")
+        )
+    add c.html, varValue
 
 proc writeLine(c: var Compiler, nodes: seq[HtmlNode], index: var int) =
     ## Write current line of HTML Nodes.
@@ -248,14 +259,15 @@ proc getHtmlTails*(c: Compiler): string {.inline.} =
     result = $(c.htmlTails)
 
 proc init*(compilerInstance: typedesc[Compiler], astProgram: Program,
-        minified: bool, templateType: TimlTemplateType, baseIndent: int, data = %*{}): Compiler =
-    ## By default, Tim engine output is pure minified.
-    ## Set `minified` to false to disable this feature.
+        minified: bool, templateType: TimlTemplateType,
+        baseIndent: int, data = %*{}, safeEscape = true): Compiler =
+    ## Create a new Compiler instance
     var c = compilerInstance(
         minified: minified,
         templateType: templateType,
         baseIndent: baseIndent,
-        data: data
+        data: data,
+        safeEscape: safeEscape
     )
     c.program = astProgram
     c.writeLine()

@@ -23,61 +23,21 @@ const DockType = "<!DOCTYPE html>"
 
 var Tim* {.global.}: TimEngine
 
-proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode) =
-    echo "jit compilation"
-    # var jitProgram = fromJson(engine.readBson(view), Program)
-    echo engine.readBson(view)
+proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, escape: bool): string =
     let c = Compiler.init(
         astProgram = fromJson(engine.readBson(view), Program),
         minified = engine.shouldMinify(),
         templateType = view.getType(),
         baseIndent = engine.getIndent(),
-        data = data
+        data = data,
+        safeEscape = escape
     )
-    echo c.getHtml()
-    # echo jitProgram.nodes.len
+    result = c.getHtml()
 
 proc staticHtml(engine: TimEngine, view, layout: TimlTemplate): string =
-    result = DockType
-    result.add layout.getHtmlCode()
     result.add view.getHtmlCode()
-    when requires "supranim":
-        when not defined release:
-            proc httpReloader(): string =
-                result = """
-<script type="text/javascript">
-document.addEventListener("DOMContentLoaded", function() {
-    var prevTime = localStorage.getItem("watchout") || 0
-    function liveChanges() {
-        fetch('/watchout')
-            .then(res => res.json())
-            .then(body => {
-                if(body.state == 0) return
-                if(body.state > prevTime) {
-                    localStorage.setItem("watchout", body.state)
-                    location.reload()
-                }
-            }).catch(function() {});
-        setTimeout(liveChanges, 500)
-    }
-    liveChanges();
-});
-</script>
-"""
-            proc wsReloader(): string =
-                # Reload Supranim application using
-                # a WebSocket Connection 
-                # TODO
-                result = ""
-            case engine.getReloadType():
-            of HttpReloader:
-                result.add httpReloader()
-            of WSReloader:
-                result.add wsReloader()
-            else: discard
-    result.add layout.getHtmlTailsCode()
 
-proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode = %*{}): string =
+proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode = %*{}, escape = true): string =
     ## Renders a template view by name. Use dot-annotations
     ## for rendering views in nested directories.
     if engine.hasView(key):
@@ -86,10 +46,46 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
         if not engine.hasLayout(layoutKey):
             raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
         var layout: TimlTemplate = engine.getLayout(layoutKey)
+        result = DockType
+        result.add layout.getHtmlCode()
         if view.isJitEnabled():
-            engine.jitHtml(view, layout, data)
+            # When enabled, compile `timl` code to `html` on the fly
+            result.add engine.jitHtml(view, layout, data, escape)
         else:
-            result = engine.staticHtml(view, layout)
+            # Otherwise render precompiled templates
+            result.add engine.staticHtml(view, layout)
+
+        when requires "supranim":
+            when not defined release:
+                # Enable hot code autoreload when loaded
+                # from a Supranim web application
+                proc httpReloader(): string =
+                    result = """
+    <script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function() {
+        var prevTime = localStorage.getItem("watchout") || 0
+        function liveChanges() {
+            fetch('/watchout')
+                .then(res => res.json())
+                .then(body => {
+                    if(body.state == 0) return
+                    if(body.state > prevTime) {
+                        localStorage.setItem("watchout", body.state)
+                        location.reload()
+                    }
+                }).catch(function() {});
+            setTimeout(liveChanges, 500)
+        }
+        liveChanges();
+    });
+    </script>
+    """
+                case engine.getReloadType():
+                    of HttpReloader:
+                        # reload handler using http requests
+                        result.add httpReloader()
+                    else: discard
+        result.add layout.getHtmlTailsCode()
 
 proc preCompileTemplate(engine: TimEngine, temp: var TimlTemplate) =
     let tpType = temp.getType()
@@ -175,5 +171,5 @@ when isMainModule:
     )
     let timTemplates = Tim.precompile()
     echo Tim.render("index", data = %*{
-        "name": "George Lemon"
-    })
+        "name": "George Lemon <script>"
+    }, escape = false)
