@@ -49,7 +49,7 @@ var Tim*: TimEngine.init(
                 # Used to indent your HTML output (ignored when `minified` is true)
         )
 
-# Precompile your `.timl` templates
+# Precompile your `.timl` templates at boot-time
 Tim.precompile()
 
 # Render a specific view by name (filename, or subdir.filename_without_ext)
