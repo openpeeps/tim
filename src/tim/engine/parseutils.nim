@@ -33,14 +33,14 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
                 attributes["class"] = @[p.next.value]
             jump p, 2
         elif p.current.kind == TK_ATTR_ID and p.next.kind == TK_IDENTIFIER:
-            # TODO check for wsno for `#` token
+            # TODO check wsno for `#` token
             if htmlNode.hasID():
                 p.setError InvalidAttributeId, true
             id = IDAttribute(value: p.next.value)
             if id != nil: htmlNode.id = id
             jump p, 2
         elif p.current.kind in {TK_IDENTIFIER, TK_STYLE} and p.next.kind == TK_ASSIGN:
-            # TODO check for wsno for other `attr` token
+            # TODO check wsno for other `attr` token
             p.current.kind = TK_IDENTIFIER
             let attrName = p.current.value
             jump p
@@ -62,12 +62,11 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
                 if p.current.kind == TK_VARIABLE:
                     varName = p.current.value
                     jit p
-                else:
-                    p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
-                    if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
-                        p.setError InvalidIndentation, true
-                    elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
-                        p.setError InvalidIndentation, true
+                p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
+                if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
+                    p.setError InvalidIndentation, true
+                elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
+                    p.setError InvalidIndentation, true
                 var currentTextValue = p.current.value
                 var nodeConcat: seq[HtmlNode]
                 let col = p.current.pos

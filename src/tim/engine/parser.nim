@@ -7,7 +7,8 @@
 import std/[tables, with, json, jsonutils]
 
 import tokens, ast, data
-from resolver import resolveWithImports, hasError, getError, getErrorLine, getErrorColumn, getFullCode
+from resolver import resolve, hasError, getError,
+                    getErrorLine, getErrorColumn, getFullCode
 
 from meta import TimEngine, TimlTemplate, TimlTemplateType, getContents, getFileData
 from std/strutils import `%`, isDigit, join, endsWith
@@ -348,13 +349,16 @@ proc walk(p: var Parser) =
 
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
-    var importHandler = resolveWithImports(code, path, engine, templateType)
+    var iHandler = resolve(code, path, engine, templateType)
     var p: Parser = Parser(engine: engine)
-    if importHandler.hasError():
-        p.setError(importHandler.getError(), importHandler.getErrorLine(), importHandler.getErrorColumn())
+    if iHandler.hasError():
+        p.setError(
+            iHandler.getError(),
+            iHandler.getErrorLine(),
+            iHandler.getErrorColumn())
         return p
     else:
-        p.lexer = Lexer.init(importHandler.getFullCode(), allowMultilineStrings = true)
+        p.lexer = Lexer.init(iHandler.getFullCode(), allowMultilineStrings = true)
         # p.data = Data.init(data)
         p.filePath = path
 

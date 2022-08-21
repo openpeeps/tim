@@ -99,22 +99,20 @@ template loadCode[T: Importer](p: var T, engine: TimEngine, indent: int) =
             p.partials[p.current.line] = (indent, path)
             getTemplateByPath(engine, path).addDependentView(p.currentFilePath)
 
-template parsePartial[T: Importer](p: var T, engine: TimEngine) =
-    ## Look for all ``TK_INCLUDE`` tokens and try
-    ## to load partial file contents inside of the main view
-    if p.current.kind in htmlHeadElements and p.templateType != TimlTemplateType.Layout:
-        p.setError "Views cannot contain Head elements. Use a layout instead", p.currentFilePath
-        break
-
-    if p.current.kind == TK_INCLUDE:
-        let indent = p.current.col
-        if p.next.kind != TK_STRING:
-            p.setError "Invalid import statement missing file path.", p.currentFilePath
+template resolveChunks(p: var Importer, engine: TimEngine) =
+    if p.templateType in {View, Partial}:
+        if p.current.kind in htmlHeadElements:
+            p.setError "Views cannot contain Head elements. Use a layout instead", p.currentFilePath
             break
-        jump p
-        loadCode(p, engine, indent)
+        if p.current.kind == TK_INCLUDE:
+            let indent = p.current.col
+            if p.next.kind != TK_STRING:
+                p.setError "Invalid import statement missing file path.", p.currentFilePath
+                break
+            jump p
+            loadCode(p, engine, indent)
 
-proc resolveWithImports*(viewCode, currentFilePath: string,
+proc resolve*(viewCode, currentFilePath: string,
                         engine: TimEngine, templateType: TimlTemplateType): Importer =
     ## Resolve ``@include`` statements in main view code.
     var p = Importer(lex: Lexer.init(viewCode),
@@ -123,12 +121,12 @@ proc resolveWithImports*(viewCode, currentFilePath: string,
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:
-        p.parsePartial(engine)
+        p.resolveChunks(engine)
         jump p
     if p.error.len == 0:
-        var codeStream = newStringStream(viewCode)
+        var sourceStream = newStringStream(viewCode)
         var lineno = 1
-        for line in lines(codeStream):
+        for line in lines(sourceStream):
             if p.partials.hasKey(lineno):
                 let path: SourcePath = p.partials[lineno].source
                 let code: SourceCode = p.sources[path]
@@ -138,5 +136,5 @@ proc resolveWithImports*(viewCode, currentFilePath: string,
             else:
                 p.rope.add line & "\n"
             inc lineno
-        codeStream.close()
+        sourceStream.close()
     result = p

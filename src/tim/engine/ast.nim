@@ -211,18 +211,22 @@ type
 
     MetaNode* = tuple[column, indent, line, childOf, depth: int]
 
-    HtmlNode* = ref object
+    InnerNode* = ref object of RootObj
+        nodeName*: string
+        meta*: MetaNode
+
+    HtmlNode* = ref object of InnerNode
         case nodeType*: HtmlNodeType
         of HtmlText:
             text*: string
             varAssignment*: VariableNode
             concat*: seq[HtmlNode]
-        else: nil
-        nodeName*: string
+        else: discard
         id*: IDAttribute
+            ## HTML ID attribute
         attributes*: seq[HtmlAttribute]
+            ## Custom HTML attributes
         nodes*: seq[HtmlNode]
-        meta*: MetaNode
 
     VariableContentType* = enum
         ValueInvalid
@@ -260,53 +264,33 @@ type
 
     ComparatorNode* = ref object
         comparator*: ComparatorType
-            ## The logical comparator used to compare ``aNode`` and ``bNode``.
-            ## It can be either ``Equal``, ``NotEqual``, ``Great``,
-            ## ``GreatOrEqual``, ``Less`` or ``LessOrEqual``
-        aNode*: VariableNode
-            ## A version of ``VariableNode``
-        bNode*: VariableNode
-            ## B version of ``VariableNode``
+        aNode, bNode*: VariableNode
 
-    ConditionalNode* = ref object
+    ConditionalNode* = ref object of InnerNode
         ## Object representation for conditional statements
         conditionType*: ConditionalType
-            ## It can be either, ``If``, ``Elif`` or ``Else``
-        nodeName*: string
         comparatorNode*: ComparatorNode
-            ## The logical comparator used for current conditional statement
         nodes*: seq[HtmlNode]
-            ## A sequence holding one or more HtmlNode inside
-            ## current Conditional statement
-        meta*: MetaNode
-            ## ``MetaNode`` of current statement
 
     IterationNode* = ref object
         ## Object representation for handling loop statements
         varItemName*: string
-            ## A temporary variable name available for current iteration
         varItemsName*: string
-            ## The variable name that contains data
         nodes*: seq[Node]
-            # A sequence containing `HtmlNode` for the current iteration
 
     NodeType* = enum
         ConditionalStatement
         HtmlElement
         LoopStatement
     
-    Node* = ref object
-        nodeName*: string
-            ## Symbol name of NodeType
-        case nodeType*: NodeType            ## get the NodeType from ``NodeType`` enum
-        of ConditionalStatement:
-            conditionNode*: ConditionalNode
-                ## Handle ``ConditionalNode`` instances
-        of HtmlElement:
-            htmlNode*: HtmlNode
-                ## Handle ``HtmlNode`` instances
-        of LoopStatement:
-            iterationNode*: IterationNode
+    Node* = ref object of InnerNode
+        case nodeType*: NodeType
+            of ConditionalStatement:
+                conditionNode*: ConditionalNode
+            of HtmlElement:
+                htmlNode*: HtmlNode
+            of LoopStatement:
+                iterationNode*: IterationNode
 
     Program* = object
         nodes*: seq[Node]

@@ -7,7 +7,7 @@
 import pkginfo, jsony
 import tim/engine/[ast, parser, compiler, meta]
 import std/[tables, json]
-from std/strutils import `%`
+from std/strutils import `%`, indent
 
 when requires "watchout":
     import watchout
@@ -25,15 +25,14 @@ var Tim* {.global.}: TimEngine
 
 proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, escape: bool): string =
     # JIT compilation layout
-    let clayout = Compiler.init(
-        astProgram = fromJson(engine.readBson(layout), Program),
-        minified = engine.shouldMinify(),
-        templateType = TimlTemplateType.Layout,
-        baseIndent = engine.getIndent(),
-        data = data,
-        safeEscape = escape
-    )
-
+    # let clayout = Compiler.init(
+    #     astProgram = fromJson(engine.readBson(layout), Program),
+    #     minified = engine.shouldMinify(),
+    #     templateType = TimlTemplateType.Layout,
+    #     baseIndent = engine.getIndent(),
+    #     data = data,
+    #     safeEscape = escape
+    # )
     # JIT compilation view template
     let cview = Compiler.init(
         astProgram = fromJson(engine.readBson(view), Program),
@@ -43,8 +42,8 @@ proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, esca
         data = data,
         safeEscape = escape
     )
-    result = clayout.getHtml()
-    result.add cview.getHtml()
+    # result = clayout.getHtml()
+    result = cview.getHtml()
 
 proc staticHtml(engine: TimEngine, view, layout: TimlTemplate): string =
     result.add view.getHtmlCode()
@@ -66,7 +65,10 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
         else:
             # Otherwise render precompiled templates
             result.add layout.getHtmlCode()
-            result.add engine.staticHtml(view, layout)
+            if engine.shouldMinify():
+                result.add engine.staticHtml(view, layout)
+            else:
+                result.add indent(engine.staticHtml(view, layout), engine.getIndent() * 2)
 
         when requires "supranim":
             when not defined release:
@@ -139,7 +141,7 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                     var timlTemplate = getTemplateByPath(Tim, file.getPath())
                     if timlTemplate.isPartial:
                         for depView in timlTemplate.getDependentViews():
-                            Tim.preCompileTemplate(getTemplateByPath Tim, depView)
+                            Tim.preCompileTemplate(getTemplateByPath(Tim, depView))
                     else:
                         Tim.preCompileTemplate(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)

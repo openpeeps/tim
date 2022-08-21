@@ -31,7 +31,7 @@ type
 
 const NewLine = "\n"
 
-method getIndent(compiler: var Compiler, nodeIndent: int): int =
+proc getIndent(compiler: var Compiler, nodeIndent: int): int =
     if compiler.baseIndent == 2:
         return int(nodeIndent / compiler.baseIndent)
     result = nodeIndent
@@ -243,7 +243,8 @@ proc writeLine(c: var Compiler) =
         if index == nodeslen: break
         let node = c.program.nodes[index]
         if node.nodeType == NodeType.HtmlElement:
-            c.writeHtmlElement(node, index, index == 0)
+            # c.writeHtmlElement(node, index, index == 0)
+            c.writeHtmlElement(node, index)
         inc index
 
 proc getHtmlJit*(c: Compiler): string {.inline.} =
