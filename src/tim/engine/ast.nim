@@ -215,18 +215,18 @@ type
         nodeName*: string
         meta*: MetaNode
 
-    HtmlNode* = ref object of InnerNode
-        case nodeType*: HtmlNodeType
-        of HtmlText:
-            text*: string
-            varAssignment*: VariableNode
-            concat*: seq[HtmlNode]
-        else: discard
-        id*: IDAttribute
-            ## HTML ID attribute
-        attributes*: seq[HtmlAttribute]
-            ## Custom HTML attributes
-        nodes*: seq[HtmlNode]
+    # HtmlNode* = ref object of InnerNode
+    #     case nodeType*: HtmlNodeType
+    #     of HtmlText:
+    #         text*: string
+    #         varAssignment*: VariableNode
+    #         concat*: seq[Node]
+    #     else: discard
+    #     id*: IDAttribute
+    #         ## HTML ID attribute
+    #     attributes*: seq[HtmlAttribute]
+    #         ## Custom HTML attributes
+    #     nodes*: seq[Node]
 
     VariableContentType* = enum
         ValueInvalid
@@ -240,13 +240,6 @@ type
         varName: string
         varTypeName: string
         varType*: VariableContentType
-        # case varType*: VariableContentType
-        # of ValueBool: boolValue: bool
-        # of ValueInt: intValue: BiggestInt
-        # of ValueFloat: floatValue: float
-        # of ValueNull: nullValue: string
-        # of ValueString: stringValue: string
-        # of ValueInvalid: invalidValue: string
         meta*: MetaNode
 
     ConditionalType* = enum
@@ -270,7 +263,7 @@ type
         ## Object representation for conditional statements
         conditionType*: ConditionalType
         comparatorNode*: ComparatorNode
-        nodes*: seq[HtmlNode]
+        nodes*: seq[Node]
 
     IterationNode* = ref object
         ## Object representation for handling loop statements
@@ -288,9 +281,24 @@ type
             of ConditionalStatement:
                 conditionNode*: ConditionalNode
             of HtmlElement:
-                htmlNode*: HtmlNode
+                # htmlNode*: HtmlNode
+                htmlNodeName*: string
+                case htmlNodeType*: HtmlNodeType
+                of HtmlText:
+                    htmlText*: string
+                    varAssignment*: VariableNode
+                    concat*: seq[Node]
+                else: discard
+                id*: IDAttribute
+                    ## HTML ID attribute
+                attributes*: seq[HtmlAttribute]
+                    ## Custom HTML attributes
+                nodes*: seq[Node]
             of LoopStatement:
                 iterationNode*: IterationNode
+                # TODO
+                # loopVarItemName, loopVarItemsName: string
+                # loopNodes: seq[Node]
 
     Program* = object
         nodes*: seq[Node]
@@ -519,7 +527,6 @@ proc isSelfClosingTag*(nodeType: HtmlNodeType): bool =
                          HtmlHr, HtmlImg, HtmlInput, HtmlLink, HtmlMeta,
                          HtmlParam, HtmlSource, HtmlTrack, HtmlWbr} + SvgSelfClosingTags
 
-
 proc getConditionalNodeType*(kind: TokenKind): ConditionalType = 
     case kind:
         of TK_IF: result = If
@@ -527,12 +534,13 @@ proc getConditionalNodeType*(kind: TokenKind): ConditionalType =
         of TK_ELSE: result = Else
         else: discard
 
-proc newTextNode*(nodeTextValue: string,
-    metaTuple: tuple[column, indent, line, childOf, depth: int], nodeConcat: seq[HtmlNode] = @[]): HtmlNode =
-    result = HtmlNode(
-        nodeType: HtmlText,
-        nodeName: getSymbolName(HtmlText),
-        text: nodeTextValue,
+proc newTextNode*(nodeTextValue: string, metaTuple: MetaNode, nodeConcat: seq[Node] = @[]): Node =
+    result = Node(
+        nodeType: HtmlElement,
+        nodeName: getSymbolName(HtmlElement),
+        htmlNodeType: HtmlText,
+        htmlNodeName: getSymbolName(HtmlText),
+        htmlText: nodeTextValue,
         concat: nodeConcat,
         meta: metaTuple
     )

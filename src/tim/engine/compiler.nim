@@ -17,7 +17,7 @@ type
         program: Program
             ## All Nodes statements under a `Program` object instance
         tags: OrderedTable[int, seq[DeferTag]]
-            ## A sequence of tuple containing `tag` name and `HtmlNode`
+            ## A sequence of tuple containing `tag` name and `Node`
             ## representation used for rendering the closing tags
             ## after resolving multi dimensional nodes
         minified: bool
@@ -45,24 +45,24 @@ proc indentLine[C: Compiler](compiler: var C, meta: MetaNode, fixTail, skipBr = 
         if not skipBr:
             add compiler.html, NewLine
 
-proc hasAttributes(node: HtmlNode): bool =
-    ## Determine if current `HtmlNode` has any HTML attributes
+proc hasAttributes(node: Node): bool =
+    ## Determine if current `Node` has any HTML attributes
     result = node.attributes.len != 0
 
-proc writeAttributes[C: Compiler](c: var C, node: HtmlNode) =
+proc writeAttributes[C: Compiler](c: var C, node: Node) =
     ## write one or more HTML attributes
     for attr in node.attributes.items():
         add c.html, ("$1=\"$2\"" % [attr.name, attr.value]).indent(1)
 
-proc hasIDAttribute(node: HtmlNode): bool =
+proc hasIDAttribute(node: Node): bool =
     ## Determine if current JsonNode has an HTML ID attribute attached to it
     result = node.id != nil
 
-proc writeIDAttribute[C: Compiler](compiler: var C, node: HtmlNode) =
+proc writeIDAttribute[C: Compiler](compiler: var C, node: Node) =
     ## Write an ID HTML attribute to current HTML Element
     add compiler.html, ("id=\"$1\"" % [node.id.value]).indent(1)
 
-proc openTag[C: Compiler](compiler: var C, tag: string, node: HtmlNode, skipBr = false) =
+proc openTag[C: Compiler](compiler: var C, tag: string, node: Node, skipBr = false) =
     ## Open tag of the current JsonNode element
     if not compiler.minified:
         compiler.indentLine(node.meta, skipBr = skipBr)
@@ -71,7 +71,7 @@ proc openTag[C: Compiler](compiler: var C, tag: string, node: HtmlNode, skipBr =
         compiler.writeIDAttribute(node)
     if node.hasAttributes:
         compiler.writeAttributes(node)
-    if node.nodeType.isSelfClosingTag:
+    if node.htmlNodeType.isSelfClosingTag:
         add compiler.html, "/"
     add compiler.html, ">"
 
@@ -90,7 +90,7 @@ proc closeTag[C: Compiler](c: var C, tag: DeferTag, templateType = View) =
 
 proc getNextLevel[C: Compiler](c: var C, currentIndent, index: int): tuple[meta: MetaNode, typeLevel: TypeLevel] =
     try:
-        let next = c.program.nodes[index + 1].htmlNode
+        let next = c.program.nodes[index + 1]
         let nextIndent = next.meta.indent
         if nextIndent > currentIndent:
             result = (next.meta, Child)
@@ -101,15 +101,15 @@ proc getNextLevel[C: Compiler](c: var C, currentIndent, index: int): tuple[meta:
     except:
         result = (meta: (0, 0, 0, 0, 0), typeLevel: None)
 
-proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: HtmlNode) =
+proc deferTag[C: Compiler](c: var C, tag: string, htmlNode: Node) =
     ## Add closing tags to `tags` table for resolving later
-    if not htmlNode.nodeType.isSelfClosingTag:
+    if not htmlNode.htmlNodeType.isSelfClosingTag:
         let lineno = htmlNode.meta.line
         if not c.tags.hasKey(lineno):
             c.tags[lineno] = newSeq[DeferTag]()
         var isInlineElement: bool
         if htmlNode.nodes.len != 0:
-            isInlineElement = htmlNode.nodes[0].nodeType == Htmltext
+            isInlineElement = htmlNode.nodes[0].htmlNodeType == Htmltext
         c.tags[lineno].add (tag: tag, meta: htmlNode.meta, isInlineElement: isInlineElement)
 
 proc resolveDeferredTags(c: var Compiler, lineno: int, withOffset = false) =
@@ -154,24 +154,24 @@ proc getAstLine(nodeName: string, indentSize: int) =
     # Used for debug-only
     echo indent(nodeName, indentSize)
 
-proc writeLine(c: var Compiler, nodes: seq[HtmlNode], index: var int)
+proc writeLine(c: var Compiler, nodes: seq[Node], index: var int)
 
-proc writeElement(c: var Compiler, htmlNode: HtmlNode, index: var int) =
+proc writeElement(c: var Compiler, htmlNode: Node, index: var int) =
     ## Write an HTML element and its sub HTML nodes, if any
-    let tag = htmlNode.nodeName
+    let tag = htmlNode.htmlNodeName
     c.openTag(tag, htmlNode)
-    c.deferTag(tag, htmlNode)   # TODO handle Self Closing Elements
+    c.deferTag(tag, htmlNode)
     if htmlNode.nodes.len != 0:
         c.writeLine(htmlNode.nodes, index)
 
-proc writeTextElement(c: var Compiler, node: HtmlNode) =
+proc writeTextElement(c: var Compiler, node: Node) =
     ## Write `HtmlText` content
-    add c.html, node.text
+    add c.html, node.htmlText
     if node.concat.len != 0:
         for nodeConcat in node.concat:
-            add c.html, indent(nodeConcat.text, 1)
+            add c.html, indent(nodeConcat.htmlText, 1)
 
-proc writeVarTextElement(c: var Compiler, node: HtmlNode) =
+proc writeVarTextElement(c: var Compiler, node: Node) =
     ## Write `HtmlText` content from a variable
     var varValue = c.data[node.varAssignment.getVarName()].getStr
     if c.safeEscape:
@@ -185,10 +185,10 @@ proc writeVarTextElement(c: var Compiler, node: HtmlNode) =
         )
     add c.html, varValue
 
-proc writeLine(c: var Compiler, nodes: seq[HtmlNode], index: var int) =
+proc writeLine(c: var Compiler, nodes: seq[Node], index: var int) =
     ## Write current line of HTML Nodes.
     for node in nodes:
-        case node.nodeType:
+        case node.htmlNodeType:
         of HtmlText:
             if node.varAssignment != nil:
                 c.writeVarTextElement(node)
@@ -199,20 +199,20 @@ proc writeLine(c: var Compiler, nodes: seq[HtmlNode], index: var int) =
             c.writeElement(node, index)
 
 proc writeHtmlElement(c: var Compiler, node: Node, index: var int, skipBr = false) =
-    let tag = node.htmlNode.nodeName
-    c.openTag(tag, node.htmlNode, skipBr = skipBr)
-    c.deferTag(tag, node.htmlNode)
+    let tag = node.htmlNodeName
+    c.openTag(tag, node, skipBr = skipBr)
+    c.deferTag(tag, node)
 
-    if node.htmlNode.nodes.len != 0:
-        c.writeLine(node.htmlNode.nodes, index)
-    let next = c.getNextLevel(node.htmlNode.meta.indent, index)
+    if node.nodes.len != 0:
+        c.writeLine(node.nodes, index)
+    let next = c.getNextLevel(node.meta.indent, index)
     case next.typeLevel:
     of Upper:
         var i = index
         while true:
             var prev: MetaNode
             try:
-                prev = c.program.nodes[i - 1].htmlNode.meta
+                prev = c.program.nodes[i - 1].meta
             except IndexDefect:
                 break
             if prev.column == next.meta.column:
@@ -226,7 +226,7 @@ proc writeHtmlElement(c: var Compiler, node: Node, index: var int, skipBr = fals
                     c.resolveTag(prev.line)
             dec i
     of Same:
-        c.resolveTag(node.htmlNode.meta.line)
+        c.resolveTag(node.meta.line)
     of Child:
         discard
     else:
@@ -238,7 +238,7 @@ proc writeLine(c: var Compiler) =
     var index = 0
     let nodeslen = c.program.nodes.len
     if nodeslen != 0:
-        c.line = c.program.nodes[0].htmlNode.meta.line # start line
+        c.line = c.program.nodes[0].meta.line # start line
     while true:
         if index == nodeslen: break
         let node = c.program.nodes[index]

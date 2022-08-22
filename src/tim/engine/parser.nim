@@ -31,13 +31,13 @@ type
             ## Hold `Tokentuple` siblinngs while parsing
         statements: Program
             ## Holds the entire Abstract Syntax Tree representation
-        htmlStatements: OrderedTable[int, HtmlNode]
-            ## An `OrderedTable` of `HtmlNode`
-        deferredStatements: OrderedTable[int, HtmlNode]
-            ## An `OrderedTable of `HtmlNode` holding deferred elements
+        htmlStatements: OrderedTable[int, Node]
+            ## An `OrderedTable` of `Node`
+        deferredStatements: OrderedTable[int, Node]
+            ## An `OrderedTable of `Node` holding deferred elements
         prevln, currln, nextln: TokenTuple
             ## Holds TokenTuple representation of heads from prev, current and next 
-        parentNode, prevNode: HtmlNode
+        parentNode, prevNode: Node
             ## While in `walk` proc, we temporarily hold `parentNode`
             ## and prevNode for each iteration.
         data: Data
@@ -98,8 +98,8 @@ proc getStatements*[P: Parser](p: P, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
     result = p.statements
 
-proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, HtmlNode] =
-    ## Return all `HtmlNode` available in current document
+proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, Node] =
+    ## Return all `Node` available in current document
     result = p.htmlStatements
 
 proc getStatementsStr*[P: Parser](p: P, prettyString = false): string = 
@@ -130,8 +130,8 @@ proc isAttributeOrText(token: TokenTuple): bool =
     ## Determine if current token is an attribute name based on its siblings.
     result = token.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE}
 
-proc hasID[T: HtmlNode](node: T): bool {.inline.} =
-    ## Determine if current HtmlNode has an ID attribute
+proc hasID[T: Node](node: T): bool {.inline.} =
+    ## Determine if current Node has an ID attribute
     result = node.id != nil
 
 const svgSelfClosingTags = {TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
@@ -210,7 +210,7 @@ template `!>`[P: Parser](p: var P): untyped =
         if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE, TK_EOF}:
             p.setError InvalidNestDeclaration, true
 
-proc rezolveInlineNest(lazySeq: var seq[HtmlNode]): HtmlNode =
+proc rezolveInlineNest(lazySeq: var seq[Node]): Node =
     ## Rezolve lazy sequence of nodes collected from last inline nest
     # starting from tail, each node will be assigned to its sibling node
     # until we reach the begining of the sequence
@@ -231,11 +231,19 @@ template parseNewNode(p: var Parser, isSelfClosing = false) =
     let nodeIndent = p.current.pos
     let childOfLineno = p.getParentLine()
     let htmlNodeType = getHtmlNodeType(p.current)
-    htmlNode = new HtmlNode
-    with htmlNode:
-        nodeType = htmlNodeType
-        nodeName = getSymbolName(htmlNodeType)
-        meta = (column: initialCol, indent: p.current.pos, line: p.current.line, childOf: childOfLineno, depth: p.depth)
+    htmlNode = Node(
+        nodeType: HtmlElement,
+        nodeName: getSymbolName(HtmlElement),
+        htmlNodeType: htmlNodeType,
+        htmlNodeName: getSymbolName(htmlNodeType),
+        meta: (
+            column: initialCol,
+            indent: p.current.pos,
+            line: p.current.line,
+            childOf: childOfLineno,
+            depth: p.depth
+        )
+    )
 
     if p.next.kind == TK_NEST_OP:
         jump p
@@ -256,11 +264,19 @@ template parseNewSubNode(p: var Parser) =
     
     let htmlNodeType = getHtmlNodeType(p.current)
     # let childOfLine = p.getParentLine()
-    var htmlSubNode = new HtmlNode
-    with htmlSubNode:
-        nodeType = htmlNodeType
-        nodeName = htmlNodeType.getSymbolName
-        meta = (column: initialCol, indent: p.current.pos, line: p.current.line, childOf: 0, depth: p.depth)
+    var htmlSubNode = Node(
+        nodeType: HtmlElement,
+        nodeName: getSymbolName(HtmlElement),
+        htmlNodeType: htmlNodeType,
+        htmlNodeName: getSymbolName(htmlNodeType),
+        meta: (
+            column: initialCol,
+            indent: p.current.pos,
+            line: p.current.line,
+            childOf: 0,
+            depth: p.depth
+        )
+    )
 
     if p.next.kind == TK_NEST_OP:
         jump p
@@ -289,12 +305,12 @@ proc walk(p: var Parser) =
     var 
         shouldCloseNode: bool
         node: Node
-        htmlNode: HtmlNode
+        htmlNode: Node
         conditionNode: ConditionalNode
         iterationNode: IterationNode
 
-        childNodes: HtmlNode
-        deferChildSeq: seq[HtmlNode]
+        childNodes: Node
+        deferChildSeq: seq[Node]
     p.statements = Program()
     while p.hasError() == false and p.current.kind != TK_EOF:
         if p.current.isConditional():
@@ -328,22 +344,18 @@ proc walk(p: var Parser) =
             if childNodes != nil:
                 p.htmlStatements[p.currln.line].nodes.add(childNodes)
                 childNodes = nil
-            node = new Node
-            with node:
-                nodeName = getSymbolName(HtmlElement)
-                nodeType = HtmlElement
-                htmlNode = p.htmlStatements[p.currln.line]
+            node = p.htmlStatements[p.currln.line]
             if iterationNode != nil:
                 iterationNode.nodes.add(node)
             else:
                 p.statements.nodes.add(node)
         if shouldCloseNode:
             if iterationNode != nil:
-                node = new Node
-                with node:
-                    nodeName = getSymbolName(LoopStatement)
-                    nodeType = LoopStatement
-                    iterationNode = iterationNode
+                node = Node(
+                    nodeName: getSymbolName(LoopStatement),
+                    nodeType: LoopStatement,
+                    iterationNode: iterationNode
+                )
                 p.statements.nodes.add(node)
             node = nil
 

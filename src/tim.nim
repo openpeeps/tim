@@ -25,14 +25,14 @@ var Tim* {.global.}: TimEngine
 
 proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, escape: bool): string =
     # JIT compilation layout
-    # let clayout = Compiler.init(
-    #     astProgram = fromJson(engine.readBson(layout), Program),
-    #     minified = engine.shouldMinify(),
-    #     templateType = TimlTemplateType.Layout,
-    #     baseIndent = engine.getIndent(),
-    #     data = data,
-    #     safeEscape = escape
-    # )
+    let clayout = Compiler.init(
+        astProgram = fromJson(engine.readBson(layout), Program),
+        minified = engine.shouldMinify(),
+        templateType = TimlTemplateType.Layout,
+        baseIndent = engine.getIndent(),
+        data = data,
+        safeEscape = escape
+    )
     # JIT compilation view template
     let cview = Compiler.init(
         astProgram = fromJson(engine.readBson(view), Program),
@@ -42,17 +42,21 @@ proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, esca
         data = data,
         safeEscape = escape
     )
-    # result = clayout.getHtml()
-    result = cview.getHtml()
+    result = clayout.getHtml()
+    if engine.shouldMinify():
+        result.add cview.getHtml()
+    else:
+        result.add indent(cview.getHtml(), engine.getIndent() * 2)
 
 proc staticHtml(engine: TimEngine, view, layout: TimlTemplate): string =
     result.add view.getHtmlCode()
 
 proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode = %*{}, escape = true): string =
     ## Renders a template view by name. Use dot-annotations
-    ## for rendering views in nested directories.
+    ## for rendering views from sub directories directories,
+    ## for example `render("product.sales.index")`
+    ## will try look for a timl template at `product/sales/index.timl`
     if engine.hasView(key):
-        # TODO handle templates marked with JIT
         var view: TimlTemplate = engine.getView(key)
         if not engine.hasLayout(layoutKey):
             raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
@@ -102,12 +106,18 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
                     else: discard
         result.add layout.getHtmlTailsCode()
 
-proc preCompileTemplate(engine: TimEngine, temp: var TimlTemplate) =
+proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
     let tpType = temp.getType()
     var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = tpType)
+    
     if p.hasError():
         raise newException(TimSyntaxError, "\n"&p.getError())
-    if p.hasJIT():
+    
+    # echo p.getStatementsStr(true)
+    # quit()
+    if p.hasJIT() or tpType == Layout:
+        # First, check if current template has enabled JIT compilation.
+        # Note that layouts are always saved in BSON format
         temp.enableJIT()
         engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
     else:
@@ -141,16 +151,16 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                     var timlTemplate = getTemplateByPath(Tim, file.getPath())
                     if timlTemplate.isPartial:
                         for depView in timlTemplate.getDependentViews():
-                            Tim.preCompileTemplate(getTemplateByPath(Tim, depView))
+                            Tim.compileCode(getTemplateByPath(Tim, depView))
                     else:
-                        Tim.preCompileTemplate(timlTemplate)
+                        Tim.compileCode(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
                     if callback != nil:
                         callback()
                 var watchFiles: seq[string]
                 when compileOption("threads"):
                     for id, view in Tim.getViews().mpairs():
-                        Tim.preCompileTemplate(view)
+                        Tim.compileCode(view)
                         watchFiles.add view.getFilePath()
                         result.add view.getName()
                     
@@ -159,7 +169,7 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                         watchFiles.add partial.getFilePath()
 
                     for id, layout in Tim.getLayouts().mpairs():
-                        Tim.preCompileTemplate(layout)
+                        Tim.compileCode(layout)
                         watchFiles.add layout.getFilePath()
                         result.add layout.getName()
 
@@ -168,11 +178,11 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                     return
 
         for id, view in Tim.getViews().mpairs():
-            Tim.preCompileTemplate(view)
+            Tim.compileCode(view)
             result.add view.getName()
 
         for id, layout in Tim.getLayouts().mpairs():
-            Tim.preCompileTemplate(layout)
+            Tim.compileCode(layout)
             result.add layout.getName()
 
 when isMainModule:

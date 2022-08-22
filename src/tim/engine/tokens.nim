@@ -8,6 +8,21 @@ import toktok
 static:
     Program.settings(true, "TK_")
 
+handlers:
+    proc handleVarFmt*(lex: var Lexer, kind: TokenKind) =
+        lex.startPos = lex.getColNumber(lex.bufpos)
+        setLen(lex.token, 0)
+        inc lex.bufpos
+        while true:
+            if lex.hasLetters(lex.bufpos):
+                add lex.token, lex.buf[lex.bufpos]
+                inc lex.bufpos
+            elif lex.hasNumbers(lex.bufpos):
+                add lex.token, lex.buf[lex.bufpos]
+                inc lex.bufpos
+            else: break
+        lex.setToken kind
+
 tokens:
     A_Link       > "a"
     Abbr         > "abbr"
@@ -29,7 +44,7 @@ tokens:
     Br           > "br"
     Button       > "button"
     Divide       > '/':
-        Comment  > '/' .. EOL
+        Comment  > '/'
     Canvas       > "canvas"
     Caption      > "caption"
     Center       > "center"
@@ -198,6 +213,8 @@ tokens:
     Video        > "video"
     WBR          > "wbr"
     Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
+    LCurly       > '{'
+    RCurly       > '}'
     Attr_Class   > '.'
     Attr_ID      > '#'
     Assign       > '=':
@@ -215,7 +232,8 @@ tokens:
     Not          > '!':
         NEQ      > '='
     At           > '@':
-        Include  > "include"
+        Include  ? "include"
+        Mixin    ? "mixin"
     Plus         > '+'
     Minus        > '-'
     Multiply     > '*'

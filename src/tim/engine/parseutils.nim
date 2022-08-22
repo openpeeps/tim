@@ -13,8 +13,8 @@ proc parseVariable(p: var Parser, tokenVar: TokenTuple): VariableNode =
     result = newVariableNode(varName, "")
     jit p
 
-template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0 ): untyped =
-    ## Set HTML attributes for current HtmlNode, this template covers
+template setHTMLAttributes(p: var Parser, htmlNode: var Node, nodeIndent = 0 ): untyped =
+    ## Set HTML attributes for current Node, this template covers
     ## all kind of attributes, including `id`, and `class` or custom.
     var id: IDAttribute
     var hasAttributes: bool
@@ -62,21 +62,23 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
                 if p.current.kind == TK_VARIABLE:
                     varName = p.current.value
                     jit p
-                p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
-                if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
-                    p.setError InvalidIndentation, true
-                elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
-                    p.setError InvalidIndentation, true
+                else:
+                    p.current.pos = htmlNode.meta.column # get base column from `htmlMeta` node
+                    if (p.current.line == p.next.line) and not p.next.isEOF and (p.next.kind != TK_AND):
+                        p.setError InvalidIndentation, true
+                    elif (p.next.line > p.current.line) and (p.next.pos > p.current.pos):
+                        p.setError InvalidIndentation, true
                 var currentTextValue = p.current.value
-                var nodeConcat: seq[HtmlNode]
+                var nodeConcat: seq[Node]
                 let col = p.current.pos
                 let line = p.current.line
                 if p.next.kind == TK_AND:
-                    # If provided, Tim can handle string concatenations like
+                    # If provided, Tim can handle string concat
                     # a: "Click here" & span: "to buy" which output to
                     # <a>Click here <span>to buy</span</a>
+                    # TODO does not work when combining html elements
                     if p.next.line == p.current.line:
-                        # handle inline string concatenations using `&` separator
+                        # handle inline string concat using `&` separator
                         jump p
                         while true:
                             if p.current.line != line: break
@@ -84,6 +86,7 @@ template setHTMLAttributes(p: var Parser, htmlNode: var HtmlNode, nodeIndent = 0
                                 jump p
                                 continue
                             elif p.current.kind in {TK_STRING, TK_VARIABLE}:
+                                # TODO does not work with $myvar & "xyz"
                                 nodeConcat.add newTextNode(p.current.value, (col, nodeIndent, line, 0, 0))
                             jump p
                     else:
