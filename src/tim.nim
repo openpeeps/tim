@@ -20,6 +20,7 @@ export parser, compiler
 export meta except TimEngine
 
 const DockType = "<!DOCTYPE html>"
+const EndHtmlDocument = "</body></html>"
 
 var Tim* {.global.}: TimEngine
 
@@ -28,7 +29,7 @@ proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, esca
     let clayout = Compiler.init(
         astProgram = fromJson(engine.readBson(layout), Program),
         minified = engine.shouldMinify(),
-        templateType = TimlTemplateType.Layout,
+        templateType = Layout,
         baseIndent = engine.getIndent(),
         data = data,
         safeEscape = escape
@@ -68,7 +69,7 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
             result.add engine.jitHtml(view, layout, data, escape)
         else:
             # Otherwise render precompiled templates
-            result.add layout.getHtmlCode()
+            # result.add layout.getHtmlCode()
             if engine.shouldMinify():
                 result.add engine.staticHtml(view, layout)
             else:
@@ -80,7 +81,7 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
                 # from a Supranim web application
                 proc httpReloader(): string =
                     result = """
-    <script type="text/javascript">
+<script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function() {
         var prevTime = localStorage.getItem("watchout") || 0
         function liveChanges() {
@@ -97,14 +98,14 @@ proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode 
         }
         liveChanges();
     });
-    </script>
-    """
+</script>
+"""
                 case engine.getReloadType():
                     of HttpReloader:
                         # reload handler using http requests
                         result.add httpReloader()
                     else: discard
-        result.add layout.getHtmlTailsCode()
+        result.add EndHtmlDocument
 
 proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
     let tpType = temp.getType()
@@ -114,23 +115,22 @@ proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
         raise newException(TimSyntaxError, "\n"&p.getError())
     
     # echo p.getStatementsStr(true)
-    # quit()
-    if p.hasJIT() or tpType == Layout:
-        # First, check if current template has enabled JIT compilation.
-        # Note that layouts are always saved in BSON format
-        temp.enableJIT()
-        engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
-    else:
-        let c = Compiler.init(
-            p.getStatements(),
-            minified = engine.shouldMinify(),
-            templateType = tpType,
-            baseIndent = engine.getIndent()
-        )
-        if tpType == Layout:
-            # Save layout tails in a separate .html file, suffixed with `_`
-            engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
-        engine.writeHtml(temp, c.getHtml())
+    # if p.hasJIT() or tpType == Layout:
+    # First, check if current template has enabled JIT compilation.
+    # Note that layouts are always saved in BSON format
+    temp.enableJIT()
+    engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
+    # else:
+    #     let c = Compiler.init(
+    #         p.getStatements(),
+    #         minified = engine.shouldMinify(),
+    #         templateType = tpType,
+    #         baseIndent = engine.getIndent()
+    #     )
+    #     # if tpType == Layout:
+    #     #     # Save layout tails in a separate .html file, suffixed with `_`
+    #     #     engine.writeHtml(temp, c.getHtmlTails(), isTail = true)
+    #     engine.writeHtml(temp, c.getHtml())
 
 proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
                 debug = false): seq[string] {.discardable.} =
