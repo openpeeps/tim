@@ -5,7 +5,7 @@
 #          https://github.com/openpeep/tim
 
 import pkginfo, jsony
-import tim/engine/[ast, parser, compiler, meta]
+import tim/engine/[ast, parser, meta]
 import std/[tables, json]
 from std/strutils import `%`, indent
 
@@ -16,7 +16,7 @@ when requires "watchout":
 when requires "emitter":
     import emitter
 
-export parser, compiler
+export parser
 export meta except TimEngine
 
 const DockType = "<!DOCTYPE html>"
@@ -24,102 +24,21 @@ const EndHtmlDocument = "</body></html>"
 
 var Tim* {.global.}: TimEngine
 
-proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode, escape: bool): string =
-    # JIT compilation layout
-    let clayout = Compiler.init(
-        astProgram = fromJson(engine.readBson(layout), Program),
-        minified = engine.shouldMinify(),
-        templateType = Layout,
-        baseIndent = engine.getIndent(),
-        data = data,
-        safeEscape = escape
-    )
-    # JIT compilation view template
-    let cview = Compiler.init(
-        astProgram = fromJson(engine.readBson(view), Program),
-        minified = engine.shouldMinify(),
-        templateType = view.getType(),
-        baseIndent = engine.getIndent(),
-        data = data,
-        safeEscape = escape
-    )
-    result = clayout.getHtml()
-    if engine.shouldMinify():
-        result.add cview.getHtml()
-    else:
-        result.add indent(cview.getHtml(), engine.getIndent() * 2)
-
-proc staticHtml(engine: TimEngine, view, layout: TimlTemplate): string =
-    result.add view.getHtmlCode()
-
-proc render*(engine: TimEngine, key: string, layoutKey = "base", data: JsonNode = %*{}, escape = true): string =
-    ## Renders a template view by name. Use dot-annotations
-    ## for rendering views from sub directories directories,
-    ## for example `render("product.sales.index")`
-    ## will try look for a timl template at `product/sales/index.timl`
-    if engine.hasView(key):
-        var view: TimlTemplate = engine.getView(key)
-        if not engine.hasLayout(layoutKey):
-            raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
-        var layout: TimlTemplate = engine.getLayout(layoutKey)
-        
-        result = DockType
-        if view.isJitEnabled():
-            # When enabled, compile `timl` code to `html` on the fly
-            result.add engine.jitHtml(view, layout, data, escape)
-        else:
-            # Otherwise render precompiled templates
-            # result.add layout.getHtmlCode()
-            if engine.shouldMinify():
-                result.add engine.staticHtml(view, layout)
-            else:
-                result.add indent(engine.staticHtml(view, layout), engine.getIndent() * 2)
-
-        when requires "supranim":
-            when not defined release:
-                # Enable hot code autoreload when loaded
-                # from a Supranim web application
-                proc httpReloader(): string =
-                    result = """
-<script type="text/javascript">
-    document.addEventListener("DOMContentLoaded", function() {
-        var prevTime = localStorage.getItem("watchout") || 0
-        function liveChanges() {
-            fetch('/watchout')
-                .then(res => res.json())
-                .then(body => {
-                    if(body.state == 0) return
-                    if(body.state > prevTime) {
-                        localStorage.setItem("watchout", body.state)
-                        location.reload()
-                    }
-                }).catch(function() {});
-            setTimeout(liveChanges, 500)
-        }
-        liveChanges();
-    });
-</script>
-"""
-                case engine.getReloadType():
-                    of HttpReloader:
-                        # reload handler using http requests
-                        result.add httpReloader()
-                    else: discard
-        result.add EndHtmlDocument
-
 proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
     let tpType = temp.getType()
     var p: Parser = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = tpType)
     
     if p.hasError():
-        raise newException(TimSyntaxError, "\n"&p.getError())
+        raise newException(SyntaxError, "\n"&p.getError())
     
-    # echo p.getStatementsStr(true)
+    echo p.getStatementsStr(true)
+
     # if p.hasJIT() or tpType == Layout:
     # First, check if current template has enabled JIT compilation.
     # Note that layouts are always saved in BSON format
-    temp.enableJIT()
-    engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
+    # temp.enableJIT()
+    # engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
+    
     # else:
     #     let c = Compiler.init(
     #         p.getStatements(),
@@ -193,9 +112,10 @@ when isMainModule:
         minified = false
     )
     let timTemplates = Tim.precompile()
-    echo Tim.render("index",
-        data = %*{
-            "app_name": "My application",
-            "name": "George Lemon"
-        }
-    )
+    # echo Tim.render("index",
+    #     data = %*{
+    #         "app_name": "My application",
+    #         "name": "George Lemon",
+    #         "rows": ["apple", "peanuts", "socks", "coke"]
+    #     }
+    # )

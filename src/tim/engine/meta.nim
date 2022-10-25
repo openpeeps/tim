@@ -49,8 +49,7 @@ type
         paths: tuple[layouts, views, partials: string]
         reloader: HotReloadType
 
-    TimException* = object of CatchableError        # raise errors while setup Tim
-    TimSyntaxError* = object of CatchableError      # raise errors from Tim language
+    SyntaxError* = object of CatchableError      # raise errors from Tim language
     TimDefect* = object of CatchableError
 
 const timVersion = "0.1.0"

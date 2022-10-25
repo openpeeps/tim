@@ -218,9 +218,12 @@ tokens:
     Attr_Class   > '.'
     Attr_ID      > '#'
     Assign       > '=':
-        Eq       > '='
+        EQ       ? '='
     Colon        > ':' 
-    Nest_OP      > '>'
+    GT           > '>':
+        GTE      ? '='
+    LT           > '<':
+        LTE      ? '='
     And          > '&'
     Variable     > tokenize(handleCustomIdent, '$')
     If           > "if"
@@ -229,8 +232,10 @@ tokens:
     For          > "for"
     In           > "in"
     Or           > "or"
+    Bool_True    > "true"
+    Bool_False   > "false"
     Not          > '!':
-        NEQ      > '='
+        NEQ      ? '='
     At           > '@':
         Include  ? "include"
         Mixin    ? "mixin"
