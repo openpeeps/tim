@@ -4,14 +4,14 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import std/[tables, with, json, jsonutils]
+import std/[tables, json, jsonutils]
 
 import tokens, ast, data
 from resolver import resolve, hasError, getError,
                     getErrorLine, getErrorColumn, getFullCode
 
 from meta import TimEngine, TimlTemplate, TimlTemplateType, getContents, getFileData
-from std/strutils import `%`, isDigit, join, endsWith
+from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool
 
 type
     Parser* = object
@@ -31,8 +31,6 @@ type
             ## Hold `Tokentuple` siblinngs while parsing
         statements: Program
             ## Holds the entire Abstract Syntax Tree representation
-        htmlStatements: OrderedTable[int, Node]
-            ## An `OrderedTable` of `Node`
         deferredStatements: OrderedTable[int, Node]
             ## An `OrderedTable of `Node` holding deferred elements
         prevln, currln, nextln: TokenTuple
@@ -49,11 +47,16 @@ type
         error: string
             ## A parser/lexer error
 
+    PrefixFunction = proc(p: var Parser): Node
+    InfixFunction = proc(p: var Parser, left: Node): Node
+
 const
     InvalidIndentation = "Invalid indentation"
-    DuplicateClassName = "Duplicate class entry found for \"$1\""
+    DuplicateClassName = "Duplicate class entry \"$1\""
     InvalidAttributeId = "Invalid ID attribute"
+    DuplicateAttrId = "Duplicate ID entry \"$1\""
     InvalidAttributeValue = "Missing value for \"$1\" attribute"
+    InvalidClassAttribute = "Invalid class name"
     DuplicateAttributeKey = "Duplicate attribute name for \"$1\""
     InvalidTextNodeAssignment = "Expect text assignment for \"$1\" node"
     UndeclaredVariable = "Undeclared variable \"$1\""
@@ -63,6 +66,16 @@ const
     InvalidInlineNest = "Invalid inline nest missing `>`"
     InvalidNestDeclaration = "Invalid nest declaration"
     InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
+    NestableStmtIndentation = "Nestable statement requires indentation"
+
+const
+    tkComparables = {TK_VARIABLE, TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE}
+    tkOperators = {TK_EQ, TK_NEQ, TK_LT, TK_LTE, TK_GT, TK_GTE}
+    tkConditionals = {TK_IF, TK_ELIF, TK_ELSE, TK_IN, TK_OR}
+    tkLoops = {TK_FOR, TK_IN}
+    tkCalc = {TK_PLUS, TK_MINUS, TK_DIVIDE, TK_MULTIPLY}
+    tkCall = {TK_INCLUDE, TK_MIXIN}
+    tkNone = (TK_NONE, "", 0,0,0,0)
 
 template setError[P: Parser](p: var P, msg: string, breakStmt: bool) =
     ## Set parser error
@@ -91,273 +104,302 @@ proc getError*[P: Parser](p: var P): string =
     elif p.error.len != 0:
         result = p.error
 
+proc isHTMLElement(token: TokenKind): bool =
+    result = token notin tkComparables + tkOperators + tkConditionals + tkCalc + tkCall + tkLoops
+
 proc parse*(engine: TimEngine, code, path: string,
             templateType: TimlTemplateType): Parser
 
-proc getStatements*[P: Parser](p: P, asNodes = true): Program =
+proc getStatements*(p: Parser, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
     result = p.statements
 
-proc getHtmlStatements*[P: Parser](p: P): OrderedTable[int, Node] =
-    ## Return all `Node` available in current document
-    result = p.htmlStatements
-
-proc getStatementsStr*[P: Parser](p: P, prettyString = false): string = 
+proc getStatementsStr*(p: Parser, prettyString = false): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
     if prettyString: 
-        result = pretty(toJson(p.getStatements()))
-    else:
-        result = $(toJson(p.statements))
+        return pretty(toJson(p.getStatements()))
+    result = $(toJson(p.statements))
 
-template jit[P: Parser](p: var P) =
+template jit(p: var Parser) =
     ## Enable jit flag When current document contains
     ## either conditionals, or variable assignments
     if p.enableJit == false: p.enableJit = true
 
-proc hasJIT*[P: Parser](p: var P): bool {.inline.} =
+proc hasJIT*(p: var Parser): bool {.inline.} =
     ## Determine if current timl template requires a JIT compilation
     result = p.enableJit == true
 
-proc jump[P: Parser](p: var P, offset = 1) =
+proc jump(p: var Parser, offset = 1) =
     var i = 0
-    while offset != i: 
+    while offset != i:
         p.prev = p.current
         p.current = p.next
         p.next = p.lexer.getToken()
         inc i
 
-proc isAttributeOrText(token: TokenTuple): bool =
-    ## Determine if current token is an attribute name based on its siblings.
-    result = token.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE}
+proc getOperator(tk: TokenKind): OperatorType =
+    case tk:
+    of TK_EQ: result = EQ
+    of TK_NEQ: result = NE
+    of TK_LT: result = LT
+    of TK_LTE: result = LTE
+    of TK_GT: result = GT
+    of TK_GTE: result = GTE
+    else: discard
 
-proc hasID[T: Node](node: T): bool {.inline.} =
-    ## Determine if current Node has an ID attribute
-    result = node.id != nil
+# prefix / infix handlers
+proc parseExpression(p: var Parser): Node
+proc parseIfStmt(p: var Parser): Node
+proc parseForStmt(p: var Parser): Node
+proc getPrefixFn(kind: TokenKind): PrefixFunction
+# proc getInfixFn(kind: TokenKind): InfixFunction
 
-const svgSelfClosingTags = {TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
-                            TK_SVG_ANIMATETRANSFORM, TK_SVG_ANIMATEMOTION,
-                            TK_SVG_FE_BLEND, TK_SVG_FE_COLORMATRIX, TK_SVG_FE_COMPOSITE,
-                            TK_SVG_FE_CONVOLVEMATRIX, TK_SVG_FE_DISPLACEMENTMAP}
-const selfClosingTags = {TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
-                         TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
-                         TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR} + svgSelfClosingTags
+proc parseInfix(p: var Parser, infixLeft: Node): Node =
+    let tk: TokenTuple = p.current
+    jump p
+    let infixRight: Node = p.parseExpression()
+    result = ast.newInfix(infixLeft, infixRight, getOperator(tk.kind))
 
-proc isNestable*[T: TokenTuple](token: T): bool =
-    ## Determine if current token can contain more nodes
-    ## TODO filter only nestable tokens
-    result = token.kind notin {
-        TK_IDENTIFIER, TK_ATTR, TK_ATTR_CLASS, TK_ATTR_ID, TK_ASSIGN, TK_COLON,
-        TK_INTEGER, TK_STRING, TK_NEST_OP, TK_UNKNOWN, TK_EOF, TK_NONE
-    }
+proc parseInteger(p: var Parser): Node =
+    # Parse a new `integer` node
+    result = ast.newInt(parseInt(p.current.value))
+    jump p
 
-proc getParentLine[P: Parser](p: var P): int =
-    if p.current.pos == 0:
-        p.depth = 0
-        result = 0
-    elif p.parentNode != nil:
-        if p.parentNode.meta.column > p.current.pos:
-            # Handle `Upper` levels
-            var found: bool
-            var prevlineno = p.parentNode.meta.childOf
-            while true:
-                if prevlineno == 0: break
-                if p.htmlStatements.hasKey(prevlineno):
-                    let prevline = p.htmlStatements[prevlineno]
-                    if prevline.meta.column == p.current.pos:
-                        p.depth = prevline.meta.indent
-                        p.current.pos = p.depth
-                        result = prevline.meta.childOf
-                        found = true
-                        break
-                dec prevlineno
-            if not found:
-                result = p.current.line
-        elif p.parentNode.meta.column == p.current.pos:
-            # Handle `Same` levels
-            p.depth = p.parentNode.meta.depth
-            result = p.parentNode.meta.childOf
-            p.current.pos = p.depth
-        elif p.current.pos > p.parentNode.meta.column:
-            # Handle `Child` levels
-            if p.parentNode.meta.column == 0:
-                inc p.depth, 4
-            else:
-                p.depth = p.parentNode.meta.indent
-                inc p.depth, 4
-            result = p.parentNode.meta.line
-            p.current.pos = p.depth
+proc parseBoolean(p: var Parser): Node =
+    # Parse a new `boolean` node
+    result = ast.newBool(parseBool(p.current.value))
+    jump p
 
-include ./parseutils
+proc parseString(p: var Parser): Node =
+    # Parse a new `string` node
+    result = ast.newString(p.current.value)
+    if p.next.pos > p.prev.pos:                 # prevent other nests after new string declaration.
+        p.setError(InvalidIndentation)
+        return
+    jump p
 
-proc isConditional*[T: TokenTuple](token: T): bool =
-    ## Determine if current token is part of Conditional Tokens
-    ## as TK_IF, TK_ELIF, TK_ELSE
-    result = token.kind in {TK_IF, TK_ELIF, TK_ELSE}
-
-proc isIteration*[T: TokenTuple](token: T): bool =
-    result = token.kind == TK_FOR
-
-proc isEOF[T: TokenTuple](token: T): bool {.inline.} =
-    ## Determine if given token kind is TK_EOF
-    result = token.kind == TK_EOF
-
-template `!>`[P: Parser](p: var P): untyped =
-    ## Ensure nest token `>` exists for inline statements
-    if p.current.isNestable() and p.next.isNestable():
-        if p.current.line == p.next.line and p.current.kind != TK_AND:
-            p.setError InvalidInlineNest, true
-    elif p.current.isNestable() and not p.next.isNestable():
-        if p.next.kind notin {TK_NEST_OP, TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER, TK_COLON, TK_VARIABLE, TK_EOF}:
-            p.setError InvalidNestDeclaration, true
-
-proc rezolveInlineNest(lazySeq: var seq[Node]): Node =
-    ## Rezolve lazy sequence of nodes collected from last inline nest
-    # starting from tail, each node will be assigned to its sibling node
-    # until we reach the begining of the sequence
-    var i = 0
-    var maxlen = (lazySeq.len - 1)
+proc getHtmlAttributes(p: var Parser): HtmlAttributes =
+    # Parse element attributes and returns a `Table[string, string]`
+    # containing all HTML attributes.
     while true:
-        if i == maxlen: break
-        lazySeq[(maxlen - (i + 1))].nodes.add(lazySeq[^1])
-        lazySeq.delete( (maxlen - i) )
-        inc i
-    result = lazySeq[0]
-
-template parseNewNode(p: var Parser, isSelfClosing = false) =
-    ## Parse a new HTML Node with HTML attributes, if any
-    !> p # Ensure a good nest
-    p.currln = p.current
-    let initialCol = p.current.pos
-    let nodeIndent = p.current.pos
-    let childOfLineno = p.getParentLine()
-    let htmlNodeType = getHtmlNodeType(p.current)
-    htmlNode = Node(
-        nodeType: HtmlElement,
-        nodeName: getSymbolName(HtmlElement),
-        htmlNodeType: htmlNodeType,
-        htmlNodeName: getSymbolName(htmlNodeType),
-        meta: (
-            column: initialCol,
-            indent: p.current.pos,
-            line: p.current.line,
-            childOf: childOfLineno,
-            depth: p.depth
-        )
-    )
-
-    if p.next.kind == TK_NEST_OP:
-        jump p
-    elif p.next.isAttributeOrText():
-        jump p
-        p.setHTMLAttributes(htmlNode, nodeIndent)     # set available html attributes
-    else: jump p
-    p.htmlStatements[htmlNode.meta.line] = htmlNode
-    p.parentNode = htmlNode
-    p.prevln = p.currln
-    # TODO, check if `isSelfClosing` and prevent
-    # nestables or text assignment for self closing tags.
-
-template parseNewSubNode(p: var Parser) =
-    p.currln = p.current
-    let initialCol = p.current.pos
-    p.current.pos = 4 + p.depth
-    
-    let htmlNodeType = getHtmlNodeType(p.current)
-    # let childOfLine = p.getParentLine()
-    var htmlSubNode = Node(
-        nodeType: HtmlElement,
-        nodeName: getSymbolName(HtmlElement),
-        htmlNodeType: htmlNodeType,
-        htmlNodeName: getSymbolName(htmlNodeType),
-        meta: (
-            column: initialCol,
-            indent: p.current.pos,
-            line: p.current.line,
-            childOf: 0,
-            depth: p.depth
-        )
-    )
-
-    if p.next.kind == TK_NEST_OP:
-        jump p
-    elif p.next.isAttributeOrText():
-        # parse html attributes, `id`, `class`, or any other custom attributes
-        jump p
-        p.setHTMLAttributes(htmlSubNode)
-    else: jump p
-
-    deferChildSeq.add htmlSubNode
-    p.prevln = p.currln
-    p.prevNode = htmlSubNode
-
-template parseInlineNest(p: var Parser) =
-    ## Walk along the line and collect single-line nests
-    while p.current.line == p.currln.line:
-        if p.current.isEOF: break
-        elif p.hasError(): break
-        !> p
-        if p.current.isNestable():
-            p.parseNewSubNode()
-            inc p.depth, 4
-        else: jump p
-
-proc walk(p: var Parser) =
-    var 
-        shouldCloseNode: bool
-        node: Node
-        htmlNode: Node
-        conditionNode: ConditionalNode
-        iterationNode: IterationNode
-
-        childNodes: Node
-        deferChildSeq: seq[Node]
-    p.statements = Program()
-    while p.hasError() == false and p.current.kind != TK_EOF:
-        if p.current.isConditional():
-            jit p
-            conditionNode = newConditionNode(p.current)
-            p.parseCondition(conditionNode)
-            continue
-        elif p.current.isIteration():
-            jit p
-            iterationNode = IterationNode()
-            p.parseIteration(iterationNode)
-            continue
-
-        if not p.htmlStatements.hasKey(p.current.line):
-            if p.current.isNestable():
-                p.parseNewNode()
-            else:
-                if p.current.kind in selfClosingTags:
-                    p.parseNewNode(isSelfClosing = true)
+        if p.current.kind == TK_ATTR_CLASS:
+            # Add `class=""` html attribute
+            let attrKey = "class"
+            if p.next.kind == TK_IDENTIFIER:
+                if result.hasKey(attrKey):
+                    if p.next.value in result[attrKey]:
+                        p.setError DuplicateClassName % [p.next.value], true
+                    else: result[attrKey].add(p.next.value)
                 else:
-                    p.setError InvalidHTMLElementName % [p.current.value], true
-                    break
-
-        p.parseInlineNest()
-        shouldCloseNode = true # temporary need to figure
-
-        if htmlNode != nil:
-            if deferChildSeq.len != 0:
-                childNodes = rezolveInlineNest(deferChildSeq)
-                setLen(deferChildSeq, 0)
-            if childNodes != nil:
-                p.htmlStatements[p.currln.line].nodes.add(childNodes)
-                childNodes = nil
-            node = p.htmlStatements[p.currln.line]
-            if iterationNode != nil:
-                iterationNode.nodes.add(node)
+                    result[attrKey] = @[p.next.value]
+                jump p, 2
             else:
-                p.statements.nodes.add(node)
-        if shouldCloseNode:
-            if iterationNode != nil:
-                node = Node(
-                    nodeName: getSymbolName(LoopStatement),
-                    nodeType: LoopStatement,
-                    iterationNode: iterationNode
-                )
-                p.statements.nodes.add(node)
-            node = nil
+                p.setError(InvalidClassAttribute)
+                jump p
+                break
+        elif p.current.kind == TK_ATTR_ID:
+            # Set `id=""` HTML attribute
+            let attrKey = "id"
+            if not result.hasKey(attrKey):
+                if p.next.kind == TK_IDENTIFIER:
+                    result[attrKey] = @[p.next.value]
+                    jump p, 2
+                else: p.setError(InvalidAttributeId, true)
+            else: p.setError DuplicateAttrId % [p.next.value], true
+        elif p.current.kind in {TK_IDENTIFIER, TK_STYLE, TK_TITLE} and p.next.kind == TK_ASSIGN:
+            # TODO check wsno for other `attr` token
+            p.current.kind = TK_IDENTIFIER
+            let attrName = p.current.value
+            jump p
+            if p.next.kind != TK_STRING:
+                p.setError InvalidAttributeValue % [attrName], true
+            if result.hasKey(attrName):
+                p.setError DuplicateAttributeKey % [attrName], true
+            else:
+                result[attrName] = @[p.next.value]
+            jump p, 2 
+        else: break
+
+proc parseHtmlElement(p: var Parser): Node =
+    # Parse a new `HTML` Element node
+    result = ast.newHtmlElement(
+                p.current.kind,
+                p.current.line,
+                p.current.pos,
+                p.current.col,
+                p.current.wsno
+            )
+    jump p
+    while true:
+        if p.prev.kind == TK_STRING:
+            if p.prev.line == p.current.line:
+                p.setError InvalidNestDeclaration, true
+        if p.current.kind == TK_GT:
+            # parse single line HTML elements and
+            # create multi-dimensional nests
+            jump p
+            if not isHTMLElement(p.current.kind):
+                p.setError InvalidNestDeclaration, true
+                break
+            result.nodes.add p.parseHtmlElement()
+        elif p.current.kind == TK_COLON:
+            jump p
+            if p.current.kind == TK_STRING:
+                result.nodes.add p.parseString()
+            else:
+                p.setError InvalidNestDeclaration, true
+        elif p.current.kind in {TK_ATTR_CLASS, TK_ATTR_ID}:
+            result.attrs = p.getHtmlAttributes()
+        else:
+            if isHTMLElement(p.current.kind) and (p.current.pos > p.prev.pos):
+                result.nodes.add p.parseHtmlElement()
+            else: break
+
+proc parseAssignment(p: var Parser): Node =
+    discard
+
+proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple) =
+    if p.current.pos != ifThis.pos:
+        p.setError InvalidConditionalStmt
+        return
+    var this = p.current
+    jump p
+    while p.current.pos > this.pos:
+        elseBody.add p.parseExpression()
+
+proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
+    if p.next.kind notin tkComparables:
+        p.setError(InvalidConditionalStmt)
+        return
+    jump p
+    var infixLeft: Node
+    let infixLeftFn = getPrefixFn(p.current.kind)
+    if infixLeftFn != nil:
+        infixLeft = infixLeftFn(p)
+    else:
+        p.setError(InvalidConditionalStmt)
+        return
+    if p.current.kind notin tkOperators:
+        p.setError(InvalidConditionalStmt)
+    let infixNode = p.parseInfix(infixLeft)
+
+    if p.current.pos == this.pos:
+        p.setError(InvalidIndentation)
+        return
+
+    var ifBody, elseBody: seq[Node]
+    while p.current.pos > this.pos:     # parse body of `if` branch
+        if p.current.kind in {TK_ELIF, TK_ELSE}:
+            p.setError(InvalidIndentation, true)
+        ifBody.add p.parseExpression()
+    if ifBody.len == 0:                 # when missing `if body`
+        p.setError(InvalidConditionalStmt)
+        return
+    result = (infixNode, ifBody)
+
+proc parseIfStmt(p: var Parser): Node =
+    var this = p.current
+    var elseBody: seq[Node]
+    result = newIfExpression(ifBranch = p.parseCondBranch(this))
+    while p.current.kind == TK_ELIF:
+        let thisElif = p.current
+        result.elifBranch.add p.parseCondBranch(thisElif)
+        if p.hasError(): break
+
+    if p.current.kind == TK_ELSE:       # parse body of `else` branch
+        p.parseElseBranch(elseBody, this)
+        if p.hasError(): return         # catch error from `parseElseBranch`
+        result.elseBody = elseBody
+
+proc parseForStmt(p: var Parser): Node =
+    # Parse a new iteration statement
+    let this = p.current
+    if p.next.kind != TK_IDENTIFIER:
+        p.setError(InvalidIteration)
+        return
+    jump p # `item`
+    let singularIdent = p.current.value
+    if p.next.kind != TK_IN:
+        p.setError(InvalidIteration)
+        return
+    jump p # `in`
+    if p.next.kind != TK_IDENTIFIER:
+        p.setError(InvalidIteration)
+        return
+    jump p # `items`
+    let pluralIdent = p.current.value
+    if p.next.line == p.current.line:
+        p.setError(InvalidIndentation)
+        return
+    jump p
+
+    var forBody: seq[Node]
+    while p.current.pos > this.pos:
+        forBody.add p.parseExpression()
+
+    if forBody.len != 0:
+        return newFor(singularIdent, pluralIdent, forBody)
+    p.setError(NestableStmtIndentation)
+
+proc parseMixinCall(p: var Parser): Node =
+    result = newMixin(p.current.value)
+    jump p
+
+proc parseIncludeCall(p: var Parser): Node =
+    result = newInclude(p.current.value)
+    jump p
+
+proc parseVariable(p: var Parser): Node =
+    result = newVariable(p.current.value)
+    jump p
+
+proc getPrefixFn(kind: TokenKind): PrefixFunction =
+    result = case kind
+        of TK_INTEGER: parseInteger
+        of TK_BOOL_TRUE, TK_BOOL_FALSE: parseBoolean
+        of TK_STRING: parseString
+        of TK_IF: parseIfStmt
+        of TK_FOR: parseForStmt
+        of TK_INCLUDE: parseIncludeCall
+        of TK_MIXIN: parseMixinCall
+        of TK_VARIABLE: parseVariable
+        else: parseHtmlElement
+
+# proc getInfixFn(kind: TokenKind): InfixFunction =
+#     result = case kind:
+#         of tkOperators: parseOp
+#         else: nil
+
+proc parseExpression(p: var Parser): Node =
+    var prefixFunction = getPrefixFn(p.current.kind)
+    var infixFunction: InfixFunction
+    var leftExpression: Node = p.prefixFunction()
+    if leftExpression != nil:
+        result = leftExpression
+
+proc parseExpressionStmt(p: var Parser): Node =
+    let tk = p.current
+    var exp = p.parseExpression()
+    if exp == nil and p.hasError():
+        # quit parsing and prompt the error
+        return
+
+    if exp.nodeType == NTHtmlElement:
+        if exp.meta.pos == 0:
+            if p.parentNode == nil:     # set a new parent node
+                p.parentNode = exp
+            else:                       # add parent node to ast
+                result = ast.newExpression(p.parentNode)
+                p.parentNode = nil
+        else:
+            p.parentNode.nodes.add exp
+            return
+    result = ast.newExpression exp
+
+proc parseStatement(p: var Parser): Node =
+    case p.current.kind:
+        of TK_VARIABLE:    result = p.parseAssignment()
+        else:              result = p.parseExpressionStmt()
 
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
@@ -371,13 +413,15 @@ proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateTyp
         return p
     else:
         p.lexer = Lexer.init(iHandler.getFullCode(), allowMultilineStrings = true)
-        # p.data = Data.init(data)
         p.filePath = path
 
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
-    p.currln  = p.current
-    
-    p.walk()
+
+    p.statements = Program()
+    while p.hasError() == false and p.current.kind != TK_EOF:
+        var statement: Node = p.parseStatement()
+        if statement != nil:
+            p.statements.nodes.add(statement)
     p.lexer.close()
     result = p
