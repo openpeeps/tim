@@ -11,7 +11,7 @@ from resolver import resolve, hasError, getError,
                     getErrorLine, getErrorColumn, getFullCode
 
 from meta import TimEngine, TimlTemplate, TimlTemplateType, getContents, getFileData
-from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool
+from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool, indent
 
 type
     Parser* = object
@@ -105,7 +105,7 @@ proc getError*[P: Parser](p: var P): string =
         result = p.error
 
 proc isHTMLElement(token: TokenKind): bool =
-    result = token notin tkComparables + tkOperators + tkConditionals + tkCalc + tkCall + tkLoops
+    result = token notin tkComparables + tkOperators + tkConditionals + tkCalc + tkCall + tkLoops + {TK_EOF}
 
 proc parse*(engine: TimEngine, code, path: string,
             templateType: TimlTemplateType): Parser
@@ -114,9 +114,9 @@ proc getStatements*(p: Parser, asNodes = true): Program =
     ## Return all HtmlNodes available in current document
     result = p.statements
 
-proc getStatementsStr*(p: Parser, prettyString = false): string = 
+proc getStatementsStr*(p: Parser, prettyString, prettyPlain = false): string = 
     ## Retrieve all HtmlNodes available in current document as stringified JSON
-    if prettyString: 
+    if prettyString or prettyPlain: 
         return pretty(toJson(p.getStatements()))
     result = $(toJson(p.statements))
 
@@ -148,6 +148,8 @@ proc getOperator(tk: TokenKind): OperatorType =
     else: discard
 
 # prefix / infix handlers
+proc parseExpressionStmt(p: var Parser): Node
+proc parseStatement(p: var Parser): Node
 proc parseExpression(p: var Parser): Node
 proc parseIfStmt(p: var Parser): Node
 proc parseForStmt(p: var Parser): Node
@@ -246,14 +248,27 @@ proc parseHtmlElement(p: var Parser): Node =
             jump p
             if p.current.kind == TK_STRING:
                 result.nodes.add p.parseString()
+                # NTString nodes cannot contain nodes.
+                # so it will refer to its HTML container
+                return
             else:
                 p.setError InvalidNestDeclaration, true
         elif p.current.kind in {TK_ATTR_CLASS, TK_ATTR_ID}:
             result.attrs = p.getHtmlAttributes()
         else:
-            if isHTMLElement(p.current.kind) and (p.current.pos > p.prev.pos):
-                result.nodes.add p.parseHtmlElement()
-            else: break
+            if isHTMLElement(p.current.kind):
+                if p.current.pos == 0 or p.prevNode == nil: break
+                if p.current.pos > p.prevNode.meta.pos:
+                    result.nodes.add p.parseHtmlElement()
+                elif p.prevNode.meta.pos > p.current.pos:
+                    result.nodes[^1].nodes.add p.parseHtmlElement()
+                else: break
+            else:
+                if p.current.pos == 0 or p.current.kind == TK_EOF: break
+                result.nodes.add p.parseExpressionStmt()
+                break
+    if result.nodeType != NTString:
+        p.prevNode = result
 
 proc parseAssignment(p: var Parser): Node =
     discard
@@ -381,20 +396,8 @@ proc parseExpressionStmt(p: var Parser): Node =
     let tk = p.current
     var exp = p.parseExpression()
     if exp == nil and p.hasError():
-        # quit parsing and prompt the error
         return
-
-    if exp.nodeType == NTHtmlElement:
-        if exp.meta.pos == 0:
-            if p.parentNode == nil:     # set a new parent node
-                p.parentNode = exp
-            else:                       # add parent node to ast
-                result = ast.newExpression(p.parentNode)
-                p.parentNode = nil
-        else:
-            p.parentNode.nodes.add exp
-            return
-    result = ast.newExpression exp
+    result = ast.newExpression(exp)
 
 proc parseStatement(p: var Parser): Node =
     case p.current.kind:
