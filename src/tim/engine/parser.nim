@@ -11,7 +11,7 @@ from resolver import resolve, hasError, getError,
                     getErrorLine, getErrorColumn, getFullCode
 
 from meta import TimEngine, TimlTemplate, TimlTemplateType, getContents, getFileData
-from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool, indent
+from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool
 
 type
     Parser* = object
@@ -67,6 +67,7 @@ const
     InvalidNestDeclaration = "Invalid nest declaration"
     InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
     NestableStmtIndentation = "Nestable statement requires indentation"
+    TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
 
 const
     tkComparables = {TK_VARIABLE, TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE}
@@ -150,17 +151,25 @@ proc getOperator(tk: TokenKind): OperatorType =
 # prefix / infix handlers
 proc parseExpressionStmt(p: var Parser): Node
 proc parseStatement(p: var Parser): Node
-proc parseExpression(p: var Parser): Node
+proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node
 proc parseIfStmt(p: var Parser): Node
 proc parseForStmt(p: var Parser): Node
 proc getPrefixFn(kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
-proc parseInfix(p: var Parser, infixLeft: Node): Node =
+proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
     let tk: TokenTuple = p.current
     jump p
     let infixRight: Node = p.parseExpression()
     result = ast.newInfix(infixLeft, infixRight, getOperator(tk.kind))
+    if strict:
+        # ensure compatibility between types. strictly verifying
+        # literals, boolean, integer or string.
+        # TODO a similar check should be done on compile time for variables.
+        let lit = {NTInt, NTString, NTBool}
+        if infixLeft.nodeType in lit and infixRight.nodeType in lit and (infixLeft.nodeType != infixRight.nodeType):
+            p.setError(TypeMismatch % [infixLeft.nodeName, infixRight.nodeName])
+            result = nil
 
 proc parseInteger(p: var Parser): Node =
     # Parse a new `integer` node
@@ -175,9 +184,9 @@ proc parseBoolean(p: var Parser): Node =
 proc parseString(p: var Parser): Node =
     # Parse a new `string` node
     result = ast.newString(p.current.value)
-    if p.next.pos > p.prev.pos:                 # prevent other nests after new string declaration.
-        p.setError(InvalidIndentation)
-        return
+    # if p.next.pos > p.prev.pos:                 # prevent other nests after new string declaration.
+    #     p.setError(InvalidIndentation)
+    #     return
     jump p
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
@@ -275,12 +284,13 @@ proc parseAssignment(p: var Parser): Node =
 
 proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple) =
     if p.current.pos != ifThis.pos:
-        p.setError InvalidConditionalStmt
+        p.setError InvalidIndentation
         return
     var this = p.current
     jump p
     while p.current.pos > this.pos:
-        elseBody.add p.parseExpression()
+        let bodyNode = p.parseExpression(exclude = {NTInt, NTString, NTBool})
+        elseBody.add bodyNode
 
 proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
     if p.next.kind notin tkComparables:
@@ -296,16 +306,16 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
         return
     if p.current.kind notin tkOperators:
         p.setError(InvalidConditionalStmt)
-    let infixNode = p.parseInfix(infixLeft)
+    let infixNode = p.parseInfix(infixLeft, strict = true)
 
     if p.current.pos == this.pos:
         p.setError(InvalidIndentation)
         return
-
     var ifBody, elseBody: seq[Node]
     while p.current.pos > this.pos:     # parse body of `if` branch
         if p.current.kind in {TK_ELIF, TK_ELSE}:
             p.setError(InvalidIndentation, true)
+            break
         ifBody.add p.parseExpression()
     if ifBody.len == 0:                 # when missing `if body`
         p.setError(InvalidConditionalStmt)
@@ -385,10 +395,13 @@ proc getPrefixFn(kind: TokenKind): PrefixFunction =
 #         of tkOperators: parseOp
 #         else: nil
 
-proc parseExpression(p: var Parser): Node =
-    var prefixFunction = getPrefixFn(p.current.kind)
-    var infixFunction: InfixFunction
+proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
+    var this = p.current
+    var prefixFunction = getPrefixFn(this.kind)
     var leftExpression: Node = p.prefixFunction()
+    if exclude.len != 0:
+        if leftExpression.nodeType in exclude:
+            p.setError("Unexpected token \"$1\"" % [this.value])
     if leftExpression != nil:
         result = leftExpression
 
