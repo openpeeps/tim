@@ -35,7 +35,8 @@ type
             ## An `OrderedTable of `Node` holding deferred elements
         prevln, currln, nextln: TokenTuple
             ## Holds TokenTuple representation of heads from prev, current and next 
-        parentNode, prevNode: Node
+        parentNode: seq[Node]
+        prevNode: tuple[line, pos, col, wsno: int]
             ## While in `walk` proc, we temporarily hold `parentNode`
             ## and prevNode for each iteration.
         data: Data
@@ -230,7 +231,7 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                 result[attrName] = @[p.next.value]
             jump p, 2 
         else: break
-
+var lvl = 0
 proc parseHtmlElement(p: var Parser): Node =
     # Parse a new `HTML` Element node
     result = ast.newHtmlElement(
@@ -240,7 +241,14 @@ proc parseHtmlElement(p: var Parser): Node =
                 p.current.col,
                 p.current.wsno
             )
+    if result.meta.pos == 0:
+        p.parentNode.add(result)
+        lvl = 0
+    else:
+        result.meta.pos = lvl * 4
     jump p
+    if result.nodeType != NTString:
+        p.prevNode = result.meta
     while true:
         if p.prev.kind == TK_STRING:
             if p.prev.line == p.current.line:
@@ -251,34 +259,30 @@ proc parseHtmlElement(p: var Parser): Node =
             jump p
             if not isHTMLElement(p.current.kind):
                 p.setError InvalidNestDeclaration, true
-                break
-            result.nodes.add p.parseHtmlElement()
+            inc lvl
+            var innerNode = p.parseHtmlElement()
+            result.nodes.add innerNode
+            p.prevNode = innerNode.meta
         elif p.current.kind == TK_COLON:
             jump p
             if p.current.kind == TK_STRING:
+                dec lvl
                 result.nodes.add p.parseString()
-                # NTString nodes cannot contain nodes.
-                # so it will refer to its HTML container
-                return
+                return # NTString nodes cannot contain nodes.
             else:
                 p.setError InvalidNestDeclaration, true
         elif p.current.kind in {TK_ATTR_CLASS, TK_ATTR_ID}:
             result.attrs = p.getHtmlAttributes()
         else:
-            if isHTMLElement(p.current.kind):
-                if p.current.pos == 0 or p.prevNode == nil: break
-                if p.current.pos > p.prevNode.meta.pos:
-                    result.nodes.add p.parseHtmlElement()
-                elif p.prevNode.meta.pos > p.current.pos:
-                    result.nodes[^1].nodes.add p.parseHtmlElement()
-                else: break
+            if p.current.pos == 0 or p.current.kind == TK_EOF: break
+            if (p.current.pos * lvl) > result.meta.pos:
+                inc lvl
+                var innerNode = p.parseExpression()
+                if innerNode.nodeType == NTHtmlElement:
+                    innerNode.meta.pos = lvl * 4
+                result.nodes[^1].nodes.add(innerNode)
             else:
-                if p.current.pos == 0 or p.current.kind == TK_EOF: break
-                result.nodes.add p.parseExpressionStmt()
                 break
-    if result.nodeType != NTString:
-        p.prevNode = result
-
 proc parseAssignment(p: var Parser): Node =
     discard
 
@@ -390,11 +394,6 @@ proc getPrefixFn(kind: TokenKind): PrefixFunction =
         of TK_VARIABLE: parseVariable
         else: parseHtmlElement
 
-# proc getInfixFn(kind: TokenKind): InfixFunction =
-#     result = case kind:
-#         of tkOperators: parseOp
-#         else: nil
-
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
     var this = p.current
     var prefixFunction = getPrefixFn(this.kind)
@@ -410,7 +409,19 @@ proc parseExpressionStmt(p: var Parser): Node =
     var exp = p.parseExpression()
     if exp == nil and p.hasError():
         return
-    result = ast.newExpression(exp)
+
+    # if exp.nodeType == NTHtmlElement:
+    #     if exp.meta.pos == 0:
+    #         if p.parentNode.len == 0:     # set a new parent node
+    #             p.parentNode.add(exp)
+    #         else:                        # add parent node to ast
+    #             result = ast.newExpression(p.parentNode[^1])
+    #             # p.parentNode.delete(p.parentNode.high)
+    #             return
+    #     else:
+    #         p.parentNode[^1].nodes.add exp
+    #         return
+    result = ast.newExpression exp
 
 proc parseStatement(p: var Parser): Node =
     case p.current.kind:
