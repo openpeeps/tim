@@ -30,12 +30,10 @@ type
         prev, current, next: TokenTuple
             ## Hold `Tokentuple` siblinngs while parsing
         statements: Program
-            ## Holds the entire Abstract Syntax Tree representation
-        deferredStatements: OrderedTable[int, Node]
-            ## An `OrderedTable of `Node` holding deferred elements
+            ## Holds AST representation
         prevln, currln, nextln: TokenTuple
             ## Holds TokenTuple representation of heads from prev, current and next 
-        parentNode: seq[Node]
+        parentNode: Node
         prevNode: tuple[line, pos, col, wsno: int]
             ## While in `walk` proc, we temporarily hold `parentNode`
             ## and prevNode for each iteration.
@@ -158,6 +156,16 @@ proc parseForStmt(p: var Parser): Node
 proc getPrefixFn(kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
+proc resolveInlineNest(lazySeq: var seq[Node]): Node =
+    var i = 0
+    var maxlen = (lazySeq.len - 1)
+    while true:
+        if i == maxlen: break
+        lazySeq[(maxlen - (i + 1))].nodes.add(lazySeq[^1])
+        lazySeq.delete( (maxlen - i) )
+        inc i
+    result = lazySeq[0]
+
 proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
     let tk: TokenTuple = p.current
     jump p
@@ -232,63 +240,41 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             jump p, 2 
         else: break
 var lvl = 0
-proc parseHtmlElement(p: var Parser): Node =
-    # Parse a new `HTML` Element node
-    result = ast.newHtmlElement(
-                p.current.kind,
-                p.current.line,
-                p.current.pos,
-                p.current.col,
-                p.current.wsno
-            )
-    if result.meta.pos == 0:
-        p.parentNode.add(result)
-        lvl = 0
-    else:
-        result.meta.pos = lvl * 4
+proc newHtmlNode(p: var Parser): Node =
+    result = ast.newHtmlElement(p.current)
     jump p
-    if result.nodeType != NTString:
-        p.prevNode = result.meta
+    if result.meta.pos != 0:
+        result.meta.pos = lvl * 4 # set real indentation size
     while true:
-        if p.prev.kind == TK_STRING:
-            if p.prev.line == p.current.line:
-                p.setError InvalidNestDeclaration, true
-        if p.current.kind == TK_GT:
-            # parse single line HTML elements and
-            # create multi-dimensional nests
-            jump p
-            if not isHTMLElement(p.current.kind):
-                p.setError InvalidNestDeclaration, true
-            inc lvl
-            var innerNode = p.parseHtmlElement()
-            result.nodes.add innerNode
-            p.prevNode = innerNode.meta
-        elif p.current.kind == TK_COLON:
+        if p.current.kind == TK_COLON:
             jump p
             if p.current.kind == TK_STRING:
-                dec lvl
+                # inc lvl
                 result.nodes.add p.parseString()
-                return # NTString nodes cannot contain nodes.
             else:
                 p.setError InvalidNestDeclaration, true
         elif p.current.kind in {TK_ATTR_CLASS, TK_ATTR_ID}:
             result.attrs = p.getHtmlAttributes()
-        else:
-            if p.current.pos == 0 or p.current.kind == TK_EOF: break
-            if (p.current.pos * lvl) > result.meta.pos:
-                inc lvl
-                var innerNode = p.parseExpression()
-                if innerNode.nodeType == NTHtmlElement:
-                    innerNode.meta.pos = lvl * 4
-                result.nodes[^1].nodes.add(innerNode)
-            else:
-                break
+        else: break
+
+proc parseHtmlElement(p: var Parser): Node =
+    result = p.newHtmlNode()
+    var nest: seq[Node]
+    while p.current.kind == TK_GT:
+        jump p
+        if not p.current.kind.isHTMLElement():
+            p.setError(InvalidNestDeclaration, true)
+        inc lvl
+        result.nodes.add(p.parseHtmlElement())
+    while p.current.pos > result.meta.col:
+        result.nodes.add(p.parseExpression())
+
 proc parseAssignment(p: var Parser): Node =
     discard
 
 proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple) =
     if p.current.pos != ifThis.pos:
-        p.setError InvalidIndentation
+        p.setError(InvalidIndentation)
         return
     var this = p.current
     jump p
@@ -329,7 +315,7 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
 proc parseIfStmt(p: var Parser): Node =
     var this = p.current
     var elseBody: seq[Node]
-    result = newIfExpression(ifBranch = p.parseCondBranch(this))
+    result = newIfExpression(ifBranch = p.parseCondBranch(this), this)
     while p.current.kind == TK_ELIF:
         let thisElif = p.current
         result.elifBranch.add p.parseCondBranch(thisElif)
@@ -367,7 +353,7 @@ proc parseForStmt(p: var Parser): Node =
         forBody.add p.parseExpression()
 
     if forBody.len != 0:
-        return newFor(singularIdent, pluralIdent, forBody)
+        return newFor(singularIdent, pluralIdent, forBody, this)
     p.setError(NestableStmtIndentation)
 
 proc parseMixinCall(p: var Parser): Node =
@@ -397,30 +383,18 @@ proc getPrefixFn(kind: TokenKind): PrefixFunction =
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
     var this = p.current
     var prefixFunction = getPrefixFn(this.kind)
-    var leftExpression: Node = p.prefixFunction()
+    var exp: Node = p.prefixFunction()
     if exclude.len != 0:
-        if leftExpression.nodeType in exclude:
+        if exp.nodeType in exclude:
             p.setError("Unexpected token \"$1\"" % [this.value])
-    if leftExpression != nil:
-        result = leftExpression
+    if exp != nil:
+        result = exp
 
 proc parseExpressionStmt(p: var Parser): Node =
     let tk = p.current
     var exp = p.parseExpression()
     if exp == nil and p.hasError():
         return
-
-    # if exp.nodeType == NTHtmlElement:
-    #     if exp.meta.pos == 0:
-    #         if p.parentNode.len == 0:     # set a new parent node
-    #             p.parentNode.add(exp)
-    #         else:                        # add parent node to ast
-    #             result = ast.newExpression(p.parentNode[^1])
-    #             # p.parentNode.delete(p.parentNode.high)
-    #             return
-    #     else:
-    #         p.parentNode[^1].nodes.add exp
-    #         return
     result = ast.newExpression exp
 
 proc parseStatement(p: var Parser): Node =
