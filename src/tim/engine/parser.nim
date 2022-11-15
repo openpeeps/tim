@@ -221,7 +221,6 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                 else: p.setError(InvalidAttributeId, true)
             else: p.setError DuplicateAttrId % [p.next.value], true
         elif p.current.kind in {TK_IDENTIFIER, TK_STYLE, TK_TITLE} and p.next.kind == TK_ASSIGN:
-            # TODO check wsno for other `attr` token
             p.current.kind = TK_IDENTIFIER
             let attrName = p.current.value
             jump p
@@ -247,7 +246,7 @@ proc newHtmlNode(p: var Parser): Node =
                 result.nodes.add p.parseString()
             else:
                 p.setError InvalidNestDeclaration, true
-        elif p.current.kind in {TK_ATTR_CLASS, TK_ATTR_ID}:
+        elif p.current.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER}:
             result.attrs = p.getHtmlAttributes()
         else: break
 
