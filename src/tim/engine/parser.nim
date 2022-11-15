@@ -31,12 +31,6 @@ type
             ## Hold `Tokentuple` siblinngs while parsing
         statements: Program
             ## Holds AST representation
-        prevln, currln, nextln: TokenTuple
-            ## Holds TokenTuple representation of heads from prev, current and next 
-        parentNode: Node
-        prevNode: tuple[line, pos, col, wsno: int]
-            ## While in `walk` proc, we temporarily hold `parentNode`
-            ## and prevNode for each iteration.
         data: Data
             ## An instance of Data to be evaluated on runtime.
         enableJit: bool
