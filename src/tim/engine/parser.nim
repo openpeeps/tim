@@ -252,14 +252,17 @@ proc newHtmlNode(p: var Parser): Node =
 
 proc parseHtmlElement(p: var Parser): Node =
     result = p.newHtmlNode()
-    var nest: seq[Node]
+    var node: Node
     while p.current.kind == TK_GT:
         jump p
         if not p.current.kind.isHTMLElement():
             p.setError(InvalidNestDeclaration, true)
         inc lvl
-        result.nodes.add(p.parseHtmlElement())
-    while p.current.pos > result.meta.col:
+        node = p.parseHtmlElement()
+        while p.current.line > node.meta.line and p.current.pos > result.meta.col:
+            node.nodes.add(p.parseExpression())
+        result.nodes.add(node)
+    while p.current.line > result.meta.line and p.current.pos > result.meta.col:
         result.nodes.add(p.parseExpression())
 
 proc parseAssignment(p: var Parser): Node =
