@@ -70,6 +70,16 @@ const
     tkCalc = {TK_PLUS, TK_MINUS, TK_DIVIDE, TK_MULTIPLY}
     tkCall = {TK_INCLUDE, TK_MIXIN}
     tkNone = (TK_NONE, "", 0,0,0,0)
+    svgscTags = {
+        TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
+        TK_SVG_ANIMATETRANSFORM, TK_SVG_ANIMATEMOTION,
+        TK_SVG_FE_BLEND, TK_SVG_FE_COLORMATRIX, TK_SVG_FE_COMPOSITE,
+        TK_SVG_FE_CONVOLVEMATRIX, TK_SVG_FE_DISPLACEMENTMAP
+    }
+    scTags = {
+        TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
+        TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
+        TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR} + svgscTags
 
 template setError[P: Parser](p: var P, msg: string, breakStmt: bool) =
     ## Set parser error
@@ -234,7 +244,9 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         else: break
 var lvl = 0
 proc newHtmlNode(p: var Parser): Node =
+    var isSelfClosingTag = p.current.kind in scTags
     result = ast.newHtmlElement(p.current)
+    result.issctag = isSelfClosingTag
     jump p
     if result.meta.pos != 0:
         result.meta.pos = lvl * 4 # set real indentation size
@@ -259,7 +271,9 @@ proc parseHtmlElement(p: var Parser): Node =
             p.setError(InvalidNestDeclaration, true)
         inc lvl
         node = p.parseHtmlElement()
-        while p.current.line > node.meta.line and p.current.pos > result.meta.col:
+        if p.current.pos != 0:
+            inc lvl
+        while p.current.line > node.meta.line and p.current.pos * lvl > result.meta.pos:
             node.nodes.add(p.parseExpression())
         result.nodes.add(node)
     while p.current.line > result.meta.line and p.current.pos > result.meta.col:
