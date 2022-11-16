@@ -11,14 +11,14 @@ _Work in progress_
 - [x] Multi-threading | Low memory foot-print 🍃
 - [ ] Mixins
 - [x] SVG Support
-- [ ] `layouts`, `views` and `partials` logic
-- [ ] Variable Assignment
-- [ ] `for` Loops & Iterations
-- [ ] `if`, `elif`, `else` Conditional Statements
-- [ ] `JSON` AST Generator
-- [ ] Just-in-time Computation
-- [ ] SEO / Semantic Checker
-- [ ] Language Extension `.timl` 😎
+- [x] `layouts`, `views` and `partials` logic
+- [x] Variable Assignment
+- [x] `for` Loops & Iterations
+- [x] `if`, `elif`, `else` Conditional Statements
+- [x] `JSON` AST Generator
+- [x] Just-in-time Computation
+- [x] SEO / Semantic Checker
+- [x] Language Extension `.timl` 😎
 - [x] Lexer based on [Toktok library](https://github.com/openpeep/toktok)
 - [x] Tim as a **Nimble library** for Nim programming 👑
 - [ ] Tim as a Native NodeJS addon
@@ -138,14 +138,11 @@ variables:
   ident: '[A-Za-z_][A-Za-z_0-9]*'
 contexts:
   main:
-    # Strings begin and end with quotes, and use backslashes as an escape
-    # character
     - match: '"'
       scope: punctuation.definition.string.begin.timl
       push: double_quoted_string
 
-    # Tim Engine allows single-line comments starting with `#` to end of line
-    - match: '#'
+    - match: '//'
       scope: punctuation.definition.comment.timl
       push: line_comment
 
@@ -164,17 +161,41 @@ contexts:
     - match: '='
       scope: markup.bold keyword.operator.assignment.timl
 
-    - match: '\b(html|head|meta|link|script|main|section|article|aside|div)\b'
+    - match: '\b(html|head|meta|script|body|title)\b'
+      scope: entity.name.tag.timl
+
+    - match: '\b(main|section|article|aside|div|footer|header)\b'
       scope: entity.name.tag.timl
 
     - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span)\b'
-      scope: entity.name.type.timl
+      scope: entity.name.type.text.timl
+
+    - match: '\b(table|tbody|td|tfoot|th|thead|tr)\b'
+      scope: entity.name.tag.table.timl
+
+    - match: '\b(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b'
+      scope: entity.name.tag.selfclosing.timl
+
+    - match: '\b(ul|ol|dl|dt|dd|li)\b'
+      scope: entity.name.tag.list.timl
+
+    - match: '\b(if|elif|else|for|in)\b'
+      scope: keyword.control.timl
 
     - match: '\b(-)?[0-9.]+\b'
       scope: constant.numeric.timl
 
+    - match: '\b(true|false)\b'
+      scope: constant.language.timl
+
     - match: '\b{{ident}}\b'
       scope: punctuation.definition
+
+    - match: '@include'
+      scope: keyword.control.import.timl
+
+    - match: '@mixin'
+      scope: entity.name.function.timl
 
   double_quoted_string:
     - meta_scope: string.quoted.double.timl
