@@ -167,7 +167,7 @@ contexts:
     - match: '\b(main|section|article|aside|div|footer|header)\b'
       scope: entity.name.tag.timl
 
-    - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span)\b'
+    - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span|u)\b'
       scope: entity.name.type.text.timl
 
     - match: '\b(table|tbody|td|tfoot|th|thead|tr)\b'
@@ -175,6 +175,9 @@ contexts:
 
     - match: '\b(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b'
       scope: entity.name.tag.selfclosing.timl
+
+    - match: '\b(button|label|select|textarea|legend|datalist|output|option|optgroup)\b'
+      scope: entity.name.tag.form.timl
 
     - match: '\b(ul|ol|dl|dt|dd|li)\b'
       scope: entity.name.tag.list.timl
