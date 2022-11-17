@@ -196,15 +196,12 @@ proc parseBoolean(p: var Parser): Node =
 
 proc parseString(p: var Parser): Node =
     # Parse a new `string` node
-    result = ast.newString(p.current.value)
-    # if p.next.pos > p.prev.pos:                 # prevent other nests after new string declaration.
-    #     p.setError(InvalidIndentation)
-    #     return
+    result = ast.newString(p.current)
     jump p
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
-    # Parse element attributes and returns a `Table[string, string]`
-    # containing all HTML attributes.
+    # Parse all attributes and return it as a
+    # `Table[string, seq[string]]`
     while true:
         if p.current.kind == TK_ATTR_CLASS:
             # Add `class=""` html attribute
@@ -265,6 +262,7 @@ proc newHtmlNode(p: var Parser): Node =
 proc parseHtmlElement(p: var Parser): Node =
     result = p.newHtmlNode()
     var node: Node
+    var i = 0
     while p.current.kind == TK_GT:
         jump p
         if not p.current.kind.isHTMLElement():
@@ -274,7 +272,10 @@ proc parseHtmlElement(p: var Parser): Node =
         if p.current.pos != 0:
             inc lvl
         while p.current.line > node.meta.line and p.current.pos * lvl > result.meta.pos:
+            inc i
             node.nodes.add(p.parseExpression())
+        dec lvl, i
+        i = 0
         result.nodes.add(node)
     while p.current.line > result.meta.line and p.current.pos > result.meta.col:
         result.nodes.add(p.parseExpression())
