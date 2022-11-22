@@ -424,7 +424,6 @@ proc parseMixinDefinition(p: var Parser): Node =
                 p.setError(InvalidMixinDefinition % [ident.value], true)
             jump p
     jump p
-    echo p.current
     while p.current.pos > this.pos:
         result.mixinBody.add p.parseExpression()
 
