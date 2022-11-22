@@ -1,6 +1,7 @@
 import std/tables
 from ./tokens import TokenKind, TokenTuple
 from std/enumutils import symbolName
+from std/strutils import replace, toLowerAscii
 
 type
     NodeType* = enum
@@ -19,6 +20,7 @@ type
         NTInfixStmt
         NTIncludeCall
         NTMixinCall
+        NTMixinDef
         NTLet
         NTVar
         NTVariable
@@ -142,6 +144,8 @@ type
     HtmlAttributes* = Table[string, seq[string]]
     IfBranch* = tuple[cond: Node, body: seq[Node]]
     ElifBranch* = seq[IfBranch]
+    MetaNode* = tuple[line, pos, col, wsno: int]
+    ParamTuple* = tuple[key, value, typeSymbol: string, `type`: NodeType]
 
     Node* = ref object
         nodeName*: string
@@ -167,6 +171,7 @@ type
             htmlNodeType*: HtmlNodeType
             attrs*: HtmlAttributes
             nodes*: seq[Node]
+            issctag*: bool
         of NTStmtList:
             stmtList*: Node
         of NTInfixStmt:
@@ -177,18 +182,24 @@ type
             includeIdent*: string
         of NTMixinCall:
             mixinIdent*: string
+        of NTMixinDef:
+            mixinIdentDef*: string
+            mixinParamsDef*: seq[ParamTuple]
+            mixinBody*: seq[Node]
         of NTVariable:
             varIdent*: string
         else: nil
-        meta*: tuple[line, pos, col, wsno: int]
+        meta*: MetaNode
 
     Program* = object
         nodes*: seq[Node]
 
-proc newNode(nt: NodeType): Node =
+proc newNode*(nt: NodeType, tk: TokenTuple): Node =
     result = Node(nodeName: nt.symbolName, nodeType: nt)
+    result.meta = (tk.line, tk.pos, tk.col, tk.wsno)
 
 proc newExpression*(expression: Node): Node =
+    ## Add a new `NTStmtList` expression node
     result = Node(
         nodeName: NTStmtList.symbolName,
         nodeType: NTStmtList,
@@ -196,6 +207,7 @@ proc newExpression*(expression: Node): Node =
     )
 
 proc newInfix*(infixLeft, infixRight: Node, infixOp: OperatorType): Node =
+    ## Add a new `NTInfixStmt` node
     Node(
         nodeName: NTInfixStmt.symbolName,
         nodeType: NTInfixStmt,
@@ -206,24 +218,33 @@ proc newInfix*(infixLeft, infixRight: Node, infixOp: OperatorType): Node =
     )
 
 proc newInt*(iVal: int): Node =
+    ## Add a new `NTInt` node
     Node(nodeName: NTInt.symbolName, nodeType: NTInt, iVal: iVal)
 
 proc newBool*(bVal: bool): Node =
+    ## Add a new `NTBool` node
     Node(nodeName: NTBool.symbolName, nodeType: NTBool, bVal: bVal)
 
-proc newString*(sVal: string): Node =
-    Node(nodeName: NTString.symbolName, nodeType: NTString, sVal: sVal)
+proc newString*(tk: TokenTuple): Node =
+    ## Add a new `NTString` node
+    Node(
+        nodeName: NTString.symbolName,
+        nodeType: NTString,
+        sVal: tk.value,
+        meta: (tk.line, tk.pos, tk.col, tk.wsno)
+    )
 
 proc newHtmlElement*(tk: TokenTuple): Node =
+    ## Add a new `NTHtmlElement` node
     Node(
         nodeName: NTHtmlElement.symbolName,
         nodeType: NTHtmlElement,
-        htmlNodeName: tk.kind.symbolName,
+        htmlNodeName: tk.value,
         meta: (tk.line, tk.pos, tk.col, tk.wsno)
     )
 
 proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
-    ## Create a mew Conditional node
+    ## Add a mew Conditional node
     Node(
         nodeName: NTConditionStmt.symbolName,
         nodeType: NTConditionStmt,
@@ -232,21 +253,25 @@ proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
         meta: (tk.line, tk.pos, tk.col, tk.wsno)
     )
 
-proc newMixin*(ident: string): Node =
-    ## Create a new `@mixin(myMixin)` node
-    Node(nodeName: NTMixinCall.symbolName, nodeType: NTMixinCall, mixinIdent: ident)
+proc newMixin*(tk: TokenTuple): Node =
+    ## Add a new `NTMixinCall` node
+    Node(nodeName: NTMixinCall.symbolName, nodeType: NTMixinCall, mixinIdent: tk.value)
+
+proc newMixinDef*(tk: TokenTuple): Node = 
+    Node(nodeName: NTMixinDef.symbolName, nodeType: NTMixinDef, mixinIdentDef: tk.value)
 
 proc newInclude*(ident: string): Node =
-    ## Create a new `include "view.timl"` node
+    ## Add a new `NTIncludeCall` node
     Node(nodeName: NTIncludeCall.symbolName, nodeType: NTIncludeCall, includeIdent: ident)
 
 proc newFor*(singularIdent, pluralIdent: string, body: seq[Node], tk: TokenTuple): Node =
-    result = newNode(NTForStmt)
+    ## Add a new `NTForStmt` node
+    result = newNode(NTForStmt, tk)
     result.forBody = body
     result.forIdentSingular = singularIdent
     result.forIdentPlural = pluralIdent
-    result.meta = (tk.line, tk.pos, tk.col, tk.wsno)
 
-proc newVariable*(varIdent: string): Node =
-    result = newNode(NTVariable)
-    result.varIdent = varIdent
+proc newVariable*(tk: TokenTuple): Node =
+    ## Add a new `NTVariable` node
+    result = newNode(NTVariable, tk)
+    result.varIdent = tk.value

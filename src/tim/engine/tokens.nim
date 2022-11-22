@@ -215,11 +215,14 @@ tokens:
     Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
     LCurly       > '{'
     RCurly       > '}'
+    LPar         > '('
+    RPar         > ')'
     Attr_Class   > '.'
     Attr_ID      > '#'
     Assign       > '=':
         EQ       ? '='
-    Colon        > ':' 
+    Colon        > ':'
+    Comma        > ','
     GT           > '>':
         GTE      ? '='
     LT           > '<':
@@ -243,6 +246,9 @@ tokens:
     Minus        > '-'
     Multiply     > '*'
     Defer        > "defer"
+    Type_Bool         > "bool"
+    Type_Int          > "int"
+    Type_String       > "string"
     None
 
 export TokenTuple, TokenKind
