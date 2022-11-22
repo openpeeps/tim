@@ -60,6 +60,7 @@ const
     InvalidNestDeclaration = "Invalid nest declaration"
     InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
     InvalidMixinDefinition = "Invalid mixin definition \"$1\""
+    InvalidStringConcat = "Invalid string concatenation"
     NestableStmtIndentation = "Nestable statement requires indentation"
     TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
 
@@ -150,6 +151,7 @@ proc getOperator(tk: TokenKind): OperatorType =
     of TK_LTE: result = LTE
     of TK_GT: result = GT
     of TK_GTE: result = GTE
+    of TK_AND: result = AND
     else: discard
 
 # prefix / infix handlers
@@ -201,7 +203,17 @@ proc parseString(p: var Parser): Node =
         result.issctag = true
         result.nodes.add ast.newString(p.current)
     else:
-        result = ast.newString(p.current)
+        let strToken = p.current
+        if p.next.kind == TK_AND:
+            jump p
+            if p.next.kind notin {TK_STRING, TK_VARIABLE}:
+                p.setError(InvalidStringConcat)
+                return nil
+            jump p
+            let infixRight: Node = p.parseExpression()
+            result = ast.newInfix(ast.newString(strToken), infixRight, getOperator(TK_AND))
+        else:
+            result = ast.newString(strToken)
     jump p
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
@@ -265,7 +277,7 @@ proc newHtmlNode(p: var Parser): Node =
 
 proc parseHtmlElement(p: var Parser): Node =
     result = p.newHtmlNode()
-    var node: Node
+    var node, prevNode: Node
     var i = 0
     while p.current.kind == TK_GT:
         jump p
@@ -280,20 +292,31 @@ proc parseHtmlElement(p: var Parser): Node =
             dec lvl, i
             i = 0
         while p.current.line > node.meta.line and p.current.pos * lvl > node.meta.pos:
+            if p.current.kind == TK_EOF: break
             inc i
             node.nodes.add(p.parseExpression())
         dec lvl, i
         i = 0
         result.nodes.add(node)
     while p.current.line > result.meta.line and p.current.pos > result.meta.col:
+        if p.current.kind == TK_EOF: break
         if p.current.pos > result.meta.col:
-            inc lvl
+            if prevNode != nil:
+                if p.current.pos == prevNode.meta.pos:
+                    discard
+                elif p.current.pos < prevNode.meta.pos:
+                    dec lvl
+            else:
+                inc lvl
         inc i
-        result.nodes.add(p.parseExpression())
+        prevNode = p.parseExpression()
+        result.nodes.add(prevNode)
+    
+    if p.current.pos == 0: lvl = 0 # reset level
 
-    if p.current.pos < result.meta.col or p.current.pos == result.meta.col:
-        dec lvl,  i
-        i = 0
+    # if p.current.pos < result.meta.col or p.current.pos == result.meta.col:
+    #     dec lvl,  i
+    #     i = 0
 
 proc parseAssignment(p: var Parser): Node =
     discard
@@ -434,6 +457,7 @@ proc parseIncludeCall(p: var Parser): Node =
 proc parseVariable(p: var Parser): Node =
     result = newVariable(p.current)
     jump p
+    jit p
 
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     result = case kind

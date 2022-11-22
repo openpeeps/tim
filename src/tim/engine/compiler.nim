@@ -95,6 +95,14 @@ proc getHtmlTails*(c: Compiler): string {.inline.} =
     result = $(c.htmlTails)
 
 var fixTail: bool
+
+proc writeStrValue(c: var Compiler, node: Node) =
+    add c.html, node.sVal
+    fixTail = true
+
+proc writeVarValue(c: var Compiler, node: Node) =
+    add c.html, c.data[node.varIdent].getStr
+
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     for node in nodes:
         if node.nodeType == NTHtmlElement:
@@ -104,9 +112,18 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
                 c.writeNewLine(node.nodes)
             c.closeTag(node, false, fixTail)
             if fixTail: fixTail = false
+        elif node.nodeType == NTVariable:
+            if c.data.hasKey(node.varIdent):
+                c.writeVarValue(node)
+        elif node.nodeType == NTInfixStmt:
+            if node.infixOp == AND:
+                # write string concatenation
+                if node.infixLeft.nodeType == NTString:
+                    c.writeStrValue(node.infixLeft)
+                if node.infixRight.nodeType == NTVariable:
+                    c.writeVarValue(node.infixRight)
         elif node.nodeType == NTString:
-            add c.html, node.sVal
-            fixTail = true
+            c.writeStrValue(node)
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
         minified: bool, templateType: TimlTemplateType,

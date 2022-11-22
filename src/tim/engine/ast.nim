@@ -140,6 +140,7 @@ type
         GTE         = ">="
         LT          = "<"
         LTE         = "<="
+        AND         = "&"   # used for string concatenation
     
     HtmlAttributes* = Table[string, seq[string]]
     IfBranch* = tuple[cond: Node, body: seq[Node]]
