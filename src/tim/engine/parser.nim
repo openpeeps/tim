@@ -59,6 +59,7 @@ const
     InvalidInlineNest = "Invalid inline nest missing `>`"
     InvalidNestDeclaration = "Invalid nest declaration"
     InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
+    InvalidMixinDefinition = "Invalid mixin definition \"$1\""
     NestableStmtIndentation = "Nestable statement requires indentation"
     TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
 
@@ -157,7 +158,7 @@ proc parseStatement(p: var Parser): Node
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node
 proc parseIfStmt(p: var Parser): Node
 proc parseForStmt(p: var Parser): Node
-proc getPrefixFn(kind: TokenKind): PrefixFunction
+proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
 proc resolveInlineNest(lazySeq: var seq[Node]): Node =
@@ -176,9 +177,6 @@ proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
     let infixRight: Node = p.parseExpression()
     result = ast.newInfix(infixLeft, infixRight, getOperator(tk.kind))
     if strict:
-        # ensure compatibility between types. strictly verifying
-        # literals, boolean, integer or string.
-        # TODO a similar check should be done on compile time for variables.
         let lit = {NTInt, NTString, NTBool}
         if infixLeft.nodeType in lit and infixRight.nodeType in lit and (infixLeft.nodeType != infixRight.nodeType):
             p.setError(TypeMismatch % [infixLeft.nodeName, infixRight.nodeName])
@@ -196,7 +194,14 @@ proc parseBoolean(p: var Parser): Node =
 
 proc parseString(p: var Parser): Node =
     # Parse a new `string` node
-    result = ast.newString(p.current)
+    if p.prev.kind == TK_STRING:
+        result = ast.newNode(NTHtmlElement, p.current)
+        result.htmlNodeType = Html_Br
+        result.htmlNodeName = "br"
+        result.issctag = true
+        result.nodes.add ast.newString(p.current)
+    else:
+        result = ast.newString(p.current)
     jump p
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
@@ -251,7 +256,6 @@ proc newHtmlNode(p: var Parser): Node =
         if p.current.kind == TK_COLON:
             jump p
             if p.current.kind == TK_STRING:
-                # inc lvl
                 result.nodes.add p.parseString()
             else:
                 p.setError InvalidNestDeclaration, true
@@ -268,17 +272,28 @@ proc parseHtmlElement(p: var Parser): Node =
         if not p.current.kind.isHTMLElement():
             p.setError(InvalidNestDeclaration, true)
         inc lvl
+        inc i
         node = p.parseHtmlElement()
-        if p.current.pos != 0:
+        if p.current.pos > result.meta.pos:
             inc lvl
-        while p.current.line > node.meta.line and p.current.pos * lvl > result.meta.pos:
+        elif p.current.line > node.meta.line:
+            dec lvl, i
+            i = 0
+        while p.current.line > node.meta.line and p.current.pos * lvl > node.meta.pos:
             inc i
             node.nodes.add(p.parseExpression())
         dec lvl, i
         i = 0
         result.nodes.add(node)
     while p.current.line > result.meta.line and p.current.pos > result.meta.col:
+        if p.current.pos > result.meta.col:
+            inc lvl
+        inc i
         result.nodes.add(p.parseExpression())
+
+    if p.current.pos < result.meta.col or p.current.pos == result.meta.col:
+        dec lvl,  i
+        i = 0
 
 proc parseAssignment(p: var Parser): Node =
     discard
@@ -299,7 +314,7 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
         return
     jump p
     var infixLeft: Node
-    let infixLeftFn = getPrefixFn(p.current.kind)
+    let infixLeftFn = p.getPrefixFn(p.current.kind)
     if infixLeftFn != nil:
         infixLeft = infixLeftFn(p)
     else:
@@ -368,18 +383,60 @@ proc parseForStmt(p: var Parser): Node =
     p.setError(NestableStmtIndentation)
 
 proc parseMixinCall(p: var Parser): Node =
-    result = newMixin(p.current.value)
+    result = newMixin(p.current)
     jump p
+
+proc parseMixinDefinition(p: var Parser): Node =
+    let this = p.current
+    jump p
+    let ident = p.current
+    result = newMixinDef(p.current)
+    if p.next.kind != TK_LPAR:
+        p.setError(InvalidMixinDefinition % [ident.value])
+        return
+    jump p, 2
+
+    while p.current.kind != TK_RPAR:
+        var paramDef: ParamTuple
+        if p.current.kind == TK_IDENTIFIER:
+            paramDef.key = p.current.value
+            jump p
+            if p.current.kind == TK_COLON:
+                if p.next.kind notin {TK_TYPE_BOOL, TK_TYPE_INT, TK_TYPE_STRING}: # todo handle float
+                    p.setError(InvalidIndentation % [ident.value], true)
+                jump p
+                # todo in a fancy way, please
+                if p.current.kind == TK_TYPE_BOOL:
+                    paramDef.`type` = NTBool
+                    paramDef.typeSymbol = $NTBool
+                elif p.current.kind == TK_TYPE_INT:
+                    paramDef.`type` = NTInt
+                    paramDef.typeSymbol = $NTInt
+                else:
+                    paramDef.`type` = NTString
+                    paramDef.typeSymbol = $NTString
+        else:
+            p.setError(InvalidMixinDefinition % [ident.value], true)
+        result.mixinParamsDef.add(paramDef)
+        jump p
+        if p.current.kind == TK_COMMA:
+            if p.next.kind != TK_IDENTIFIER:
+                p.setError(InvalidMixinDefinition % [ident.value], true)
+            jump p
+    jump p
+    echo p.current
+    while p.current.pos > this.pos:
+        result.mixinBody.add p.parseExpression()
 
 proc parseIncludeCall(p: var Parser): Node =
     result = newInclude(p.current.value)
     jump p
 
 proc parseVariable(p: var Parser): Node =
-    result = newVariable(p.current.value)
+    result = newVariable(p.current)
     jump p
 
-proc getPrefixFn(kind: TokenKind): PrefixFunction =
+proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     result = case kind
         of TK_INTEGER: parseInteger
         of TK_BOOL_TRUE, TK_BOOL_FALSE: parseBoolean
@@ -387,13 +444,18 @@ proc getPrefixFn(kind: TokenKind): PrefixFunction =
         of TK_IF: parseIfStmt
         of TK_FOR: parseForStmt
         of TK_INCLUDE: parseIncludeCall
-        of TK_MIXIN: parseMixinCall
+        of TK_MIXIN:
+            if p.next.kind == TK_LPAR:
+                parseMixinCall
+            elif p.next.kind == TK_IDENTIFIER:
+                parseMixinDefinition
+            else: nil
         of TK_VARIABLE: parseVariable
         else: parseHtmlElement
 
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
     var this = p.current
-    var prefixFunction = getPrefixFn(this.kind)
+    var prefixFunction = p.getPrefixFn(this.kind)
     var exp: Node = p.prefixFunction()
     if exclude.len != 0:
         if exp.nodeType in exclude:
