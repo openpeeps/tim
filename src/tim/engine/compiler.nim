@@ -209,5 +209,12 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
         of NTConditionStmt:
             if c.compInfixNode(node.stmtList.ifCond):
                 c.writeNewLine(node.stmtList.ifBody)
+            elif node.stmtList.elifBranch.len != 0:
+                for elifNode in node.stmtList.elifBranch:
+                    if c.compInfixNode(elifNode.cond):
+                        c.writeNewLine(elifNode.body)
+            if node.stmtList.elseBody.len != 0:
+                c.writeNewLine(node.stmtList.elseBody)
+
         else: discard
     result = c
