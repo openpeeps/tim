@@ -34,6 +34,22 @@ macro isNotEqualInt*(a, b: int): untyped =
     result = quote:
         `a` != `b`
 
+macro isGreaterInt*(a, b: int): untyped =
+    result = quote:
+        `a` > `b`
+
+macro isGreaterEqualInt*(a, b: int): untyped =
+    result = quote:
+        `a` >= `b`
+
+macro isLessInt*(a, b: int): untyped =
+    result = quote:
+        `a` < `b`
+
+macro isLessEqualInt*(a, b: int): untyped =
+    result = quote:
+        `a` <= `b`
+
 macro isEqualFloat*(a, b: float64): untyped =
     result = quote:
         `a` == `b`
@@ -42,11 +58,11 @@ macro isNotEqualFloat*(a, b: float64): untyped =
     result = quote:
         `a` != `b`
 
-macro `isEqualString`*(a, b: string): untyped =
+macro isEqualString*(a, b: string): untyped =
     result = quote:
         `a` == `b`
 
-macro `isNotEqualString`*(a, b: string): untyped =
+macro isNotEqualString*(a, b: string): untyped =
     result = quote:
         `a` != `b`
 

@@ -1,4 +1,4 @@
-import ./ast
+import ./ast, ./data
 import std/[json, ropes, tables]
 
 from std/strutils import `%`, indent, multiReplace, endsWith, join
@@ -27,7 +27,6 @@ type
         templateType: TimlTemplateType
         baseIndent: int
         data: JsonNode
-        safeEscape: bool
 
 const NewLine = "\n"
 
@@ -100,41 +99,103 @@ proc writeStrValue(c: var Compiler, node: Node) =
     add c.html, node.sVal
     fixTail = true
 
-proc writeVarValue(c: var Compiler, node: Node) =
-    add c.html, c.data[node.varIdent].getStr
+proc writeVarValue(c: var Compiler, varNode: Node) =
+    if varNode.dataStorage:
+        var varValue = c.data[varNode.varIdent].getStr
+        if c.data.hasKey(varNode.varIdent):
+            if varNode.isSafeVar:
+                varValue = multiReplace(varValue,
+                    ("^", "&amp;"),
+                    ("<", "&lt;"),
+                    (">", "&gt;"),
+                    ("\"", "&quot;"),
+                    ("'", "&#x27;"),
+                    ("`", "&grave;")
+                )
+        add c.html, varValue
+    else: discard # todo command line warning
+
+proc handleInfixStmt(c: var Compiler, node: Node) = 
+    if node.infixOp == AND:
+        # write string concatenation
+        if node.infixLeft.nodeType == NTString:
+            c.writeStrValue(node.infixLeft)
+        if node.infixRight.nodeType == NTVariable:
+            c.writeVarValue(node.infixRight)
+
+proc compInfixNode(c: var Compiler, node: Node): bool =
+    case node.infixOp
+    of EQ:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            case node.infixLeft.nodeType:
+            of NTInt:
+                return isEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+            of NTString:
+                return isEqualString(node.infixLeft.sVal, node.infixRight.sVal)
+            else: discard
+    of NE:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            case node.infixLeft.nodeType:
+            of NTInt:
+                return isNotEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+            of NTString:
+                return isNotEqualString(node.infixLeft.sVal, node.infixRight.sVal)
+            else: discard
+    of GT:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            case node.infixLeft.nodeType:
+            of NTInt:
+                return isGreaterInt(node.infixLeft.iVal, node.infixRight.iVal)
+            else: discard
+    of GTE:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            case node.infixLeft.nodeType:
+            of NTInt:
+                return isGreaterEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+            else: discard
+    of LT:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            case node.infixLeft.nodeType:
+            of NTInt:
+                return isLessInt(node.infixLeft.iVal, node.infixRight.iVal)
+            else: discard
+    of LTE:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            case node.infixLeft.nodeType:
+            of NTInt:
+                return isLessEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+            else: discard
+    else: discard
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     for node in nodes:
-        if node.nodeType == NTHtmlElement:
+        case node.nodeType:
+        of NTHtmlElement:
             let tag = node.htmlNodeName
             c.openTag(tag, node)
             if node.nodes.len != 0:
                 c.writeNewLine(node.nodes)
             c.closeTag(node, false, fixTail)
             if fixTail: fixTail = false
-        elif node.nodeType == NTVariable:
-            if c.data.hasKey(node.varIdent):
-                c.writeVarValue(node)
-        elif node.nodeType == NTInfixStmt:
-            if node.infixOp == AND:
-                # write string concatenation
-                if node.infixLeft.nodeType == NTString:
-                    c.writeStrValue(node.infixLeft)
-                if node.infixRight.nodeType == NTVariable:
-                    c.writeVarValue(node.infixRight)
-        elif node.nodeType == NTString:
+        of NTVariable:
+            c.writeVarValue(node)
+        of NTInfixStmt:
+            c.handleInfixStmt(node)
+        of NTConditionStmt:
+            echo c.compInfixNode(node.ifCond)
+        of NTString:
             c.writeStrValue(node)
+        else: discard
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
         minified: bool, templateType: TimlTemplateType,
-        baseIndent: int, data = %*{}, safeEscape = true): Compiler =
+        baseIndent: int, data = %*{}): Compiler =
     ## Create a new Compiler instance
     var c = cInstance(
         minified: minified,
         templateType: templateType,
         baseIndent: baseIndent,
-        data: data,
-        safeEscape: safeEscape
+        data: data
     )
     c.program = astProgram
     for node in c.program.nodes:
@@ -145,5 +206,8 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
             if node.stmtList.nodes.len != 0:
                 c.writeNewLine(node.stmtList.nodes)
             c.closeTag(node.stmtList)
+        of NTConditionStmt:
+            if c.compInfixNode(node.stmtList.ifCond):
+                c.writeNewLine(node.stmtList.ifBody)
         else: discard
     result = c

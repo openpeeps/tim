@@ -364,9 +364,8 @@ proc init*(timEngine: var TimEngine, source, output: string,
         else:
             createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
-    var
-        rootPath = timlInOutDirs[0]
-        outputPath = timlInOutDirs[1]
+    var rootPath = timlInOutDirs[0]
+    var outputPath = timlInOutDirs[1]
     rootPath.normalizePath()
     outputPath.normalizePath()
     timEngine = TimEngine(
@@ -383,7 +382,5 @@ proc init*(timEngine: var TimEngine, source, output: string,
             partials: rootPath & "/partials"
         )
     )
-
-    when not defined release:
-        # Enable Hot Reloader when in dev mode
+    when not defined release: # enable auto refresh browser for dev mode
         timEngine.reloader = reloader

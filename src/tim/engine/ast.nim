@@ -189,6 +189,8 @@ type
             mixinBody*: seq[Node]
         of NTVariable:
             varIdent*: string
+            isSafeVar*: bool
+            dataStorage*: bool
         else: nil
         meta*: MetaNode
 
@@ -272,7 +274,9 @@ proc newFor*(singularIdent, pluralIdent: string, body: seq[Node], tk: TokenTuple
     result.forIdentSingular = singularIdent
     result.forIdentPlural = pluralIdent
 
-proc newVariable*(tk: TokenTuple): Node =
+proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false): Node =
     ## Add a new `NTVariable` node
     result = newNode(NTVariable, tk)
     result.varIdent = tk.value
+    result.isSafeVar = isSafeVar
+    result.dataStorage = dataStorage

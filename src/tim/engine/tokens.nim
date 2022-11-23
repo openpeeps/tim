@@ -217,7 +217,7 @@ tokens:
     RCurly       > '}'
     LPar         > '('
     RPar         > ')'
-    Attr_Class   > '.'
+    Dot          > '.'
     Attr_ID      > '#'
     Assign       > '=':
         EQ       ? '='
@@ -228,7 +228,8 @@ tokens:
     LT           > '<':
         LTE      ? '='
     And          > '&'
-    Variable     > tokenize(handleCustomIdent, '$')
+    Variable          > tokenize(handleCustomIdent, '$')
+    Safe_Variable     > tokenize(handleCustomIdent, '%')
     If           > "if"
     Elif         > "elif"
     Else         > "else"

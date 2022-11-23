@@ -61,6 +61,7 @@ const
     InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
     InvalidMixinDefinition = "Invalid mixin definition \"$1\""
     InvalidStringConcat = "Invalid string concatenation"
+    InvalidVariableDeclaration = "Invalid variable declaration"
     NestableStmtIndentation = "Nestable statement requires indentation"
     TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
 
@@ -111,7 +112,9 @@ proc getError*[P: Parser](p: var P): string =
         result = p.error
 
 proc isHTMLElement(token: TokenKind): bool =
-    result = token notin tkComparables + tkOperators + tkConditionals + tkCalc + tkCall + tkLoops + {TK_EOF}
+    result = token notin tkComparables + tkOperators +
+                         tkConditionals + tkCalc + tkCall +
+                         tkLoops + {TK_EOF}
 
 proc parse*(engine: TimEngine, code, path: string,
             templateType: TimlTemplateType): Parser
@@ -132,7 +135,8 @@ template jit(p: var Parser) =
     if p.enableJit == false: p.enableJit = true
 
 proc hasJIT*(p: var Parser): bool {.inline.} =
-    ## Determine if current timl template requires a JIT compilation
+    ## Determine if current timl template
+    ## requires a JIT compilation
     result = p.enableJit == true
 
 proc jump(p: var Parser, offset = 1) =
@@ -196,31 +200,38 @@ proc parseBoolean(p: var Parser): Node =
 
 proc parseString(p: var Parser): Node =
     # Parse a new `string` node
-    if p.prev.kind == TK_STRING:
-        result = ast.newNode(NTHtmlElement, p.current)
-        result.htmlNodeType = Html_Br
-        result.htmlNodeName = "br"
-        result.issctag = true
-        result.nodes.add ast.newString(p.current)
-    else:
-        let strToken = p.current
-        if p.next.kind == TK_AND:
-            jump p
-            if p.next.kind notin {TK_STRING, TK_VARIABLE}:
-                p.setError(InvalidStringConcat)
-                return nil
-            jump p
-            let infixRight: Node = p.parseExpression()
+    # if p.prev.kind == TK_STRING:
+    #     result = ast.newNode(NTHtmlElement, p.current)
+    #     result.htmlNodeType = Html_Br
+    #     result.htmlNodeName = "br"
+    #     result.issctag = true
+    #     result.nodes.add ast.newString(p.current)
+    #     jump p
+    # else:
+    var concated: bool
+    let strToken = p.current
+    if p.next.kind == TK_AND:
+        concated = true
+        jump p
+    while p.current.kind == TK_AND:
+        if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
+            p.setError(InvalidStringConcat)
+            return nil
+        jump p
+        let infixRight: Node = p.parseExpression()
+        if result == nil:
             result = ast.newInfix(ast.newString(strToken), infixRight, getOperator(TK_AND))
         else:
-            result = ast.newString(strToken)
-    jump p
+            result = ast.newInfix(result, infixRight, getOperator(TK_AND))
+    if not concated:
+        result = ast.newString(strToken)
+        jump p
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
     # Parse all attributes and return it as a
     # `Table[string, seq[string]]`
     while true:
-        if p.current.kind == TK_ATTR_CLASS:
+        if p.current.kind == TK_DOT:
             # Add `class=""` html attribute
             let attrKey = "class"
             if p.next.kind == TK_IDENTIFIER:
@@ -271,7 +282,7 @@ proc newHtmlNode(p: var Parser): Node =
                 result.nodes.add p.parseString()
             else:
                 p.setError InvalidNestDeclaration, true
-        elif p.current.kind in {TK_ATTR_CLASS, TK_ATTR_ID, TK_IDENTIFIER}:
+        elif p.current.kind in {TK_DOT, TK_ATTR_ID, TK_IDENTIFIER}:
             result.attrs = p.getHtmlAttributes()
         else: break
 
@@ -314,9 +325,12 @@ proc parseHtmlElement(p: var Parser): Node =
     
     if p.current.pos == 0: lvl = 0 # reset level
 
-    # if p.current.pos < result.meta.col or p.current.pos == result.meta.col:
-    #     dec lvl,  i
-    #     i = 0
+    if p.current.pos < result.meta.col or p.current.pos == result.meta.col:
+        if lvl > i: # prevent `value out of range`
+            dec lvl,  i
+            i = 0
+        # else:
+        #     dec lvl
 
 proc parseAssignment(p: var Parser): Node =
     discard
@@ -455,7 +469,21 @@ proc parseIncludeCall(p: var Parser): Node =
     jump p
 
 proc parseVariable(p: var Parser): Node =
-    result = newVariable(p.current)
+    if p.current.value == "data"  and p.next.kind == TK_DOT:
+        jump p, 2
+        if p.current.kind == TK_IDENTIFIER:
+            result = newVariable(p.current, dataStorage = true)
+            jump p
+        else:
+            p.setError(InvalidVariableDeclaration)
+            return nil
+    else:
+        result = newVariable(p.current)
+        jump p
+    jit p
+
+proc parseSafeVariable(p: var Parser): Node =
+    result = newVariable(p.current, isSafeVar = true)
     jump p
     jit p
 
@@ -474,6 +502,7 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
                 parseMixinDefinition
             else: nil
         of TK_VARIABLE: parseVariable
+        of TK_SAFE_VARIABLE: parseSafeVariable
         else: parseHtmlElement
 
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
