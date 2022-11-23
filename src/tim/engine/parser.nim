@@ -39,9 +39,12 @@ type
             ## conditional statement or other dynamic statements.
         error: string
             ## A parser/lexer error
+        memory: VarStorage
+            ## An index containing all variables (in order to prevent duplicates)
 
     PrefixFunction = proc(p: var Parser): Node
     InfixFunction = proc(p: var Parser, left: Node): Node
+    VarStorage = TableRef[string, TokenTuple]
 
 const
     InvalidIndentation = "Invalid indentation"
@@ -167,6 +170,9 @@ proc parseForStmt(p: var Parser): Node
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
+proc isDataStorage(tk: TokenTuple): bool =
+    result = tk.value == "data"
+
 proc resolveInlineNest(lazySeq: var seq[Node]): Node =
     var i = 0
     var maxlen = (lazySeq.len - 1)
@@ -227,6 +233,25 @@ proc parseString(p: var Parser): Node =
         result = ast.newString(strToken)
         jump p
 
+proc parseVariable(p: var Parser): Node =
+    if p.current.isDataStorage() and p.next.kind == TK_DOT:
+        jump p, 2
+        if p.current.kind == TK_IDENTIFIER:
+            result = newVariable(p.current, dataStorage = true)
+            jump p
+        else:
+            p.setError(InvalidVariableDeclaration)
+            return nil
+    else:
+        result = newVariable(p.current)
+        jump p
+    jit p
+
+proc parseSafeVariable(p: var Parser): Node =
+    result = newVariable(p.current, isSafeVar = true)
+    jump p
+    jit p
+
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
     # Parse all attributes and return it as a
     # `Table[string, seq[string]]`
@@ -280,6 +305,8 @@ proc newHtmlNode(p: var Parser): Node =
             jump p
             if p.current.kind == TK_STRING:
                 result.nodes.add p.parseString()
+            elif p.current.kind in {TK_VARIABLE, TK_SAFE_VARIABLE}:
+                result.nodes.add p.parseVariable()
             else:
                 p.setError InvalidNestDeclaration, true
         elif p.current.kind in {TK_DOT, TK_ATTR_ID, TK_IDENTIFIER}:
@@ -392,7 +419,7 @@ proc parseIfStmt(p: var Parser): Node =
 proc parseForStmt(p: var Parser): Node =
     # Parse a new iteration statement
     let this = p.current
-    if p.next.kind != TK_IDENTIFIER:
+    if p.next.kind != TK_VARIABLE:
         p.setError(InvalidIteration)
         return
     jump p # `item`
@@ -468,24 +495,6 @@ proc parseIncludeCall(p: var Parser): Node =
     result = newInclude(p.current.value)
     jump p
 
-proc parseVariable(p: var Parser): Node =
-    if p.current.value == "data"  and p.next.kind == TK_DOT:
-        jump p, 2
-        if p.current.kind == TK_IDENTIFIER:
-            result = newVariable(p.current, dataStorage = true)
-            jump p
-        else:
-            p.setError(InvalidVariableDeclaration)
-            return nil
-    else:
-        result = newVariable(p.current)
-        jump p
-    jit p
-
-proc parseSafeVariable(p: var Parser): Node =
-    result = newVariable(p.current, isSafeVar = true)
-    jump p
-    jit p
 
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     result = case kind
@@ -530,7 +539,7 @@ proc parseStatement(p: var Parser): Node =
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
     var iHandler = resolve(code, path, engine, templateType)
-    var p: Parser = Parser(engine: engine)
+    var p: Parser = Parser(engine: engine, memory: newTable[string, TokenTuple]())
     if iHandler.hasError():
         p.setError(
             iHandler.getError(),
