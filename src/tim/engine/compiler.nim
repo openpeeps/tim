@@ -213,8 +213,11 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
                 for elifNode in node.stmtList.elifBranch:
                     if c.compInfixNode(elifNode.cond):
                         c.writeNewLine(elifNode.body)
-            if node.stmtList.elseBody.len != 0:
-                c.writeNewLine(node.stmtList.elseBody)
-
+                        continue
+                if node.stmtList.elseBody.len != 0:
+                    c.writeNewLine(node.stmtList.elseBody)
+            else:
+                if node.stmtList.elseBody.len != 0:
+                    c.writeNewLine(node.stmtList.elseBody)
         else: discard
     result = c
