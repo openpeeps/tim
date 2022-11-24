@@ -27,8 +27,13 @@ type
         templateType: TimlTemplateType
         baseIndent: int
         data: JsonNode
+        memory: MemStorage
+
+    MemStorage = TableRef[string, string]
 
 const NewLine = "\n"
+
+proc writeNewLine(c: var Compiler, nodes: seq[Node])
 
 proc getIndent(c: var Compiler, nodeIndent: int): int =
     if c.baseIndent == 2:
@@ -99,12 +104,12 @@ proc writeStrValue(c: var Compiler, node: Node) =
     add c.html, node.sVal
     fixTail = true
 
-proc writeVarValue(c: var Compiler, varNode: Node) =
-    if varNode.dataStorage:
-        var varValue = c.data[varNode.varIdent].getStr
-        if c.data.hasKey(varNode.varIdent):
+proc getVarValue(c: var Compiler, varNode: Node): string =
+    if c.data.hasKey(varNode.varIdent):
+        result = c.data[varNode.varIdent].getStr
+        if varNode.dataStorage:
             if varNode.isSafeVar:
-                varValue = multiReplace(varValue,
+                result = multiReplace(result,
                     ("^", "&amp;"),
                     ("<", "&lt;"),
                     (">", "&gt;"),
@@ -112,8 +117,11 @@ proc writeVarValue(c: var Compiler, varNode: Node) =
                     ("'", "&#x27;"),
                     ("`", "&grave;")
                 )
-        add c.html, varValue
-    else: discard # todo command line warning
+    elif c.memory.hasKey(varNode.varSymbol):
+        result = c.memory[varNode.varSymbol]
+
+proc writeVarValue(c: var Compiler, varNode: Node) =
+    add c.html, c.getVarValue(varNode)
 
 proc handleInfixStmt(c: var Compiler, node: Node) = 
     if node.infixOp == AND:
@@ -132,7 +140,18 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
                 return isEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
             of NTString:
                 return isEqualString(node.infixLeft.sVal, node.infixRight.sVal)
+            of NTVariable:
+                discard
             else: discard
+        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTString:
+            if node.infixLeft.dataStorage:
+                if c.data.hasKey(node.infixLeft.varIdent):
+                    return isEqualString(c.data[node.infixLeft.varIdent].getStr, node.infixRight.sVal)
+            else: discard # todo handle timl-based variables
+        elif node.infixLeft.nodeType == NTString and node.infixRight.nodeType == NTVariable:
+            if node.infixRight.dataStorage:
+                if c.data.hasKey(node.infixRight.varIdent):
+                    return isEqualString(node.infixLeft.sVal, c.data[node.infixRight.varIdent].getStr)
     of NE:
         if node.infixLeft.nodeType == node.infixRight.nodeType:
             case node.infixLeft.nodeType:
@@ -167,6 +186,33 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
             else: discard
     else: discard
 
+proc handleConditionStmt(c: var Compiler, ifCond: Node, ifBody: seq[Node],
+                            elifBranch: ElifBranch, elseBranch: seq[Node]) =
+    if c.compInfixNode(ifCond):
+        c.writeNewLine(ifBody)
+    elif elifBranch.len != 0:
+        var skipElse: bool
+        for elifNode in elifBranch:
+            if c.compInfixNode(elifNode.cond):
+                c.writeNewLine(elifNode.body)
+                skipElse = true
+                break
+        if not skipElse and elseBranch.len != 0:
+            c.writeNewLine(elseBranch)
+    else:
+        if elseBranch.len != 0:
+            c.writeNewLine(elseBranch)
+
+proc handleForStmt(c: var Compiler, forNode: Node) =
+    if c.data.hasKey(forNode.forItems.varIdent):
+        var i = 0
+        for item in c.data[forNode.forItems.varIdent]:
+            c.memory[forNode.forItem.varSymbol] = item.getStr
+            c.writeNewLine(forNode.forBody)
+            inc i
+        c.memory.del(forNode.forItem.varSymbol)
+    else: discard # todo console warning
+
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     for node in nodes:
         case node.nodeType:
@@ -182,9 +228,11 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
         of NTInfixStmt:
             c.handleInfixStmt(node)
         of NTConditionStmt:
-            echo c.compInfixNode(node.ifCond)
+            c.handleConditionStmt(node.ifCond, node.ifBody, node.elifBranch, node.elseBody)
         of NTString:
             c.writeStrValue(node)
+        of NTForStmt:
+            c.handleForStmt(node)
         else: discard
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
@@ -195,7 +243,8 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
         minified: minified,
         templateType: templateType,
         baseIndent: baseIndent,
-        data: data
+        data: data,
+        memory: newTable[string, string]()
     )
     c.program = astProgram
     for node in c.program.nodes:
@@ -207,19 +256,8 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
                 c.writeNewLine(node.stmtList.nodes)
             c.closeTag(node.stmtList)
         of NTConditionStmt:
-            if c.compInfixNode(node.stmtList.ifCond):
-                c.writeNewLine(node.stmtList.ifBody)
-            elif node.stmtList.elifBranch.len != 0:
-                var skipElse: bool
-                for elifNode in node.stmtList.elifBranch:
-                    if c.compInfixNode(elifNode.cond):
-                        c.writeNewLine(elifNode.body)
-                        skipElse = true
-                        break
-                if not skipElse and node.stmtList.elseBody.len != 0:
-                    c.writeNewLine(node.stmtList.elseBody)
-            else:
-                if node.stmtList.elseBody.len != 0:
-                    c.writeNewLine(node.stmtList.elseBody)
+            c.handleConditionStmt(node.stmtList.ifCond, node.stmtList.ifBody, node.stmtList.elifBranch, node.stmtList.elseBody)
+        of NTForStmt:
+            c.handleForStmt(node.stmtList)
         else: discard
     result = c

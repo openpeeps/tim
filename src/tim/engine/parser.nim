@@ -64,7 +64,7 @@ const
     InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
     InvalidMixinDefinition = "Invalid mixin definition \"$1\""
     InvalidStringConcat = "Invalid string concatenation"
-    InvalidVariableDeclaration = "Invalid variable declaration"
+    InvalidVarDeclaration = "Invalid variable declaration"
     NestableStmtIndentation = "Nestable statement requires indentation"
     TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
 
@@ -240,7 +240,7 @@ proc parseVariable(p: var Parser): Node =
             result = newVariable(p.current, dataStorage = true)
             jump p
         else:
-            p.setError(InvalidVariableDeclaration)
+            p.setError(InvalidVarDeclaration)
             return nil
     else:
         result = newVariable(p.current)
@@ -419,29 +419,19 @@ proc parseIfStmt(p: var Parser): Node =
 proc parseForStmt(p: var Parser): Node =
     # Parse a new iteration statement
     let this = p.current
-    if p.next.kind != TK_VARIABLE:
-        p.setError(InvalidIteration)
-        return
-    jump p # `item`
-    let singularIdent = p.current.value
-    if p.next.kind != TK_IN:
+    jump p
+    let singularIdent = p.parseVariable()
+    if p.current.kind != TK_IN:
         p.setError(InvalidIteration)
         return
     jump p # `in`
-    if p.next.kind != TK_IDENTIFIER:
+    if p.current.kind != TK_VARIABLE:
         p.setError(InvalidIteration)
         return
-    jump p # `items`
-    let pluralIdent = p.current.value
-    if p.next.line == p.current.line:
-        p.setError(InvalidIndentation)
-        return
-    jump p
-
+    let pluralIdent = p.parseVariable()
     var forBody: seq[Node]
     while p.current.pos > this.pos:
         forBody.add p.parseExpression()
-
     if forBody.len != 0:
         return newFor(singularIdent, pluralIdent, forBody, this)
     p.setError(NestableStmtIndentation)

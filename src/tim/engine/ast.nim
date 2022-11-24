@@ -164,9 +164,9 @@ type
             ifBody*, elseBody*: seq[Node]
             elifBranch*: ElifBranch
         of NTForStmt:
-            forIdentSingular*: string
-            forIdentPlural*: string
-            forBody: seq[Node]
+            forItem*: Node  # NTVariable
+            forItems*: Node # NTVariable
+            forBody*: seq[Node]
         of NTHtmlElement:
             htmlNodeName*: string
             htmlNodeType*: HtmlNodeType
@@ -189,6 +189,8 @@ type
             mixinBody*: seq[Node]
         of NTVariable:
             varIdent*: string
+            varSymbol*: string
+            varType*: NodeType # NTBool, NTInt, NTString
             isSafeVar*: bool
             dataStorage*: bool
         else: nil
@@ -267,16 +269,18 @@ proc newInclude*(ident: string): Node =
     ## Add a new `NTIncludeCall` node
     Node(nodeName: NTIncludeCall.symbolName, nodeType: NTIncludeCall, includeIdent: ident)
 
-proc newFor*(singularIdent, pluralIdent: string, body: seq[Node], tk: TokenTuple): Node =
+proc newFor*(itemVarIdent, itemsVarIdent: Node, body: seq[Node], tk: TokenTuple): Node =
     ## Add a new `NTForStmt` node
     result = newNode(NTForStmt, tk)
     result.forBody = body
-    result.forIdentSingular = singularIdent
-    result.forIdentPlural = pluralIdent
+    result.forItem = itemVarIdent
+    result.forItems = itemsVarIdent
 
-proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false): Node =
+proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false, varType = NTString): Node =
     ## Add a new `NTVariable` node
     result = newNode(NTVariable, tk)
     result.varIdent = tk.value
+    result.varSymbol = "$" & tk.value
     result.isSafeVar = isSafeVar
     result.dataStorage = dataStorage
+    result.varType = varType
