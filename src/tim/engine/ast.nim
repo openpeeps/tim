@@ -1,4 +1,11 @@
+# High-performance, compiled template engine inspired by Emmet syntax.
+#
+# (c) 2022 Tim Engine is released under MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/tim
+
 import std/tables
+
 from ./tokens import TokenKind, TokenTuple
 from std/enumutils import symbolName
 from std/strutils import replace, toLowerAscii
@@ -147,6 +154,9 @@ type
     ElifBranch* = seq[IfBranch]
     MetaNode* = tuple[line, pos, col, wsno: int]
     ParamTuple* = tuple[key, value, typeSymbol: string, `type`: NodeType]
+    
+    AccessorKind* {.pure.} = enum
+        None, Key, Value
 
     Node* = ref object
         nodeName*: string
@@ -193,6 +203,10 @@ type
             varType*: NodeType # NTBool, NTInt, NTString
             isSafeVar*: bool
             dataStorage*: bool
+            case accessorKind*: AccessorKind
+            of Key:
+                byKey*: string
+            else: nil
         else: nil
         meta*: MetaNode
 
@@ -284,3 +298,24 @@ proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false, varType = NTSt
     result.isSafeVar = isSafeVar
     result.dataStorage = dataStorage
     result.varType = varType
+
+proc newVarCallKeyAccessor*(tk: TokenTuple, fid: string): Node =
+    result = Node(
+        nodeName: NTVariable.symbolName,
+        nodeType:  NTVariable,
+        accessorKind: Key,
+        byKey: fid,
+        varIdent: tk.value,
+        varSymbol: "$" & tk.value,
+        meta: (tk.line, tk.pos, tk.col, tk.wsno)
+    )
+
+proc newVarCallValAccessor*(tk: TokenTuple): Node =
+    result = Node(
+        nodeName: NTVariable.symbolName,
+        nodeType:  NTVariable,
+        accessorKind: Value,
+        varIdent: tk.value,
+        varSymbol: "$" & tk.value,
+        meta: (tk.line, tk.pos, tk.col, tk.wsno)
+    )

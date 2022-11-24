@@ -1,4 +1,4 @@
-import ./ast, ./data
+import ./ast, ./data, ./logger
 import std/[json, ropes, tables]
 
 from std/strutils import `%`, indent, multiReplace, endsWith, join
@@ -28,10 +28,13 @@ type
         baseIndent: int
         data: JsonNode
         memory: MemStorage
+        logs: Logger
 
-    MemStorage = TableRef[string, string]
+    MemStorage = TableRef[string, JsonNode]
 
-const NewLine = "\n"
+const
+    NewLine = "\n"
+    InvalidAccessorKey = "Invalid property accessor \"$1\" for $2 ($3)"
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node])
 
@@ -105,7 +108,6 @@ proc writeStrValue(c: var Compiler, node: Node) =
     fixTail = true
 
 proc getVarValue(c: var Compiler, varNode: Node): string =
-    if c.data.hasKey(varNode.varIdent):
         result = c.data[varNode.varIdent].getStr
         if varNode.dataStorage:
             if varNode.isSafeVar:
@@ -117,19 +119,52 @@ proc getVarValue(c: var Compiler, varNode: Node): string =
                     ("'", "&#x27;"),
                     ("`", "&grave;")
                 )
-    elif c.memory.hasKey(varNode.varSymbol):
-        result = c.memory[varNode.varSymbol]
 
 proc writeVarValue(c: var Compiler, varNode: Node) =
-    add c.html, c.getVarValue(varNode)
+    if c.data.hasKey(varNode.varIdent):
+        add c.html, c.getVarValue(varNode)
+    elif c.memory.hasKey(varNode.varSymbol):
+        case c.memory[varNode.varSymbol].kind:
+        of JString:
+            add c.html, c.memory[varNode.varSymbol].getStr
+        of JInt:
+          add c.html, $(c.memory[varNode.varSymbol].getInt)
+        of JFloat:
+          add c.html, $(c.memory[varNode.varSymbol].getFloat)
+        of JBool:
+          add c.html, $(c.memory[varNode.varSymbol].getBool)
+        of JObject:
+            case varNode.accessorKind:
+            of AccessorKind.Key:
+                if varNode.byKey == "k":
+                    for k, v in pairs(c.memory[varNode.varSymbol]):
+                        add c.html, k
+                else:
+                    if c.memory[varNode.varSymbol].hasKey(varNode.byKey):
+                        add c.html, c.memory[varNode.varSymbol][varNode.byKey].getStr
+                    else: c.logs.add(InvalidAccessorKey % [varNode.byKey, $(c.memory[varNode.varSymbol].kind)])
+            of AccessorKind.Value:
+                for k, v in pairs(c.memory[varNode.varSymbol]):
+                    add c.html, v.getStr
+            else: discard
+        else: discard
 
 proc handleInfixStmt(c: var Compiler, node: Node) = 
     if node.infixOp == AND:
         # write string concatenation
-        if node.infixLeft.nodeType == NTString:
+        if node.infixLeft.nodeType == NTVariable:
+            c.writeVarValue(node.infixLeft)
+        elif node.infixLeft.nodeType == NTString:
             c.writeStrValue(node.infixLeft)
+        elif node.infixLeft.nodeType == NTInfixStmt:
+            c.handleInfixStmt(node.infixLeft)
+
         if node.infixRight.nodeType == NTVariable:
             c.writeVarValue(node.infixRight)
+        elif node.infixRight.nodeType == NTString:
+            c.writeStrValue(node.infixRight)
+        elif node.infixRight.nodeType == NTInfixStmt:
+            c.handleInfixStmt(node.infixRight)
 
 proc compInfixNode(c: var Compiler, node: Node): bool =
     case node.infixOp
@@ -203,14 +238,25 @@ proc handleConditionStmt(c: var Compiler, ifCond: Node, ifBody: seq[Node],
         if elseBranch.len != 0:
             c.writeNewLine(elseBranch)
 
+proc storeValue(c: var Compiler, symbol: string, item: JsonNode) =
+    c.memory[symbol] = item
+
 proc handleForStmt(c: var Compiler, forNode: Node) =
     if c.data.hasKey(forNode.forItems.varIdent):
-        var i = 0
-        for item in c.data[forNode.forItems.varIdent]:
-            c.memory[forNode.forItem.varSymbol] = item.getStr
-            c.writeNewLine(forNode.forBody)
-            inc i
-        c.memory.del(forNode.forItem.varSymbol)
+        case c.data[forNode.forItems.varIdent].kind:
+        of JArray:
+            for item in c.data[forNode.forItems.varIdent]:
+                c.storeValue(forNode.forItem.varSymbol, item)
+                c.writeNewLine(forNode.forBody)
+                c.memory.del(forNode.forItem.varSymbol)
+        of JObject:
+            for k in keys(c.data[forNode.forItems.varIdent]):
+                var kvObject = newJObject()
+                kvObject[k] = c.data[forNode.forItems.varIdent][k]
+                c.storeValue(forNode.forItem.varSymbol, kvObject)
+                c.writeNewLine(forNode.forBody)
+                c.memory.del(forNode.forItem.varSymbol)
+        else: discard
     else: discard # todo console warning
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
@@ -237,15 +283,16 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
         minified: bool, templateType: TimlTemplateType,
-        baseIndent: int, data = %*{}): Compiler =
+        baseIndent: int, filePath: string, data = %*{}): Compiler =
     ## Create a new Compiler instance
     var c = cInstance(
-        minified: minified,
-        templateType: templateType,
-        baseIndent: baseIndent,
-        data: data,
-        memory: newTable[string, string]()
-    )
+            minified: minified,
+            templateType: templateType,
+            baseIndent: baseIndent,
+            data: data,
+            memory: newTable[string, JsonNode](),
+            logs: Logger()
+        )
     c.program = astProgram
     for node in c.program.nodes:
         case node.stmtList.nodeType:
@@ -261,3 +308,8 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
             c.handleForStmt(node.stmtList)
         else: discard
     result = c
+
+    if c.logs.logs.len != 0:
+        echo filePath
+        for error in c.logs.logs:
+            echo indent(error.message, 2)

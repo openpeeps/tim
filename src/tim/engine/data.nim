@@ -78,8 +78,3 @@ proc getVar*[T: Data](i: var T, key: string): JsonNode =
 proc evaluate*[T: Data](i: var T) =
     ## Procedure for evulating conditional statements, data assignment,
     ## iteration statements and other dynamic things.
-
-proc init*[T: typedesc[Data]](newData: T, data: JsonNode): Data =
-    ## Initialize a Tim Data instance
-    var i = newData(data: data)
-    result = i

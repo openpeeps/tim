@@ -234,16 +234,29 @@ proc parseString(p: var Parser): Node =
         jump p
 
 proc parseVariable(p: var Parser): Node =
-    if p.current.isDataStorage() and p.next.kind == TK_DOT:
+    if p.current.isDataStorage() and p.next.kind == TK_DOT: 
         jump p, 2
         if p.current.kind == TK_IDENTIFIER:
             result = newVariable(p.current, dataStorage = true)
             jump p
         else:
             p.setError(InvalidVarDeclaration)
-            return nil
+            return
     else:
-        result = newVariable(p.current)
+        if p.next.kind == TK_DOT:
+            let varIdentToken = p.current
+            jump p
+            if p.next.kind == TK_IDENTIFIER:
+                jump p
+                if p.current.value == "v":
+                    result = newVarCallValAccessor(varIdentToken)
+                else:
+                    result = newVarCallKeyAccessor(varIdentToken, p.current.value)
+            else:
+                p.setError(InvalidVarDeclaration)
+                return
+        else:
+            result = newVariable(p.current)
         jump p
     jit p
 
