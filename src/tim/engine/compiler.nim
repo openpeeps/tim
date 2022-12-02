@@ -1,3 +1,9 @@
+# High-performance, compiled template engine inspired by Emmet syntax.
+#
+# (c) 2022 Tim Engine is released under MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/tim
+
 import ./ast, ./data, ./logger
 import std/[json, ropes, tables]
 
@@ -35,6 +41,8 @@ type
 const
     NewLine = "\n"
     InvalidAccessorKey = "Invalid property accessor \"$1\" for $2 ($3)"
+    InvalidObjectAccess = "Invalid object access [object:$1]"
+    UndefinedDataStorageVariable = "Undefined property accessor \"$1\" in data storage"
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node])
 
@@ -123,6 +131,7 @@ proc getVarValue(c: var Compiler, varNode: Node): string =
 proc writeVarValue(c: var Compiler, varNode: Node) =
     if c.data.hasKey(varNode.varIdent):
         add c.html, c.getVarValue(varNode)
+        fixTail = true
     elif c.memory.hasKey(varNode.varSymbol):
         case c.memory[varNode.varSymbol].kind:
         of JString:
@@ -146,9 +155,11 @@ proc writeVarValue(c: var Compiler, varNode: Node) =
             of AccessorKind.Value:
                 for k, v in pairs(c.memory[varNode.varSymbol]):
                     add c.html, v.getStr
-            else: discard
+            else:
+                c.logs.add(InvalidObjectAccess % ["attributes"])
         else: discard
-
+        fixTail = true
+    else: c.logs.add(UndefinedDataStorageVariable % [varNode.varIdent])
 proc handleInfixStmt(c: var Compiler, node: Node) = 
     if node.infixOp == AND:
         # write string concatenation
@@ -187,6 +198,10 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
             if node.infixRight.dataStorage:
                 if c.data.hasKey(node.infixRight.varIdent):
                     return isEqualString(node.infixLeft.sVal, c.data[node.infixRight.varIdent].getStr)
+        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTBool:
+            if node.infixLeft.dataStorage:
+                if c.data.hasKey(node.infixLeft.varIdent):
+                    return isEqualBool(c.data[node.infixLeft.varIdent].getBool, node.infixRight.bVal)
     of NE:
         if node.infixLeft.nodeType == node.infixRight.nodeType:
             case node.infixLeft.nodeType:

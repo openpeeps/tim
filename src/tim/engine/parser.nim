@@ -342,7 +342,7 @@ proc parseHtmlElement(p: var Parser): Node =
         elif p.current.line > node.meta.line:
             dec lvl, i
             i = 0
-        while p.current.line > node.meta.line and p.current.pos * lvl > node.meta.pos:
+        while p.current.line > node.meta.line and p.current.pos > node.meta.pos:
             if p.current.kind == TK_EOF: break
             inc i
             node.nodes.add(p.parseExpression())
@@ -400,6 +400,11 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
     if p.current.kind notin tkOperators:
         p.setError(InvalidConditionalStmt)
     let infixNode = p.parseInfix(infixLeft, strict = true)
+    
+    if infixNode.infixRight.nodeType == NTBool:
+        # try match variable types based on infixRight node literal
+        # todo find a better solution
+        infixLeft.varType = NTBool
 
     if p.current.pos == this.pos:
         p.setError(InvalidIndentation)
