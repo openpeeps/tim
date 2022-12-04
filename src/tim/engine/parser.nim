@@ -6,7 +6,7 @@
 
 import std/[tables, json, jsonutils]
 
-import tokens, ast, data
+import tokens, ast
 from resolver import resolve, hasError, getError,
                     getErrorLine, getErrorColumn, getFullCode
 
@@ -31,8 +31,6 @@ type
             ## Hold `Tokentuple` siblinngs while parsing
         statements: Program
             ## Holds AST representation
-        data: Data
-            ## An instance of Data to be evaluated on runtime.
         enableJit: bool
             ## Determine if current Timl document needs a JIT compilation.
             ## This is set true when current document contains either a
@@ -323,6 +321,7 @@ proc newHtmlNode(p: var Parser): Node =
             else:
                 p.setError InvalidNestDeclaration, true
         elif p.current.kind in {TK_DOT, TK_ATTR_ID, TK_IDENTIFIER}:
+            if p.current.line > result.meta.line: break # prevent bad loop
             result.attrs = p.getHtmlAttributes()
         else: break
 
@@ -342,7 +341,7 @@ proc parseHtmlElement(p: var Parser): Node =
         elif p.current.line > node.meta.line:
             dec lvl, i
             i = 0
-        while p.current.line > node.meta.line and p.current.pos > node.meta.pos:
+        while p.current.line > node.meta.line and p.current.pos * lvl > node.meta.pos:
             if p.current.kind == TK_EOF: break
             inc i
             node.nodes.add(p.parseExpression())

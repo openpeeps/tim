@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import ./ast, ./data, ./logger
+import ./ast, ./compileHandlers/logger
 import std/[json, ropes, tables]
 
 from std/strutils import `%`, indent, multiReplace, endsWith, join
@@ -33,7 +33,7 @@ type
         templateType: TimlTemplateType
         baseIndent: int
         data: JsonNode
-        memory: MemStorage
+        memtable: MemStorage
         logs: Logger
 
     MemStorage = TableRef[string, JsonNode]
@@ -132,109 +132,36 @@ proc writeVarValue(c: var Compiler, varNode: Node) =
     if c.data.hasKey(varNode.varIdent):
         add c.html, c.getVarValue(varNode)
         fixTail = true
-    elif c.memory.hasKey(varNode.varSymbol):
-        case c.memory[varNode.varSymbol].kind:
+    elif c.memtable.hasKey(varNode.varSymbol):
+        case c.memtable[varNode.varSymbol].kind:
         of JString:
-            add c.html, c.memory[varNode.varSymbol].getStr
+            add c.html, c.memtable[varNode.varSymbol].getStr
         of JInt:
-          add c.html, $(c.memory[varNode.varSymbol].getInt)
+          add c.html, $(c.memtable[varNode.varSymbol].getInt)
         of JFloat:
-          add c.html, $(c.memory[varNode.varSymbol].getFloat)
+          add c.html, $(c.memtable[varNode.varSymbol].getFloat)
         of JBool:
-          add c.html, $(c.memory[varNode.varSymbol].getBool)
+          add c.html, $(c.memtable[varNode.varSymbol].getBool)
         of JObject:
             case varNode.accessorKind:
             of AccessorKind.Key:
                 if varNode.byKey == "k":
-                    for k, v in pairs(c.memory[varNode.varSymbol]):
+                    for k, v in pairs(c.memtable[varNode.varSymbol]):
                         add c.html, k
                 else:
-                    if c.memory[varNode.varSymbol].hasKey(varNode.byKey):
-                        add c.html, c.memory[varNode.varSymbol][varNode.byKey].getStr
-                    else: c.logs.add(InvalidAccessorKey % [varNode.byKey, $(c.memory[varNode.varSymbol].kind)])
+                    if c.memtable[varNode.varSymbol].hasKey(varNode.byKey):
+                        add c.html, c.memtable[varNode.varSymbol][varNode.byKey].getStr
+                    else: c.logs.add(InvalidAccessorKey % [varNode.byKey, $(c.memtable[varNode.varSymbol].kind)])
             of AccessorKind.Value:
-                for k, v in pairs(c.memory[varNode.varSymbol]):
+                for k, v in pairs(c.memtable[varNode.varSymbol]):
                     add c.html, v.getStr
             else:
                 c.logs.add(InvalidObjectAccess % ["attributes"])
         else: discard
         fixTail = true
     else: c.logs.add(UndefinedDataStorageVariable % [varNode.varIdent])
-proc handleInfixStmt(c: var Compiler, node: Node) = 
-    if node.infixOp == AND:
-        # write string concatenation
-        if node.infixLeft.nodeType == NTVariable:
-            c.writeVarValue(node.infixLeft)
-        elif node.infixLeft.nodeType == NTString:
-            c.writeStrValue(node.infixLeft)
-        elif node.infixLeft.nodeType == NTInfixStmt:
-            c.handleInfixStmt(node.infixLeft)
 
-        if node.infixRight.nodeType == NTVariable:
-            c.writeVarValue(node.infixRight)
-        elif node.infixRight.nodeType == NTString:
-            c.writeStrValue(node.infixRight)
-        elif node.infixRight.nodeType == NTInfixStmt:
-            c.handleInfixStmt(node.infixRight)
-
-proc compInfixNode(c: var Compiler, node: Node): bool =
-    case node.infixOp
-    of EQ:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
-            of NTString:
-                return isEqualString(node.infixLeft.sVal, node.infixRight.sVal)
-            of NTVariable:
-                discard
-            else: discard
-        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTString:
-            if node.infixLeft.dataStorage:
-                if c.data.hasKey(node.infixLeft.varIdent):
-                    return isEqualString(c.data[node.infixLeft.varIdent].getStr, node.infixRight.sVal)
-            else: discard # todo handle timl-based variables
-        elif node.infixLeft.nodeType == NTString and node.infixRight.nodeType == NTVariable:
-            if node.infixRight.dataStorage:
-                if c.data.hasKey(node.infixRight.varIdent):
-                    return isEqualString(node.infixLeft.sVal, c.data[node.infixRight.varIdent].getStr)
-        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTBool:
-            if node.infixLeft.dataStorage:
-                if c.data.hasKey(node.infixLeft.varIdent):
-                    return isEqualBool(c.data[node.infixLeft.varIdent].getBool, node.infixRight.bVal)
-    of NE:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isNotEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
-            of NTString:
-                return isNotEqualString(node.infixLeft.sVal, node.infixRight.sVal)
-            else: discard
-    of GT:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isGreaterInt(node.infixLeft.iVal, node.infixRight.iVal)
-            else: discard
-    of GTE:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isGreaterEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
-            else: discard
-    of LT:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isLessInt(node.infixLeft.iVal, node.infixRight.iVal)
-            else: discard
-    of LTE:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isLessEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
-            else: discard
-    else: discard
+include ./compileHandlers/[comparators, infix]
 
 proc handleConditionStmt(c: var Compiler, ifCond: Node, ifBody: seq[Node],
                             elifBranch: ElifBranch, elseBranch: seq[Node]) =
@@ -254,7 +181,7 @@ proc handleConditionStmt(c: var Compiler, ifCond: Node, ifBody: seq[Node],
             c.writeNewLine(elseBranch)
 
 proc storeValue(c: var Compiler, symbol: string, item: JsonNode) =
-    c.memory[symbol] = item
+    c.memtable[symbol] = item
 
 proc handleForStmt(c: var Compiler, forNode: Node) =
     if c.data.hasKey(forNode.forItems.varIdent):
@@ -263,14 +190,14 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
             for item in c.data[forNode.forItems.varIdent]:
                 c.storeValue(forNode.forItem.varSymbol, item)
                 c.writeNewLine(forNode.forBody)
-                c.memory.del(forNode.forItem.varSymbol)
+                c.memtable.del(forNode.forItem.varSymbol)
         of JObject:
             for k in keys(c.data[forNode.forItems.varIdent]):
                 var kvObject = newJObject()
                 kvObject[k] = c.data[forNode.forItems.varIdent][k]
                 c.storeValue(forNode.forItem.varSymbol, kvObject)
                 c.writeNewLine(forNode.forBody)
-                c.memory.del(forNode.forItem.varSymbol)
+                c.memtable.del(forNode.forItem.varSymbol)
         else: discard
     else: discard # todo console warning
 
@@ -305,7 +232,7 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
             templateType: templateType,
             baseIndent: baseIndent,
             data: data,
-            memory: newTable[string, JsonNode](),
+            memtable: newTable[string, JsonNode](),
             logs: Logger()
         )
     c.program = astProgram
@@ -318,7 +245,11 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
                 c.writeNewLine(node.stmtList.nodes)
             c.closeTag(node.stmtList)
         of NTConditionStmt:
-            c.handleConditionStmt(node.stmtList.ifCond, node.stmtList.ifBody, node.stmtList.elifBranch, node.stmtList.elseBody)
+            c.handleConditionStmt(
+                node.stmtList.ifCond,
+                node.stmtList.ifBody,
+                node.stmtList.elifBranch,
+                node.stmtList.elseBody)
         of NTForStmt:
             c.handleForStmt(node.stmtList)
         else: discard
