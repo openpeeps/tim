@@ -343,6 +343,9 @@ proc parseHtmlElement(p: var Parser): Node =
             i = 0
         while p.current.line > node.meta.line and p.current.pos * lvl > node.meta.pos:
             if p.current.kind == TK_EOF: break
+            elif result.meta.col == p.current.pos:
+                dec lvl, i
+                break
             inc i
             node.nodes.add(p.parseExpression())
         dec lvl, i
