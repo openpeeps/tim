@@ -338,18 +338,20 @@ proc parseHtmlElement(p: var Parser): Node =
         node = p.parseHtmlElement()
         if p.current.pos > result.meta.pos:
             inc lvl
-        elif p.current.line > node.meta.line:
+        elif p.current.line > node.meta.line and lvl >= i:
             dec lvl, i
             i = 0
         while p.current.line > node.meta.line and p.current.pos * lvl > node.meta.pos:
             if p.current.kind == TK_EOF: break
             elif result.meta.col == p.current.pos:
-                dec lvl, i
+                if lvl >= i:
+                    dec lvl, i
                 break
             inc i
             node.nodes.add(p.parseExpression())
-        dec lvl, i
-        i = 0
+        if lvl >= i:
+            dec lvl, i
+            i = 0
         result.nodes.add(node)
     while p.current.line > result.meta.line and p.current.pos > result.meta.col:
         if p.current.kind == TK_EOF: break
@@ -371,8 +373,6 @@ proc parseHtmlElement(p: var Parser): Node =
         if lvl > i: # prevent `value out of range`
             dec lvl,  i
             i = 0
-        # else:
-        #     dec lvl
 
 proc parseAssignment(p: var Parser): Node =
     discard
@@ -383,6 +383,7 @@ proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple)
         return
     var this = p.current
     jump p
+    if p.current.kind == TK_COLON: jump p
     while p.current.pos > this.pos:
         let bodyNode = p.parseExpression(exclude = {NTInt, NTString, NTBool})
         elseBody.add bodyNode
@@ -411,6 +412,7 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
     if p.current.pos == this.pos:
         p.setError(InvalidIndentation)
         return
+    if p.current.kind == TK_COLON: jump p
     var ifBody, elseBody: seq[Node]
     while p.current.pos > this.pos:     # parse body of `if` branch
         if p.current.kind in {TK_ELIF, TK_ELSE}:
@@ -449,6 +451,7 @@ proc parseForStmt(p: var Parser): Node =
         p.setError(InvalidIteration)
         return
     let pluralIdent = p.parseVariable()
+    if p.current.kind == TK_COLON: jump p
     var forBody: seq[Node]
     while p.current.pos > this.pos:
         forBody.add p.parseExpression()
