@@ -168,8 +168,8 @@ proc parseForStmt(p: var Parser): Node
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
-proc isDataStorage(tk: TokenTuple): bool =
-    result = tk.value == "data"
+proc isAppStorage(tk: TokenTuple): bool =
+    result = tk.value == "app"
 
 proc resolveInlineNest(lazySeq: var seq[Node]): Node =
     var i = 0
@@ -232,7 +232,7 @@ proc parseString(p: var Parser): Node =
         jump p
 
 proc parseVariable(p: var Parser): Node =
-    if p.current.isDataStorage() and p.next.kind == TK_DOT: 
+    if p.current.isAppStorage() and p.next.kind == TK_DOT: 
         jump p, 2
         if p.current.kind == TK_IDENTIFIER:
             result = newVariable(p.current, dataStorage = true)
@@ -270,7 +270,10 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         if p.current.kind == TK_DOT:
             # Add `class=""` html attribute
             let attrKey = "class"
-            if p.next.kind == TK_IDENTIFIER:
+            if p.next.kind notin {TK_DOT, TK_COLON, TK_LCURLY, TK_RCURLY,
+                                  TK_LPAR, TK_RPAR, TK_ATTR_ID, TK_ASSIGN, TK_COMMA,
+                                  TK_AT, TK_NOT, TK_EQ, TK_GT, TK_GTE, TK_LT, TK_LTE,
+                                  TK_AND, TK_PLUS, TK_MINUS, TK_MULTIPLY}:
                 if result.hasKey(attrKey):
                     if p.next.value in result[attrKey]:
                         p.setError DuplicateClassName % [p.next.value], true
@@ -323,6 +326,7 @@ proc newHtmlNode(p: var Parser): Node =
         elif p.current.kind in {TK_DOT, TK_ATTR_ID, TK_IDENTIFIER}:
             if p.current.line > result.meta.line: break # prevent bad loop
             result.attrs = p.getHtmlAttributes()
+            if p.hasError(): break
         else: break
 
 proc parseHtmlElement(p: var Parser): Node =
@@ -384,6 +388,9 @@ proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple)
     var this = p.current
     jump p
     if p.current.kind == TK_COLON: jump p
+    if this.pos >= p.current.pos:
+        p.setError(NestableStmtIndentation)
+        return
     while p.current.pos > this.pos:
         let bodyNode = p.parseExpression(exclude = {NTInt, NTString, NTBool})
         elseBody.add bodyNode
