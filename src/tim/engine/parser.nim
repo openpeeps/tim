@@ -306,7 +306,9 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                 result[attrName] = @[p.next.value]
             jump p, 2 
         else: break
+
 var lvl = 0
+var i = 1
 proc newHtmlNode(p: var Parser): Node =
     var isSelfClosingTag = p.current.kind in scTags
     result = ast.newHtmlElement(p.current)
@@ -331,52 +333,26 @@ proc newHtmlNode(p: var Parser): Node =
 
 proc parseHtmlElement(p: var Parser): Node =
     result = p.newHtmlNode()
-    var node, prevNode: Node
-    var i = 0
+    var node: Node
     while p.current.kind == TK_GT:
         jump p
         if not p.current.kind.isHTMLElement():
-            p.setError(InvalidNestDeclaration, true)
+            p.setError(InvalidNestDeclaration)
+        inc i
         inc lvl
-        inc i
         node = p.parseHtmlElement()
-        if p.current.pos > result.meta.pos:
-            inc lvl
-        elif p.current.line > node.meta.line and lvl >= i:
-            dec lvl, i
-            i = 0
-        while p.current.line > node.meta.line and p.current.pos * lvl > node.meta.pos:
-            if p.current.kind == TK_EOF: break
-            elif result.meta.col == p.current.pos:
-                if lvl >= i:
-                    dec lvl, i
-                break
-            inc i
-            node.nodes.add(p.parseExpression())
-        if lvl >= i:
-            dec lvl, i
-            i = 0
         result.nodes.add(node)
-    while p.current.line > result.meta.line and p.current.pos > result.meta.col:
-        if p.current.kind == TK_EOF: break
-        if p.current.pos > result.meta.col:
-            if prevNode != nil:
-                if p.current.pos == prevNode.meta.pos:
-                    discard
-                elif p.current.pos < prevNode.meta.pos:
-                    dec lvl
-            else:
-                inc lvl
-        inc i
-        prevNode = p.parseExpression()
-        result.nodes.add(prevNode)
-    
-    if p.current.pos == 0: lvl = 0 # reset level
 
-    if p.current.pos < result.meta.col or p.current.pos == result.meta.col:
-        if lvl > i: # prevent `value out of range`
-            dec lvl,  i
-            i = 0
+    if node != nil:
+        if p.current.pos != 0 and p.current.pos < node.meta.pos:
+            dec lvl
+
+    while p.current.line > result.meta.line and p.current.pos > result.meta.pos:
+        if p.current.kind == TK_EOF: break
+        inc lvl
+        result.nodes.add(p.parseExpression())
+        dec lvl
+    if p.current.pos == 0: lvl = 0 # reset level
 
 proc parseAssignment(p: var Parser): Node =
     discard
