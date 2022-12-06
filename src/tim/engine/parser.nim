@@ -308,7 +308,6 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         else: break
 
 var lvl = 0
-var i = 1
 proc newHtmlNode(p: var Parser): Node =
     var isSelfClosingTag = p.current.kind in scTags
     result = ast.newHtmlElement(p.current)
@@ -333,12 +332,11 @@ proc newHtmlNode(p: var Parser): Node =
 
 proc parseHtmlElement(p: var Parser): Node =
     result = p.newHtmlNode()
-    var node: Node
+    var node, prevNode: Node
     while p.current.kind == TK_GT:
         jump p
         if not p.current.kind.isHTMLElement():
             p.setError(InvalidNestDeclaration)
-        inc i
         inc lvl
         node = p.parseHtmlElement()
         result.nodes.add(node)
@@ -349,8 +347,14 @@ proc parseHtmlElement(p: var Parser): Node =
 
     while p.current.line > result.meta.line and p.current.pos > result.meta.pos:
         if p.current.kind == TK_EOF: break
-        inc lvl
-        result.nodes.add(p.parseExpression())
+        if prevNode != nil:
+            if p.current.pos * lvl != prevNode.meta.pos:
+                inc lvl
+            else:
+                lvl = prevNode.meta.pos div 4 # to base indent
+        else: inc lvl
+        prevNode = p.parseExpression()
+        result.nodes.add(prevNode)
         dec lvl
     if p.current.pos == 0: lvl = 0 # reset level
 
