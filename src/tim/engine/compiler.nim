@@ -91,7 +91,7 @@ proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
 
 proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
     ## Close an HTML tag
-    if not node.issctag and node.htmlNodeName notin ["html", "body"]:
+    if node.issctag == false and node.htmlNodeName notin ["html", "head", "body"]:
         if not fixTail and not c.minified:
             c.indentLine(node.meta, skipBr)
         add c.html, "</" & node.htmlNodeName & ">"
@@ -226,7 +226,7 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
         minified: bool, templateType: TimlTemplateType,
         baseIndent: int, filePath: string, data = %*{}): Compiler =
     ## Create a new Compiler instance
-    var c = cInstance(
+    var c = Compiler(
             minified: minified,
             templateType: templateType,
             baseIndent: baseIndent,
@@ -253,7 +253,6 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
             c.handleForStmt(node.stmtList)
         else: discard
     result = c
-
     if c.logs.logs.len != 0:
         echo filePath
         for error in c.logs.logs:

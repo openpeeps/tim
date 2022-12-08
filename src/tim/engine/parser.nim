@@ -15,7 +15,7 @@ from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool
 
 type
     Parser* = object
-        depth: int
+        lvl: int
             ## Incremented depth of levels while parsing inline nests
         engine: TimEngine
             ## Holds current TimEngine instance
@@ -29,6 +29,7 @@ type
             ## in current `.timl` template
         prev, current, next: TokenTuple
             ## Hold `Tokentuple` siblinngs while parsing
+        parentNode: seq[Node]
         statements: Program
             ## Holds AST representation
         headliners: TableRef[int, Node]
@@ -172,16 +173,6 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 proc isAppStorage(tk: TokenTuple): bool =
     result = tk.value == "app"
 
-proc resolveInlineNest(lazySeq: var seq[Node]): Node =
-    var i = 0
-    var maxlen = (lazySeq.len - 1)
-    while true:
-        if i == maxlen: break
-        lazySeq[(maxlen - (i + 1))].nodes.add(lazySeq[^1])
-        lazySeq.delete( (maxlen - i) )
-        inc i
-    result = lazySeq[0]
-
 proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
     let tk: TokenTuple = p.current
     jump p
@@ -300,15 +291,13 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             jump p, 2 
         else: break
 
-var i = 1
-var lvl = 0
 proc newHtmlNode(p: var Parser): Node =
     var isSelfClosingTag = p.current.kind in scTags
     result = ast.newHtmlElement(p.current)
     result.issctag = isSelfClosingTag
     jump p
     if result.meta.pos != 0:
-        result.meta.pos = lvl * 4 # set real indentation size
+        result.meta.pos = p.lvl * 4 # set real indentation size
     while true:
         if p.current.kind == TK_COLON:
             jump p
@@ -324,51 +313,51 @@ proc newHtmlNode(p: var Parser): Node =
             if p.hasError(): break
         else: break
 
-var prevNode: Node
-var parentNode: seq[Node]
 proc parseHtmlElement(p: var Parser): Node =
     result = p.newHtmlNode()
-    if parentNode.len == 0:
-        parentNode.add(result)
+    if p.parentNode.len == 0:
+        p.parentNode.add(result)
     else:
-        if result.meta.line > parentNode[^1].meta.line:
-            parentNode.add(result)
+        if result.meta.line > p.parentNode[^1].meta.line:
+            p.parentNode.add(result)
     var node: Node
     while p.current.kind == TK_GT:
         jump p
         if not p.current.kind.isHTMLElement():
             p.setError(InvalidNestDeclaration)
-        inc lvl
+        inc p.lvl
         node = p.parseHtmlElement()
         if p.current.kind != TK_EOF and p.current.pos != 0:
             if p.current.line > node.meta.line:
-                let currentParent = parentNode[^1]
+                let currentParent = p.parentNode[^1]
                 # if p.current.pos > currentParent.meta.col:
-                #     inc lvl
+                #     inc p.lvl
                 while p.current.pos > currentParent.meta.col:
+                    if p.current.kind == TK_EOF: break
                     node.nodes.add(p.parseExpression())
                     if p.current.pos < currentParent.meta.pos:
-                        dec lvl, currentParent.meta.col div p.current.pos
-                        delete(parentNode, parentNode.high)
+                        dec p.lvl, currentParent.meta.col div p.current.pos
+                        delete(p.parentNode, p.parentNode.high)
                         break
         result.nodes.add(node)
-        dec lvl
+        if p.lvl != 0:
+            dec p.lvl
         return result
-    let currentParent = parentNode[^1]
+    let currentParent = p.parentNode[^1]
     if p.current.pos > currentParent.meta.col:
-        inc lvl
+        inc p.lvl
     while p.current.pos > currentParent.meta.col:
         if p.current.kind == TK_EOF: break
         result.nodes.add(p.parseExpression())
         if p.current.kind == TK_EOF or p.current.pos == 0: break # prevent division by zero
         if p.current.pos < currentParent.meta.col:
             # dec lvl, currentParent.meta.col div p.current.pos
-            dec lvl
-            delete(parentNode, parentNode.high)
+            dec p.lvl
+            delete(p.parentNode, p.parentNode.high)
             break
         elif p.current.pos == currentParent.meta.col:
-            dec lvl
-    if p.current.pos == 0: lvl = 0 # reset level
+            dec p.lvl
+    if p.current.pos == 0: p.lvl = 0 # reset level
 
 proc parseAssignment(p: var Parser): Node =
     discard
@@ -567,7 +556,6 @@ proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateTyp
 
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
-
     p.statements = Program()
     while p.hasError() == false and p.current.kind != TK_EOF:
         var statement: Node = p.parseStatement()
