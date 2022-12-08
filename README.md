@@ -20,8 +20,8 @@ _Work in progress_
 - [x] SEO / Semantic Checker
 - [x] Language Extension `.timl` 😎
 - [x] Lexer based on [Toktok library](https://github.com/openpeep/toktok)
-- [x] Tim as a **Nimble library** for Nim programming 👑
-- [ ] Tim as a Native NodeJS addon
+- [x] As a **Nimble library** for Nim programming 👑
+- [ ] As a standalone binary with REST API included
 - [x] Open Source | `MIT` License
 
 ## Installing
@@ -92,6 +92,17 @@ a.btn.btn-dark.px-4
     svg viewBox="0 0 24 24" width="24" height="24" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
         polyline points="22 12 18 12 15 21 9 3 6 12 2 12"
     span: "Update now"
+```
+
+5. Forms
+```tim
+div.mb-3
+    label.form-label: "Email address"
+    input.form-control type="email"
+                       placeholder="name@example.com"
+div.mb-3
+    label.form-label: "Your message"
+    textarea.form-control rows="3" placeholder="Add your message"
 ```
 
 ## Features explained
