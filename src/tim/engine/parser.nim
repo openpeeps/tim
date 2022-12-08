@@ -334,7 +334,9 @@ proc parseHtmlElement(p: var Parser): Node =
                 #     inc p.lvl
                 while p.current.pos > currentParent.meta.col:
                     if p.current.kind == TK_EOF: break
-                    node.nodes.add(p.parseExpression())
+                    var subNode = p.parseExpression()
+                    if subNode != nil:
+                        node.nodes.add(subNode)
                     if p.current.pos < currentParent.meta.pos:
                         dec p.lvl, currentParent.meta.col div p.current.pos
                         delete(p.parentNode, p.parentNode.high)
@@ -348,7 +350,9 @@ proc parseHtmlElement(p: var Parser): Node =
         inc p.lvl
     while p.current.pos > currentParent.meta.col:
         if p.current.kind == TK_EOF: break
-        result.nodes.add(p.parseExpression())
+        var subNode = p.parseExpression()
+        if subNode != nil:
+            result.nodes.add(subNode)
         if p.current.kind == TK_EOF or p.current.pos == 0: break # prevent division by zero
         if p.current.pos < currentParent.meta.col:
             # dec lvl, currentParent.meta.col div p.current.pos
@@ -497,6 +501,12 @@ proc parseIncludeCall(p: var Parser): Node =
     result = newInclude(p.current.value)
     jump p
 
+proc parseComment(p: var Parser): Node =
+    # Actually, will skip comments
+    var this = p.current
+    jump p
+    while p.current.line == this.line:
+        jump p
 
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     result = case kind
@@ -514,24 +524,23 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
             else: nil
         of TK_VARIABLE: parseVariable
         of TK_SAFE_VARIABLE: parseSafeVariable
+        of TK_COMMENT: parseComment
         else: parseHtmlElement
 
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
     var this = p.current
     var prefixFunction = p.getPrefixFn(this.kind)
     var exp: Node = p.prefixFunction()
+    if exp == nil: return
     if exclude.len != 0:
         if exp.nodeType in exclude:
             p.setError("Unexpected token \"$1\"" % [this.value])
-    if exp != nil:
-        if not p.headliners.hasKey(this.line):
-            p.headliners[this.line] = exp
-        result = exp
+    result = exp
 
 proc parseExpressionStmt(p: var Parser): Node =
     let tk = p.current
     var exp = p.parseExpression()
-    if exp == nil and p.hasError():
+    if exp == nil or p.hasError():
         return
     result = ast.newExpression exp
 
