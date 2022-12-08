@@ -52,16 +52,7 @@ type
     SyntaxError* = object of CatchableError      # raise errors from Tim language
     TimDefect* = object of CatchableError
 
-const timVersion = "0.1.0"
-
-# proc getTemplates*[T: TimlTemplateTable](t: var T): TimlTemplateTable =
-#     result = t.templates
-
-# proc getTemplate*[T: TimlTemplateTable](t: var T, key: string): TimlTemplate =
-#     let templates = t.getTemplates
-#     if templates.hasKey(key):
-#         result = templates[key]
-#     else: raise newException(TimException, "Unable to find a template for \"$1\" key")
+const currentVersion = "0.1.0"
 
 proc getIndent*[T: TimEngine](t: T): int = 
     ## Get preferred indentation size (2 or 4 spaces). Default 4
@@ -235,13 +226,13 @@ proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string, baseInde
     ## Write current JSON AST to BSON
     var document = newBsonDocument()
     document["ast"] = ast
-    document["version"] = timVersion
+    document["version"] = currentVersion
     document["baseIndent"] = baseIndent
     writeFile(t.paths.ast, document.bytes)
 
 proc checkDocVersion(docVersion: string): bool =
     let docv = parseInt replace(docVersion, ".", "")
-    let currv = parseInt replace(timVersion, ".", "")
+    let currv = parseInt replace(currentVersion, ".", "")
     result = sgn(docv - currv) != -1
 
 method getReloadType*(engine: TimEngine): HotReloadType {.base.} =
@@ -253,7 +244,7 @@ proc readBson*[E: TimEngine, T: TimlTemplate](e: E, t: T): string =
     let docv: string = document["version"]
     if not checkDocVersion(docv):
         raise newException(TimDefect,
-            "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, timVersion])
+            "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, currentVersion])
     result = document["ast"]
 
 proc writeHtml*[E: TimEngine, T: TimlTemplate](e: E, t: T, output: string, isTail = false) =

@@ -8,7 +8,6 @@ import std/tables
 
 from ./tokens import TokenKind, TokenTuple
 from std/enumutils import symbolName
-from std/strutils import replace, toLowerAscii
 
 type
     NodeType* = enum

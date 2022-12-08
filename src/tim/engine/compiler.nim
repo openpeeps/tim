@@ -8,7 +8,6 @@ import ./ast, ./compileHandlers/logger
 import std/[json, ropes, tables]
 
 from std/strutils import `%`, indent, multiReplace, endsWith, join
-from std/algorithm import reverse, SortOrder
 from ./meta import TimlTemplateType
 
 type
@@ -92,7 +91,7 @@ proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
 
 proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
     ## Close an HTML tag
-    if not node.issctag:
+    if not node.issctag and node.htmlNodeName notin ["html", "body"]:
         if not fixTail and not c.minified:
             c.indentLine(node.meta, skipBr)
         add c.html, "</" & node.htmlNodeName & ">"
