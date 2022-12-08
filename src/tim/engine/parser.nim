@@ -31,6 +31,7 @@ type
             ## Hold `Tokentuple` siblinngs while parsing
         statements: Program
             ## Holds AST representation
+        headliners: TableRef[int, Node]
         enableJit: bool
             ## Determine if current Timl document needs a JIT compilation.
             ## This is set true when current document contains either a
@@ -204,14 +205,6 @@ proc parseBoolean(p: var Parser): Node =
 
 proc parseString(p: var Parser): Node =
     # Parse a new `string` node
-    # if p.prev.kind == TK_STRING:
-    #     result = ast.newNode(NTHtmlElement, p.current)
-    #     result.htmlNodeType = Html_Br
-    #     result.htmlNodeName = "br"
-    #     result.issctag = true
-    #     result.nodes.add ast.newString(p.current)
-    #     jump p
-    # else:
     var concated: bool
     let strToken = p.current
     if p.next.kind == TK_AND:
@@ -307,6 +300,7 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             jump p, 2 
         else: break
 
+var i = 1
 var lvl = 0
 proc newHtmlNode(p: var Parser): Node =
     var isSelfClosingTag = p.current.kind in scTags
@@ -330,32 +324,50 @@ proc newHtmlNode(p: var Parser): Node =
             if p.hasError(): break
         else: break
 
+var prevNode: Node
+var parentNode: seq[Node]
 proc parseHtmlElement(p: var Parser): Node =
     result = p.newHtmlNode()
-    var node, prevNode: Node
+    if parentNode.len == 0:
+        parentNode.add(result)
+    else:
+        if result.meta.line > parentNode[^1].meta.line:
+            parentNode.add(result)
+    var node: Node
     while p.current.kind == TK_GT:
         jump p
         if not p.current.kind.isHTMLElement():
             p.setError(InvalidNestDeclaration)
         inc lvl
         node = p.parseHtmlElement()
+        if p.current.kind != TK_EOF and p.current.pos != 0:
+            if p.current.line > node.meta.line:
+                let currentParent = parentNode[^1]
+                # if p.current.pos > currentParent.meta.col:
+                #     inc lvl
+                while p.current.pos > currentParent.meta.col:
+                    node.nodes.add(p.parseExpression())
+                    if p.current.pos < currentParent.meta.pos:
+                        dec lvl, currentParent.meta.col div p.current.pos
+                        delete(parentNode, parentNode.high)
+                        break
         result.nodes.add(node)
-
-    if node != nil:
-        if p.current.pos != 0 and p.current.pos < node.meta.pos:
-            dec lvl
-
-    while p.current.line > result.meta.line and p.current.pos > result.meta.pos:
-        if p.current.kind == TK_EOF: break
-        if prevNode != nil:
-            if p.current.pos * lvl != prevNode.meta.pos:
-                inc lvl
-            else:
-                lvl = prevNode.meta.pos div 4 # to base indent
-        else: inc lvl
-        prevNode = p.parseExpression()
-        result.nodes.add(prevNode)
         dec lvl
+        return result
+    let currentParent = parentNode[^1]
+    if p.current.pos > currentParent.meta.col:
+        inc lvl
+    while p.current.pos > currentParent.meta.col:
+        if p.current.kind == TK_EOF: break
+        result.nodes.add(p.parseExpression())
+        if p.current.kind == TK_EOF or p.current.pos == 0: break # prevent division by zero
+        if p.current.pos < currentParent.meta.col:
+            # dec lvl, currentParent.meta.col div p.current.pos
+            dec lvl
+            delete(parentNode, parentNode.high)
+            break
+        elif p.current.pos == currentParent.meta.col:
+            dec lvl
     if p.current.pos == 0: lvl = 0 # reset level
 
 proc parseAssignment(p: var Parser): Node =
@@ -401,6 +413,7 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
         return
     if p.current.kind == TK_COLON: jump p
     var ifBody, elseBody: seq[Node]
+
     while p.current.pos > this.pos:     # parse body of `if` branch
         if p.current.kind in {TK_ELIF, TK_ELSE}:
             p.setError(InvalidIndentation, true)
@@ -522,6 +535,8 @@ proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
         if exp.nodeType in exclude:
             p.setError("Unexpected token \"$1\"" % [this.value])
     if exp != nil:
+        if not p.headliners.hasKey(this.line):
+            p.headliners[this.line] = exp
         result = exp
 
 proc parseExpressionStmt(p: var Parser): Node =
@@ -539,7 +554,7 @@ proc parseStatement(p: var Parser): Node =
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
     var iHandler = resolve(code, path, engine, templateType)
-    var p: Parser = Parser(engine: engine, memory: newTable[string, TokenTuple]())
+    var p: Parser = Parser(engine: engine, memory: newTable[string, TokenTuple](), headliners: newTable[int, Node]())
     if iHandler.hasError():
         p.setError(
             iHandler.getError(),
