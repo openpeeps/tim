@@ -565,16 +565,16 @@ proc parseStatement(p: var Parser): Node =
 
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
-    var iHandler = resolve(code, path, engine, templateType)
+    var importsResolver = resolve(code, path, engine, templateType)
     var p: Parser = Parser(engine: engine, memory: newTable[string, TokenTuple](), headliners: newTable[int, Node]())
-    if iHandler.hasError():
+    if importsResolver.hasError():
         p.setError(
-            iHandler.getError(),
-            iHandler.getErrorLine(),
-            iHandler.getErrorColumn())
+            importsResolver.getError(),
+            importsResolver.getErrorLine(),
+            importsResolver.getErrorColumn())
         return p
     else:
-        p.lexer = Lexer.init(iHandler.getFullCode(), allowMultilineStrings = true)
+        p.lexer = Lexer.init(importsResolver.getFullCode(), allowMultilineStrings = true)
         p.filePath = path
 
     p.current = p.lexer.getToken()

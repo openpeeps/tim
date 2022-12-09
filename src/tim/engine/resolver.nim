@@ -20,8 +20,10 @@ type
     SourceCode = string
         ## Partial Source Code
     Importer* = object
+        engine: TimEngine
+            ## An instance of `TimEngine`
         lex: Lexer
-            ## An instance of TokTok Lexer
+            ## An instance of `TokTok` Lexer
         rope: Rope
             ## The entire view containing resolved partials
         error: string
@@ -44,7 +46,11 @@ type
         partialPath: string
             ## The current `partial` path
 
+    ImportError* = object of CatchableError
+
 const htmlHeadElements = {TK_HEAD, TK_TITLE, TK_BASE, TK_LINK, TK_META, TK_SCRIPT, TK_BODY}
+const
+    ImportErrorNotFound = "Could not import \"$1\". File not found"
 
 proc hasError*[I: Importer](p: var I): bool =
     result = p.error.len != 0
@@ -75,31 +81,27 @@ template jump[I: Importer](p: var I, offset = 1) =
         p.next = p.lex.getToken()
         inc i
 
-template loadCode[T: Importer](p: var T, engine: TimEngine, indent: int) =
-    ## Find ``.timl`` partials and store source contents.
-    ## Once requested, a partial code is stored in a
-    ## memory ``Table``, so it can be inserted in any view
-    ## without calling ``readFile`` again.
+template loadCode(p: var Importer, indent: int) =
     var filepath = p.current.value
     filepath = if not endsWith(filepath, ".timl"): filepath & ".timl" else: filepath
     let dirpath = parentDir(p.currentFilePath)
-    let path = engine.getPathDir("partials") & "/" & filepath
+    let path = p.engine.getPathDir("partials") & "/" & filepath
     if p.sources.hasKey(path):
-        # When included multiple times in a view, will get the
-        # partial source code from `sources` table.
+        # if partial has already been loaded once, then get it
+        # from memory table, instead of calling `readFile` again
         p.partials[p.current.line] = (indent, path)
     else:
         if not fileExists(path):
-            p.setError "Could not import \"$1\"" % [filepath], filepath
+            p.setError(ImportErrorNotFound % [filepath], filepath)
         else:
-            if path == p.currentFilePath:
-                p.setError "Cannot import itself", filepath
-                break
-            p.sources[path] = readFile(path)
+            var importResolver = resolve(readFile(path), path, p.engine, p.templateType)
+            if importResolver.hasError():
+                raise newException(ImportError, importResolver.getError())
+            p.sources[path] = importResolver.getFullCode()
             p.partials[p.current.line] = (indent, path)
-            getTemplateByPath(engine, path).addDependentView(p.currentFilePath)
+            getTemplateByPath(p.engine, path).addDependentView(p.currentFilePath)
 
-template resolveChunks(p: var Importer, engine: TimEngine) =
+template resolveChunks(p: var Importer) =
     if p.templateType in {View, Partial}:
         if p.current.kind in htmlHeadElements:
             p.setError "Views cannot contain Head elements. Use a layout instead", p.currentFilePath
@@ -110,18 +112,18 @@ template resolveChunks(p: var Importer, engine: TimEngine) =
                 p.setError "Invalid import statement missing file path.", p.currentFilePath
                 break
             jump p
-            loadCode(p, engine, indent)
+            loadCode(p, indent)
 
 proc resolve*(viewCode, currentFilePath: string,
-                        engine: TimEngine, templateType: TimlTemplateType): Importer =
-    ## Resolve ``@include`` statements in main view code.
-    var p = Importer(lex: Lexer.init(viewCode),
+            engine: TimEngine, templateType: TimlTemplateType): Importer =
+    ## Resolve ``@include`` statements
+    var p = Importer(engine: engine, lex: Lexer.init(viewCode),
                     currentFilePath: currentFilePath,
                     templateType: templateType)
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:
-        p.resolveChunks(engine)
+        p.resolveChunks()
         jump p
     if p.error.len == 0:
         var sourceStream = newStringStream(viewCode)
