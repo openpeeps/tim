@@ -9,6 +9,8 @@ import std/[streams, tables, ropes]
 
 from ./meta import TimEngine, TimlTemplateType, TimlTemplate,
                     addDependentView, getTemplateByPath, getPathDir
+
+from std/sequtils import concat, deduplicate
 from std/strutils import endsWith, `%`, indent
 from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
@@ -45,12 +47,15 @@ type
         templateType: TimlTemplateType
         partialPath: string
             ## The current `partial` path
+        excludes: seq[string]
 
     ImportError* = object of CatchableError
 
 const htmlHeadElements = {TK_HEAD, TK_TITLE, TK_BASE, TK_LINK, TK_META, TK_SCRIPT, TK_BODY}
 const
     ImportErrorNotFound = "Could not import \"$1\". File not found"
+    ImportPartialSelf = "\"$1\" cannot import itself"
+    ImportCircularError = "Circular import of $1"
 
 proc hasError*[I: Importer](p: var I): bool =
     result = p.error.len != 0
@@ -94,7 +99,14 @@ template loadCode(p: var Importer, indent: int) =
         if not fileExists(path):
             p.setError(ImportErrorNotFound % [filepath], filepath)
         else:
-            var importResolver = resolve(readFile(path), path, p.engine, p.templateType)
+            if path == p.currentFilePath:
+                p.setError(ImportPartialSelf % [filepath], filepath)
+                break
+            elif path in p.excludes:
+                p.setError(ImportCircularError % [path], filepath)
+                break
+            var excludeCirculars = deduplicate(concat(p.excludes, @[path, p.currentFilePath]))
+            var importResolver = resolve(readFile(path), path, p.engine, p.templateType, excludeCirculars)
             if importResolver.hasError():
                 raise newException(ImportError, importResolver.getError())
             p.sources[path] = importResolver.getFullCode()
@@ -115,11 +127,14 @@ template resolveChunks(p: var Importer) =
             loadCode(p, indent)
 
 proc resolve*(viewCode, currentFilePath: string,
-            engine: TimEngine, templateType: TimlTemplateType): Importer =
+            engine: TimEngine, templateType: TimlTemplateType,
+            excludes: seq[string] = @[]): Importer =
     ## Resolve ``@include`` statements
-    var p = Importer(engine: engine, lex: Lexer.init(viewCode),
+    var p = Importer(engine: engine,
+                    lex: Lexer.init(viewCode),
                     currentFilePath: currentFilePath,
-                    templateType: templateType)
+                    templateType: templateType,
+                    excludes: excludes)
     p.current = p.lex.getToken()
     p.next = p.lex.getToken()
     while p.error.len == 0 and p.current.kind != TK_EOF:
