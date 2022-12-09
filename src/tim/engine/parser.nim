@@ -194,13 +194,7 @@ proc parseBoolean(p: var Parser): Node =
     result = ast.newBool(parseBool(p.current.value))
     jump p
 
-proc parseString(p: var Parser): Node =
-    # Parse a new `string` node
-    var concated: bool
-    let strToken = p.current
-    if p.next.kind == TK_AND:
-        concated = true
-        jump p
+template handleConcat() =
     while p.current.kind == TK_AND:
         if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
             p.setError(InvalidStringConcat)
@@ -208,22 +202,38 @@ proc parseString(p: var Parser): Node =
         jump p
         let infixRight: Node = p.parseExpression()
         if result == nil:
-            result = ast.newInfix(ast.newString(strToken), infixRight, getOperator(TK_AND))
+            result = ast.newInfix(leftNode, infixRight, getOperator(TK_AND))
         else:
             result = ast.newInfix(result, infixRight, getOperator(TK_AND))
+
+proc parseString(p: var Parser): Node =
+    # Parse a new `string` node
+    var concated: bool
+    let this = p.current
+    if p.next.kind == TK_AND:
+        concated = true
+        jump p
+        var leftNode = ast.newString(this)
+        handleConcat()
+        if result == nil:
+            result = leftNode
     if not concated:
-        result = ast.newString(strToken)
+        result = ast.newString(this)
         jump p
 
 proc parseVariable(p: var Parser): Node =
+    var leftNode: Node
     if p.current.isAppStorage() and p.next.kind == TK_DOT: 
         jump p, 2
         if p.current.kind == TK_IDENTIFIER:
-            result = newVariable(p.current, dataStorage = true)
+            leftNode = newVariable(p.current, dataStorage = true)
             jump p
+            handleConcat()
         else:
             p.setError(InvalidVarDeclaration)
             return
+        if result == nil:
+            result = leftNode
     else:
         if p.next.kind == TK_DOT:
             let varIdentToken = p.current
@@ -231,14 +241,18 @@ proc parseVariable(p: var Parser): Node =
             if p.next.kind == TK_IDENTIFIER:
                 jump p
                 if p.current.value == "v":
-                    result = newVarCallValAccessor(varIdentToken)
+                    leftNode = newVarCallValAccessor(varIdentToken)
                 else:
-                    result = newVarCallKeyAccessor(varIdentToken, p.current.value)
+                    leftNode = newVarCallKeyAccessor(varIdentToken, p.current.value)
+                handleConcat()
             else:
                 p.setError(InvalidVarDeclaration)
                 return
         else:
-            result = newVariable(p.current)
+            leftNode = newVariable(p.current)
+            handleConcat()
+            if result == nil:
+                result = leftNode
         jump p
     jit p
 
