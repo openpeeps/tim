@@ -91,7 +91,7 @@ proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
 
 proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
     ## Close an HTML tag
-    if node.issctag == false and node.htmlNodeName notin ["html", "head", "body"]:
+    if node.issctag == false and node.htmlNodeName notin ["html", "body"]:
         if not fixTail and not c.minified:
             c.indentLine(node.meta, skipBr)
         add c.html, "</" & node.htmlNodeName & ">"
