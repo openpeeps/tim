@@ -20,6 +20,7 @@ const DockType = "<!DOCTYPE html>"
 const EndHtmlDocument = "</body></html>"
 
 var Tim* {.global.}: TimEngine
+const DefaultLayout = "base"
 
 proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode): Compiler =
     result = Compiler.init(
@@ -40,7 +41,7 @@ proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode): str
     else:
         result.add indent(cview.getHtml(), engine.getIndent())
 
-proc render*(engine: TimEngine, key: string, layoutKey = "base",
+proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
                 data: JsonNode = %*{}): string =
     ## Renders a template view by name. Use dot-annotations
     ## for rendering views from sub directories directories,
@@ -158,13 +159,13 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                     startThread(watchoutCallback, watchFiles, 550)
                     return
 
-        for id, layout in Tim.getLayouts().mpairs():
-            Tim.compileCode(layout)
-            result.add layout.getName()
-
         for id, view in Tim.getViews().mpairs():
             Tim.compileCode(view)
             result.add view.getName()
+
+        for id, layout in Tim.getLayouts().mpairs():
+            Tim.compileCode(layout)
+            result.add layout.getName()
 
 when isMainModule:
     Tim.init(
