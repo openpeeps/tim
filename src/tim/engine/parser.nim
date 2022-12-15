@@ -77,6 +77,9 @@ const
     tkCalc = {TK_PLUS, TK_MINUS, TK_DIVIDE, TK_MULTIPLY}
     tkCall = {TK_INCLUDE, TK_MIXIN}
     tkNone = (TK_NONE, "", 0,0,0,0)
+    tkSpecial = {TK_DOT, TK_COLON, TK_LCURLY, TK_RCURLY,
+                  TK_LPAR, TK_RPAR, TK_ATTR_ID, TK_ASSIGN, TK_COMMA,
+                  TK_AT, TK_NOT, TK_AND} + tkCalc + tkOperators
     svgscTags = {
         TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
         TK_SVG_ANIMATETRANSFORM, TK_SVG_ANIMATEMOTION,
@@ -136,7 +139,8 @@ proc getStatementsStr*(p: Parser, prettyString, prettyPlain = false): string =
 template jit(p: var Parser) =
     ## Enable jit flag When current document contains
     ## either conditionals, or variable assignments
-    if p.enableJit == false: p.enableJit = true
+    if p.enableJit == false:
+        p.enableJit = true
 
 proc hasJIT*(p: var Parser): bool {.inline.} =
     ## Determine if current timl template
@@ -239,7 +243,7 @@ proc parseVariable(p: var Parser): Node =
         if p.next.kind == TK_DOT:
             let varIdentToken = p.current
             jump p
-            if p.next.kind == TK_IDENTIFIER:
+            if p.next.kind == TK_IDENTIFIER or p.next.kind notin tkSpecial:
                 jump p
                 if p.current.value == "v":
                     leftNode = newVarCallValAccessor(varIdentToken)
@@ -269,10 +273,7 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         if p.current.kind == TK_DOT:
             # Add `class=""` html attribute
             let attrKey = "class"
-            if p.next.kind notin {TK_DOT, TK_COLON, TK_LCURLY, TK_RCURLY,
-                                  TK_LPAR, TK_RPAR, TK_ATTR_ID, TK_ASSIGN, TK_COMMA,
-                                  TK_AT, TK_NOT, TK_EQ, TK_GT, TK_GTE, TK_LT, TK_LTE,
-                                  TK_AND, TK_PLUS, TK_MINUS, TK_MULTIPLY}:
+            if p.next.kind notin tkSpecial:
                 if result.hasKey(attrKey):
                     if p.next.value in result[attrKey]:
                         p.setError DuplicateClassName % [p.next.value], true
@@ -590,7 +591,6 @@ proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateTyp
     else:
         p.lexer = Lexer.init(importsResolver.getFullCode(), allowMultilineStrings = true)
         p.filePath = path
-
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
     p.statements = Program()

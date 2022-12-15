@@ -33,13 +33,13 @@ proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode, 
         viewCode = viewCode
     )
 
-proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode): string =
-    var c = engine.newCompiler(
-        layout, data, engine.newCompiler(view, data).getHtml()
-    )
-    # if engine.shouldMinify():
-    result = c.getHtml()
-    # result.add indent(cview.getHtml(), engine.getIndent())
+# proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode): string =
+#     var c = engine.newCompiler(
+#         layout, data, engine.newCompiler(view, data).getHtml()
+#     )
+#     # if engine.shouldMinify():
+#     result = c.getHtml()
+#     # result.add indent(cview.getHtml(), engine.getIndent())
 
 proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
                 data: JsonNode = %*{}): string =
@@ -48,6 +48,7 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
     ## for example `render("product.sales.index")`
     ## will try look for a timl template at `product/sales/index.timl`
     if engine.hasView(key):
+        var c: Compiler
         var view: TimlTemplate = engine.getView(key)
         if not engine.hasLayout(layoutKey):
             raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
@@ -55,18 +56,26 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
         result = DockType
         if view.isJitEnabled():
             # When enabled, will compile `timl` > `html` on the fly
-            result.add engine.jitHtml(view, layout, data)
+            var c = engine.newCompiler(
+                layout, data, engine.newCompiler(view, data).getHtml()
+            )
+            result.add c.getHtml()
         else:
-            # Otherwise render precompiled templates
-            if engine.shouldMinify():
-                result.add(layout.getHtmlCode() % [
-                    layout.getPlaceholderId, view.getHtmlCode
-                ])
+            # Otherwise, load static views, but first
+            # check if requested layout is available as BSON
+            if layout.isJitEnabled():
+                let c = engine.newCompiler(layout, data, view.getHtmlCode)
+                result.add(c.getHtml())
             else:
-                result.add(layout.getHtmlCode() % [
-                    layout.getPlaceholderId,
-                    indent(view.getHtmlCode, engine.getIndent)
-                ])
+                if engine.shouldMinify():
+                    result.add(layout.getHtmlCode() % [
+                        layout.getPlaceholderId, view.getHtmlCode
+                    ])
+                else:
+                    result.add(layout.getHtmlCode() % [
+                        layout.getPlaceholderId,
+                        indent(view.getHtmlCode, engine.getIndent)
+                    ])
 
         when requires "supranim":
             when not defined release:
@@ -103,7 +112,7 @@ proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
     var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = temp.getType())
     if p.hasError():
         raise newException(SyntaxError, "\n"&p.getError())
-    if p.hasJit:
+    if p.hasJit():
         temp.enableJIT()
         engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
     else:
