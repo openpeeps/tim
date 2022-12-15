@@ -10,7 +10,7 @@ import tokens, ast
 from resolver import resolve, hasError, getError,
                     getErrorLine, getErrorColumn, getFullCode
 
-from meta import TimEngine, TimlTemplate, TimlTemplateType, getContents, getFileData
+from meta import TimEngine, TimlTemplate, TimlTemplateType, getFileData
 from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool
 
 type
@@ -41,6 +41,7 @@ type
             ## A parser/lexer error
         memory: VarStorage
             ## An index containing all variables (in order to prevent duplicates)
+        templateType: TimlTemplateType
 
     PrefixFunction = proc(p: var Parser): Node
     InfixFunction = proc(p: var Parser, left: Node): Node
@@ -522,6 +523,13 @@ proc parseComment(p: var Parser): Node =
     while p.current.line == this.line:
         jump p
 
+proc parseViewLoader(p: var Parser): Node =
+    if p.templateType != Layout:
+        p.setError("Trying to load a view inside a $1" % [$p.templateType])
+        return
+    result = newView(p.current)
+    jump p
+
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     result = case kind
         of TK_INTEGER: parseInteger
@@ -539,6 +547,7 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
         of TK_VARIABLE: parseVariable
         of TK_SAFE_VARIABLE: parseSafeVariable
         of TK_COMMENT: parseComment
+        of TK_VIEW: parseViewLoader
         else: parseHtmlElement
 
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
@@ -566,7 +575,12 @@ proc parseStatement(p: var Parser): Node =
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
     var importsResolver = resolve(code, path, engine, templateType)
-    var p: Parser = Parser(engine: engine, memory: newTable[string, TokenTuple](), headliners: newTable[int, Node]())
+    var p: Parser = Parser(
+        engine: engine,
+        memory: newTable[string, TokenTuple](),
+        headliners: newTable[int, Node](),
+        templateType: templateType
+    )
     if importsResolver.hasError():
         p.setError(
             importsResolver.getError(),

@@ -243,6 +243,7 @@ tokens:
     At           > '@':
         Include  ? "include"
         Mixin    ? "mixin"
+        View     ? "view"
     Plus         > '+'
     Minus        > '-'
     Multiply     > '*'

@@ -114,17 +114,20 @@ template loadCode(p: var Importer, indent: int) =
             getTemplateByPath(p.engine, path).addDependentView(p.currentFilePath)
 
 template resolveChunks(p: var Importer) =
-    if p.templateType in {View, Partial}:
-        if p.current.kind in htmlHeadElements:
-            p.setError "Views cannot contain Head elements. Use a layout instead", p.currentFilePath
+    # if p.templateType in {View, Partial}:
+    # if p.current.kind in htmlHeadElements:
+    #     p.setError "Views cannot contain Head elements. Use a layout instead", p.currentFilePath
+    #     break
+    if p.current.kind == TK_INCLUDE:
+        let indent = p.current.col
+        if p.next.kind != TK_STRING:
+            p.setError "Invalid import statement missing file path.", p.currentFilePath
             break
-        if p.current.kind == TK_INCLUDE:
-            let indent = p.current.col
-            if p.next.kind != TK_STRING:
-                p.setError "Invalid import statement missing file path.", p.currentFilePath
-                break
-            jump p
-            loadCode(p, indent)
+        jump p
+        loadCode(p, indent)
+    elif p.current.kind == TK_VIEW and p.templateType != Layout:
+        p.setError("Trying to load a view inside a $1" % [$p.templateType], p.currentFilePath)
+        break
 
 proc resolve*(viewCode, currentFilePath: string,
             engine: TimEngine, templateType: TimlTemplateType,

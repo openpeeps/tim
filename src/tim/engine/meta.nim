@@ -16,9 +16,12 @@ from std/os import getCurrentDir, normalizePath, normalizedPath, dirExists,
 
 type 
     TimlTemplateType* = enum
-        Layout, View, Partial
+        Layout = "layout"
+        View = "view"
+        Partial = "partial"
 
     TimlTemplate* = object
+        id: string
         case timlType: TimlTemplateType
         of Partial:
             dependents: seq[string]
@@ -58,16 +61,22 @@ proc getIndent*[T: TimEngine](t: T): int =
     ## Get preferred indentation size (2 or 4 spaces). Default 4
     result = t.indent
 
-proc getType*[T: TimlTemplate](t: T): TimlTemplateType =
+proc getType*(t: TimlTemplate): TimlTemplateType =
     result = t.meta.templateType
 
-proc getContents*[T: TimlTemplate](t: T): string =
-    ## Retrieve code contents of current TimlTemplate
-    result = t.fileContents
-
-proc getName*[T: TimlTemplate](t: T): string =
-    ## Retrieve the file name (including extension) of the current TimlTemplate
+proc getName*(t: TimlTemplate): string =
+    ## Retrieve the file name (including extension)
+    # of the current TimlTemplate
     result = t.meta.name
+
+proc getTemplateId*(t: TimlTemplate): string =
+    result = t.id
+
+proc setPlaceHolderId*(t: TimlTemplate): string =
+    result = "$viewHandle_" & t.id & ""
+
+proc getPlaceholderId*(t: TimlTemplate): string =
+    result = "viewHandle_" & t.id & ""
 
 proc enableJIT*(t: var TimlTemplate) =
     t.jit = true
@@ -197,19 +206,19 @@ method shouldMinify*(e: TimEngine): bool {.base.} =
     ## Determine if Tim Engine should minify the final HTML
     result = e.minified
 
-proc hashTail(input: string): string =
+proc hashName(input: string): string =
     ## Create a MD5 hashed version of given input string
     result = getMD5(input)
 
 proc bsonPath(outputDir, filePath: string): string =
     ## Set the BSON AST path and return the string
-    result = outputDir & "/bson/" & hashTail(filePath) & ".ast.bson"
+    result = outputDir & "/bson/" & hashName(filePath) & ".ast.bson"
     normalizePath(result)
 
 proc htmlPath(outputDir, filePath: string, isTail = false): string =
     ## Set the HTML output path and return the string
     var suffix = if isTail: "_" else: ""
-    result = outputDir & "/html/" & hashTail(filePath) & suffix & ".html"
+    result = outputDir & "/html/" & hashName(filePath) & suffix & ".html"
     normalizePath(result)
 
 proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): var TimlTemplate =
@@ -321,6 +330,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
                     case tdir:
                         of "layouts":
                             LayoutsTable[filePath] = TimlTemplate(
+                                id: hashName(filePath),
                                 timlType: Layout,
                                 meta: (name: fname.tail, templateType: Layout),
                                 paths: (
@@ -332,6 +342,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
                             )                            
                         of "views":
                             ViewsTable[filePath] = TimlTemplate(
+                                id: hashName(filePath),
                                 timlType: View,
                                 meta: (name: fname.tail, templateType: View),
                                 paths: (
@@ -343,6 +354,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
                             )
                         of "partials":
                             PartialsTable[filePath] = TimlTemplate(
+                                id: hashName(filePath),
                                 timlType: Partial,
                                 meta: (name: fname.tail, templateType: Partial),
                                 paths: (

@@ -8,7 +8,7 @@ import ./ast, ./compileHandlers/logger
 import std/[json, ropes, tables]
 
 from std/strutils import `%`, indent, multiReplace, endsWith, join
-from ./meta import TimlTemplateType
+from ./meta import TimlTemplate, setPlaceHolderId
 
 type
     DeferTag = tuple[tag: string, meta: MetaNode, isInlineElement: bool]
@@ -29,11 +29,13 @@ type
             ## Whether to minify the final HTML output (disabled by default)
         html, htmlTails: Rope
             ## A rope containg the final HTML output
-        templateType: TimlTemplateType
+        timlTemplate: TimlTemplate
         baseIndent: int
         data: JsonNode
         memtable: MemStorage
         logs: Logger
+        viewCode: string
+        hasViewCode: bool
 
     MemStorage = TableRef[string, JsonNode]
 
@@ -95,10 +97,6 @@ proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
         if not fixTail and not c.minified:
             c.indentLine(node.meta, skipBr)
         add c.html, "</" & node.htmlNodeName & ">"
-
-proc getHtmlJit*(c: Compiler): string {.inline.} =
-    ## Returns compiled HTML based on dynamic data
-    result = $(c.html)
 
 proc getHtml*(c: Compiler): string {.inline.} =
     ## Returns compiled HTML for static `timl` templates
@@ -220,20 +218,28 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
             c.writeStrValue(node)
         of NTForStmt:
             c.handleForStmt(node)
+        of NTView:
+            if c.hasViewCode:
+                add c.html, c.viewCode
+            else:
+                add c.html, c.timlTemplate.setPlaceHolderId()
         else: discard
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
-        minified: bool, templateType: TimlTemplateType,
-        baseIndent: int, filePath: string, data = %*{}): Compiler =
+        minified: bool, timlTemplate: TimlTemplate,
+        baseIndent: int, filePath: string, data = %*{}, viewCode = ""): Compiler =
     ## Create a new Compiler instance
     var c = Compiler(
             minified: minified,
-            templateType: templateType,
+            timlTemplate: timlTemplate,
             baseIndent: baseIndent,
             data: data,
             memtable: newTable[string, JsonNode](),
-            logs: Logger()
+            logs: Logger(),
+            viewCode: viewCode
         )
+    if viewCode.len != 0:
+        c.hasViewCode = true
     c.program = astProgram
     for node in c.program.nodes:
         case node.stmtList.nodeType:

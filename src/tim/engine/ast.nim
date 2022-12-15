@@ -31,6 +31,7 @@ type
         NTVar
         NTVariable
         NTIdentifier
+        NTView
 
     HtmlNodeType* = enum
         Html_Doctype
@@ -277,6 +278,9 @@ proc newMixin*(tk: TokenTuple): Node =
 
 proc newMixinDef*(tk: TokenTuple): Node = 
     Node(nodeName: NTMixinDef.symbolName, nodeType: NTMixinDef, mixinIdentDef: tk.value)
+
+proc newView*(tk: TokenTuple): Node =
+    Node(nodeName: NTView.symbolName, nodeType: NTView, meta: (tk.line, tk.pos, tk.col, tk.wsno))
 
 proc newInclude*(ident: string): Node =
     ## Add a new `NTIncludeCall` node
