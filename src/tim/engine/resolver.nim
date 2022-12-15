@@ -51,7 +51,7 @@ type
 
     ImportError* = object of CatchableError
 
-const htmlHeadElements = {TK_HEAD, TK_TITLE, TK_BASE, TK_LINK, TK_META, TK_SCRIPT, TK_BODY}
+# const htmlHeadElements = {TK_HEAD, TK_TITLE, TK_BASE, TK_LINK, TK_META, TK_SCRIPT, TK_BODY}
 const
     ImportErrorNotFound = "Could not import \"$1\". File not found"
     ImportPartialSelf = "\"$1\" cannot import itself"

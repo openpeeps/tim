@@ -31,11 +31,16 @@ type
             ## A rope containg the final HTML output
         timlTemplate: TimlTemplate
         baseIndent: int
+            ## Document base indentation
         data: JsonNode
-        memtable: MemStorage
+            ## JSON data, if any
         logs: Logger
-        viewCode: string
+            ## A logger that raise errors at runtime without breaking the app
         hasViewCode: bool
+        viewCode: string
+            ## When compiler is initialized for layout,
+            ## this field will contain the view code (HTML)
+        memtable: MemStorage
 
     MemStorage = TableRef[string, JsonNode]
 
@@ -93,7 +98,7 @@ proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
 
 proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
     ## Close an HTML tag
-    if node.issctag == false and node.htmlNodeName notin ["html", "body"]:
+    if node.issctag == false:
         if not fixTail and not c.minified:
             c.indentLine(node.meta, skipBr)
         add c.html, "</" & node.htmlNodeName & ">"
@@ -198,6 +203,12 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
         else: discard
     else: discard # todo console warning
 
+proc handleViewInclude(c: var Compiler) =
+    if c.hasViewCode:
+        add c.html, c.viewCode
+    else:
+        add c.html, c.timlTemplate.setPlaceHolderId()
+
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     for node in nodes:
         if node == nil: continue # TODO sometimes we get nil. check parser
@@ -220,10 +231,7 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
         of NTForStmt:
             c.handleForStmt(node)
         of NTView:
-            if c.hasViewCode:
-                add c.html, c.viewCode
-            else:
-                add c.html, c.timlTemplate.setPlaceHolderId()
+            c.handleViewInclude()
         else: discard
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
@@ -239,6 +247,7 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
             logs: Logger(),
             viewCode: viewCode
         )
+
     if viewCode.len != 0:
         c.hasViewCode = true
     c.program = astProgram
@@ -258,6 +267,8 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
                 node.stmtList.elseBody)
         of NTForStmt:
             c.handleForStmt(node.stmtList)
+        of NTView:
+            c.handleViewInclude()
         else: discard
     result = c
     if c.logs.logs.len != 0:

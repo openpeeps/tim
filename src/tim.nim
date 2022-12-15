@@ -17,7 +17,6 @@ export parser
 export meta except TimEngine
 
 const DockType = "<!DOCTYPE html>"
-const EndHtmlDocument = "</body></html>"
 
 var Tim* {.global.}: TimEngine
 const DefaultLayout = "base"
@@ -33,14 +32,6 @@ proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode, 
         viewCode = viewCode
     )
 
-# proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode): string =
-#     var c = engine.newCompiler(
-#         layout, data, engine.newCompiler(view, data).getHtml()
-#     )
-#     # if engine.shouldMinify():
-#     result = c.getHtml()
-#     # result.add indent(cview.getHtml(), engine.getIndent())
-
 proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
                 data: JsonNode = %*{}): string =
     ## Renders a template view by name. Use dot notations
@@ -48,18 +39,17 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
     ## for example `render("product.sales.index")`
     ## will try look for a timl template at `product/sales/index.timl`
     if engine.hasView(key):
-        var c: Compiler
         var view: TimlTemplate = engine.getView(key)
         if not engine.hasLayout(layoutKey):
             raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
+
         var layout: TimlTemplate = engine.getLayout(layoutKey)
         result = DockType
         if view.isJitEnabled():
             # When enabled, will compile `timl` > `html` on the fly
-            var c = engine.newCompiler(
-                layout, data, engine.newCompiler(view, data).getHtml()
-            )
-            result.add c.getHtml()
+            var cview = engine.newCompiler(view, data)
+            var clayout = engine.newCompiler(layout, data, cview.getHtml())
+            result.add clayout.getHtml()
         else:
             # Otherwise, load static views, but first
             # check if requested layout is available as BSON
@@ -106,13 +96,12 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
                         # reload handler using http requests
                         result.add httpReloader()
                     else: discard
-        result.add EndHtmlDocument
 
 proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
     var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = temp.getType())
     if p.hasError():
         raise newException(SyntaxError, "\n"&p.getError())
-    if p.hasJit():
+    if p.hasJit() or temp.getType == Layout:
         temp.enableJIT()
         engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
     else:

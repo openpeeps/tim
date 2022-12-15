@@ -10,7 +10,7 @@ import tokens, ast
 from resolver import resolve, hasError, getError,
                     getErrorLine, getErrorColumn, getFullCode
 
-from meta import TimEngine, TimlTemplate, TimlTemplateType, getFileData
+from meta import TimEngine, TimlTemplate, TimlTemplateType
 from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool
 
 type
@@ -44,7 +44,7 @@ type
         templateType: TimlTemplateType
 
     PrefixFunction = proc(p: var Parser): Node
-    InfixFunction = proc(p: var Parser, left: Node): Node
+    # InfixFunction = proc(p: var Parser, left: Node): Node
     VarStorage = TableRef[string, TokenTuple]
 
 const
@@ -79,7 +79,7 @@ const
     tkNone = (TK_NONE, "", 0,0,0,0)
     tkSpecial = {TK_DOT, TK_COLON, TK_LCURLY, TK_RCURLY,
                   TK_LPAR, TK_RPAR, TK_ATTR_ID, TK_ASSIGN, TK_COMMA,
-                  TK_AT, TK_NOT, TK_AND} + tkCalc + tkOperators
+                  TK_AT, TK_NOT, TK_AND} + tkCalc + tkOperators + tkLoops
     svgscTags = {
         TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
         TK_SVG_ANIMATETRANSFORM, TK_SVG_ANIMATEMOTION,
@@ -135,6 +135,9 @@ proc getStatementsStr*(p: Parser, prettyString, prettyPlain = false): string =
     if prettyString or prettyPlain: 
         return pretty(toJson(p.getStatements()))
     result = $(toJson(p.statements))
+
+proc `$`(node: Node): string =
+    result = pretty(toJson(node))
 
 template jit(p: var Parser) =
     ## Enable jit flag When current document contains
@@ -230,10 +233,15 @@ proc parseVariable(p: var Parser): Node =
     var leftNode: Node
     if p.current.isAppStorage() and p.next.kind == TK_DOT: 
         jump p, 2
-        if p.current.kind == TK_IDENTIFIER:
+        if p.current.line != p.prev.line:
+            p.setError(InvalidIndentation)
+            return
+        if p.current.kind == TK_IDENTIFIER or p.current.kind notin tkSpecial:
+            # p.current.kind = TK_IDENTIFIER
             leftNode = newVariable(p.current, dataStorage = true)
             jump p
-            handleConcat()
+            if p.current.kind == TK_AND:
+                handleConcat()
         else:
             p.setError(InvalidVarDeclaration)
             return
@@ -243,19 +251,25 @@ proc parseVariable(p: var Parser): Node =
         if p.next.kind == TK_DOT:
             let varIdentToken = p.current
             jump p
+            if p.current.line != p.prev.line:
+                p.setError(InvalidIndentation)
+                return
             if p.next.kind == TK_IDENTIFIER or p.next.kind notin tkSpecial:
                 jump p
                 if p.current.value == "v":
                     leftNode = newVarCallValAccessor(varIdentToken)
                 else:
                     leftNode = newVarCallKeyAccessor(varIdentToken, p.current.value)
-                handleConcat()
+                if p.current.kind == TK_AND:
+                    handleConcat()
+                if result == nil:
+                    result = leftNode
             else:
                 p.setError(InvalidVarDeclaration)
                 return
         else:
             leftNode = newVariable(p.current)
-            handleConcat()
+            if p.current.kind == TK_AND: handleConcat()
             if result == nil:
                 result = leftNode
         jump p
@@ -357,7 +371,8 @@ proc parseHtmlElement(p: var Parser): Node =
                         dec p.lvl, currentParent.meta.col div p.current.pos
                         delete(p.parentNode, p.parentNode.high)
                         break
-        result.nodes.add(node)
+        if node != nil:
+            result.nodes.add(node)
         if p.lvl != 0:
             dec p.lvl
         return result
@@ -421,8 +436,8 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
         p.setError(InvalidIndentation)
         return
     if p.current.kind == TK_COLON: jump p
-    var ifBody, elseBody: seq[Node]
-
+    
+    var ifBody: seq[Node]
     while p.current.pos > this.pos:     # parse body of `if` branch
         if p.current.kind in {TK_ELIF, TK_ELSE}:
             p.setError(InvalidIndentation, true)
@@ -460,7 +475,8 @@ proc parseForStmt(p: var Parser): Node =
         p.setError(InvalidIteration)
         return
     let pluralIdent = p.parseVariable()
-    if p.current.kind == TK_COLON: jump p
+    if p.current.kind == TK_COLON:
+        jump p
     var forBody: seq[Node]
     while p.current.pos > this.pos:
         let subNode = p.parseExpression()
@@ -564,7 +580,6 @@ proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
     result = exp
 
 proc parseExpressionStmt(p: var Parser): Node =
-    let tk = p.current
     var exp = p.parseExpression()
     if exp == nil or p.hasError():
         return

@@ -32,7 +32,6 @@ type
             templateType: TimlTemplateType         # type of TimlTemplate, either Layout, View or Partial
         ]
         paths: tuple[file, ast, html, tails: string]
-        data: JsonNode                              # JSON data exposed to TimlTemplate
         astSource*: string
         jit: bool
     
@@ -111,10 +110,6 @@ proc getFilePath*[T: TimlTemplate](t: T): string =
     ## Retrieve the file path of the current TimlTemplate
     result = t.paths.file
 
-proc getFileData*[T: TimlTemplate](t: T): JsonNode =
-    ## Retrieve JSON data exposed to TimlTemplate
-    result = t.data
-
 proc getSourceCode*[T: TimlTemplate](t: T): string =
     ## Retrieve source code of a TimlTemplate object
     result = readFile(t.paths.file)
@@ -123,17 +118,6 @@ proc getHtmlCode*[T: TimlTemplate](t: T): string =
     ## Retrieve the HTML code for given ``TimlTemplate`` object
     ## TODO retrieve source code from built-in memory table
     result = readFile(t.paths.html)
-
-proc getHtmlTailsCode*[T: TimlTemplate](t: T): string =
-    ## Retrieve the HTML tags for a layout
-    ## TODO retrieve source code from built-in memory table
-    result = readFile(t.paths.tails)
-
-proc setAstSource*[T: TimlTemplate](t: var T, ast: string) =
-    t.astSource = ast
-
-proc getAstSource*[T: TimlTemplate](t: T): string =
-    result = t.astSource
 
 proc hasAnySources*[T: TimEngine](e: T): bool =
     ## Determine if current TimEngine has any TimlDirectory
@@ -221,7 +205,7 @@ proc htmlPath(outputDir, filePath: string, isTail = false): string =
     result = outputDir & "/html/" & hashName(filePath) & suffix & ".html"
     normalizePath(result)
 
-proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): var TimlTemplate =
+proc getTemplateByPath*(engine: TimEngine, filePath: string): var TimlTemplate =
     ## Return `TimlTemplate` object representation for given file `filePath`
     let fp = normalizedPath(filePath)
     if engine.views.hasKey(fp):
@@ -231,7 +215,7 @@ proc getTemplateByPath*[T: TimEngine](engine: T, filePath: string): var TimlTemp
     else:
         result = engine.partials[fp]
 
-proc writeBson*[E: TimEngine, T: TimlTemplate](e: E, t: T, ast: string, baseIndent: int) =
+proc writeBson*(e: TimEngine, t: TimlTemplate, ast: string, baseIndent: int) =
     ## Write current JSON AST to BSON
     var document = newBsonDocument()
     document["ast"] = ast
@@ -244,19 +228,20 @@ proc checkDocVersion(docVersion: string): bool =
     let currv = parseInt replace(currentVersion, ".", "")
     result = sgn(docv - currv) != -1
 
-method getReloadType*(engine: TimEngine): HotReloadType {.base.} =
+proc getReloadType*(engine: TimEngine): HotReloadType =
     result = engine.reloader
 
-proc readBson*[E: TimEngine, T: TimlTemplate](e: E, t: T): string =
+proc readBson*(e: TimEngine, t: TimlTemplate): string =
     ## Read current BSON and parse to JSON
     let document: Bson = newBsonDocument(readFile(t.paths.ast))
-    let docv: string = document["version"]
+    let docv: string = document["version"] # TODO use pkginfo to extract current version from nimble file
     if not checkDocVersion(docv):
+        # TODO error message
         raise newException(TimDefect,
             "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, currentVersion])
     result = document["ast"]
 
-proc writeHtml*[E: TimEngine, T: TimlTemplate](e: E, t: T, output: string, isTail = false) =
+proc writeHtml*(e: TimEngine, t: TimlTemplate, output: string, isTail = false) =
     let filePath = if not isTail: t.paths.html else: t.paths.tails
     writeFile(filePath, output)
 
@@ -302,16 +287,15 @@ proc init*(timEngine: var TimEngine, source, output: string,
         var tpath = path
         tpath.normalizePath()
         if not tpath.dirExists():
-            # raise newException(TimException, "Unable to find Tim source directory at\n$1" % [tpath])
             createDir(tpath)
         timlInOutDirs.add(path)
         if path == output:
             # create `bson` and `html` dirs inside `output` directory
             # where `bson` is used for saving the binary abstract syntax tree
-            # for pages that requires dynamic checks, such as data assignation,
-            # and conditional statementsa, and second the `html` directory,
-            # for saving the final output in case the current page
-            # containg nothing else than static timl code
+            # for pages that requires dynamic computation,
+            # such as data assignation, and conditional statements,
+            # and second the `html` directory is reserved for
+            # saving the final HTML output.
             for inDir in @["bson", "html"]:
                 let innerDir = path & "/" & inDir
                 if not dirExists(innerDir): createDir(innerDir)
