@@ -1,3 +1,9 @@
+# High-performance, compiled template engine inspired by Emmet syntax.
+#
+# (c) 2022 Tim Engine is released under MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/tim
+
 proc handleInfixStmt(c: var Compiler, node: Node) = 
     if node.infixOp == AND:
         if node.infixLeft.nodeType == NTVariable:
