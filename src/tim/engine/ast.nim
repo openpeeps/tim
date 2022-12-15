@@ -206,8 +206,8 @@ type
             case accessorKind*: AccessorKind
             of Key:
                 byKey*: string
-            else: nil
-        else: nil
+            else: discard
+        else: discard
         meta*: MetaNode
 
     Program* = object

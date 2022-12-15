@@ -463,7 +463,9 @@ proc parseForStmt(p: var Parser): Node =
     if p.current.kind == TK_COLON: jump p
     var forBody: seq[Node]
     while p.current.pos > this.pos:
-        forBody.add p.parseExpression()
+        let subNode = p.parseExpression()
+        if subNode != nil: # TODO throw exception ?
+            forBody.add subNode
     if forBody.len != 0:
         return newFor(singularIdent, pluralIdent, forBody, this)
     p.setError(NestableStmtIndentation)

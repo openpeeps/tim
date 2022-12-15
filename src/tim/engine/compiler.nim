@@ -200,6 +200,7 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     for node in nodes:
+        if node == nil: continue # TODO sometimes we get nil. check parser
         case node.nodeType:
         of NTHtmlElement:
             let tag = node.htmlNodeName
