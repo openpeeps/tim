@@ -22,29 +22,29 @@ const EndHtmlDocument = "</body></html>"
 var Tim* {.global.}: TimEngine
 const DefaultLayout = "base"
 
-proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode): Compiler =
+proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode, viewCode = ""): Compiler =
     result = Compiler.init(
         astProgram = fromJson(engine.readBson(timlTemplate), Program),
         minified = engine.shouldMinify(),
-        templateType = timlTemplate.getType(),
+        timlTemplate = timlTemplate,
         baseIndent = engine.getIndent(),
         filePath = timlTemplate.getFilePath(),
-        data = data
+        data = data,
+        viewCode = viewCode
     )
 
 proc jitHtml(engine: TimEngine, view, layout: TimlTemplate, data: JsonNode): string =
-    let clayout = engine.newCompiler(layout, data)
-    let cview = engine.newCompiler(view, data)
-    result = clayout.getHtml()
-    if engine.shouldMinify():
-        result.add cview.getHtml()
-    else:
-        result.add indent(cview.getHtml(), engine.getIndent())
+    var c = engine.newCompiler(
+        layout, data, engine.newCompiler(view, data).getHtml()
+    )
+    # if engine.shouldMinify():
+    result = c.getHtml()
+    # result.add indent(cview.getHtml(), engine.getIndent())
 
 proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
                 data: JsonNode = %*{}): string =
-    ## Renders a template view by name. Use dot-annotations
-    ## for rendering views from sub directories directories,
+    ## Renders a template view by name. Use dot notations
+    ## for accessing views in sub directories,
     ## for example `render("product.sales.index")`
     ## will try look for a timl template at `product/sales/index.timl`
     if engine.hasView(key):
@@ -58,12 +58,15 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
             result.add engine.jitHtml(view, layout, data)
         else:
             # Otherwise render precompiled templates
-            let layoutCompilerInstance = engine.newCompiler(layout, data)
-            result.add layoutCompilerInstance.getHtml()
             if engine.shouldMinify():
-                result.add view.getHtmlCode()
+                result.add(layout.getHtmlCode() % [
+                    layout.getPlaceholderId, view.getHtmlCode
+                ])
             else:
-                result.add indent(view.getHtmlCode(), engine.getIndent())
+                result.add(layout.getHtmlCode() % [
+                    layout.getPlaceholderId,
+                    indent(view.getHtmlCode, engine.getIndent)
+                ])
 
         when requires "supranim":
             when not defined release:
@@ -97,18 +100,17 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
         result.add EndHtmlDocument
 
 proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
-    let tpType = temp.getType()
-    var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = tpType)
+    var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = temp.getType())
     if p.hasError():
         raise newException(SyntaxError, "\n"&p.getError())
-    if p.hasJIT() or tpType == Layout:
+    if p.hasJit:
         temp.enableJIT()
         engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
     else:
         let c = Compiler.init(
             p.getStatements(),
             minified = engine.shouldMinify(),
-            templateType = tpType,
+            timlTemplate = temp,
             baseIndent = engine.getIndent(),
             filePath = temp.getFilePath()
         )
@@ -138,7 +140,9 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                         Tim.compileCode(timlTemplate)
                     echo "Done in " & $(cpuTime() - initTime)
                     if callback != nil:
+                        # Run a custom callback, if available
                         callback()
+
                 var watchFiles: seq[string]
                 when compileOption("threads"):
                     for id, view in Tim.getViews().mpairs():
@@ -154,7 +158,6 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
                         Tim.compileCode(layout)
                         watchFiles.add layout.getFilePath()
                         result.add layout.getName()
-
                     # Start a new Thread with Watchout watching for live changes
                     startThread(watchoutCallback, watchFiles, 550)
                     return

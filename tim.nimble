@@ -12,7 +12,7 @@ requires "nim >= 1.6.0"
 requires "pkginfo"
 requires "toktok"
 requires "bson"
-requires "jsony >= 1.1.3"
+requires "jsony"
 
 task tests, "Run tests":
     exec "testament p 'tests/*.nim'"
@@ -23,7 +23,7 @@ task cli, "Build Tim CLI":
 
 task dev, "Compile Tim":
     echo "\n✨ Compiling..." & "\n"
-    exec "nim --gc:arc -d:useMalloc --out:bin/tim --hints:off --threads:on c src/tim.nim"
+    exec "nim --gc:arc --out:bin/tim --hints:off --threads:on c src/tim.nim"
 
 task prod, "Compile Tim for release":
     echo "\n✨ Compiling..." & $version & "\n"
