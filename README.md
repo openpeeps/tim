@@ -29,6 +29,9 @@ _Work in progress_
 nimble install tim
 ```
 
+## API Documentation
+https://openpeep.github.io/tim/
+
 ## Setup
 Setup Tim Engine for your application.
 
