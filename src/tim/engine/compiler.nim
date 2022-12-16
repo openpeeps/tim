@@ -7,8 +7,7 @@
 import ./ast, ./compileHandlers/logger
 import std/[json, ropes, tables]
 
-from std/sequtils import map
-from std/strutils import `%`, indent, multiReplace, endsWith, join
+from std/strutils import `%`, indent, multiReplace, join
 from ./meta import TimlTemplate, setPlaceHolderId
 
 type
