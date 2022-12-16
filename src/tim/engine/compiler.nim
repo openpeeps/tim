@@ -138,12 +138,15 @@ proc writeAttributes(c: var Compiler, node: Node) =
     ## write one or more HTML attributes
     for k, attrNodes in node.attrs.pairs():
         add c.html, indent("$1=" % [k], 1) & "\""
+        var strAttrs: seq[string]
         for attrNode in attrNodes:
             if attrNode.nodeType == NTString:
-                add c.html, attrNode.sVal
+                strAttrs.add attrNode.sVal
             elif attrNode.nodeType == NTVariable:
                 # TODO handle concat
                 c.writeVarValue(attrNode)
+        if strAttrs.len != 0:
+            add c.html, join(strAttrs, " ")
         add c.html, "\""
         # add c.html, ("$1=\"$2\"" % [k, join(v, " ")]).indent(1)
 
