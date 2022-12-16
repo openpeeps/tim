@@ -285,15 +285,15 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
     # `Table[string, seq[string]]`
     while true:
         if p.current.kind == TK_DOT:
-            # Add `class=""` html attribute
+            # Add `class=""` attribute
             let attrKey = "class"
             if p.next.kind notin tkSpecial:
                 if result.hasKey(attrKey):
-                    if p.next.value in result[attrKey]:
-                        p.setError DuplicateClassName % [p.next.value], true
-                    else: result[attrKey].add(p.next.value)
+                    # if p.next.value notin result[attrKey]:
+                    # p.setError DuplicateClassName % [p.next.value], true
+                    result[attrKey].add(newString(p.next))
                 else:
-                    result[attrKey] = @[p.next.value]
+                    result[attrKey] = @[newString(p.next)]
                 jump p, 2
             else:
                 p.setError(InvalidClassAttribute)
@@ -303,22 +303,28 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             # Set `id=""` HTML attribute
             let attrKey = "id"
             if not result.hasKey(attrKey):
-                if p.next.kind == TK_IDENTIFIER:
-                    result[attrKey] = @[p.next.value]
-                    jump p, 2
-                else: p.setError(InvalidAttributeId, true)
+                if p.next.kind in {TK_IDENTIFIER, TK_VARIABLE, TK_SAFE_VARIABLE}:
+                    jump p
+                    if p.current.kind == TK_IDENTIFIER:
+                        result[attrKey] = @[newString(p.current)]
+                        jump p
+                    else: result[attrKey] = @[p.parseVariable()]
+                else: p.setError InvalidAttributeId, true
             else: p.setError DuplicateAttrId % [p.next.value], true
         elif p.current.kind in {TK_IDENTIFIER, TK_STYLE, TK_TITLE} and p.next.kind == TK_ASSIGN:
-            p.current.kind = TK_IDENTIFIER
             let attrName = p.current.value
             jump p
-            if p.next.kind != TK_STRING:
+            if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
                 p.setError InvalidAttributeValue % [attrName], true
             if result.hasKey(attrName):
                 p.setError DuplicateAttributeKey % [attrName], true
             else:
-                result[attrName] = @[p.next.value]
-            jump p, 2 
+                jump p
+                if p.current.kind == TK_STRING:
+                    result[attrName] = @[newString(p.current)]
+                else:
+                    result[attrName] = @[p.parseVariable()]
+            jump p
         else: break
 
 proc newHtmlNode(p: var Parser): Node =

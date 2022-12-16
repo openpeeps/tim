@@ -149,7 +149,7 @@ type
         LTE         = "<="
         AND         = "&"   # used for string concatenation
     
-    HtmlAttributes* = Table[string, seq[string]]
+    HtmlAttributes* = Table[string, seq[Node]]
     IfBranch* = tuple[cond: Node, body: seq[Node]]
     ElifBranch* = seq[IfBranch]
     MetaNode* = tuple[line, pos, col, wsno: int]

@@ -7,6 +7,7 @@
 import ./ast, ./compileHandlers/logger
 import std/[json, ropes, tables]
 
+from std/sequtils import map
 from std/strutils import `%`, indent, multiReplace, endsWith, join
 from ./meta import TimlTemplate, setPlaceHolderId
 
@@ -66,43 +67,6 @@ proc indentLine(c: var Compiler, meta: MetaNode, skipBr = false) =
         if not skipBr:
             add c.html, NewLine
 
-proc hasAttributes(node: Node): bool =
-    ## Determine if current `Node` has any HTML attributes
-    result = node.attrs.len != 0
-
-proc writeAttributes(c: var Compiler, node: Node) =
-    ## write one or more HTML attributes
-    for k, v in node.attrs.pairs():
-        add c.html, ("$1=\"$2\"" % [k, join(v, " ")]).indent(1)
-
-proc hasIDAttribute(node: Node): bool =
-    ## Determine if current JsonNode has an HTML ID attribute attached to it
-    result = node.attrs.hasKey("id")
-
-proc writeIDAttribute(c: var Compiler, node: Node) =
-    ## Write an ID HTML attribute to current HTML Element
-    add c.html, ("id=\"$1\"" % [node.attrs["id"][0]]).indent(1)
-
-proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
-    ## Open tag of the current JsonNode element
-    if not c.minified:
-        c.indentLine(node.meta, skipBr = skipBr)
-    add c.html, "<" & tag
-    if node.hasIDAttribute():
-        c.writeIDAttribute(node)
-    if node.hasAttributes():
-        c.writeAttributes(node)
-    if node.issctag:
-        add c.html, "/"
-    add c.html, ">"
-
-proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
-    ## Close an HTML tag
-    if node.issctag == false:
-        if not fixTail and not c.minified:
-            c.indentLine(node.meta, skipBr)
-        add c.html, "</" & node.htmlNodeName & ">"
-
 proc getHtml*(c: Compiler): string {.inline.} =
     ## Returns compiled HTML for static `timl` templates
     result = $(c.html)
@@ -130,7 +94,8 @@ proc getVarValue(c: var Compiler, varNode: Node): string =
                     ("`", "&grave;")
                 )
 
-proc writeVarValue(c: var Compiler, varNode: Node) =
+proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
+    # var val: string
     if c.data.hasKey(varNode.varIdent):
         add c.html, c.getVarValue(varNode)
         fixTail = true
@@ -164,6 +129,57 @@ proc writeVarValue(c: var Compiler, varNode: Node) =
     else: c.logs.add(UndefinedDataStorageVariable % [varNode.varIdent])
 
 include ./compileHandlers/[comparators, infix]
+
+proc hasAttributes(node: Node): bool =
+    ## Determine if current `Node` has any HTML attributes
+    result = node.attrs.len != 0
+
+proc writeAttributes(c: var Compiler, node: Node) =
+    ## write one or more HTML attributes
+    for k, attrNodes in node.attrs.pairs():
+        add c.html, indent("$1=" % [k], 1) & "\""
+        for attrNode in attrNodes:
+            if attrNode.nodeType == NTString:
+                add c.html, attrNode.sVal
+            elif attrNode.nodeType == NTVariable:
+                # TODO handle concat
+                c.writeVarValue(attrNode)
+        add c.html, "\""
+        # add c.html, ("$1=\"$2\"" % [k, join(v, " ")]).indent(1)
+
+proc hasIDAttribute(node: Node): bool =
+    ## Determine if current JsonNode has an HTML ID attribute attached to it
+    result = node.attrs.hasKey("id")
+
+proc writeIDAttribute(c: var Compiler, node: Node) =
+    ## Write an ID HTML attribute to current HTML Element
+    add c.html, indent("id=", 1) & "\""
+    let idAttrNode = node.attrs["id"][0]
+    if idAttrNode.nodeType == NTString:
+        add c.html, idAttrNode.sVal
+    else: c.writeVarValue(idAttrNode)
+    add c.html, "\""
+    # add c.html, ("id=\"$1\"" % [node.attrs["id"][0]]).indent(1)
+
+proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
+    ## Open tag of the current JsonNode element
+    if not c.minified:
+        c.indentLine(node.meta, skipBr = skipBr)
+    add c.html, "<" & tag
+    if node.hasIDAttribute():
+        c.writeIDAttribute(node)
+    if node.hasAttributes():
+        c.writeAttributes(node)
+    if node.issctag:
+        add c.html, "/"
+    add c.html, ">"
+
+proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
+    ## Close an HTML tag
+    if node.issctag == false:
+        if not fixTail and not c.minified:
+            c.indentLine(node.meta, skipBr)
+        add c.html, "</" & node.htmlNodeName & ">"
 
 proc handleConditionStmt(c: var Compiler, ifCond: Node, ifBody: seq[Node],
                             elifBranch: ElifBranch, elseBranch: seq[Node]) =
