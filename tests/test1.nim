@@ -2,8 +2,8 @@ import std/[unittest, json], tim
 from std/os import getCurrentDir, dirExists
 
 Tim.init(
-    source = "../examples/templates",
-    output = "../examples/storage/templates",
+    source = "./examples/templates",
+    output = "./examples/storage/templates",
     minified = false,
     indent = 4
 )
@@ -15,7 +15,7 @@ Tim.setData(%*{
 })
 
 test "can init":
-    assert dirExists("../examples/templates") == true
+    assert dirExists("./examples/templates") == true
     assert Tim.hasAnySources == true
     assert Tim.getIndent == 4
     assert Tim.shouldMinify == false
