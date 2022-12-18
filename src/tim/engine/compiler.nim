@@ -47,8 +47,14 @@ type
 const
     NewLine = "\n"
     InvalidAccessorKey = "Invalid property accessor \"$1\" for $2 ($3)"
-    InvalidObjectAccess = "Invalid object access [object:$1]"
-    UndefinedDataStorageVariable = "Undefined property accessor \"$1\" in data storage"
+    InvalidConversion = "Failed to convert $1 \"$2\" to string"
+    InvalidObjectAccess = "Invalid object access"
+    UndefinedPropertyAccessor = "Undefined property accessor \"$1\" in data storage"
+    UndefinedArray = "Undefined array"
+    InvalidArrayAccess = "Array indices must be positive integers. Got $1[\"$2\"]"
+    ArrayIndexOutBounds = "Index out of bounds [$1]. \"$2\" size is [$3]"
+    UndefinedProperty = "Undefined property \"$1\""
+    UndefinedVariable = "Undefined property \"$1\" in \"$2\""
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node])
 
@@ -93,11 +99,64 @@ proc getVarValue(c: var Compiler, varNode: Node): string =
                     ("`", "&grave;")
                 )
 
+proc writeVar(c: var Compiler, node: Node, jNode: JsonNode) =
+    let nKind = jNode.kind
+    case nKind:
+    of JString: 
+        add c.html, jNode.getStr
+    of JInt:
+        add c.html, $(jNode.getInt)
+    of JFloat:
+        add c.html, $(jNode.getFloat)
+    of JBool:
+        add c.html, $(jNode.getBool)
+    of JObject, JArray, JNull:
+        c.logs.add(InvalidConversion % [$nKind, node.varIdent])
+
+proc getJsonValue(c: var Compiler, node: Node, jsonNodes: JsonNode): JsonNode =
+    var
+        lvl = 0
+        levels = node.accessors.len
+        propNode = node.accessors[lvl]
+
+    proc getJValue(c: var Compiler, jN: JsonNode): JsonNode =
+        if propNode.nodeType == NTInt:
+            if jN.kind == JArray:
+                let jNSize = jN.len
+                if propNode.iVal > (jNSize - 1):
+                    c.logs.add(ArrayIndexOutBounds % [$propNode.iVal, node.varIdent, $(jNSize)])
+                else:
+                    result = jN[propNode.iVal]
+                    inc lvl
+                    if levels > lvl:
+                        propNode = node.accessors[lvl]
+                        result = c.getJValue(result)
+            else:
+                if propNode.nodeType == NTString:
+                    c.logs.add(InvalidArrayAccess % [node.varIdent, propNode.sVal])
+                else: c.logs.add(UndefinedArray)
+        elif propNode.nodeType == NTString:
+            if jN.kind == JObject:
+                if jn.hasKey(propNode.sVal):
+                    result = jN[propNode.sVal]
+                    inc lvl
+                    if levels > lvl:
+                        propNode = node.accessors[lvl]
+                        result = c.getJValue(result)
+                else: c.logs.add(UndefinedProperty % [propNode.sVal])
+            else: c.logs.add(UndefinedProperty % [propNode.sVal])
+    result = c.getJValue(jsonNodes)
+
 proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
-    # var val: string
-    if c.data.hasKey(varNode.varIdent):
-        add c.html, c.getVarValue(varNode)
-        fixTail = true
+    template writeInternalVar() =
+        if c.data.hasKey(varNode.varIdent):
+            add c.html, c.getVarValue(varNode)
+            fixTail = true
+        else: c.logs.add(UndefinedPropertyAccessor % [varNode.varIdent])
+    if varNode.dataStorage == false and
+        varNode.accessors.len == 0 and
+        c.memtable.hasKey(varNode.varSymbol) == false:
+            writeInternalVar()
     elif c.memtable.hasKey(varNode.varSymbol):
         case c.memtable[varNode.varSymbol].kind:
         of JString:
@@ -109,23 +168,47 @@ proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
         of JBool:
           add c.html, $(c.memtable[varNode.varSymbol].getBool)
         of JObject:
-            case varNode.accessorKind:
-            of AccessorKind.Key:
-                if varNode.byKey == "k":
-                    for k, v in pairs(c.memtable[varNode.varSymbol]):
-                        add c.html, k
-                else:
-                    if c.memtable[varNode.varSymbol].hasKey(varNode.byKey):
-                        add c.html, c.memtable[varNode.varSymbol][varNode.byKey].getStr
-                    else: c.logs.add(InvalidAccessorKey % [varNode.byKey, $(c.memtable[varNode.varSymbol].kind)])
-            of AccessorKind.Value:
-                for k, v in pairs(c.memtable[varNode.varSymbol]):
-                    add c.html, v.getStr
-            else:
-                c.logs.add(InvalidObjectAccess % ["attributes"])
+            let jsonSubNode = c.getJsonValue(varNode, c.memtable[varNode.varSymbol])
+            if jsonSubNode != nil:
+                c.writeVar(varNode, jsonSubNode)
+            # case varNode.accessorKind:
+            # of AccessorKind.Key:
+            #     if varNode.byKey == "k":
+            #         for k, v in pairs(c.memtable[varNode.varSymbol]):
+            #             add c.html, k
+            #     else:
+            #         if c.memtable[varNode.varSymbol].hasKey(varNode.byKey):
+            #             add c.html, c.memtable[varNode.varSymbol][varNode.byKey].getStr
+            #         else: c.logs.add(InvalidAccessorKey % [varNode.byKey, $(c.memtable[varNode.varSymbol].kind)])
+            # of AccessorKind.Value:
+            #     for k, v in pairs(c.memtable[varNode.varSymbol]):
+            #         add c.html, v.getStr
+            # else: discard
         else: discard
         fixTail = true
-    else: c.logs.add(UndefinedDataStorageVariable % [varNode.varIdent])
+    elif varNode.visibility == GlobalVar:
+        if varNode.accessors.len == 0:
+            if c.data["globals"].hasKey(varNode.varIdent):
+                let jsonNode = c.data["globals"][varNode.varIdent]
+                c.writeVar(varNode, jsonNode)
+            else: c.logs.add(UndefinedVariable % [varNode.varIdent, "globals"])
+        else:
+            if c.data["globals"].hasKey(varNode.varIdent):
+                let jsonNode = c.data["globals"][varNode.varIdent]
+                let jsonSubNode = c.getJsonValue(varNode, jsonNode)
+                if jsonSubNode != nil:
+                    c.writeVar(varNode, jsonSubNode)
+            else: c.logs.add(UndefinedVariable % [varNode.varIdent, "globals"])
+        fixTail = true
+    elif varNode.visibility == ScopeVar:
+        if c.data["scope"].hasKey(varNode.varIdent):
+            let jsonNode = c.data["scope"][varNode.varIdent]
+            let jsonSubNode = c.getJsonValue(varNode, jsonNode)
+            if jsonSubNode != nil:
+                c.writeVar(varNode, jsonSubNode)
+        else: c.logs.add(UndefinedVariable % [varNode.varIdent, "scope"])
+        fixTail = true
+    else: discard # handle internal vars
 
 include ./compileHandlers/[comparators, infix]
 
@@ -136,6 +219,7 @@ proc hasAttributes(node: Node): bool =
 proc writeAttributes(c: var Compiler, node: Node) =
     ## write one or more HTML attributes
     for k, attrNodes in node.attrs.pairs():
+        if k == "id": continue # handled by `writeIDAttribute`
         add c.html, indent("$1=" % [k], 1) & "\""
         var strAttrs: seq[string]
         for attrNode in attrNodes:
@@ -204,20 +288,27 @@ proc storeValue(c: var Compiler, symbol: string, item: JsonNode) =
     c.memtable[symbol] = item
 
 proc handleForStmt(c: var Compiler, forNode: Node) =
-    if c.data.hasKey(forNode.forItems.varIdent):
-        case c.data[forNode.forItems.varIdent].kind:
+
+    proc handleJArray(c: var Compiler, jdata: JsonNode) =
+        for item in jdata:
+            c.storeValue(forNode.forItem.varSymbol, item)
+            c.writeNewLine(forNode.forBody)
+            c.memtable.del(forNode.forItem.varSymbol)
+
+    proc handleJObject(c: var Compiler, jdata: JsonNode) =
+        for k in keys(jdata):
+            var kvObject = newJObject()
+            kvObject[k] = jdata[k]
+            c.storeValue(forNode.forItem.varSymbol, kvObject)
+            c.writeNewLine(forNode.forBody)
+            c.memtable.del(forNode.forItem.varSymbol)
+
+    if c.data["globals"].hasKey(forNode.forItems.varIdent):
+        case c.data["globals"][forNode.forItems.varIdent].kind:
         of JArray:
-            for item in c.data[forNode.forItems.varIdent]:
-                c.storeValue(forNode.forItem.varSymbol, item)
-                c.writeNewLine(forNode.forBody)
-                c.memtable.del(forNode.forItem.varSymbol)
+            c.handleJArray(c.data["globals"][forNode.forItems.varIdent])
         of JObject:
-            for k in keys(c.data[forNode.forItems.varIdent]):
-                var kvObject = newJObject()
-                kvObject[k] = c.data[forNode.forItems.varIdent][k]
-                c.storeValue(forNode.forItem.varSymbol, kvObject)
-                c.writeNewLine(forNode.forBody)
-                c.memtable.del(forNode.forItem.varSymbol)
+            c.handleJObject(c.data["globals"][forNode.forItems.varIdent])
         else: discard
     else: discard # todo console warning
 
@@ -289,7 +380,8 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
             c.handleViewInclude()
         else: discard
     result = c
+
     if c.logs.logs.len != 0:
         echo filePath
         for error in c.logs.logs:
-            echo indent(error.message, 2)
+            echo indent("Warning: " & error.message, 2)

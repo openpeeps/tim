@@ -40,6 +40,10 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
     ## will try look for a timl template at `product/sales/index.timl`
     if engine.hasView(key):
         var view: TimlTemplate = engine.getView(key)
+        var allData: JsonNode = %* {}
+        if engine.globalDataExists:
+            allData.add("globals", engine.getGlobalData())
+        allData["scope"] = data
         if not engine.hasLayout(layoutKey):
             raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
 
@@ -47,14 +51,14 @@ proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
         result = DockType
         if view.isJitEnabled():
             # When enabled, will compile `timl` > `html` on the fly
-            var cview = engine.newCompiler(view, data)
-            var clayout = engine.newCompiler(layout, data, cview.getHtml())
+            var cview = engine.newCompiler(view, allData)
+            var clayout = engine.newCompiler(layout, allData, cview.getHtml())
             result.add clayout.getHtml()
         else:
             # Otherwise, load static views, but first
             # check if requested layout is available as BSON
             if layout.isJitEnabled():
-                let c = engine.newCompiler(layout, data, view.getHtmlCode)
+                let c = engine.newCompiler(layout, allData, view.getHtmlCode)
                 result.add(c.getHtml())
             else:
                 if engine.shouldMinify():
@@ -175,30 +179,40 @@ when isMainModule:
         indent = 4,
         minified = false
     )
-    discard Tim.precompile()
-    echo Tim.render("index",
-        data = %*{
-            "app_name": "My application",
-            "production": true,
-            "name": "george",
-            "rows": ["apple", "peanuts", "socks", "coke"],
-            "countries": [
+
+    Tim.setData(%*{
+        "app_name": "My application",
+        "production": true,
+        "name": "TimEngine is awesome!",
+        "rows": ["apple", "peanuts", "socks", "coke"],
+        "deep": [
+            [
                 {
-                    "country": "romania",
-                    "city": "bucharest"
-                },
-                {
-                    "country": "greece",
-                    "city": "athens"
-                },
-                {
-                    "country": "italy",
-                    "city": "rome"
-                },
-            ],
-            "attributes": {
-                "address": "Whatever address",
-                "county": "yeye"
-            }
+                    "test": "ok"
+                }
+            ]
+        ],
+        "countries": [
+            {
+                "country": "romania",
+                "city": "bucharest"
+            },
+            {
+                "country": "greece",
+                "city": "athens"
+            },
+            {
+                "country": "italy",
+                "city": "rome"
+            },
+        ],
+        "attributes": {
+            "address": "Whatever address",
+            "county": "yeye"
         }
-    )
+    })
+
+    discard Tim.precompile()
+    echo Tim.render("index", data = %*{
+        "username": "George"
+    })

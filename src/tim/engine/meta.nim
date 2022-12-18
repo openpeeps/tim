@@ -22,18 +22,16 @@ type
 
     TimlTemplate* = object
         id: string
+        jit: bool
         case timlType: TimlTemplateType
         of Partial:
-            dependents: seq[string]
-                # a sequence containing all views that include this partial
+            dependents: seq[string]                ## a sequence containing all views that include this partial
         else: discard
-        meta: tuple [
-            name: string,                          # name of the current TimlTemplate representing file name
-            templateType: TimlTemplateType         # type of TimlTemplate, either Layout, View or Partial
-        ]
-        paths: tuple[file, ast, html, tails: string]
+        meta: tuple[name: string, templateType: TimlTemplateType]
+            ## name of the current TimlTemplate representing file name
+            ## type of TimlTemplate, either Layout, View or Partial
         astSource*: string
-        jit: bool
+        paths: tuple[file, ast, html, tails: string]
     
     TimlTemplateTable = OrderedTableRef[string, TimlTemplate]
 
@@ -41,8 +39,10 @@ type
         None, HttpReloader, WsReloader
 
     TimEngine* = object
-        root: string                                # root path to your Timl templates
-        output: string                              # root path for HTML and BSON AST output
+        root: string
+            ## root path to your Timl templates
+        output: string
+            ## root path for HTML and BSON AST output
         layouts: TimlTemplateTable
         views: TimlTemplateTable
         partials: TimlTemplateTable
@@ -50,13 +50,14 @@ type
         indent: int
         paths: tuple[layouts, views, partials: string]
         reloader: HotReloadType
+        globalData: JsonNode
 
     SyntaxError* = object of CatchableError      # raise errors from Tim language
     TimDefect* = object of CatchableError
 
 const currentVersion = "0.1.0"
 
-proc getIndent*[T: TimEngine](t: T): int = 
+proc getIndent*(t: TimEngine): int = 
     ## Get preferred indentation size (2 or 4 spaces). Default 4
     result = t.indent
 
@@ -83,7 +84,7 @@ proc enableJIT*(t: var TimlTemplate) =
 proc isJITEnabled*(t: TimlTemplate): bool =
     result = t.jit
 
-proc getPathDir*[T: TimEngine](engine: T, key: string): string =
+proc getPathDir*(engine: TimEngine, key: string): string =
     if key == "layouts":
         result = engine.paths.layouts
     elif key == "views":
@@ -91,40 +92,51 @@ proc getPathDir*[T: TimEngine](engine: T, key: string): string =
     else:
         result = engine.paths.partials
 
-proc isPartial*[T: TimlTemplate](t: T): bool =
+proc isPartial*(t: TimlTemplate): bool =
     ## Determine if current template is a `partial`
     result = t.timlType == Partial
 
-proc addDependentView*[T: TimlTemplate](t: var T, path: string) =
+proc addDependentView*(t: var TimlTemplate, path: string) =
     ## Add a new view that includes the current partial.
     ## This is mainly used to auto reload (recompile) views
     ## when a partial get modified
     t.dependents.add(path)
 
-proc getDependentViews*[T: TimlTemplate](t: var T): seq[string] =
-    ## Retrieve all views that includes the current partial.
-    ## Used for recompiling views when in development mode
+proc getDependentViews*(t: var TimlTemplate): seq[string] =
+    ## Retrieve all views included in current partial.
     result = t.dependents
 
-proc getFilePath*[T: TimlTemplate](t: T): string =
+proc getFilePath*(t: TimlTemplate): string =
     ## Retrieve the file path of the current TimlTemplate
     result = t.paths.file
 
-proc getSourceCode*[T: TimlTemplate](t: T): string =
+proc getSourceCode*(t: TimlTemplate): string =
     ## Retrieve source code of a TimlTemplate object
     result = readFile(t.paths.file)
 
-proc getHtmlCode*[T: TimlTemplate](t: T): string =
+proc getHtmlCode*(t: TimlTemplate): string =
     ## Retrieve the HTML code for given ``TimlTemplate`` object
     ## TODO retrieve source code from built-in memory table
     result = readFile(t.paths.html)
 
-proc hasAnySources*[T: TimEngine](e: T): bool =
+proc hasAnySources*(e: TimEngine): bool =
     ## Determine if current TimEngine has any TimlDirectory
     ## objects stored in layouts, views or partials fields
     result = len(e.views) != 0
 
-proc getPath[T: TimEngine](e: T, key, pathType: string): string =
+proc setData*(t: var TimEngine, data: JsonNode) =
+    ## Add global data that can be accessed across templates
+    t.globalData = data
+
+proc globalDataExists*(t: TimEngine): bool =
+    ## Determine if global data is available
+    result = t.globalData.kind != JNull
+
+proc getGlobalData*(t: TimEngine): JsonNode =
+    ## Retrieves global data
+    result = t.globalData
+
+proc getPath(e: TimEngine, key, pathType: string): string =
     ## Retrieve path key for either a partial, view or layout
     var k: string
     var tree: seq[string]
@@ -141,25 +153,25 @@ proc getPath[T: TimEngine](e: T, key, pathType: string): string =
     result &= ".timl"
     result = normalizedPath(result) # normalize path for Windows
 
-proc getLayouts*[T: TimEngine](e: T): TimlTemplateTable =
+proc getLayouts*(e: TimEngine): TimlTemplateTable =
     ## Retrieve entire table of layouts as TimlTemplateTable
     result = e.layouts
 
-proc hasLayout*[T: TimEngine](e: T, key: string): bool =
+proc hasLayout*(e: TimEngine, key: string): bool =
     ## Determine if specified layout exists
     ## Use dot annotation for accessing views in subdirectories
     result = e.layouts.hasKey(e.getPath(key, "layouts"))
 
-proc getLayout*[T: TimEngine](e: T, key: string): TimlTemplate =
+proc getLayout*(e: TimEngine, key: string): TimlTemplate =
     ## Get a layout object as ``TimlTemplate``
     ## Use dot annotation for accessing views in subdirectories
     result = e.layouts[e.getPath(key, "layouts")]
 
-proc getViews*[T: TimEngine](e: T): TimlTemplateTable =
+proc getViews*(e: TimEngine): TimlTemplateTable =
     ## Retrieve entire table of views as TimlTemplateTable
     result = e.views
 
-proc hasView*[T: TimEngine](e: T, key: string): bool =
+proc hasView*(e: TimEngine, key: string): bool =
     ## Determine if a specific view exists by name.
     ## Use dot annotation for accessing views in subdirectories
     result = e.views.hasKey(e.getPath(key, "views"))

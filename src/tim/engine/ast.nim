@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import std/tables
+import std/[tables, json, jsonutils]
 
 from ./tokens import TokenKind, TokenTuple
 from std/enumutils import symbolName
@@ -158,6 +158,21 @@ type
     AccessorKind* {.pure.} = enum
         None, Key, Value
 
+    VarVisibility* = enum
+        ## Defines three types of variables:
+        ##
+        ## - `GlobalVar` is reserved for data provided at the main level of your app using `setData()`. Global variables can be accessed in tim templates using `$app` object.
+        ##
+        ## - `ScopeVar` variables are defined at controller level via `render()` proc and exposed to its view, layout and partials under `$this` object.
+        ##
+        ## - `InternalVar` variables have some limitations. Can be defined in timl templates, and can hold either `string`, `int`, `float`, `bool`.
+        ##
+        ## **Note:** `$app` and `$this` are reserved variables.
+        ## **Note** Global/Scope variables can be accessed using dot notation.
+        GlobalVar
+        ScopeVar
+        InternalVar
+
     Node* = ref object
         nodeName*: string
         case nodeType*: NodeType
@@ -201,8 +216,10 @@ type
             varIdent*: string
             varSymbol*: string
             varType*: NodeType # NTBool, NTInt, NTString
+            visibility*: VarVisibility
             isSafeVar*: bool
             dataStorage*: bool
+            accessors*: seq[Node]
             case accessorKind*: AccessorKind
             of Key:
                 byKey*: string
@@ -212,6 +229,9 @@ type
 
     Program* = object
         nodes*: seq[Node]
+
+proc `$`*(node: Node): string =
+    result = pretty(toJson(node))
 
 proc newNode*(nt: NodeType, tk: TokenTuple): Node =
     result = Node(nodeName: nt.symbolName, nodeType: nt)
@@ -236,9 +256,9 @@ proc newInfix*(infixLeft, infixRight: Node, infixOp: OperatorType): Node =
         infixOpSymbol: infixOp.symbolName
     )
 
-proc newInt*(iVal: int): Node =
+proc newInt*(iVal: int, tk: TokenTuple): Node =
     ## Add a new `NTInt` node
-    Node(nodeName: NTInt.symbolName, nodeType: NTInt, iVal: iVal)
+    Node(nodeName: NTInt.symbolName, nodeType: NTInt, iVal: iVal, meta: (tk.line, tk.pos, tk.col, tk.wsno))
 
 proc newBool*(bVal: bool): Node =
     ## Add a new `NTBool` node
@@ -293,7 +313,8 @@ proc newFor*(itemVarIdent, itemsVarIdent: Node, body: seq[Node], tk: TokenTuple)
     result.forItem = itemVarIdent
     result.forItems = itemsVarIdent
 
-proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false, varType = NTString): Node =
+proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false,
+                varType = NTString, varVisibility: VarVisibility = GlobalVar): Node =
     ## Add a new `NTVariable` node
     result = newNode(NTVariable, tk)
     result.varIdent = tk.value
@@ -301,6 +322,7 @@ proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false, varType = NTSt
     result.isSafeVar = isSafeVar
     result.dataStorage = dataStorage
     result.varType = varType
+    result.visibility = varVisibility
 
 proc newVarCallKeyAccessor*(tk: TokenTuple, fid: string): Node =
     result = Node(

@@ -16,11 +16,15 @@ from std/os import getCurrentDir, parentDir, fileExists, normalizedPath
 
 import ./tokens
 
+## Resolve all `@include` calls inside a `view`, `layout` or `partial`.
+
 type
     SourcePath = string
         ## Partial Source Path
+
     SourceCode = string
         ## Partial Source Code
+
     Importer* = object
         engine: TimEngine
             ## An instance of `TimEngine`

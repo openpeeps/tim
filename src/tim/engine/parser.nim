@@ -66,6 +66,10 @@ const
     InvalidMixinDefinition = "Invalid mixin definition \"$1\""
     InvalidStringConcat = "Invalid string concatenation"
     InvalidVarDeclaration = "Invalid variable declaration"
+    InvalidArrayIndex = "Invalid array access missing index"
+    InvalidAccessorDeclaration = "Invalid accessor declaration"
+    InvalidScopeVarContext = "Invalid usage of $this in this context"
+    InvalidGlobalVarContext = "Invalid usage of $app in this context"
     NestableStmtIndentation = "Nestable statement requires indentation"
     TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
 
@@ -136,9 +140,6 @@ proc getStatementsStr*(p: Parser, prettyString, prettyPlain = false): string =
         return pretty(toJson(p.getStatements()))
     result = $(toJson(p.statements))
 
-proc `$`(node: Node): string =
-    result = pretty(toJson(node))
-
 template jit(p: var Parser) =
     ## Enable jit flag When current document contains
     ## either conditionals, or variable assignments
@@ -150,7 +151,7 @@ proc hasJIT*(p: var Parser): bool {.inline.} =
     ## requires a JIT compilation
     result = p.enableJit == true
 
-proc jump(p: var Parser, offset = 1) =
+proc walk(p: var Parser, offset = 1) =
     var i = 0
     while offset != i:
         p.prev = p.current
@@ -178,12 +179,15 @@ proc parseForStmt(p: var Parser): Node
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
-proc isAppStorage(tk: TokenTuple): bool =
+proc isGlobalVar(tk: TokenTuple): bool =
     result = tk.value == "app"
+
+proc isScopeVar(tk: TokenTuple): bool =
+    result = tk.value == "this"
 
 proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
     let tk: TokenTuple = p.current
-    jump p
+    walk p
     let infixRight: Node = p.parseExpression()
     result = ast.newInfix(infixLeft, infixRight, getOperator(tk.kind))
     if strict:
@@ -194,20 +198,20 @@ proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
 
 proc parseInteger(p: var Parser): Node =
     # Parse a new `integer` node
-    result = ast.newInt(parseInt(p.current.value))
-    jump p
+    result = ast.newInt(parseInt(p.current.value), p.current)
+    walk p
 
 proc parseBoolean(p: var Parser): Node =
     # Parse a new `boolean` node
     result = ast.newBool(parseBool(p.current.value))
-    jump p
+    walk p
 
 template handleConcat() =
     while p.current.kind == TK_AND:
         if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
             p.setError(InvalidStringConcat)
             return nil
-        jump p
+        walk p
         let infixRight: Node = p.parseExpression()
         if result == nil:
             result = ast.newInfix(leftNode, infixRight, getOperator(TK_AND))
@@ -220,64 +224,88 @@ proc parseString(p: var Parser): Node =
     let this = p.current
     if p.next.kind == TK_AND:
         concated = true
-        jump p
+        walk p
         var leftNode = ast.newString(this)
         handleConcat()
         if result == nil:
             result = leftNode
     if not concated:
         result = ast.newString(this)
-        jump p
+        walk p
 
 proc parseVariable(p: var Parser): Node =
-    var leftNode: Node
-    if p.current.isAppStorage() and p.next.kind == TK_DOT: 
-        jump p, 2
-        if p.current.line != p.prev.line:
-            p.setError(InvalidIndentation)
-            return
-        if p.current.kind == TK_IDENTIFIER or p.current.kind notin tkSpecial:
-            # p.current.kind = TK_IDENTIFIER
-            leftNode = newVariable(p.current, dataStorage = true)
-            jump p
-            if p.current.kind == TK_AND:
-                handleConcat()
-        else:
-            p.setError(InvalidVarDeclaration)
-            return
-        if result == nil:
-            result = leftNode
+    # Parse variables. Includes support for multi-accessor
+    # fields using dot notation for objects, while for array access
+    # by referring to the index number of the item using square brackets
+    var
+        leftNode: Node
+        varVisibility: VarVisibility
+        this = p.current
+        accessors: seq[Node]
+
+    if p.current.isGlobalVar(): 
+        walk p
+        varVisibility = VarVisibility.GlobalVar
+    elif p.current.isScopeVar():
+        varVisibility = VarVisibility.ScopeVar
+        walk p
     else:
-        if p.next.kind == TK_DOT:
-            let varIdentToken = p.current
-            jump p
-            if p.current.line != p.prev.line:
-                p.setError(InvalidIndentation)
-                return
-            if p.next.kind == TK_IDENTIFIER or p.next.kind notin tkSpecial:
-                jump p
-                if p.current.value == "v":
-                    leftNode = newVarCallValAccessor(varIdentToken)
-                else:
-                    leftNode = newVarCallKeyAccessor(varIdentToken, p.current.value)
-                if p.current.kind == TK_AND:
-                    handleConcat()
-                if result == nil:
-                    result = leftNode
-            else:
-                p.setError(InvalidVarDeclaration)
-                return
-        else:
-            leftNode = newVariable(p.current)
-            if p.current.kind == TK_AND: handleConcat()
-            if result == nil:
-                result = leftNode
-        jump p
+        varVisibility = VarVisibility.InternalVar
+
+    if p.current.kind in {TK_DOT, TK_LBRA}:
+        walk p
+
+    if p.current.kind == TK_IDENTIFIER or p.current.kind notin tkSpecial and p.current.kind != TK_EOF:
+        this = p.current
+        walk p
+        while true:
+            if p.current.kind == TK_EOF: break
+            # if p.current.wsno != 0 or p.current.line != this.line:
+            #     p.setError(InvalidAccessorDeclaration, true)
+            if p.current.kind == TK_DOT:
+                walk p # .
+                if p.current.kind == TK_IDENTIFIER or p.current.kind notin tkSpecial:
+                    accessors.add newString(p.current)
+                    walk p # .
+                else: p.setError(InvalidVarDeclaration, true)
+            elif p.current.kind == TK_LBRA:
+                if p.next.kind != TK_INTEGER:
+                    p.setError(InvalidArrayIndex, true)
+                walk p # [
+                if p.next.kind != TK_RBRA:
+                    p.setError(InvalidAccessorDeclaration, true)
+                accessors.add(p.parseInteger())
+                walk p # ]
+                if p.current.wsno != 0: break
+            else: break
+    else:
+        case varVisibility:
+        of VarVisibility.GlobalVar:
+            p.setError(InvalidGlobalVarContext)
+        of VarVisibility.ScopeVar:
+            p.setError(InvalidScopeVarContext)
+        else: discard
+
+    if p.hasError: return
+
+    leftNode = newVariable(
+        this,
+        dataStorage = (varVisibility in {GlobalVar, ScopeVar}),
+        varVisibility = varVisibility
+    )
+    leftNode.accessors = accessors
+    if p.current.kind == TK_AND:
+        # support infix concatenation X & Y
+        handleConcat()
+    if result == nil:
+        result = leftNode
+    # echo result
+    # walk p
     jit p
 
 proc parseSafeVariable(p: var Parser): Node =
     result = newVariable(p.current, isSafeVar = true)
-    jump p
+    walk p
     jit p
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
@@ -294,49 +322,49 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                     result[attrKey].add(newString(p.next))
                 else:
                     result[attrKey] = @[newString(p.next)]
-                jump p, 2
+                walk p, 2
             else:
                 p.setError(InvalidClassAttribute)
-                jump p
+                walk p
                 break
         elif p.current.kind == TK_ATTR_ID:
             # Set `id=""` HTML attribute
             let attrKey = "id"
             if not result.hasKey(attrKey):
                 if p.next.kind in {TK_IDENTIFIER, TK_VARIABLE, TK_SAFE_VARIABLE}:
-                    jump p
+                    walk p
                     if p.current.kind == TK_IDENTIFIER:
                         result[attrKey] = @[newString(p.current)]
-                        jump p
+                        walk p
                     else: result[attrKey] = @[p.parseVariable()]
                 else: p.setError InvalidAttributeId, true
             else: p.setError DuplicateAttrId % [p.next.value], true
         elif p.current.kind in {TK_IDENTIFIER, TK_STYLE, TK_TITLE} and p.next.kind == TK_ASSIGN:
             let attrName = p.current.value
-            jump p
+            walk p
             if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
                 p.setError InvalidAttributeValue % [attrName], true
             if result.hasKey(attrName):
                 p.setError DuplicateAttributeKey % [attrName], true
             else:
-                jump p
+                walk p
                 if p.current.kind == TK_STRING:
                     result[attrName] = @[newString(p.current)]
                 else:
                     result[attrName] = @[p.parseVariable()]
-            jump p
+            walk p
         else: break
 
 proc newHtmlNode(p: var Parser): Node =
     var isSelfClosingTag = p.current.kind in scTags
     result = ast.newHtmlElement(p.current)
     result.issctag = isSelfClosingTag
-    jump p
+    walk p
     if result.meta.pos != 0:
         result.meta.pos = p.lvl * 4 # set real indentation size
     while true:
         if p.current.kind == TK_COLON:
-            jump p
+            walk p
             if p.current.kind == TK_STRING:
                 result.nodes.add p.parseString()
             elif p.current.kind in {TK_VARIABLE, TK_SAFE_VARIABLE}:
@@ -358,7 +386,7 @@ proc parseHtmlElement(p: var Parser): Node =
             p.parentNode.add(result)
     var node: Node
     while p.current.kind == TK_GT:
-        jump p
+        walk p
         if not p.current.kind.isHTMLElement():
             p.setError(InvalidNestDeclaration)
         inc p.lvl
@@ -408,8 +436,8 @@ proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple)
         p.setError(InvalidIndentation)
         return
     var this = p.current
-    jump p
-    if p.current.kind == TK_COLON: jump p
+    walk p
+    if p.current.kind == TK_COLON: walk p
     if this.pos >= p.current.pos:
         p.setError(NestableStmtIndentation)
         return
@@ -421,7 +449,7 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
     if p.next.kind notin tkComparables:
         p.setError(InvalidConditionalStmt)
         return
-    jump p
+    walk p
     var infixLeft: Node
     let infixLeftFn = p.getPrefixFn(p.current.kind)
     if infixLeftFn != nil:
@@ -441,7 +469,7 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
     if p.current.pos == this.pos:
         p.setError(InvalidIndentation)
         return
-    if p.current.kind == TK_COLON: jump p
+    if p.current.kind == TK_COLON: walk p
     
     var ifBody: seq[Node]
     while p.current.pos > this.pos:     # parse body of `if` branch
@@ -471,18 +499,18 @@ proc parseIfStmt(p: var Parser): Node =
 proc parseForStmt(p: var Parser): Node =
     # Parse a new iteration statement
     let this = p.current
-    jump p
+    walk p
     let singularIdent = p.parseVariable()
     if p.current.kind != TK_IN:
         p.setError(InvalidIteration)
         return
-    jump p # `in`
+    walk p # `in`
     if p.current.kind != TK_VARIABLE:
         p.setError(InvalidIteration)
         return
     let pluralIdent = p.parseVariable()
     if p.current.kind == TK_COLON:
-        jump p
+        walk p
     var forBody: seq[Node]
     while p.current.pos > this.pos:
         let subNode = p.parseExpression()
@@ -494,27 +522,27 @@ proc parseForStmt(p: var Parser): Node =
 
 proc parseMixinCall(p: var Parser): Node =
     result = newMixin(p.current)
-    jump p
+    walk p
 
 proc parseMixinDefinition(p: var Parser): Node =
     let this = p.current
-    jump p
+    walk p
     let ident = p.current
     result = newMixinDef(p.current)
     if p.next.kind != TK_LPAR:
         p.setError(InvalidMixinDefinition % [ident.value])
         return
-    jump p, 2
+    walk p, 2
 
     while p.current.kind != TK_RPAR:
         var paramDef: ParamTuple
         if p.current.kind == TK_IDENTIFIER:
             paramDef.key = p.current.value
-            jump p
+            walk p
             if p.current.kind == TK_COLON:
                 if p.next.kind notin {TK_TYPE_BOOL, TK_TYPE_INT, TK_TYPE_STRING}: # todo handle float
                     p.setError(InvalidIndentation % [ident.value], true)
-                jump p
+                walk p
                 # todo in a fancy way, please
                 if p.current.kind == TK_TYPE_BOOL:
                     paramDef.`type` = NTBool
@@ -528,32 +556,32 @@ proc parseMixinDefinition(p: var Parser): Node =
         else:
             p.setError(InvalidMixinDefinition % [ident.value], true)
         result.mixinParamsDef.add(paramDef)
-        jump p
+        walk p
         if p.current.kind == TK_COMMA:
             if p.next.kind != TK_IDENTIFIER:
                 p.setError(InvalidMixinDefinition % [ident.value], true)
-            jump p
-    jump p
+            walk p
+    walk p
     while p.current.pos > this.pos:
         result.mixinBody.add p.parseExpression()
 
 proc parseIncludeCall(p: var Parser): Node =
     result = newInclude(p.current.value)
-    jump p
+    walk p
 
 proc parseComment(p: var Parser): Node =
     # Actually, will skip comments
     var this = p.current
-    jump p
+    walk p
     while p.current.line == this.line:
-        jump p
+        walk p
 
 proc parseViewLoader(p: var Parser): Node =
     if p.templateType != Layout:
         p.setError("Trying to load a view inside a $1" % [$p.templateType])
         return
     result = newView(p.current)
-    jump p
+    walk p
 
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     result = case kind

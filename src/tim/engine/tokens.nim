@@ -216,6 +216,8 @@ tokens:
     LCurly       > '{'
     RCurly       > '}'
     LPar         > '('
+    LBra         > '['
+    RBra         > ']'
     RPar         > ')'
     Dot          > '.'
     Attr_ID      > '#'
