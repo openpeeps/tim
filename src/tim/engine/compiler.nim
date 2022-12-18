@@ -99,6 +99,16 @@ proc getVarValue(c: var Compiler, varNode: Node): string =
                     ("`", "&grave;")
                 )
 
+proc getJsonData(c: var Compiler, key: string): JsonNode =
+    if c.data.hasKey(key):
+        result = c.data[key]
+    elif c.data.hasKey("globals"):
+        if c.data["globals"].hasKey(key):
+            result = c.data["globals"][key]
+    elif c.data.hasKey("scope"):
+        if c.data["scope"].hasKey(key):
+            result = c.data["scope"][key]
+
 proc writeVar(c: var Compiler, node: Node, jNode: JsonNode) =
     let nKind = jNode.kind
     case nKind:
