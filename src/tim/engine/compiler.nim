@@ -49,6 +49,7 @@ const
     NewLine = "\n"
     InvalidAccessorKey = "Invalid property accessor \"$1\" for $2 ($3)"
     InvalidConversion = "Failed to convert $1 \"$2\" to string"
+    InvalidComparison = "Can't compare $1 and $2 values"
     InvalidObjectAccess = "Invalid object access"
     UndefinedPropertyAccessor = "Undefined property accessor \"$1\" in data storage"
     UndefinedArray = "Undefined array"

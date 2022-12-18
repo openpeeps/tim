@@ -20,89 +20,67 @@ proc handleInfixStmt(c: var Compiler, node: Node) =
         elif node.infixRight.nodeType == NTInfixStmt:
             c.handleInfixStmt(node.infixRight)
 
+proc aEqualB(c: var Compiler, a: JsonNode, b: Node, swap: bool): bool =
+    if a.kind == JString and b.nodeType == NTString:
+        result = isEqualString(a.getStr, b.sVal)
+    elif a.kind == JInt and b.nodeType == NTInt:
+        result = isEqualInt(a.getInt, b.iVal)
+    elif a.kind == JBool and b.nodeType == NTBool:
+        result = isEqualBool(a.getBool, b.bVal)
+    else:
+        if swap:    c.logs.add(InvalidComparison % [b.nodeName, $a.kind])
+        else:       c.logs.add(InvalidComparison % [$a.kind, b.nodeName])
+
+proc aNotEqualB(c: var Compiler, a: JsonNode, b: Node, swap: bool): bool =
+    if a.kind == JString and b.nodeType == NTString:
+        result = isNotEqualString(a.getStr, b.sVal)
+    elif a.kind == JInt and b.nodeType == NTInt:
+        result = isNotEqualInt(a.getInt, b.iVal)
+    elif a.kind == JBool and b.nodeType == NTBool:
+        result = isNotEqualBool(a.getBool, b.bVal)
+    else:
+        if swap:    c.logs.add(InvalidComparison % [b.nodeName, $a.kind])
+        else:       c.logs.add(InvalidComparison % [$a.kind, b.nodeName])
+
+proc compareVarLit(c: var Compiler, leftNode, rightNode: Node, op: OperatorType, swap = false): bool =
+    var jd: JsonNode
+    if leftNode.dataStorage:
+        jd = c.getJsonData(leftNode.varIdent)
+        if jd.kind in {JArray, JObject}:
+            jd = c.getJsonValue(leftNode, jd)
+        case op
+            of EQ: result = c.aEqualB(jd, rightNode, swap)
+            of NE: result = c.aNotEqualB(jd, rightNode, swap)
+            else: discard
+    else:
+        if c.memtable.hasKey(leftNode.varSymbol):
+            jd = c.getJsonValue(leftNode, c.memtable[leftNode.varSymbol])
+            if jd != nil:
+                case op
+                    of EQ: result = c.aEqualB(jd, rightNode, swap)
+                    of NE: result = c.aNotEqualB(jd, rightNode, swap)
+                    else: discard
+
 proc compInfixNode(c: var Compiler, node: Node): bool =
     var jsonData = newJObject()
     case node.infixOp
-    of EQ:
+    of EQ, NE:
         if node.infixLeft.nodeType == node.infixRight.nodeType:
             # compare two values sharing the same type
             case node.infixLeft.nodeType:
             of NTInt:
-                return isEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+                result = isEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
             of NTString:
-                return isEqualString(node.infixLeft.sVal, node.infixRight.sVal)
+                result = isEqualString(node.infixLeft.sVal, node.infixRight.sVal)
             of NTVariable:
                 discard
             else: discard
-        
-        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTString:
-            # compare `NTVariable == NTString`
-            if node.infixLeft.dataStorage:
-                jsonData = c.getJsonData(node.infixLeft.varIdent)
-                if jsonData.kind == JObject:
-                    if jsonData.hasKey(node.infixLeft.varIdent):
-                        return isEqualString(jsonData[node.infixLeft.varIdent].getStr, node.infixRight.sVal)
-                elif jsonData.kind == JString:
-                    return isEqualString(jsonData.getStr, node.infixRight.sVal)
-                else: discard # TODO compile warning
-            else:
-                if c.memtable.hasKey(node.infixLeft.varSymbol):
-                    let jn = c.getJsonValue(node.infixLeft, c.memtable[node.infixLeft.varSymbol])
-                    if jn != nil:
-                        return isEqualString(jn.getStr, node.infixRight.sVal)
-                    return false
-        
-        elif node.infixLeft.nodeType == NTString and node.infixRight.nodeType == NTVariable:
-            # compare `NTString == NTVariable`
-            if node.infixRight.dataStorage:
-                jsonData = c.getJsonData(node.infixRight.varIdent)
-                if jsonData.kind == JObject:
-                    if jsonData.hasKey(node.infixRight.varIdent):
-                        return isEqualString(node.infixLeft.sVal, jsonData[node.infixRight.varIdent].getStr)
-                elif jsonData.kind == JString:
-                    return isEqualString(node.infixLeft.sVal, jsonData.getStr)
-                else: discard # TODO compile warning
-            else:
-                if c.memtable.hasKey(node.infixRight.varSymbol):
-                    let jn = c.getJsonValue(node.infixRight, c.memtable[node.infixRight.varSymbol])
-                    if jn != nil:
-                        return isEqualString(jn.getStr, node.infixLeft.sVal)
-        
-        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTBool:
-            # compare `NTVariable == NTBool`
-            if node.infixLeft.dataStorage:
-                jsonData = c.getJsonData(node.infixLeft.varIdent)
-                if jsonData.kind == JObject:
-                    if jsonData.hasKey(node.infixLeft.varIdent):
-                        return isEqualBool(jsonData[node.infixLeft.varIdent].getBool, node.infixRight.bVal)
-                elif jsonData.kind == JBool:
-                    return isEqualBool(jsonData.getBool, node.infixRight.bVal)
-                else: discard # TODO compile warning
-            else:
-                if c.memtable.hasKey(node.infixLeft.varSymbol):
-                    let jn = c.getJsonValue(node.infixLeft, c.memtable[node.infixLeft.varSymbol])
-                    if jn != nil:
-                        return isEqualBool(jn.getBool, node.infixRight.bVal)
-       
-        elif node.infixLeft.nodeType == NTBool and node.infixRight.nodeType == NTVariable:
-            # compare `NTBool == NTVariable`
-            if node.infixRight.dataStorage:
-                jsonData = c.getJsonData(node.infixRight.varIdent)
-                if jsonData.hasKey(node.infixRight.varIdent):
-                    return isEqualBool(jsonData[node.infixRight.varIdent].getBool, node.infixLeft.bVal)
-            else:
-                if c.memtable.hasKey(node.infixRight.varSymbol):
-                    let jn = c.getJsonValue(node.infixRight, c.memtable[node.infixRight.varSymbol])
-                    if jn != nil:
-                        return isEqualBool(jn.getBool, node.infixLeft.bVal)
-    of NE:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isNotEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
-            of NTString:
-                return isNotEqualString(node.infixLeft.sVal, node.infixRight.sVal)
-            else: discard
+        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType in {NTBool, NTString, NTInt}:
+            # compare `NTVariable == {NTBool, NTString, NTInt}`
+            result = c.compareVarLit(leftNode = node.infixLeft, op = node.infixOp, rightNode = node.infixRight)
+        elif node.infixLeft.nodeType in {NTBool, NTString, NTInt} and node.infixRight.nodeType == NTVariable:
+            # compare `{NTBool, NTString, NTInt} == NTVariable`
+            result = c.compareVarLit(leftNode = node.infixRight, op = node.infixOp, rightNode = node.infixLeft, swap = true)
     of GT:
         if node.infixLeft.nodeType == node.infixRight.nodeType:
             case node.infixLeft.nodeType:
