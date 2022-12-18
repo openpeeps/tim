@@ -11,9 +11,36 @@ Tim.init(
 Tim.setData(%*{
     "appName": "My application",
     "production": false,
-    "keywords": ["template-engine", "html", "tim", "compiled", "templating"]
+    "keywords": ["template-engine", "html", "tim", "compiled", "templating"],
+    "products": [
+        {
+            "id": "8629976",
+            "name": "Riverside 900, 10-Speed Hybrid Bike",
+            "price": 799.00,
+            "currency": "USD",
+            "composition": "100% Aluminium 6061",
+            "sizes": [
+                {
+                    "label": "S",
+                    "stock": 31
+                },
+                {
+                    "label": "M",
+                    "stock": 94
+                },
+                {
+                    "label": "L",
+                    "stock": 86
+                }
+            ]
+        }
+    ],
+    "objects": {
+        "a" : {
+            "b": "ok"
+        }
+    }
 })
-
 test "can init":
     assert Tim.hasAnySources == true
     assert Tim.getIndent == 4
