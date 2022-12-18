@@ -41,6 +41,7 @@ type
             ## When compiler is initialized for layout,
             ## this field will contain the view code (HTML)
         memtable: MemStorage
+        fixTail: bool
 
     MemStorage = TableRef[string, JsonNode]
 
@@ -80,11 +81,9 @@ proc getHtmlTails*(c: Compiler): string {.inline.} =
     ## Retrieve the tails and deferred elements for current layout
     result = $(c.htmlTails)
 
-var fixTail: bool
-
 proc writeStrValue(c: var Compiler, node: Node) =
     add c.html, node.sVal
-    fixTail = true
+    c.fixTail = true
 
 proc getVarValue(c: var Compiler, varNode: Node): string =
         result = c.data[varNode.varIdent].getStr
@@ -161,7 +160,7 @@ proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
     template writeInternalVar() =
         if c.data.hasKey(varNode.varIdent):
             add c.html, c.getVarValue(varNode)
-            fixTail = true
+            c.fixTail = true
         else: c.logs.add(UndefinedPropertyAccessor % [varNode.varIdent])
     if varNode.dataStorage == false and
         varNode.accessors.len == 0 and
@@ -195,7 +194,7 @@ proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
             #         add c.html, v.getStr
             # else: discard
         else: discard
-        fixTail = true
+        c.fixTail = true
     elif varNode.visibility == GlobalVar:
         if varNode.accessors.len == 0:
             if c.data["globals"].hasKey(varNode.varIdent):
@@ -209,7 +208,7 @@ proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
                 if jsonSubNode != nil:
                     c.writeVar(varNode, jsonSubNode)
             else: c.logs.add(UndefinedVariable % [varNode.varIdent, "globals"])
-        fixTail = true
+        c.fixTail = true
     elif varNode.visibility == ScopeVar:
         if c.data["scope"].hasKey(varNode.varIdent):
             let jsonNode = c.data["scope"][varNode.varIdent]
@@ -217,7 +216,7 @@ proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
             if jsonSubNode != nil:
                 c.writeVar(varNode, jsonSubNode)
         else: c.logs.add(UndefinedVariable % [varNode.varIdent, "scope"])
-        fixTail = true
+        c.fixTail = true
     else: discard # handle internal vars
 
 include ./compileHandlers/[comparators, infix]
@@ -270,10 +269,10 @@ proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
         add c.html, "/"
     add c.html, ">"
 
-proc closeTag(c: var Compiler, node: Node, skipBr, fixTail = false) =
+proc closeTag(c: var Compiler, node: Node, skipBr = false) =
     ## Close an HTML tag
     if node.issctag == false:
-        if not fixTail and not c.minified:
+        if not c.fixTail and not c.minified:
             c.indentLine(node.meta, skipBr)
         add c.html, "</" & node.htmlNodeName & ">"
 
@@ -337,8 +336,8 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
             c.openTag(tag, node)
             if node.nodes.len != 0:
                 c.writeNewLine(node.nodes)
-            c.closeTag(node, false, fixTail)
-            if fixTail: fixTail = false
+            c.closeTag(node, false)
+            if c.fixTail: c.fixTail = false
         of NTVariable:
             c.writeVarValue(node)
         of NTInfixStmt:
