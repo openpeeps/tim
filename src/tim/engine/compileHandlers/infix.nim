@@ -57,17 +57,28 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
                     let jn = c.getJsonValue(node.infixRight, c.memtable[node.infixRight.varSymbol])
                     if jn != nil:
                         return isEqualString(jn.getStr, node.infixLeft.sVal)
-                    return false
         elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTBool:
             # compare `NTVariable == NTBool`
             if node.infixLeft.dataStorage:
+                jsonData = c.getJsonData(node.infixLeft.varIdent)
                 if jsonData.hasKey(node.infixLeft.varIdent):
                     return isEqualBool(jsonData[node.infixLeft.varIdent].getBool, node.infixRight.bVal)
+            else:
+                if c.memtable.hasKey(node.infixLeft.varSymbol):
+                    let jn = c.getJsonValue(node.infixLeft, c.memtable[node.infixLeft.varSymbol])
+                    if jn != nil:
+                        return isEqualBool(jn.getBool, node.infixRight.bVal)
         elif node.infixLeft.nodeType == NTBool and node.infixRight.nodeType == NTVariable:
             # compare `NTBool == NTVariable`
-            if node.infixLeft.dataStorage:
-                if jsonData.hasKey(node.infixLeft.varIdent):
-                    return isEqualBool(jsonData[node.infixLeft.varIdent].getBool, node.infixRight.bVal)
+            if node.infixRight.dataStorage:
+                jsonData = c.getJsonData(node.infixRight.varIdent)
+                if jsonData.hasKey(node.infixRight.varIdent):
+                    return isEqualBool(jsonData[node.infixRight.varIdent].getBool, node.infixLeft.bVal)
+            else:
+                if c.memtable.hasKey(node.infixRight.varSymbol):
+                    let jn = c.getJsonValue(node.infixRight, c.memtable[node.infixRight.varSymbol])
+                    if jn != nil:
+                        return isEqualBool(jn.getBool, node.infixLeft.bVal)
     of NE:
         if node.infixLeft.nodeType == node.infixRight.nodeType:
             case node.infixLeft.nodeType:
