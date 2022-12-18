@@ -181,35 +181,9 @@ when isMainModule:
     )
 
     Tim.setData(%*{
-        "app_name": "My application",
+        "appName": "My application",
         "production": true,
-        "name": "TimEngine is awesome!",
-        "rows": ["apple", "peanuts", "socks", "coke"],
-        "deep": [
-            [
-                {
-                    "test": "ok"
-                }
-            ]
-        ],
-        "countries": [
-            {
-                "country": "romania",
-                "city": "bucharest"
-            },
-            {
-                "country": "greece",
-                "city": "athens"
-            },
-            {
-                "country": "italy",
-                "city": "rome"
-            },
-        ],
-        "attributes": {
-            "address": "Whatever address",
-            "county": "yeye"
-        }
+        "keywords": ["template-engine", "html", "tim", "compiled", "templating"]
     })
 
     discard Tim.precompile()
