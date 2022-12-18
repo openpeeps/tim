@@ -1,0 +1,12 @@
+h1: $app.appName
+
+if $app.production == true
+    strong: "production"
+else:
+    span: "development"
+
+if $app.appName == "My application":
+    div: "a"
+
+for $keyword in $app.keywords:
+    span: $keyword
