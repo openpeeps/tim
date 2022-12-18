@@ -44,25 +44,41 @@ proc aNotEqualB(c: var Compiler, a: JsonNode, b: Node, swap: bool): bool =
 
 proc compareVarLit(c: var Compiler, leftNode, rightNode: Node, op: OperatorType, swap = false): bool =
     var jd: JsonNode
+    var continueCompare: bool
     if leftNode.dataStorage:
         jd = c.getJsonData(leftNode.varIdent)
-        if jd.kind in {JArray, JObject}:
-            jd = c.getJsonValue(leftNode, jd)
-        case op
-            of EQ: result = c.aEqualB(jd, rightNode, swap)
-            of NE: result = c.aNotEqualB(jd, rightNode, swap)
-            else: discard
+        if jd != nil:
+            if jd.kind in {JArray, JObject}:
+                jd = c.getJsonValue(leftNode, jd)
+            continueCompare = true
     else:
         if c.memtable.hasKey(leftNode.varSymbol):
             jd = c.getJsonValue(leftNode, c.memtable[leftNode.varSymbol])
             if jd != nil:
-                case op
-                    of EQ: result = c.aEqualB(jd, rightNode, swap)
-                    of NE: result = c.aNotEqualB(jd, rightNode, swap)
-                    else: discard
+                continueCompare = true
+    if continueCompare:
+        case op
+            of EQ: result = c.aEqualB(jd, rightNode, swap)
+            of NE: result = c.aNotEqualB(jd, rightNode, swap)
+            of GT:
+                if jd.kind == JInt:
+                    if swap:    result = isLessInt(jd.getInt, rightNode.iVal)
+                    else:       result = isGreaterInt(jd.getInt, rightNode.iVal)
+            of GTE:
+                if jd.kind == JInt:
+                    if swap:    result = isLessEqualInt(jd.getInt, rightNode.iVal)
+                    else:       result = isGreaterEqualInt(jd.getInt, rightNode.iVal)
+            of LT:
+                if jd.kind == JInt:
+                    if swap:    result = isGreaterInt(jd.getInt, rightNode.iVal)
+                    else:       result = isLessInt(jd.getInt, rightNode.iVal)
+            of LTE:
+                if jd.kind == JInt:
+                    if swap:    result = isGreaterEqualInt(jd.getInt, rightNode.iVal)
+                    else:       result = isLessEqualInt(jd.getInt, rightNode.iVal)
+            else: discard
 
 proc compInfixNode(c: var Compiler, node: Node): bool =
-    var jsonData = newJObject()
     case node.infixOp
     of EQ, NE:
         if node.infixLeft.nodeType == node.infixRight.nodeType:
@@ -74,35 +90,37 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
                 result = isEqualString(node.infixLeft.sVal, node.infixRight.sVal)
             of NTVariable:
                 discard
+                # result = c.compareVarVar(leftNode = node.infixLeft, op = node.infixOp, rightNode = node.infixRight)
             else: discard
         elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType in {NTBool, NTString, NTInt}:
             # compare `NTVariable == {NTBool, NTString, NTInt}`
             result = c.compareVarLit(leftNode = node.infixLeft, op = node.infixOp, rightNode = node.infixRight)
         elif node.infixLeft.nodeType in {NTBool, NTString, NTInt} and node.infixRight.nodeType == NTVariable:
             # compare `{NTBool, NTString, NTInt} == NTVariable`
-            result = c.compareVarLit(leftNode = node.infixRight, op = node.infixOp, rightNode = node.infixLeft, swap = true)
-    of GT:
+            result = c.compareVarLit(leftNode = node.infixRight, op = node.infixOp, rightNode = node.infixLeft, true)
+    of GT, GTE, LT, LTE:
         if node.infixLeft.nodeType == node.infixRight.nodeType:
             case node.infixLeft.nodeType:
             of NTInt:
-                return isGreaterInt(node.infixLeft.iVal, node.infixRight.iVal)
+                case node.infixOp:
+                of GT:
+                    result = isGreaterInt(node.infixLeft.iVal, node.infixRight.iVal)
+                of GTE:
+                    result = isGreaterEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+                of LT:
+                    result = isLessInt(node.infixLeft.iVal, node.infixRight.iVal)
+                of LTE:
+                    result = isLessEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+                else: discard
             else: discard
-    of GTE:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isGreaterEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
-            else: discard
-    of LT:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isLessInt(node.infixLeft.iVal, node.infixRight.iVal)
-            else: discard
-    of LTE:
-        if node.infixLeft.nodeType == node.infixRight.nodeType:
-            case node.infixLeft.nodeType:
-            of NTInt:
-                return isLessEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
-            else: discard
+        
+        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTInt:
+            result = c.compareVarLit(node.infixLeft, node.infixRight, node.infixOp)
+        
+        elif node.infixleft.nodeType == NTInt and node.infixRight.nodeType == NTVariable:
+            result = c.compareVarLit(node.infixRight, node.infixLeft, node.infixOp, true)
+
+        else: c.logs.add(InvalidComparison % [
+            node.infixLeft.nodeName, node.infixRight.nodeName
+        ])
     else: discard
