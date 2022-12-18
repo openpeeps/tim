@@ -24,4 +24,4 @@ jobs:
           nim-version: ${{ matrix.nim-version }}
       - run: nimble install -Y
       - run: nim c -r src/tim.nim
-      - run: nimble tests
+      - run: nimble test
