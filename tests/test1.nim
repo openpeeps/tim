@@ -16,10 +16,9 @@ Tim.setData(%*{
 
 test "can init":
     assert dirExists("../examples/templates") == true
-    echo getCurrentDir()
-    # assert Tim.hasAnySources == true
-    # assert Tim.getIndent == 4
-    # assert Tim.shouldMinify == false
+    assert Tim.hasAnySources == true
+    assert Tim.getIndent == 4
+    assert Tim.shouldMinify == false
 
 # test "can precompile":
 #     let timlFiles = Tim.precompile()
