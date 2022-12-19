@@ -110,6 +110,8 @@ proc getJsonData(c: var Compiler, key: string): JsonNode =
             result = c.data["scope"][key]
 
 proc getJsonValue(c: var Compiler, node: Node, jsonNodes: JsonNode): JsonNode =
+    if node.accessors.len == 0:
+        return jsonNodes
     var
         lvl = 0
         levels = node.accessors.len
@@ -143,10 +145,10 @@ proc getJsonValue(c: var Compiler, node: Node, jsonNodes: JsonNode): JsonNode =
     result = c.getJValue(jsonNodes)
 
 proc getValue(c: var Compiler, node: Node): JsonNode =
-    if node.dataStorage == false and node.accessors.len == 0 and
-        c.memtable.hasKey(node.varSymbol) == false:
-            result = c.getJsonValue(node, c.memtable[node.varSymbol])
-    elif c.memtable.hasKey(node.varSymbol):
+    # if node.dataStorage == false and node.accessors.len == 0 and c.memtable.hasKey(node.varSymbol) == false:
+        # discard # TODO 
+            # result = c.data["globals"][node.varIdent]
+    if node.dataStorage == false and c.memtable.hasKey(node.varSymbol):
         result = c.memtable[node.varSymbol]
         case result.kind:
             of JObject:
@@ -258,35 +260,31 @@ proc storeValue(c: var Compiler, symbol: string, item: JsonNode) =
     c.memtable[symbol] = item
 
 proc handleForStmt(c: var Compiler, forNode: Node) =
-
-    proc handleJArray(c: var Compiler, jdata: JsonNode) =
-        for item in jdata:
-            c.storeValue(forNode.forItem.varSymbol, item)
-            c.writeNewLine(forNode.forBody)
-            c.memtable.del(forNode.forItem.varSymbol)
-
-    proc handleJObject(c: var Compiler, jdata: JsonNode) =
-        for k in keys(jdata):
-            var kvObject = newJObject()
-            kvObject[k] = jdata[k]
-            c.storeValue(forNode.forItem.varSymbol, kvObject)
-            c.writeNewLine(forNode.forBody)
-            c.memtable.del(forNode.forItem.varSymbol)
-
+    var jitems: JsonNode
     if c.data["globals"].hasKey(forNode.forItems.varIdent):
-        case c.data["globals"][forNode.forItems.varIdent].kind:
+        jitems = c.getJsonValue(forNode.forItems, c.data["globals"][forNode.forItems.varIdent])
+        case jitems.kind:
         of JArray:
-            c.handleJArray(c.data["globals"][forNode.forItems.varIdent])
+            for item in jitems:
+                c.storeValue(forNode.forItem.varSymbol, item)
+                c.writeNewLine(forNode.forBody)
+                c.memtable.del(forNode.forItem.varSymbol)
         of JObject:
-            c.handleJObject(c.data["globals"][forNode.forItems.varIdent])
-        else: discard
-    elif c.memtable.haskey(forNode.forItems.varSymbol):
-        let jsonSubNode = c.getJsonValue(forNode.forItems, c.memtable[forNode.forItems.varSymbol])
-        if jsonSubNode != nil:
-            case jsonSubNode.kind
-            of JArray:  c.handleJArray(jsonSubNode)
-            of JObject: c.handleJObject(jsonSubNode)
-            else: discard
+            for k in keys(jitems):
+                var kvObject = newJObject()
+                kvObject[k] = jitems[k]
+                c.storeValue(forNode.forItem.varSymbol, kvObject)
+                c.writeNewLine(forNode.forBody)
+                c.memtable.del(forNode.forItem.varSymbol)
+        else: discard # todo compile warning
+    # elif c.memtable.haskey(forNode.forItems.varSymbol):
+    #     let jsonSubNode = c.getJsonValue(forNode.forItems, c.memtable[forNode.forItems.varSymbol])
+    #     echo jsonSubNode
+    #     if jsonSubNode != nil:
+    #         case jsonSubNode.kind
+    #         of JArray:  c.handleJArray(jsonSubNode)
+    #         of JObject: c.handleJObject(jsonSubNode)
+    #         else: discard
 
 proc handleViewInclude(c: var Compiler) =
     if c.hasViewCode:

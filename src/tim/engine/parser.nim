@@ -242,7 +242,6 @@ proc parseVariable(p: var Parser): Node =
         varVisibility: VarVisibility
         this = p.current
         accessors: seq[Node]
-
     if p.current.isGlobalVar(): 
         walk p
         varVisibility = VarVisibility.GlobalVar
@@ -251,10 +250,8 @@ proc parseVariable(p: var Parser): Node =
         walk p
     else:
         varVisibility = VarVisibility.InternalVar
-
     if p.current.kind in {TK_DOT, TK_LBRA}:
         walk p
-
     if p.current.kind == TK_IDENTIFIER or p.current.kind notin tkSpecial and p.current.kind != TK_EOF:
         this = p.current
         walk p
@@ -286,7 +283,8 @@ proc parseVariable(p: var Parser): Node =
             p.setError(InvalidScopeVarContext)
         else: discard
 
-    if p.hasError: return
+    if p.hasError:
+        return # TODO handle error to avoid attempt to read from nil
 
     leftNode = newVariable(
         this,
@@ -294,13 +292,10 @@ proc parseVariable(p: var Parser): Node =
         varVisibility = varVisibility
     )
     leftNode.accessors = accessors
-    if p.current.kind == TK_AND:
-        # support infix concatenation X & Y
+    if p.current.kind == TK_AND: # support infix concatenation X & Y
         handleConcat()
     if result == nil:
         result = leftNode
-    # echo result
-    # walk p
     jit p
 
 proc parseSafeVariable(p: var Parser): Node =
