@@ -109,26 +109,11 @@ proc getJsonData(c: var Compiler, key: string): JsonNode =
         if c.data["scope"].hasKey(key):
             result = c.data["scope"][key]
 
-proc writeVar(c: var Compiler, node: Node, jNode: JsonNode) =
-    let nKind = jNode.kind
-    case nKind:
-    of JString: 
-        add c.html, jNode.getStr
-    of JInt:
-        add c.html, $(jNode.getInt)
-    of JFloat:
-        add c.html, $(jNode.getFloat)
-    of JBool:
-        add c.html, $(jNode.getBool)
-    of JObject, JArray, JNull:
-        c.logs.add(InvalidConversion % [$nKind, node.varIdent])
-
 proc getJsonValue(c: var Compiler, node: Node, jsonNodes: JsonNode): JsonNode =
     var
         lvl = 0
         levels = node.accessors.len
         propNode = node.accessors[lvl]
-
     proc getJValue(c: var Compiler, jN: JsonNode): JsonNode =
         if propNode.nodeType == NTInt:
             if jN.kind == JArray:
@@ -157,68 +142,43 @@ proc getJsonValue(c: var Compiler, node: Node, jsonNodes: JsonNode): JsonNode =
             else: c.logs.add(UndefinedProperty % [propNode.sVal])
     result = c.getJValue(jsonNodes)
 
-proc writeVarValue(c: var Compiler, varNode: Node, indentValue = false) =
-    template writeInternalVar() =
-        if c.data.hasKey(varNode.varIdent):
-            add c.html, c.getVarValue(varNode)
-            c.fixTail = true
-        else: c.logs.add(UndefinedPropertyAccessor % [varNode.varIdent])
-    if varNode.dataStorage == false and
-        varNode.accessors.len == 0 and
-        c.memtable.hasKey(varNode.varSymbol) == false:
-            writeInternalVar()
-    elif c.memtable.hasKey(varNode.varSymbol):
-        case c.memtable[varNode.varSymbol].kind:
-        of JString:
-            add c.html, c.memtable[varNode.varSymbol].getStr
-        of JInt:
-          add c.html, $(c.memtable[varNode.varSymbol].getInt)
-        of JFloat:
-          add c.html, $(c.memtable[varNode.varSymbol].getFloat)
-        of JBool:
-          add c.html, $(c.memtable[varNode.varSymbol].getBool)
-        of JObject:
-            let jsonSubNode = c.getJsonValue(varNode, c.memtable[varNode.varSymbol])
-            if jsonSubNode != nil:
-                c.writeVar(varNode, jsonSubNode)
-            # case varNode.accessorKind:
-            # of AccessorKind.Key:
-            #     if varNode.byKey == "k":
-            #         for k, v in pairs(c.memtable[varNode.varSymbol]):
-            #             add c.html, k
-            #     else:
-            #         if c.memtable[varNode.varSymbol].hasKey(varNode.byKey):
-            #             add c.html, c.memtable[varNode.varSymbol][varNode.byKey].getStr
-            #         else: c.logs.add(InvalidAccessorKey % [varNode.byKey, $(c.memtable[varNode.varSymbol].kind)])
-            # of AccessorKind.Value:
-            #     for k, v in pairs(c.memtable[varNode.varSymbol]):
-            #         add c.html, v.getStr
-            # else: discard
-        else: discard
-        c.fixTail = true
-    elif varNode.visibility == GlobalVar:
-        if varNode.accessors.len == 0:
-            if c.data["globals"].hasKey(varNode.varIdent):
-                let jsonNode = c.data["globals"][varNode.varIdent]
-                c.writeVar(varNode, jsonNode)
-            else: c.logs.add(UndefinedVariable % [varNode.varIdent, "globals"])
+proc getValue(c: var Compiler, node: Node): JsonNode =
+    if node.dataStorage == false and node.accessors.len == 0 and
+        c.memtable.hasKey(node.varSymbol) == false:
+            result = c.getJsonValue(node, c.memtable[node.varSymbol])
+    elif c.memtable.hasKey(node.varSymbol):
+        result = c.memtable[node.varSymbol]
+        case result.kind:
+            of JObject:
+                result = c.getJsonValue(node, result)
+            else: discard
+    elif node.visibility == GlobalVar and c.data.hasKey("globals"):
+        if node.accessors.len == 0:
+            if c.data["globals"].hasKey(node.varIdent):
+                result = c.data["globals"][node.varIdent]
+            else: c.logs.add(UndefinedVariable % [node.varIdent, "globals"])
         else:
-            if c.data["globals"].hasKey(varNode.varIdent):
-                let jsonNode = c.data["globals"][varNode.varIdent]
-                let jsonSubNode = c.getJsonValue(varNode, jsonNode)
-                if jsonSubNode != nil:
-                    c.writeVar(varNode, jsonSubNode)
-            else: c.logs.add(UndefinedVariable % [varNode.varIdent, "globals"])
+            if c.data["globals"].hasKey(node.varIdent):
+                let jsonNode = c.data["globals"][node.varIdent]
+                result = c.getJsonValue(node, jsonNode)
+            else: c.logs.add(UndefinedVariable % [node.varIdent, "globals"])
+    elif node.visibility == ScopeVar and c.data.hasKey("scope"):
+        if c.data["scope"].hasKey(node.varIdent):
+            let jsonNode = c.data["scope"][node.varIdent]
+            result = c.getJsonValue(node, jsonNode)
+        else: c.logs.add(UndefinedVariable % [node.varIdent, "scope"])
+
+proc writeValue(c: var Compiler, node: Node) =
+    let jsonValue = c.getValue(node)
+    if jsonValue != nil:
+        case jsonValue.kind:
+        of JString:     add c.html, jsonValue.getStr
+        of JInt:        add c.html, $(jsonValue.getInt)
+        of JFloat:      add c.html, $(jsonValue.getFloat)
+        of JBool:       add c.html, $(jsonValue.getBool)
+        of JObject, JArray, JNull:
+            c.logs.add(InvalidConversion % [$jsonValue.kind, node.varIdent])
         c.fixTail = true
-    elif varNode.visibility == ScopeVar:
-        if c.data["scope"].hasKey(varNode.varIdent):
-            let jsonNode = c.data["scope"][varNode.varIdent]
-            let jsonSubNode = c.getJsonValue(varNode, jsonNode)
-            if jsonSubNode != nil:
-                c.writeVar(varNode, jsonSubNode)
-        else: c.logs.add(UndefinedVariable % [varNode.varIdent, "scope"])
-        c.fixTail = true
-    else: discard # handle internal vars
 
 include ./compileHandlers/[comparators, infix]
 
@@ -237,7 +197,7 @@ proc writeAttributes(c: var Compiler, node: Node) =
                 strAttrs.add attrNode.sVal
             elif attrNode.nodeType == NTVariable:
                 # TODO handle concat
-                c.writeVarValue(attrNode)
+                c.writeValue(attrNode)
         if strAttrs.len != 0:
             add c.html, join(strAttrs, " ")
         add c.html, "\""
@@ -253,7 +213,7 @@ proc writeIDAttribute(c: var Compiler, node: Node) =
     let idAttrNode = node.attrs["id"][0]
     if idAttrNode.nodeType == NTString:
         add c.html, idAttrNode.sVal
-    else: c.writeVarValue(idAttrNode)
+    else: c.writeValue(idAttrNode)
     add c.html, "\""
     # add c.html, ("id=\"$1\"" % [node.attrs["id"][0]]).indent(1)
 
@@ -301,6 +261,7 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
 
     proc handleJArray(c: var Compiler, jdata: JsonNode) =
         for item in jdata:
+            echo forNode.forItem.varSymbol
             c.storeValue(forNode.forItem.varSymbol, item)
             c.writeNewLine(forNode.forBody)
             c.memtable.del(forNode.forItem.varSymbol)
@@ -320,7 +281,16 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
         of JObject:
             c.handleJObject(c.data["globals"][forNode.forItems.varIdent])
         else: discard
-    else: discard # todo console warning
+    elif c.memtable.haskey(forNode.forItems.varSymbol):
+        let jsonSubNode = c.getJsonValue(forNode.forItems, c.memtable[forNode.forItems.varSymbol])
+        if jsonSubNode != nil:
+            case jsonSubNode.kind
+            of JArray:  c.handleJArray(jsonSubNode)
+            of JObject: c.handleJObject(jsonSubNode)
+            else: discard
+    # else:
+    #     echo forNode.forItems.varIdent
+    #     discard # todo console warning
 
 proc handleViewInclude(c: var Compiler) =
     if c.hasViewCode:
@@ -340,7 +310,7 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
             c.closeTag(node, false)
             if c.fixTail: c.fixTail = false
         of NTVariable:
-            c.writeVarValue(node)
+            c.writeValue(node)
         of NTInfixStmt:
             c.handleInfixStmt(node)
         of NTConditionStmt:

@@ -7,14 +7,14 @@
 proc handleInfixStmt(c: var Compiler, node: Node) = 
     if node.infixOp == AND:
         if node.infixLeft.nodeType == NTVariable:
-            c.writeVarValue(node.infixLeft)
+            c.writeValue(node.infixLeft)
         elif node.infixLeft.nodeType == NTString:
             c.writeStrValue(node.infixLeft)
         elif node.infixLeft.nodeType == NTInfixStmt:
             c.handleInfixStmt(node.infixLeft)
 
         if node.infixRight.nodeType == NTVariable:
-            c.writeVarValue(node.infixRight)
+            c.writeValue(node.infixRight)
         elif node.infixRight.nodeType == NTString:
             c.writeStrValue(node.infixRight)
         elif node.infixRight.nodeType == NTInfixStmt:
