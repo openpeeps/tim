@@ -352,7 +352,10 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                     result[attrName] = @[newString(p.current)]
                 else:
                     result[attrName] = @[p.parseVariable()]
-            walk p
+            if p.current.line > p.prev.line:
+                break
+            else:
+                walk p
         else: break
 
 proc newHtmlNode(p: var Parser): Node =
