@@ -5,7 +5,7 @@ Tim.init(
     source = "./examples/templates",
     output = "./examples/storage/templates",
     minified = false,
-    indent = 4
+    indent = 2
 )
 
 Tim.setData(%*{
@@ -62,9 +62,10 @@ Tim.setData(%*{
         }
     }
 })
+
 test "can init":
     assert Tim.hasAnySources == true
-    assert Tim.getIndent == 4
+    assert Tim.getIndent == 2
     assert Tim.shouldMinify == false
 
 test "can precompile":
