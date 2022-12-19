@@ -261,7 +261,6 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
 
     proc handleJArray(c: var Compiler, jdata: JsonNode) =
         for item in jdata:
-            echo forNode.forItem.varSymbol
             c.storeValue(forNode.forItem.varSymbol, item)
             c.writeNewLine(forNode.forBody)
             c.memtable.del(forNode.forItem.varSymbol)
@@ -288,13 +287,13 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
             of JArray:  c.handleJArray(jsonSubNode)
             of JObject: c.handleJObject(jsonSubNode)
             else: discard
-    # else:
-    #     echo forNode.forItems.varIdent
-    #     discard # todo console warning
 
 proc handleViewInclude(c: var Compiler) =
     if c.hasViewCode:
-        add c.html, c.viewCode
+        if c.minified:
+            add c.html, c.viewCode
+        else:
+            add c.html, indent(c.viewCode, c.baseIndent * 2)
     else:
         add c.html, c.timlTemplate.setPlaceHolderId()
 
