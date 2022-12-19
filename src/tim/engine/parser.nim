@@ -339,18 +339,24 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             walk p
             if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
                 p.setError InvalidAttributeValue % [attrName], true
-            if result.hasKey(attrName):
-                p.setError DuplicateAttributeKey % [attrName], true
-            else:
+            if not result.hasKey(attrName):
                 walk p
                 if p.current.kind == TK_STRING:
                     result[attrName] = @[newString(p.current)]
                 else:
                     result[attrName] = @[p.parseVariable()]
+            else: p.setError DuplicateAttributeKey % [attrName], true
             if p.current.line > p.prev.line:
                 break
             else:
                 walk p
+        elif p.current.kind in {TK_IDENTIFIER, TK_STYLE, TK_TITLE} and p.prev.line == p.current.line:
+            let attrName = p.current.value
+            if not result.hasKey(attrName):
+                result[attrName] = @[]
+                walk p
+            else:
+                p.setError DuplicateAttributeKey % [attrName], true
         else: break
 
 proc newHtmlNode(p: var Parser): Node =
