@@ -1,10 +1,12 @@
-section.container > div.row > div.col-5.mx-auto
-    h3.appName: $app.appName
-        if $app.production == true:
-            span status="production": "(P)"
-        else:
-            span status="development": "(D)"
-    h3: "Keywords:"
-    ul.keywords
-        for $keyword in $app.keywords:
-            li.item > a.tag href="#": $keyword
+section > div.container > div.row
+  h1: $app.appName
+  h2: "Tim is awesome"
+  // list some products
+  for $prod in $app.products:
+    div.col-6 > div.p-4.bg-light
+      h3.fw-bold: $prod.name
+      small.badge title=$prod.id: $prod.id
+      p.lead: "Something cool about " & $prod.name
+      for $s in $prod.sizes:
+          em: $s.label & " " & $s.stock & " (Qty)"
+      button#addToCart: "Add to cart"

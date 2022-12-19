@@ -176,14 +176,63 @@ when isMainModule:
     Tim.init(
         source = "../examples/templates",
         output = "../examples/storage",
-        indent = 4,
+        indent = 2,
         minified = false
     )
 
     Tim.setData(%*{
         "appName": "My application",
-        "production": true,
-        "keywords": ["template-engine", "html", "tim", "compiled", "templating"]
+        "production": false,
+        "keywords": ["template-engine", "html", "tim", "compiled", "templating"],
+        "products": [
+            {
+                "id": "8629976",
+                "name": "Riverside 900, 10-Speed Hybrid Bike",
+                "price": 799.00,
+                "currency": "USD",
+                "composition": "100% Aluminium 6061",
+                "sizes": [
+                    {
+                        "label": "S",
+                        "stock": 31
+                    },
+                    {
+                        "label": "M",
+                        "stock": 94
+                    },
+                    {
+                        "label": "L",
+                        "stock": 86
+                    }
+                ]
+            },
+            {
+                "id": "8219006",
+                "name": "Riverside 500, 7-Speed Hybrid Bike",
+                "price": 599.00,
+                "currency": "USD",
+                "composition": "100% Aluminium 6061",
+                "sizes": [
+                    {
+                        "label": "S",
+                        "stock": 31
+                    },
+                    {
+                        "label": "M",
+                        "stock": 94
+                    },
+                    {
+                        "label": "L",
+                        "stock": 86
+                    }
+                ]
+            }
+        ],
+        "objects": {
+            "a" : {
+                "b": "ok"
+            }
+        }
     })
 
     discard Tim.precompile()
