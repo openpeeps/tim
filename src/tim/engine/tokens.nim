@@ -24,7 +24,7 @@ handlers:
         lex.setToken kind
 
 tokens:
-    A_Link       > "a"
+    A            > "a"
     Abbr         > "abbr"
     Acronym      > "acronym"
     Address      > "address"
@@ -246,9 +246,9 @@ tokens:
         Include  ? "include"
         Mixin    ? "mixin"
         View     ? "view"
-    Plus         > '+'
-    Minus        > '-'
-    Multiply     > '*'
+    PLUS         > '+'
+    MINUS        > '-'
+    MULTI        > '*'
     Defer        > "defer"
     Type_Bool         > "bool"
     Type_Int          > "int"

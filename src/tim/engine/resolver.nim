@@ -55,9 +55,8 @@ type
 
     ImportError* = object of CatchableError
 
-# const htmlHeadElements = {TK_HEAD, TK_TITLE, TK_BASE, TK_LINK, TK_META, TK_SCRIPT, TK_BODY}
 const
-    ImportErrorNotFound = "Could not import \"$1\". File not found"
+    ImportErrorNotFound = "Cannot import \"$1\". File not found"
     ImportPartialSelf = "\"$1\" cannot import itself"
     ImportCircularError = "Circular import of $1"
 
@@ -118,10 +117,6 @@ template loadCode(p: var Importer, indent: int) =
             getTemplateByPath(p.engine, path).addDependentView(p.currentFilePath)
 
 template resolveChunks(p: var Importer) =
-    # if p.templateType in {View, Partial}:
-    # if p.current.kind in htmlHeadElements:
-    #     p.setError "Views cannot contain Head elements. Use a layout instead", p.currentFilePath
-    #     break
     if p.current.kind == TK_INCLUDE:
         let indent = p.current.col
         if p.next.kind != TK_STRING:

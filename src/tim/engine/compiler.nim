@@ -4,8 +4,8 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import ./ast, ./compileHandlers/logger
-import std/[json, ropes, tables]
+import ./ast
+import std/[json, ropes, tables, macros]
 
 from std/strutils import `%`, indent, multiReplace, join
 from ./meta import TimlTemplate, setPlaceHolderId
@@ -17,6 +17,7 @@ type
         None, Upper, Same, Child
 
     Compiler* = object
+        ## Compiles current AST program to HTML or SCF (Source Code Filters)
         index, line, offset: int
             ## The line number that is currently compiling
         program: Program
@@ -45,6 +46,16 @@ type
 
     MemStorage = TableRef[string, JsonNode]
 
+    ErrorType* = enum
+        Warning, Fatal
+
+    Message* = ref object
+        errorType: ErrorType
+        message*: string
+
+    Logger* = object
+        logs*: seq[Message]
+
 const
     NewLine = "\n"
     InvalidAccessorKey = "Invalid property accessor \"$1\" for $2 ($3)"
@@ -57,6 +68,9 @@ const
     ArrayIndexOutBounds = "Index out of bounds [$1]. \"$2\" size is [$3]"
     UndefinedProperty = "Undefined property \"$1\""
     UndefinedVariable = "Undefined property \"$1\" in \"$2\""
+
+proc add*(logger: var Logger, message: string, errorType: ErrorType = Warning) =
+    logger.logs.add(Message(message: message, errorType: errorType))
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node])
 
@@ -182,7 +196,181 @@ proc writeValue(c: var Compiler, node: Node) =
             c.logs.add(InvalidConversion % [$jsonValue.kind, node.varIdent])
         c.fixTail = true
 
-include ./compileHandlers/[comparators, infix]
+macro `?`*(a: bool, body: untyped): untyped =
+    let b = body[1]
+    let c = body[2]
+    result = quote:
+        if `a`: `b` else: `c`
+
+macro isEqualBool*(a, b: bool): untyped =
+    result = quote:
+        `a` == `b`
+
+macro isNotEqualBool*(a, b: bool): untyped =
+    result = quote:
+        `a` != `b`
+
+macro isEqualInt*(a, b: int): untyped =
+    result = quote:
+        `a` == `b`
+
+macro isNotEqualInt*(a, b: int): untyped =
+    result = quote:
+        `a` != `b`
+
+macro isGreaterInt*(a, b: int): untyped =
+    result = quote:
+        `a` > `b`
+
+macro isGreaterEqualInt*(a, b: int): untyped =
+    result = quote:
+        `a` >= `b`
+
+macro isLessInt*(a, b: int): untyped =
+    result = quote:
+        `a` < `b`
+
+macro isLessEqualInt*(a, b: int): untyped =
+    result = quote:
+        `a` <= `b`
+
+macro isEqualFloat*(a, b: float64): untyped =
+    result = quote:
+        `a` == `b`
+
+macro isNotEqualFloat*(a, b: float64): untyped =
+    result = quote:
+        `a` != `b`
+
+macro isEqualString*(a, b: string): untyped =
+    result = quote:
+        `a` == `b`
+
+macro isNotEqualString*(a, b: string): untyped =
+    result = quote:
+        `a` != `b`
+
+proc handleInfixStmt(c: var Compiler, node: Node) = 
+    if node.infixOp == AND:
+        if node.infixLeft.nodeType == NTVariable:
+            c.writeValue(node.infixLeft)
+        elif node.infixLeft.nodeType == NTString:
+            c.writeStrValue(node.infixLeft)
+        elif node.infixLeft.nodeType == NTInfixStmt:
+            c.handleInfixStmt(node.infixLeft)
+
+        if node.infixRight.nodeType == NTVariable:
+            c.writeValue(node.infixRight)
+        elif node.infixRight.nodeType == NTString:
+            c.writeStrValue(node.infixRight)
+        elif node.infixRight.nodeType == NTInfixStmt:
+            c.handleInfixStmt(node.infixRight)
+
+proc aEqualB(c: var Compiler, a: JsonNode, b: Node, swap: bool): bool =
+    if a.kind == JString and b.nodeType == NTString:
+        result = isEqualString(a.getStr, b.sVal)
+    elif a.kind == JInt and b.nodeType == NTInt:
+        result = isEqualInt(a.getInt, b.iVal)
+    elif a.kind == JBool and b.nodeType == NTBool:
+        result = isEqualBool(a.getBool, b.bVal)
+    else:
+        if swap:    c.logs.add(InvalidComparison % [b.nodeName, $a.kind])
+        else:       c.logs.add(InvalidComparison % [$a.kind, b.nodeName])
+
+proc aNotEqualB(c: var Compiler, a: JsonNode, b: Node, swap: bool): bool =
+    if a.kind == JString and b.nodeType == NTString:
+        result = isNotEqualString(a.getStr, b.sVal)
+    elif a.kind == JInt and b.nodeType == NTInt:
+        result = isNotEqualInt(a.getInt, b.iVal)
+    elif a.kind == JBool and b.nodeType == NTBool:
+        result = isNotEqualBool(a.getBool, b.bVal)
+    else:
+        if swap:    c.logs.add(InvalidComparison % [b.nodeName, $a.kind])
+        else:       c.logs.add(InvalidComparison % [$a.kind, b.nodeName])
+
+proc compareVarLit(c: var Compiler, leftNode, rightNode: Node, op: OperatorType, swap = false): bool =
+    var jd: JsonNode
+    var continueCompare: bool
+    if leftNode.dataStorage:
+        jd = c.getJsonData(leftNode.varIdent)
+        if jd != nil:
+            if jd.kind in {JArray, JObject}:
+                jd = c.getJsonValue(leftNode, jd)
+            continueCompare = true
+    else:
+        if c.memtable.hasKey(leftNode.varSymbol):
+            jd = c.getJsonValue(leftNode, c.memtable[leftNode.varSymbol])
+            if jd != nil:
+                continueCompare = true
+    if continueCompare:
+        case op
+            of EQ: result = c.aEqualB(jd, rightNode, swap)
+            of NE: result = c.aNotEqualB(jd, rightNode, swap)
+            of GT:
+                if jd.kind == JInt:
+                    if swap:    result = isLessInt(jd.getInt, rightNode.iVal)
+                    else:       result = isGreaterInt(jd.getInt, rightNode.iVal)
+            of GTE:
+                if jd.kind == JInt:
+                    if swap:    result = isLessEqualInt(jd.getInt, rightNode.iVal)
+                    else:       result = isGreaterEqualInt(jd.getInt, rightNode.iVal)
+            of LT:
+                if jd.kind == JInt:
+                    if swap:    result = isGreaterInt(jd.getInt, rightNode.iVal)
+                    else:       result = isLessInt(jd.getInt, rightNode.iVal)
+            of LTE:
+                if jd.kind == JInt:
+                    if swap:    result = isGreaterEqualInt(jd.getInt, rightNode.iVal)
+                    else:       result = isLessEqualInt(jd.getInt, rightNode.iVal)
+            else: discard
+
+proc compInfixNode(c: var Compiler, node: Node): bool =
+    case node.infixOp
+    of EQ, NE:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            # compare two values sharing the same type
+            case node.infixLeft.nodeType:
+            of NTInt:
+                result = isEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+            of NTString:
+                result = isEqualString(node.infixLeft.sVal, node.infixRight.sVal)
+            of NTVariable:
+                discard
+                # result = c.compareVarVar(leftNode = node.infixLeft, op = node.infixOp, rightNode = node.infixRight)
+            else: discard
+        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType in {NTBool, NTString, NTInt}:
+            # compare `NTVariable == {NTBool, NTString, NTInt}`
+            result = c.compareVarLit(leftNode = node.infixLeft, op = node.infixOp, rightNode = node.infixRight)
+        elif node.infixLeft.nodeType in {NTBool, NTString, NTInt} and node.infixRight.nodeType == NTVariable:
+            # compare `{NTBool, NTString, NTInt} == NTVariable`
+            result = c.compareVarLit(leftNode = node.infixRight, op = node.infixOp, rightNode = node.infixLeft, true)
+    of GT, GTE, LT, LTE:
+        if node.infixLeft.nodeType == node.infixRight.nodeType:
+            case node.infixLeft.nodeType:
+            of NTInt:
+                case node.infixOp:
+                of GT:
+                    result = isGreaterInt(node.infixLeft.iVal, node.infixRight.iVal)
+                of GTE:
+                    result = isGreaterEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+                of LT:
+                    result = isLessInt(node.infixLeft.iVal, node.infixRight.iVal)
+                of LTE:
+                    result = isLessEqualInt(node.infixLeft.iVal, node.infixRight.iVal)
+                else: discard
+            else: discard
+        
+        elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTInt:
+            result = c.compareVarLit(node.infixLeft, node.infixRight, node.infixOp)
+        
+        elif node.infixleft.nodeType == NTInt and node.infixRight.nodeType == NTVariable:
+            result = c.compareVarLit(node.infixRight, node.infixLeft, node.infixOp, true)
+
+        else: c.logs.add(InvalidComparison % [
+            node.infixLeft.nodeName, node.infixRight.nodeName
+        ])
+    else: discard
+
 
 proc hasAttributes(node: Node): bool =
     ## Determine if current `Node` has any HTML attributes

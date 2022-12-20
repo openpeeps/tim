@@ -38,19 +38,31 @@ type
     HotReloadType* = enum
         None, HttpReloader, WsReloader
 
+    Globals* = object of RootObj
+
+    TimBackend* = enum
+        JIT, SCF
+
     TimEngine* = object
+        case backend: TimBackend
+        of JIT: globalData: JsonNode
+        of SCF: globalScfData: Globals
         root: string
             ## root path to your Timl templates
         output: string
             ## root path for HTML and BSON AST output
         layouts: TimlTemplateTable
+            ## a table representing `.timl` layouts
         views: TimlTemplateTable
+            ## a table representing `.timl` views
         partials: TimlTemplateTable
+            ## a table representing `.timl` partials
         minified: bool
+            ## whether it should minify the final HTML output
         indent: int
+            ## the base indentation (default to 2)
         paths: tuple[layouts, views, partials: string]
         reloader: HotReloadType
-        globalData: JsonNode
 
     SyntaxError* = object of CatchableError      # raise errors from Tim language
     TimDefect* = object of CatchableError

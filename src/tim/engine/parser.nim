@@ -11,7 +11,7 @@ from resolver import resolve, hasError, getError,
                     getErrorLine, getErrorColumn, getFullCode
 
 from meta import TimEngine, TimlTemplate, TimlTemplateType
-from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool
+from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool, parseFloat
 
 type
     Parser* = object
@@ -78,7 +78,7 @@ const
     tkOperators = {TK_EQ, TK_NEQ, TK_LT, TK_LTE, TK_GT, TK_GTE}
     tkConditionals = {TK_IF, TK_ELIF, TK_ELSE, TK_IN, TK_OR}
     tkLoops = {TK_FOR, TK_IN}
-    tkCalc = {TK_PLUS, TK_MINUS, TK_DIVIDE, TK_MULTIPLY}
+    tkCalc = {TK_PLUS, TK_MINUS, TK_DIVIDE, TK_MULTI}
     tkCall = {TK_INCLUDE, TK_MIXIN}
     tkNone = (TK_NONE, "", 0,0,0,0)
     tkSpecial = {TK_DOT, TK_COLON, TK_LCURLY, TK_RCURLY,
@@ -94,6 +94,23 @@ const
         TK_AREA, TK_BASE, TK_BR, TK_COL, TK_EMBED,
         TK_HR, TK_IMG, TK_INPUT, TK_LINK, TK_META,
         TK_PARAM, TK_SOURCE, TK_TRACK, TK_WBR} + svgscTags
+
+    tkHtml = {
+        TK_A, TK_ABBR, TK_ACRONYM, TK_ADDRESS, TK_APPLET, TK_AREA, TK_ARTICLE, TK_ASIDE,
+        TK_AUDIO, TK_BOLD, TK_BASE, TK_BASEFONT, TK_BDI, TK_BDO, TK_BIG, TK_BLOCKQUOTE,
+        TK_BODY, TK_BR, TK_BUTTON, TK_CANVAS, TK_CAPTION, TK_CENTER, TK_CITE, TK_CODE,
+        TK_COL, TK_COLGROUP, TK_DATA, TK_DATA, TK_DATALIST, TK_DD, TK_DEL, TK_DETAILS,
+        TK_DFN, TK_DIALOG, TK_DIR, TK_DOCTYPE, TK_DL, TK_DT, TK_EM, TK_EMBED, TK_FIELDSET,
+        TK_FIGCAPTION, TK_FIGURE, TK_FONT, TK_FOOTER, TK_H1, TK_H2, TK_H3, TK_H4, TK_H5, TK_H6,
+        TK_HEAD, TK_HEADER, TK_HR, TK_HTML, TK_ITALIC, TK_IFRAME, TK_IMG, TK_INPUT, TK_INS,
+        TK_KBD, TK_LABEL, TK_LEGEND, TK_LI, TK_LINK, TK_MAIN, TK_MAP, TK_MARK, TK_METER,
+        TK_NAV, TK_NOFRAMES, TK_NOSCRIPT, TK_OBJECT, TK_OL, TK_OPTGROUP, TK_OPTION, TK_OUTPUT,
+        TK_PARAGRAPH, TK_PARAM, TK_PRE, TK_PROGRESS, TK_QUOTATION, TK_RP, TK_RT, TK_RUBY, TK_STRIKE,
+        TK_SAMP, TK_SECTION, TK_SELECT, TK_SMALL, TK_SOURCE, TK_SPAN, TK_STRIKE_LONG, TK_STRONG,
+        TK_STYLE, TK_SUB, TK_SUMMARY, TK_SUP, TK_TABLE, TK_TBODY, TK_TD, TK_TEMPLATE,
+        TK_TEXTAREA, TK_TFOOT, TK_TH, TK_THEAD, TK_TIME, TK_TITLE, TK_TR, TK_TRACK, TK_TT, TK_UNDERLINE,
+        TK_UL, TK_VAR, TK_VIDEO, TK_WBR
+    }
 
 template setError[P: Parser](p: var P, msg: string, breakStmt: bool) =
     ## Set parser error
@@ -179,11 +196,8 @@ proc parseForStmt(p: var Parser): Node
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
-proc isGlobalVar(tk: TokenTuple): bool =
-    result = tk.value == "app"
-
-proc isScopeVar(tk: TokenTuple): bool =
-    result = tk.value == "this"
+proc isGlobalVar(tk: TokenTuple): bool = tk.value == "app"
+proc isScopeVar(tk: TokenTuple): bool = tk.value == "this"
 
 proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
     let tk: TokenTuple = p.current
@@ -326,15 +340,16 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             # Set `id=""` HTML attribute
             let attrKey = "id"
             if not result.hasKey(attrKey):
-                if p.next.kind in {TK_IDENTIFIER, TK_VARIABLE, TK_SAFE_VARIABLE}:
+                if p.next.kind notin tkSpecial:
                     walk p
-                    if p.current.kind == TK_IDENTIFIER:
+                    if p.current.kind in {TK_VARIABLE, TK_SAFE_VARIABLE}:
+                        result[attrKey] = @[p.parseVariable()]
+                    else: 
                         result[attrKey] = @[newString(p.current)]
                         walk p
-                    else: result[attrKey] = @[p.parseVariable()]
                 else: p.setError InvalidAttributeId, true
             else: p.setError DuplicateAttrId % [p.next.value], true
-        elif p.current.kind in {TK_IDENTIFIER, TK_STYLE, TK_TITLE} and p.next.kind == TK_ASSIGN:
+        elif p.current.kind in {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE, TK_IDENTIFIER} + tkHtml and p.next.kind == TK_ASSIGN:
             let attrName = p.current.value
             walk p
             if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
@@ -345,12 +360,13 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                     result[attrName] = @[newString(p.current)]
                 else:
                     result[attrName] = @[p.parseVariable()]
-            else: p.setError DuplicateAttributeKey % [attrName], true
-            if p.current.line > p.prev.line:
+            else:
+                p.setError DuplicateAttributeKey % [attrName], true
+            if p.current.line > p.prev.line or p.current.kind == TK_GT:
                 break
             else:
                 walk p
-        elif p.current.kind in {TK_IDENTIFIER, TK_STYLE, TK_TITLE} and p.prev.line == p.current.line:
+        elif p.current.kind notin tkSpecial and p.prev.line == p.current.line:
             let attrName = p.current.value
             if not result.hasKey(attrName):
                 result[attrName] = @[]
@@ -375,10 +391,12 @@ proc newHtmlNode(p: var Parser): Node =
                 result.nodes.add p.parseVariable()
             else:
                 p.setError InvalidNestDeclaration, true
-        elif p.current.kind in {TK_DOT, TK_ATTR_ID, TK_IDENTIFIER}:
-            if p.current.line > result.meta.line: break # prevent bad loop
+        elif p.current.kind in {TK_DOT, TK_ATTR_ID, TK_IDENTIFIER} + tkHtml:
+            if p.current.line > result.meta.line:
+                break # prevent bad loop
             result.attrs = p.getHtmlAttributes()
-            if p.hasError(): break
+            if p.hasError():
+                break
         else: break
 
 proc parseHtmlElement(p: var Parser): Node =
@@ -389,6 +407,11 @@ proc parseHtmlElement(p: var Parser): Node =
         if result.meta.line > p.parentNode[^1].meta.line:
             p.parentNode.add(result)
     var node: Node
+    # if p.current.kind == TK_MULTI:
+    #     # handle inline loop, example `li * $items`
+    #     if p.next.kind in {TK_VARIABLE, TK_INTEGER}:
+    #         echo p.current
+    #         walk p
     while p.current.kind == TK_GT:
         walk p
         if not p.current.kind.isHTMLElement():
@@ -398,8 +421,6 @@ proc parseHtmlElement(p: var Parser): Node =
         if p.current.kind != TK_EOF and p.current.pos != 0:
             if p.current.line > node.meta.line:
                 let currentParent = p.parentNode[^1]
-                # if p.current.pos > currentParent.meta.col:
-                #     inc p.lvl
                 while p.current.pos > currentParent.meta.col:
                     if p.current.kind == TK_EOF: break
                     var subNode = p.parseExpression()
@@ -630,21 +651,18 @@ proc parseStatement(p: var Parser): Node =
 
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
-    var importsResolver = resolve(code, path, engine, templateType)
+    var resHandle = resolve(code, path, engine, templateType)
     var p: Parser = Parser(
         engine: engine,
         memory: newTable[string, TokenTuple](),
         headliners: newTable[int, Node](),
         templateType: templateType
     )
-    if importsResolver.hasError():
-        p.setError(
-            importsResolver.getError(),
-            importsResolver.getErrorLine(),
-            importsResolver.getErrorColumn())
+    if resHandle.hasError():
+        p.setError(resHandle.getError, resHandle.getErrorLine, resHandle.getErrorColumn)
         return p
     else:
-        p.lexer = Lexer.init(importsResolver.getFullCode(), allowMultilineStrings = true)
+        p.lexer = Lexer.init(resHandle.getFullCode(), allowMultilineStrings = true)
         p.filePath = path
     p.current = p.lexer.getToken()
     p.next    = p.lexer.getToken()
@@ -655,3 +673,4 @@ proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateTyp
             p.statements.nodes.add(statement)
     p.lexer.close()
     result = p
+    #echo $p.statements
