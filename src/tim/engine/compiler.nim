@@ -129,17 +129,30 @@ proc closeTag(c: var Compiler, node: Node, skipBr = false) =
 
 proc newResult(c: var Compiler, node: Node) =
     let pos = if node.meta.col == 0: 2
-              elif node.meta.col == 2: 4
-              else: node.meta.col
+              else: node.meta.col + 2
     add c.html, NewLine
-    add c.html, indent("result &= \"\"\"", pos)
+    case c.language:
+    of Nim:
+        c.html &= indent("result &= \"\"\"", pos)
+    of Php:
+        c.html &= indent("$result = \"\";", pos)    # define $result var
+        c.html &= NewLine
+        c.html &= indent("$result .= <<<EOT", pos)
+        c.html &= NewLine
+    else: discard # TODO
 
 proc endResult(c: var Compiler, nl = false) =
     if c.prev == NTHtmlElement:
-        add c.html, "\"\"\""
+        case c.language:
+        of Nim:
+            c.html &= "\"\"\""
+        of Php:
+            c.html &= NewLine
+            c.html &= "EOT;"
+        else: discard # TODO
         c.prev = NTNone
         if nl:
-            add c.html, NewLine
+            c.html &= NewLine
 
 proc getHtml*(c: Compiler): string {.inline.} =
     ## Returns compiled HTML for static `timl` templates
@@ -154,7 +167,7 @@ proc handleViewInclude(c: var Compiler) =
     else:
         add c.html, c.timView.setPlaceHolderId()
 
-proc getIdent(node: Node, braces = false): string =
+proc getIdent(c: var Compiler, node: Node, braces = false): string =
     case node.nodeType:
     of NTInt:
         result = $(node.iVal)
@@ -162,22 +175,44 @@ proc getIdent(node: Node, braces = false): string =
         result = $(node.bVal)
     of NTVariable:
         if braces:
-            result = "\"\"\" & fmt(\"{"
+            case c.language:
+            of Nim:
+                result = "\"\"\" & fmt(\"{"
+            of Php:
+                result = "{$"
+            else: discard # TODO
         case node.visibility:
             of GlobalVar:
                 add result, "app"
             of ScopeVar:
                 add result, "this"
             else: discard
-        add result, $TK_DOT & node.varIdent
+        var accessorTk: string
+        case c.language:
+        of Nim:
+            accessorTk = $TK_DOT
+        of Php:
+            accessorTk = $TK_MINUS & $TK_GT
+        else: discard # TODO
+        add result, accessorTk & node.varIdent
         if node.accessors.len != 0:
             for n in node.accessors:
                 if n.nodeType == NTString:
-                    add result, $TK_DOT & n.sVal
+                    case c.language:
+                    of Nim:
+                        add result, accessorTk & n.sVal
+                    of Php:
+                        add result, accessorTk & n.sVal
+                    else: discard # TODO
                 else:
                     add result, "[" & $(n.iVal) & "]"
         if braces:
-            add result, "}\") & \"\"\""
+            case c.language:
+            of Nim:
+                add result, "}\") & \"\"\""
+            of Php:
+                add result, "}"
+            else: discard # TODO
     of NTString:
         result = node.sVal
     else: discard
@@ -210,33 +245,43 @@ proc getLit(node: Node): NimNode =
         result = newLit(node.sVal)
     else: discard
 
-proc newInfixOp(a, b: Node, op: OperatorType, tkCond = TK_IF): string =
+proc newInfixOp(c: var Compiler, a, b: Node, op: OperatorType, tkCond = TK_IF): string =
     # result = nnkInfix.newTree(ident $(op), getLit a, getLit b)
     result = $tkCond
-    result &= indent(getIdent(a), 1)
+    result &= indent(c.getIdent(a), 1)
     result &= indent($op, 1)
-    result &= indent(getIdent(a), 1)
+    result &= indent(c.getIdent(a), 1)
     result &= $TK_COLON
 
 proc br(c: var Compiler) {.inline.} = c.html &= NewLine
 
 proc handleConditionStmt(c: var Compiler, node: Node) =
     br c
-    var i = if node.meta.col == 0: 2 else: node.meta.col
-    add c.html, newInfixOp(node.ifCond.infixLeft, node.ifCond.infixRight, node.ifCond.infixOp).indent(i)
+    var i = if node.meta.col == 0: 2 else: node.meta.col + 2
+    var infixCond = c.newInfixOp(node.ifCond.infixLeft, node.ifCond.infixRight, node.ifCond.infixOp)
+    add c.html, indent(infixCond, i)
     c.writeNewLine(node.ifBody)
     if node.elifBranch.len != 0:
         for elifNode in node.elifBranch:
             c.endResult()
             br c
-            add c.html, newInfixOp(
-                elifNode.cond.infixLeft,
-                elifNode.cond.infixRight,
-                elifNode.cond.infixOp,
-                TK_ELIF
-            ).indent(i)
+            infixCond = c.newInfixOp(
+                            elifNode.cond.infixLeft,
+                            elifNode.cond.infixRight,
+                            elifNode.cond.infixOp,
+                            TK_ELIF
+                        )
+            add c.html, indent(infixCond, i)
             c.prev = NTConditionStmt
             c.writeNewLine(elifNode.body)
+            c.endResult(true)
+    c.endResult(true)
+    if node.elseBody.len != 0:
+        var elseTk = $TK_ELSE & $TK_COLON
+        c.html &= indent(elseTk, i)
+        c.prev = NTConditionStmt
+        for n in node.elseBody:
+            c.writeNewLine(node.elseBody)
             c.endResult(true)
 
 proc handleForStmt(c: var Compiler, node: Node) =
@@ -256,7 +301,7 @@ proc getNewLine(c: var Compiler, nodes: seq[Node]): string =
         of NTConditionStmt:
             c.handleConditionStmt(node)
         of NTString:
-            add result, getIdent(node)
+            add result, c.getIdent(node)
         else: discard
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
@@ -283,7 +328,7 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
         of NTForStmt:
             c.handleForStmt(node)
         of NTVariable:
-            add c.html, getIdent(node, true)
+            add c.html, c.getIdent(node, true)
         of NTString:
             c.writeStrValue(node)
         else: discard
@@ -294,22 +339,21 @@ proc newCompiler*(program: Program, t: TimlTemplate, minify: bool,
         language: lang,
         program: program,
         timView: t,
-        minify: minify,
+        minify: false,
         baseIndent: 2
     )
 
-    # add c.html, newRender()
     case c.language
     of Nim:
-        c.html &= "proc renderProductsView[G](app: G): string ="
+        c.html &= "proc renderProductsView[G, S](app: G, this: S): string ="
         if c.program.nodes.len == 0:
             c.html &= NewLine & indent("discard", 2)
     of JavaScript:
-        c.html &= "function renderProductsView(app = {}) {"
+        c.html &= "function renderProductsView(app = {}, this = {}) {"
     of Python:
-        c.html &= "def renderProductsView(app):"
+        c.html &= "def renderProductsView(app: Dict, this: Dict):"
     of Php:
-        c.html &= "function renderProductsView($app: object) {"
+        c.html &= "function renderProductsView(object $app, object $this) {"
 
     for node in c.program.nodes:
         case node.stmtList.nodeType:
@@ -329,14 +373,15 @@ proc newCompiler*(program: Program, t: TimlTemplate, minify: bool,
         of NTForStmt:
             c.handleForStmt(node.stmtList)
         of NTVariable:
-            add c.html, getIdent(node)
+            add c.html, c.getIdent(node)
         of NTView:
             c.handleViewInclude()
         else: discard
     c.endResult()
     case c.language:
-    of JavaScript, Php:
+    of Php, JavaScript:
         c.html &= NewLine
-        c.html &= "}"
+        c.html &= indent("return $result;", 2)
+        c.html &= NewLine & "}"
     else: discard
     result = c

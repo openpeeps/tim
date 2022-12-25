@@ -9,10 +9,10 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.6.0"
-requires "pkginfo"
 requires "toktok"
 requires "jsony"
 requires "watchout"
+requires "klymene"
 
 task tests, "Run tests":
     exec "testament p 'tests/*.nim'"

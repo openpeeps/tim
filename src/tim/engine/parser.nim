@@ -453,18 +453,16 @@ proc parseAssignment(p: var Parser): Node =
     discard
 
 proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple) =
-    if p.current.pos != ifThis.pos:
-        p.setError(InvalidIndentation)
-        return
-    var this = p.current
-    walk p
-    if p.current.kind == TK_COLON: walk p
-    if this.pos >= p.current.pos:
-        p.setError(NestableStmtIndentation)
-        return
-    while p.current.pos > this.pos:
-        let bodyNode = p.parseExpression(exclude = {NTInt, NTString, NTBool})
-        elseBody.add bodyNode
+    if p.current.pos == ifThis.pos:
+        var this = p.current
+        walk p
+        if p.current.kind == TK_COLON: walk p
+        if this.pos >= p.current.pos:
+            p.setError(NestableStmtIndentation)
+            return
+        while p.current.pos > this.pos:
+            let bodyNode = p.parseExpression(exclude = {NTInt, NTString, NTBool})
+            elseBody.add bodyNode
 
 proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
     if p.next.kind notin tkComparables:
