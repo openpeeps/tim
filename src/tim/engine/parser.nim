@@ -32,20 +32,16 @@ type
         parentNode: seq[Node]
         statements: Program
             ## Holds AST representation
-        headliners: TableRef[int, Node]
         enableJit: bool
             ## Determine if current Timl document needs a JIT compilation.
             ## This is set true when current document contains either a
             ## conditional statement or other dynamic statements.
         error: string
             ## A parser/lexer error
-        memory: VarStorage
-            ## An index containing all variables (in order to prevent duplicates)
         templateType: TimlTemplateType
 
     PrefixFunction = proc(p: var Parser): Node
     # InfixFunction = proc(p: var Parser, left: Node): Node
-    VarStorage = TableRef[string, TokenTuple]
 
 const
     InvalidIndentation = "Invalid indentation"
@@ -486,11 +482,6 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
         p.setError(InvalidConditionalStmt)
     let infixNode = p.parseInfix(infixLeft, strict = true)
     
-    if infixNode.infixRight.nodeType == NTBool:
-        # try match variable types based on infixRight node literal
-        # todo find a better solution
-        infixLeft.varType = NTBool
-
     if p.current.pos == this.pos:
         p.setError(InvalidIndentation)
         return
@@ -651,13 +642,9 @@ proc parseStatement(p: var Parser): Node =
 
 proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
     ## Parse a new Tim document
-    var resHandle = resolve(code, path, engine, templateType)
-    var p: Parser = Parser(
-        engine: engine,
-        memory: newTable[string, TokenTuple](),
-        headliners: newTable[int, Node](),
-        templateType: templateType
-    )
+    var
+        resHandle = resolve(code, path, engine, templateType)
+        p: Parser = Parser(engine: engine, templateType: templateType)
     if resHandle.hasError():
         p.setError(resHandle.getError, resHandle.getErrorLine, resHandle.getErrorColumn)
         return p

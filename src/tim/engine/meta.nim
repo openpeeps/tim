@@ -5,7 +5,7 @@
 #          https://github.com/openpeep/tim
 
 import bson
-import std/[tables, json, md5]
+import std/[tables, json, md5, macros]
 
 from std/math import sgn
 from std/strutils import `%`, strip, split, contains, join, endsWith, replace, parseInt
@@ -272,6 +272,7 @@ proc writeHtml*(e: TimEngine, t: TimlTemplate, output: string, isTail = false) =
 proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
     ## Short hand procedure for executing shell commands via execProcess
     return execProcess(inputCmd, args=inputArgs, options={poStdErrToStdOut, poUsePath})
+    # result = staticExec(inputCmd & " " & join(inputArgs, " "))
 
 proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
     ## Recursively search for files.
@@ -310,9 +311,9 @@ proc init*(timEngine: var TimEngine, source, output: string,
     for path in @[source, output]:
         var tpath = path
         tpath.normalizePath()
-        if not tpath.dirExists():
-            createDir(tpath)
-        timlInOutDirs.add(path)
+        # if not tpath.dirExists():
+        #     createDir(tpath)
+        timlInOutDirs.add( getProjectPath() & "/" & path)
         if path == output:
             # create `bson` and `html` dirs inside `output` directory
             # where `bson` is used for saving the binary abstract syntax tree
@@ -322,58 +323,58 @@ proc init*(timEngine: var TimEngine, source, output: string,
             # saving the final HTML output.
             for inDir in @["bson", "html"]:
                 let innerDir = path & "/" & inDir
-                if not dirExists(innerDir): createDir(innerDir)
+                # if not dirExists(innerDir): createDir(innerDir)
 
     var LayoutsTable, ViewsTable, PartialsTable = newOrderedTable[string, TimlTemplate]()
     for tdir in @["views", "layouts", "partials"]:
         var tdirpath = timlInOutDirs[0] & "/" & tdir
-        if dirExists(tdirpath):
+        # if dirExists(tdirpath):
             # TODO look for .timl files only
-            let files = finder(findArgs = @["-type", "f", "-print"], path = tdirpath)
-            if files.len != 0:
-                for f in files:
-                    let fname = splitPath(f)
-                    var filePath = f
-                    filePath.normalizePath()
-                    case tdir:
-                        of "layouts":
-                            LayoutsTable[filePath] = TimlTemplate(
-                                id: hashName(filePath),
-                                timlType: Layout,
-                                meta: (name: fname.tail, templateType: Layout),
-                                paths: (
-                                    file: filePath,
-                                    ast: bsonPath(timlInOutDirs[1], filePath),
-                                    html: htmlPath(timlInOutDirs[1], filePath),
-                                    tails: htmlPath(timlInOutDirs[1], filePath, true)
-                                )
-                            )                            
-                        of "views":
-                            ViewsTable[filePath] = TimlTemplate(
-                                id: hashName(filePath),
-                                timlType: View,
-                                meta: (name: fname.tail, templateType: View),
-                                paths: (
-                                    file: filePath,
-                                    ast: bsonPath(timlInOutDirs[1], filePath),
-                                    html: htmlPath(timlInOutDirs[1], filePath),
-                                    tails: htmlPath(timlInOutDirs[1], filePath, true)
-                                )
+        let files = finder(findArgs = @["-type", "f", "-print"], path = tdirpath)
+        if files.len != 0:
+            for f in files:
+                let fname = splitPath(f)
+                var filePath = f
+                filePath.normalizePath()
+                case tdir:
+                    of "layouts":
+                        LayoutsTable[filePath] = TimlTemplate(
+                            id: hashName(filePath),
+                            timlType: Layout,
+                            meta: (name: fname.tail, templateType: Layout),
+                            paths: (
+                                file: filePath,
+                                ast: bsonPath(timlInOutDirs[1], filePath),
+                                html: htmlPath(timlInOutDirs[1], filePath),
+                                tails: htmlPath(timlInOutDirs[1], filePath, true)
                             )
-                        of "partials":
-                            PartialsTable[filePath] = TimlTemplate(
-                                id: hashName(filePath),
-                                timlType: Partial,
-                                meta: (name: fname.tail, templateType: Partial),
-                                paths: (
-                                    file: filePath,
-                                    ast: bsonPath(timlInOutDirs[1], filePath),
-                                    html: htmlPath(timlInOutDirs[1], filePath),
-                                    tails: htmlPath(timlInOutDirs[1], filePath, true)
-                                )
+                        )                            
+                    of "views":
+                        ViewsTable[filePath] = TimlTemplate(
+                            id: hashName(filePath),
+                            timlType: View,
+                            meta: (name: fname.tail, templateType: View),
+                            paths: (
+                                file: filePath,
+                                ast: bsonPath(timlInOutDirs[1], filePath),
+                                html: htmlPath(timlInOutDirs[1], filePath),
+                                tails: htmlPath(timlInOutDirs[1], filePath, true)
                             )
-        else:
-            createDir(tdirpath) # create `layouts`, `views`, `partials` directories
+                        )
+                    of "partials":
+                        PartialsTable[filePath] = TimlTemplate(
+                            id: hashName(filePath),
+                            timlType: Partial,
+                            meta: (name: fname.tail, templateType: Partial),
+                            paths: (
+                                file: filePath,
+                                ast: bsonPath(timlInOutDirs[1], filePath),
+                                html: htmlPath(timlInOutDirs[1], filePath),
+                                tails: htmlPath(timlInOutDirs[1], filePath, true)
+                            )
+                        )
+        # else:
+            # createDir(tdirpath) # create `layouts`, `views`, `partials` directories
 
     var rootPath = timlInOutDirs[0]
     var outputPath = timlInOutDirs[1]
