@@ -255,4 +255,4 @@ tokens:
     Type_String       > "string"
     None
 
-export TokenTuple, TokenKind
+#export TokenTuple, TokenKind

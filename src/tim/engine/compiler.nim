@@ -11,9 +11,11 @@ from std/strutils import `%`, indent, multiReplace, join, escape
 from ./meta import TimlTemplate, setPlaceHolderId
 
 type
-
     Language* = enum
-        Nim, JavaScript, Python, Php
+        Nim = "nim"
+        JavaScript = "js"
+        Python = "python"
+        Php = "php"
 
     Compiler* = object
         ## Compiles current AST program to HTML or SCF (Source Code Filters)
@@ -46,6 +48,25 @@ const
     ArrayIndexOutBounds = "Index out of bounds [$1]. \"$2\" size is [$3]"
     UndefinedProperty = "Undefined property \"$1\""
     UndefinedVariable = "Undefined property \"$1\" in \"$2\""
+
+var langs = {
+    "nim": {
+        "if": "if $1:",
+        "elif": "elif $1:",
+        "else": "else:",
+        "fn": "proc render$1View[G, S](app: G, this: S) =",
+        "for": "for $1 in $2"
+    },
+    "js": {
+        "if": "if ($1) {",
+        "elif": "} else if($1) {",
+        "else": "} else {",
+        "fn": "function render$1View(app = {}, this = {}) {",
+        "for": ""
+    }
+}.toTable
+
+echo langs
 
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) # defer
 proc getNewLine(c: var Compiler, nodes: seq[Node]): string # defer
@@ -217,36 +238,7 @@ proc getIdent(c: var Compiler, node: Node, braces = false): string =
         result = node.sVal
     else: discard
 
-proc getLit(node: Node): NimNode =
-    var varIdent: string
-    case node.nodeType:
-    of NTInt:
-        result = newLit(node.iVal)
-    of NTBool:
-        result = newLit(node.bVal)
-    of NTVariable:
-        case node.visibility:
-            of GlobalVar, ScopeVar:
-                if node.visibility == GlobalVar:
-                    add varIdent, "app"
-                else:
-                    add varIdent, "this"
-                add varIdent, $TK_DOT & node.varIdent
-            else:
-                add varIdent, node.varIdent
-        if node.accessors.len != 0:
-            for n in node.accessors:
-                if n.nodeType == NTString:
-                    add varIdent, $TK_DOT & n.sVal
-                else:
-                    add varIdent, "[" & $(n.iVal) & "]"
-        result = ident(varIdent)
-    of NTString:
-        result = newLit(node.sVal)
-    else: discard
-
 proc newInfixOp(c: var Compiler, a, b: Node, op: OperatorType, tkCond = TK_IF): string =
-    # result = nnkInfix.newTree(ident $(op), getLit a, getLit b)
     result = $tkCond
     result &= indent(c.getIdent(a), 1)
     result &= indent($op, 1)
@@ -285,7 +277,11 @@ proc handleConditionStmt(c: var Compiler, node: Node) =
             c.endResult(true)
 
 proc handleForStmt(c: var Compiler, node: Node) =
-    discard
+    var forStmt = indent("\nfor $1 in $2:" % [node.forItem.varIdent, c.getIdent(node.forItems)], node.meta.col + 2)
+    c.prev = NTForStmt
+    c.html &= forStmt
+    c.writeNewLine(node.forBody)
+    c.endResult(true)
 
 proc getNewLine(c: var Compiler, nodes: seq[Node]): string =
     for node in nodes:

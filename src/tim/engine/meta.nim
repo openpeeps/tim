@@ -40,13 +40,7 @@ type
 
     Globals* = object of RootObj
 
-    TimBackend* = enum
-        JIT, SCF
-
     TimEngine* = object
-        case backend: TimBackend
-        of JIT: globalData: JsonNode
-        of SCF: globalScfData: Globals
         root: string
             ## root path to your Timl templates
         output: string
