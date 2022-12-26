@@ -37,9 +37,6 @@ else:
     var Tim*: TimEngine
     const DefaultLayout = "base"
 
-
-    type Global = 
-
     proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode, viewCode = ""): Compiler =
         result = Compiler.init(
             astProgram = fromJson(engine.readBson(timlTemplate), Program),
