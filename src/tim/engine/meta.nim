@@ -142,7 +142,8 @@ proc setData*(t: var TimEngine, data: JsonNode) =
 
 proc globalDataExists*(t: TimEngine): bool =
     ## Determine if global data is available
-    result = t.globalData.kind != JNull
+    if t.globalData != nil:
+        result = t.globalData.kind != JNull
 
 proc getGlobalData*(t: TimEngine): JsonNode =
     ## Retrieves global data
