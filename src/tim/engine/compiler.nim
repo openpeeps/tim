@@ -66,8 +66,6 @@ var langs = {
     }
 }.toTable
 
-echo langs
-
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) # defer
 proc getNewLine(c: var Compiler, nodes: seq[Node]): string # defer
 
