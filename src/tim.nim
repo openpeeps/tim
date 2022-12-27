@@ -95,7 +95,7 @@ else:
         document.addEventListener("DOMContentLoaded", function() {
             var prevTime = localStorage.getItem("watchout") || 0
             function autoreload() {
-                fetch('/dev/changes')
+                fetch('/dev/live')
                     .then(res => res.json())
                     .then(body => {
                         if(body.state == 0) return

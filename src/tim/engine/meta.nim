@@ -5,7 +5,7 @@
 #          https://github.com/openpeep/tim
 
 import bson
-import std/[tables, json, md5, macros]
+import std/[tables, json, md5]
 
 from std/math import sgn
 from std/strutils import `%`, strip, split, contains, join, endsWith, replace, parseInt
@@ -40,7 +40,13 @@ type
 
     Globals* = object of RootObj
 
+    TimBackend* = enum
+        JIT, SCF
+
     TimEngine* = object
+        case backend: TimBackend
+        of JIT: globalData: JsonNode
+        of SCF: globalScfData: Globals
         root: string
             ## root path to your Timl templates
         output: string
@@ -305,9 +311,9 @@ proc init*(timEngine: var TimEngine, source, output: string,
     for path in @[source, output]:
         var tpath = path
         tpath.normalizePath()
-        # if not tpath.dirExists():
-        #     createDir(tpath)
-        timlInOutDirs.add( getProjectPath() & "/" & path)
+        if not tpath.dirExists():
+            createDir(tpath)
+        timlInOutDirs.add(path)
         if path == output:
             # create `bson` and `html` dirs inside `output` directory
             # where `bson` is used for saving the binary abstract syntax tree
@@ -317,7 +323,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
             # saving the final HTML output.
             for inDir in @["bson", "html"]:
                 let innerDir = path & "/" & inDir
-                # if not dirExists(innerDir): createDir(innerDir)
+                if not dirExists(innerDir): createDir(innerDir)
 
     var LayoutsTable, ViewsTable, PartialsTable = newOrderedTable[string, TimlTemplate]()
     for tdir in @["views", "layouts", "partials"]:
