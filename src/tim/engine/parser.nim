@@ -274,6 +274,7 @@ proc parseVariable(p: var Parser): Node =
                 if p.current.kind == TK_IDENTIFIER or p.current.kind notin tkSpecial:
                     accessors.add newString(p.current)
                     walk p # .
+                    if p.current.wsno != 0: break
                 else: p.setError(InvalidVarDeclaration, true)
             elif p.current.kind == TK_LBRA:
                 if p.next.kind != TK_INTEGER:
@@ -354,14 +355,13 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                 walk p
                 if p.current.kind == TK_STRING:
                     result[attrName] = @[newString(p.current)]
+                    walk p
                 else:
                     result[attrName] = @[p.parseVariable()]
             else:
                 p.setError DuplicateAttributeKey % [attrName], true
             if p.current.line > p.prev.line or p.current.kind == TK_GT:
                 break
-            else:
-                walk p
         elif p.current.kind notin tkSpecial and p.prev.line == p.current.line:
             let attrName = p.current.value
             if not result.hasKey(attrName):
