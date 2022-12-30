@@ -70,6 +70,7 @@ const
     NestableStmtIndentation = "Nestable statement requires indentation"
     TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
     InvalidIDNotUnique = "The ID \"$1\" is also used for another element at line $2"
+    InvalidJavaScript = "Invalid JavaScript snippet"
 
 const
     tkComparables = {TK_VARIABLE, TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE}
@@ -80,7 +81,7 @@ const
     tkCall = {TK_INCLUDE, TK_MIXIN}
     tkNone = (TK_NONE, "", 0,0,0,0)
     tkSpecial = {TK_DOT, TK_COLON, TK_LCURLY, TK_RCURLY,
-                  TK_LPAR, TK_RPAR, TK_ATTR_ID, TK_ASSIGN, TK_COMMA,
+                  TK_LPAR, TK_RPAR, TK_ID, TK_ASSIGN, TK_COMMA,
                   TK_AT, TK_NOT, TK_AND} + tkCalc + tkOperators + tkLoops
     svgscTags = {
         TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
@@ -341,7 +342,7 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                 p.setError(InvalidClassAttribute)
                 walk p
                 break
-        elif p.current.kind == TK_ATTR_ID:
+        elif p.current.kind == TK_ID:
             # Set `id=""` HTML attribute
             let attrKey = "id"
             if not result.hasKey(attrKey):
@@ -405,7 +406,7 @@ proc newHtmlNode(p: var Parser): Node =
                 result.nodes.add p.parseVariable()
             else:
                 p.setError InvalidNestDeclaration, true
-        elif p.current.kind in {TK_DOT, TK_ATTR_ID, TK_IDENTIFIER} + tkHtml:
+        elif p.current.kind in {TK_DOT, TK_ID, TK_IDENTIFIER} + tkHtml:
             if p.current.line > result.meta.line:
                 break # prevent bad loop
             result.attrs = p.getHtmlAttributes()
@@ -469,6 +470,11 @@ proc parseHtmlElement(p: var Parser): Node =
 
 proc parseAssignment(p: var Parser): Node =
     discard
+
+proc parseJsSnippet(p: var Parser): Node =
+    result = newNode(NTJavaScript, p.current)
+    result.jsCode = p.current.value
+    walk p
 
 proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple) =
     if p.current.pos == ifThis.pos:
@@ -622,6 +628,7 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
         of TK_STRING: parseString
         of TK_IF: parseIfStmt
         of TK_FOR: parseForStmt
+        of TK_JS: parseJsSnippet
         of TK_INCLUDE: parseIncludeCall
         of TK_MIXIN:
             if p.next.kind == TK_LPAR:
