@@ -36,8 +36,31 @@ else:
     const DockType = "<!DOCTYPE html>"
     var Tim*: TimEngine
     const DefaultLayout = "base"
+    var reloadHandler: string
+    when requires "supranim":
+        when not defined release:
+            reloadHandler = "\n" & """
+<script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function() {
+        var prevTime = localStorage.getItem("watchout") || 0
+        function autoreload() {
+            fetch('/dev/live')
+                .then(res => res.json())
+                .then(body => {
+                    if(body.state == 0) return
+                    if(body.state > prevTime) {
+                        localStorage.setItem("watchout", body.state)
+                        location.reload()
+                    }
+                }).catch(function() {});
+            setTimeout(autoreload, 500)
+        }
+        autoreload();
+    });
+</script>
+"""
 
-    proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode, viewCode = ""): Compiler =
+    proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode, viewCode, after = ""): Compiler =
         result = Compiler.init(
             astProgram = fromJson(engine.readBson(timlTemplate), Program),
             minify = engine.shouldMinify(),
@@ -45,7 +68,8 @@ else:
             baseIndent = engine.getIndent(),
             filePath = timlTemplate.getFilePath(),
             data = data,
-            viewCode = viewCode
+            viewCode = viewCode,
+            after = after
         )
 
     proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
@@ -67,54 +91,25 @@ else:
             result = DockType
             if view.isJitEnabled():
                 # When enabled, will compile `timl` > `html` on the fly
-                var cview = engine.newCompiler(view, allData)
+                var cview = engine.newCompiler(view, allData, after = reloadHandler)
                 var clayout = engine.newCompiler(layout, allData, cview.getHtml())
                 result.add clayout.getHtml()
             else:
                 # Otherwise, load static views, but first
                 # check if requested layout is available as BSON
                 if layout.isJitEnabled():
-                    let c = engine.newCompiler(layout, allData, view.getHtmlCode)
+                    let c = engine.newCompiler(layout, allData, view.getHtmlCode & reloadHandler)
                     result.add(c.getHtml())
                 else:
                     if engine.shouldMinify():
                         result.add(layout.getHtmlCode() % [
-                            layout.getPlaceholderId, view.getHtmlCode
+                            layout.getPlaceholderId, view.getHtmlCode & reloadHandler
                         ])
                     else:
                         result.add(layout.getHtmlCode() % [
                             layout.getPlaceholderId,
-                            indent(view.getHtmlCode, engine.getIndent)
+                            indent(view.getHtmlCode & reloadHandler, engine.getIndent)
                         ])
-
-            when requires "supranim":
-                when not defined release:
-                    proc httpReloader(): string =
-                        result = """
-    <script type="text/javascript">
-        document.addEventListener("DOMContentLoaded", function() {
-            var prevTime = localStorage.getItem("watchout") || 0
-            function autoreload() {
-                fetch('/dev/live')
-                    .then(res => res.json())
-                    .then(body => {
-                        if(body.state == 0) return
-                        if(body.state > prevTime) {
-                            localStorage.setItem("watchout", body.state)
-                            location.reload()
-                        }
-                    }).catch(function() {});
-                setTimeout(autoreload, 500)
-            }
-            autoreload();
-        });
-    </script>
-    """
-                    case engine.getReloadType():
-                        of HttpReloader:
-                            # reload handler using http requests
-                            result.add httpReloader()
-                        else: discard
 
     proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
         var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = temp.getType())
