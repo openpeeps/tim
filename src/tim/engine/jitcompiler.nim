@@ -545,7 +545,9 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
 
     if c.hasJS and c.hasViewCode == false:
         add c.html, NewLine & "<script type=\"text/javascript\">"
-        add c.html, $c.js
+        add c.html, NewLine & "document.addEventListener(\"DOMContentLoaded\", function(){"
+        add c.html, indent($c.js, 2)
+        add c.html, NewLine & "})"
         add c.html, NewLine & "</script>"
 
     result = c
