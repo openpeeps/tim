@@ -23,6 +23,23 @@ handlers:
             else: break
         lex.setToken kind
 
+    proc handleJavaScript*(lex: var Lexer, kind: TokenKind) =
+        lex.startPos = lex.getColNumber(lex.bufpos)
+        setLen(lex.token, 0)
+        inc lex.bufpos
+        while true:
+            case lex.buf[lex.bufpos]
+            of '~':
+                lex.kind = kind
+                inc lex.bufpos
+                break
+            of EndOfFile:
+                lex.setError("EOF reached before end of script")
+                return
+            else:
+                add lex.token, lex.buf[lex.bufpos]
+                inc lex.bufpos
+
 tokens:
     A            > "a"
     Abbr         > "abbr"
@@ -213,6 +230,7 @@ tokens:
     Video        > "video"
     WBR          > "wbr"
     Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
+    JS           > tokenize(handleJavaScript, '~')
     LCurly       > '{'
     RCurly       > '}'
     LPar         > '('
@@ -220,7 +238,7 @@ tokens:
     RBra         > ']'
     RPar         > ')'
     Dot          > '.'
-    Attr_ID      > '#'
+    ID           > '#'
     Assign       > '=':
         EQ       ? '='
     Colon        > ':'
