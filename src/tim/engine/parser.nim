@@ -39,6 +39,7 @@ type
         error: string
             ## A parser/lexer error
         templateType: TimlTemplateType
+        ids: TableRef[string, int]
 
     PrefixFunction = proc(p: var Parser): Node
     # InfixFunction = proc(p: var Parser, left: Node): Node
@@ -68,6 +69,7 @@ const
     InvalidGlobalVarContext = "Invalid usage of $app in this context"
     NestableStmtIndentation = "Nestable statement requires indentation"
     TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
+    InvalidIDNotUnique = "The ID \"$1\" is also used for another element at line $2"
 
 const
     tkComparables = {TK_VARIABLE, TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE}
@@ -110,7 +112,7 @@ const
 
 template setError[P: Parser](p: var P, msg: string, breakStmt: bool) =
     ## Set parser error
-    p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.pos]
+    p.error = "Error ($2:$3): $1\n$4" % [msg, $p.current.line, $p.current.pos, p.filePath]
     break
 
 template setError[P: Parser](p: var P, msg: string) =
@@ -314,6 +316,12 @@ proc parseSafeVariable(p: var Parser): Node =
     walk p
     jit p
 
+template htmlAttributeNames(): untyped =
+    (
+        p.current.kind in {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE, TK_IDENTIFIER,
+                           TK_IF, TK_FOR, TK_ELIF, TK_ELSE, TK_OR, TK_IN} + tkHtml and p.next.kind == TK_ASSIGN
+    )
+
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
     # Parse all attributes and return it as a
     # `Table[string, seq[string]]`
@@ -341,12 +349,16 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
                     walk p
                     if p.current.kind in {TK_VARIABLE, TK_SAFE_VARIABLE}:
                         result[attrKey] = @[p.parseVariable()]
-                    else: 
-                        result[attrKey] = @[newString(p.current)]
+                    else:
+                        if p.ids.hasKey(p.current.value):
+                            p.setError InvalidIDNotUnique % [p.current.value, $(p.ids[p.current.value])], true
+                        let attrValue = newString(p.current)
+                        result[attrKey] = @[attrValue]
+                        p.ids[p.current.value] = attrValue.meta.line
                         walk p
                 else: p.setError InvalidAttributeId, true
             else: p.setError DuplicateAttrId % [p.next.value], true
-        elif p.current.kind in {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE, TK_IDENTIFIER} + tkHtml and p.next.kind == TK_ASSIGN:
+        elif htmlAttributeNames():
             let attrName = p.current.value
             walk p
             if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
@@ -354,7 +366,13 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             if not result.hasKey(attrName):
                 walk p
                 if p.current.kind == TK_STRING:
-                    result[attrName] = @[newString(p.current)]
+                    if attrName == "id":
+                        if p.ids.hasKey(p.current.value):
+                            p.setError InvalidIDNotUnique % [p.current.value, $(p.ids[p.current.value])], true
+                    let attrValue = newString(p.current)
+                    result[attrName] = @[attrValue]
+                    if attrName == "id":
+                        p.ids[p.current.value] = attrValue.meta.line
                     walk p
                 else:
                     result[attrName] = @[p.parseVariable()]
@@ -642,7 +660,7 @@ proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateTyp
     ## Parse a new Tim document
     var
         resHandle = resolve(code, path, engine, templateType)
-        p: Parser = Parser(engine: engine, templateType: templateType)
+        p: Parser = Parser(engine: engine, templateType: templateType, ids: newTable[string, int]())
     if resHandle.hasError():
         p.setError(resHandle.getError, resHandle.getErrorLine, resHandle.getErrorColumn)
         return p
