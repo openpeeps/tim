@@ -17,6 +17,7 @@ type
         NTFloat
         NTString
         NTBool
+        NTId
         NTHtmlElement
         NTStatement
         NTConditionStmt
@@ -32,6 +33,7 @@ type
         NTVariable
         NTIdentifier
         NTView
+        NTJavaScript
 
     HtmlNodeType* = enum
         Html_Doctype
@@ -184,6 +186,8 @@ type
             sVal*: string
         of NTBool:
             bVal*: bool
+        of NTId:
+            idVal*: string
         of NTConditionStmt:
             ifCond*: Node
             ifBody*, elseBody*: seq[Node]
@@ -224,6 +228,8 @@ type
             of Key:
                 byKey*: string
             else: discard
+        of NTJavaScript:
+            jsCode*: string
         else: discard
         meta*: MetaNode
 

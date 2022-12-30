@@ -17,8 +17,8 @@ type
             ## All Nodes statements under a `Program` object instance
         minify: bool
             ## Whether to minify the final HTML output (disabled by default)
-        html: Rope
-            ## A rope representing the final HTML output
+        html, js: Rope
+            ## Contains the final HTML output, and javascript snippets (when provided)
         timlTemplate: TimlTemplate
         baseIndent: int
             ## Document base indentation
@@ -26,7 +26,7 @@ type
             ## JSON data, if any
         logs: seq[string]
             ## Store errors at runtime without breaking the process
-        hasViewCode: bool
+        hasViewCode, hasJS: bool
         viewCode: string
             ## When compiler is initialized for layout,
             ## this field will contain the view code (HTML)
@@ -64,7 +64,7 @@ proc indentLine(c: var Compiler, meta: MetaNode, skipBr = false) =
         if not skipBr:
             add c.html, NewLine
 
-proc getHtml*(c: Compiler): string {.inline.} =
+proc getHtml*(c: Compiler): string =
     ## Returns compiled HTML for static `timl` templates
     result = $(c.html)
 
@@ -468,6 +468,14 @@ proc handleViewInclude(c: var Compiler) =
     else:
         add c.html, c.timlTemplate.setPlaceHolderId()
 
+    if c.hasJS:
+        add c.html, NewLine & "<script type=\"text/javascript\">"
+        add c.html, $c.js
+        add c.html, NewLine & "</script>"
+
+proc handleJavaScriptSnippet(c: var Compiler, node: Node) =
+    c.js &= NewLine & node.jsCode
+
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     for node in nodes:
         if node == nil: continue # TODO sometimes we get nil. check parser
@@ -491,11 +499,14 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
             c.handleForStmt(node)
         of NTView:
             c.handleViewInclude()
+        of NTJavaScript:
+            c.hasJs = true
+            c.handleJavaScriptSnippet(node)
         else: discard
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
         minify: bool, timlTemplate: TimlTemplate,
-        baseIndent: int, filePath: string, data = %*{}, viewCode = ""): Compiler =
+        baseIndent: int, filePath: string, data = %*{}, viewCode, after = ""): Compiler =
     ## Create a new Compiler instance
     var c = Compiler(
             minify: minify,
@@ -527,8 +538,21 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
             c.handleForStmt(node.stmtList)
         of NTView:
             c.handleViewInclude()
+        of NTJavaScript:
+            c.hasJs = true
+            c.handleJavaScriptSnippet(node)
         else: discard
+
+    if c.hasJS and c.hasViewCode == false:
+        add c.html, NewLine & "<script type=\"text/javascript\">"
+        add c.html, $c.js
+        add c.html, NewLine & "</script>"
+
     result = c
+    
+    # if after.len != 0:
+    #     add c.html, NewLine
+    #     add c.html, after
 
     if c.logs.len != 0:
         echo filePath
