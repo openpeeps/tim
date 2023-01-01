@@ -63,6 +63,7 @@ type
             ## the base indentation (default to 2)
         paths: tuple[layouts, views, partials: string]
         reloader: HotReloadType
+        errors*: string
 
     SyntaxError* = object of CatchableError      # raise errors from Tim language
     TimDefect* = object of CatchableError

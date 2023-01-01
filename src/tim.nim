@@ -111,10 +111,12 @@ else:
                             indent(view.getHtmlCode & reloadHandler, engine.getIndent)
                         ])
 
-    proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
+    proc compileCode(engine: var TimEngine, temp: var TimlTemplate) =
         var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = temp.getType())
         if p.hasError():
-            raise newException(SyntaxError, "\n"&p.getError())
+            # raise newException(SyntaxError, "\n"&p.getError())
+            engine.errors = p.getError()
+            return
         if p.hasJit() or temp.getType == Layout:
             temp.enableJIT()
             engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
@@ -150,10 +152,14 @@ else:
                                 Tim.compileCode(getTemplateByPath(Tim, depView))
                         else:
                             Tim.compileCode(timlTemplate)
-                        echo "Done in " & $(cpuTime() - initTime)
-                        if callback != nil:
-                            # Run a custom callback, if available
-                            callback()
+
+                        if Tim.errors.len != 0:
+                            echo Tim.errors
+                            setLen(Tim.errors, 0)
+                        else:
+                            echo "Done in " & $(cpuTime() - initTime)
+                            if callback != nil:
+                                callback() # Run a custom callback, if available
 
                     var watchFiles: seq[string]
                     when compileOption("threads"):
@@ -170,6 +176,9 @@ else:
                             Tim.compileCode(layout)
                             watchFiles.add layout.getFilePath()
                             result.add layout.getName()
+                        if Tim.errors.len != 0:
+                            echo Tim.errors
+                            setLen(Tim.errors, 0)
                         # Start a new Thread with Watchout watching for live changes
                         startThread(watchoutCallback, watchFiles, 550)
                         return
