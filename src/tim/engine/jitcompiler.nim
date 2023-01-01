@@ -483,6 +483,7 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
         of NTHtmlElement:
             let tag = node.htmlNodeName
             c.openTag(tag, node)
+            c.fixTail = tag == "textarea" # dirty
             if node.nodes.len != 0:
                 c.writeNewLine(node.nodes)
             c.closeTag(node, false)
@@ -545,7 +546,7 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
 
     if c.hasJS and c.hasViewCode == false:
         add c.html, NewLine & "<script type=\"text/javascript\">"
-        add c.html, NewLine & "document.addEventListener(\"DOMContentLoaded\", function(){"
+        add c.html, NewLine & "document.addEventListener(\"DOMContentLoaded\", async function(){"
         add c.html, indent($c.js, 2)
         add c.html, NewLine & "})"
         add c.html, NewLine & "</script>"
