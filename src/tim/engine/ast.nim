@@ -239,14 +239,21 @@ type
 proc `$`*(node: Node): string =
     result = pretty(toJson(node))
 
+proc getSymbolName(symbol: NodeType|OperatorType): string =
+    # Get stringified symbol name (useful for debugging, otherwise is empty) 
+    when not defined release:
+        result = symbolName(symbol)
+    else: result = ""
+
 proc newNode*(nt: NodeType, tk: TokenTuple): Node =
-    result = Node(nodeName: nt.symbolName, nodeType: nt)
+    ## Create a new Node
+    result = Node(nodeName: getSymbolName(nt), nodeType: nt)
     result.meta = (tk.line, tk.pos, tk.col, tk.wsno)
 
 proc newExpression*(expression: Node): Node =
     ## Add a new `NTStmtList` expression node
     result = Node(
-        nodeName: NTStmtList.symbolName,
+        nodeName: getSymbolName(NTStmtList),
         nodeType: NTStmtList,
         stmtList: expression
     )
@@ -254,26 +261,26 @@ proc newExpression*(expression: Node): Node =
 proc newInfix*(infixLeft, infixRight: Node, infixOp: OperatorType): Node =
     ## Add a new `NTInfixStmt` node
     Node(
-        nodeName: NTInfixStmt.symbolName,
+        nodeName: getSymbolName(NTInfixStmt),
         nodeType: NTInfixStmt,
         infixLeft: infixLeft,
         infixRight: infixRight,
         infixOp: infixOp,
-        infixOpSymbol: infixOp.symbolName
+        infixOpSymbol: getSymbolName(infixOp)
     )
 
 proc newInt*(iVal: int, tk: TokenTuple): Node =
     ## Add a new `NTInt` node
-    Node(nodeName: NTInt.symbolName, nodeType: NTInt, iVal: iVal, meta: (tk.line, tk.pos, tk.col, tk.wsno))
+    Node(nodeName: getSymbolName(NTInt), nodeType: NTInt, iVal: iVal, meta: (tk.line, tk.pos, tk.col, tk.wsno))
 
 proc newBool*(bVal: bool): Node =
     ## Add a new `NTBool` node
-    Node(nodeName: NTBool.symbolName, nodeType: NTBool, bVal: bVal)
+    Node(nodeName: getSymbolName(NTBool), nodeType: NTBool, bVal: bVal)
 
 proc newString*(tk: TokenTuple): Node =
     ## Add a new `NTString` node
     Node(
-        nodeName: NTString.symbolName,
+        nodeName: getSymbolName(NTString),
         nodeType: NTString,
         sVal: tk.value,
         meta: (tk.line, tk.pos, tk.col, tk.wsno)
@@ -282,7 +289,7 @@ proc newString*(tk: TokenTuple): Node =
 proc newHtmlElement*(tk: TokenTuple): Node =
     ## Add a new `NTHtmlElement` node
     Node(
-        nodeName: NTHtmlElement.symbolName,
+        nodeName: getSymbolName(NTHtmlElement),
         nodeType: NTHtmlElement,
         htmlNodeName: tk.value,
         meta: (tk.line, tk.pos, tk.col, tk.wsno)
@@ -291,7 +298,7 @@ proc newHtmlElement*(tk: TokenTuple): Node =
 proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
     ## Add a mew Conditional node
     Node(
-        nodeName: NTConditionStmt.symbolName,
+        nodeName: getSymbolName(NTConditionStmt),
         nodeType: NTConditionStmt,
         ifCond: ifBranch.cond,
         ifBody: ifBranch.body,
@@ -300,17 +307,17 @@ proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
 
 proc newMixin*(tk: TokenTuple): Node =
     ## Add a new `NTMixinCall` node
-    Node(nodeName: NTMixinCall.symbolName, nodeType: NTMixinCall, mixinIdent: tk.value)
+    Node(nodeName: getSymbolName(NTMixinCall), nodeType: NTMixinCall, mixinIdent: tk.value)
 
 proc newMixinDef*(tk: TokenTuple): Node = 
-    Node(nodeName: NTMixinDef.symbolName, nodeType: NTMixinDef, mixinIdentDef: tk.value)
+    Node(nodeName: getSymbolName(NTMixinDef), nodeType: NTMixinDef, mixinIdentDef: tk.value)
 
 proc newView*(tk: TokenTuple): Node =
-    Node(nodeName: NTView.symbolName, nodeType: NTView, meta: (tk.line, tk.pos, tk.col, tk.wsno))
+    Node(nodeName: getSymbolName(NTView), nodeType: NTView, meta: (tk.line, tk.pos, tk.col, tk.wsno))
 
 proc newInclude*(ident: string): Node =
     ## Add a new `NTIncludeCall` node
-    Node(nodeName: NTIncludeCall.symbolName, nodeType: NTIncludeCall, includeIdent: ident)
+    Node(nodeName: getSymbolName(NTIncludeCall), nodeType: NTIncludeCall, includeIdent: ident)
 
 proc newFor*(itemVarIdent, itemsVarIdent: Node, body: seq[Node], tk: TokenTuple): Node =
     ## Add a new `NTForStmt` node
@@ -332,7 +339,7 @@ proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false,
 
 proc newVarCallKeyAccessor*(tk: TokenTuple, fid: string): Node =
     result = Node(
-        nodeName: NTVariable.symbolName,
+        nodeName: getSymbolName(NTVariable),
         nodeType:  NTVariable,
         accessorKind: Key,
         byKey: fid,
@@ -343,7 +350,7 @@ proc newVarCallKeyAccessor*(tk: TokenTuple, fid: string): Node =
 
 proc newVarCallValAccessor*(tk: TokenTuple): Node =
     result = Node(
-        nodeName: NTVariable.symbolName,
+        nodeName: getSymbolName(NTVariable),
         nodeType:  NTVariable,
         accessorKind: Value,
         varIdent: tk.value,
