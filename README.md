@@ -33,19 +33,11 @@ https://openpeep.github.io/tim/
 ## Setup
 
 ```nim
-import tim
+import tim, tim/engine/meta
 export render, precompile
 
-var Tim*: TimEngine.init(
-            source = "./templates",
-                # directory path to find your `.timl` files
-            output = "./storage/templates",
-                # directory path to store Binary JSON files for JIT compiler
-            minified = false,
-                # Whether to minify the final HTML output (enabled by default)
-            indent = 4
-                # Used to indent your HTML output (ignored when `minified` is true)
-        )
+var Tim*: TimEngine
+Tim.init(source = "./templates", output = "./storage/templates", minified = false, indent = 4)
 
 # Precompile your `.timl` templates at boot-time
 Tim.precompile()
