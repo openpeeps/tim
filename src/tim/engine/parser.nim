@@ -59,6 +59,7 @@ const
   InvalidConditionalStmt = "Invalid conditional statement"
   InvalidInlineNest = "Invalid inline nest missing `>`"
   InvalidNestDeclaration = "Invalid nest declaration"
+  InvalidValueAssignment = "Expected value after `:` assignment operator"
   InvalidHTMLElementName = "Invalid HTMLElement name \"$1\""
   InvalidMixinDefinition = "Invalid mixin definition \"$1\""
   InvalidStringConcat = "Invalid string concatenation"
@@ -112,26 +113,24 @@ const
     TK_UL, TK_VAR, TK_VIDEO, TK_WBR
   }
 
-template setError[P: Parser](p: var P, msg: string, breakStmt: bool) =
+template setError(p: var Parser, msg: string, breakStmt: bool) =
   ## Set parser error
   p.error = "Error ($2:$3): $1\n$4" % [msg, $p.current.line, $p.current.pos, p.filePath]
   break
 
-template setError[P: Parser](p: var P, msg: string) =
+template setError(p: var Parser, msg: string) =
   ## Set parser error
   p.error = "Error ($2:$3): $1" % [msg, $p.current.line, $p.current.pos]
 
-proc setError[P: Parser](p: var P, msg: string, line, col: int) =
-  ## Set a Parser error on a specific line and col number
-  p.current.line = line
-  p.current.pos = col
-  p.setError(msg)
+proc setError(p: var Parser, msg: string, line, col: int, breakStmt = false) =
+  ## Set a parser error using a specific line/pos number
+  p.error = "Error ($2:$3): $1" % [msg, $line, $col]
 
-proc hasError*[P: Parser](p: var P): bool =
+proc hasError*(p: var Parser): bool =
   ## Determine if current parser instance has any errors
   result = p.error.len != 0 or p.lexer.hasError()
 
-proc getError*[P: Parser](p: var P): string = 
+proc getError*(p: var Parser): string = 
   ## Retrieve current parser instance errors,
   ## including lexer-side unrecognized token errors
   if p.lexer.hasError():
@@ -234,6 +233,7 @@ template handleConcat() =
 
 proc parseString(p: var Parser): Node =
   # Parse a new `string` node
+  if p.hasError(): return
   var concated: bool
   let this = p.current
   if p.next.kind == TK_AND:
@@ -399,14 +399,17 @@ proc newHtmlNode(p: var Parser): Node =
   if result.meta.pos != 0:
     result.meta.pos = p.lvl * 4 # set real indentation size
   while true:
+    if p.hasError(): return nil
     if p.current.kind == TK_COLON:
       walk p
       if p.current.kind == TK_STRING:
         result.nodes.add p.parseString()
       elif p.current.kind in {TK_VARIABLE, TK_SAFE_VARIABLE}:
         result.nodes.add p.parseVariable()
+      elif p.current.kind == TK_INTEGER:
+        result.nodes.add p.parseInteger()
       else:
-        p.setError InvalidNestDeclaration, true
+        p.setError InvalidValueAssignment, p.prev.line, p.prev.col, true
     elif p.current.kind in {TK_DOT, TK_ID, TK_IDENTIFIER} + tkHtml:
       if p.current.line > result.meta.line:
         break # prevent bad loop
@@ -417,6 +420,8 @@ proc newHtmlNode(p: var Parser): Node =
 
 proc parseHtmlElement(p: var Parser): Node =
   result = p.newHtmlNode()
+  if result == nil:
+    return
   if p.parentNode.len == 0:
     p.parentNode.add(result)
   else:
@@ -442,12 +447,14 @@ proc parseHtmlElement(p: var Parser): Node =
           var subNode = p.parseExpression()
           if subNode != nil:
             node.nodes.add(subNode)
+          elif p.hasError(): break
           if p.current.pos < currentParent.meta.pos:
             dec p.lvl, currentParent.meta.col div p.current.pos
             delete(p.parentNode, p.parentNode.high)
             break
     if node != nil:
       result.nodes.add(node)
+    elif p.hasError(): break
     if p.lvl != 0:
       dec p.lvl
     return result
@@ -459,6 +466,7 @@ proc parseHtmlElement(p: var Parser): Node =
     var subNode = p.parseExpression()
     if subNode != nil:
       result.nodes.add(subNode)
+    elif p.hasError(): break
     if p.current.kind == TK_EOF or p.current.pos == 0: break # prevent division by zero
     if p.current.pos < currentParent.meta.col:
       # dec lvl, currentParent.meta.col div p.current.pos
@@ -558,8 +566,9 @@ proc parseForStmt(p: var Parser): Node =
   var forBody: seq[Node]
   while p.current.pos > this.pos:
     let subNode = p.parseExpression()
-    if subNode != nil: # TODO throw exception ?
+    if subNode != nil:
       forBody.add subNode
+    elif p.hasError(): break
   if forBody.len != 0:
     return newFor(singularIdent, pluralIdent, forBody, this)
   p.setError(NestableStmtIndentation)
