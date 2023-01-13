@@ -1,12 +1,10 @@
-section > div.container > div.row
-  h1: $app.appName
-  h2: "Tim is awesome"
-  // list some products
-  for $prod in $app.products:
-    div.col-6 > div.p-4.bg-light
-      h3.fw-bold: $prod.name
-      small.badge title=$prod.id: $prod.id
-      p.lead: "Something cool about " & $prod.name
-      for $s in $prod.sizes:
-          em: $s.label & " " & $s.stock & " (Qty)"
-      button#addToCart: "Add to cart"
+div.container > div.row.vh-100 > div.align-self-center
+    h3.h2: "Tim Engine is Awesome!"
+    p.h5.fw-light.text-muted: "A high-performance, compiled template engine & markup language"
+    @include "button"
+    ~
+    // Wait, is this JavaScript?
+    document.querySelector('button').addEventListener('click', function() {
+      console.log("yay!")
+    });
+    ~
