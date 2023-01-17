@@ -1,10 +1,10 @@
 div.container > div.row.vh-100 > div.align-self-center
-    h3.h2: "Tim Engine is Awesome!"
-    p.h5.fw-light.text-muted: "A high-performance, compiled template engine & markup language"
-    @include "button"
-    ```js
-    // Wait, is this JavaScript?
-    document.querySelector('button').addEventListener('click', function() {
-      console.log("yay!")
-    });
-    ```
+  h3.h2: "Tim Engine is Awesome!"
+  p.h5.fw-light.text-muted: "A high-performance, compiled template engine & markup language"
+  @include "button"
+  ```js
+  // Wait, is this JavaScript?
+  document.querySelector('button').addEventListener('click', function() {
+    console.log("yay!")
+  });
+  ```
