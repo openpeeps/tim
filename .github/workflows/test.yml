@@ -25,6 +25,7 @@ jobs:
         with:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: sudo apt-get -y install libsass-dev
       - run: nimble install -Y
       - run: nim --threads:on c -r src/tim.nim
       - run: nimble test
