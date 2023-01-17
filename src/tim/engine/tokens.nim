@@ -23,26 +23,37 @@ handlers:
       else: break
     lex.setToken kind
 
-  proc handleJavaScript*(lex: var Lexer, kind: TokenKind) =    
+  proc handleSnippets*(lex: var Lexer, kind: TokenKind) =    
     lex.startPos = lex.getColNumber(lex.bufpos)
+    var k = TK_JS
     if lex.next("``js"):
       setLen(lex.token, 0)
       inc lex.bufpos, 5
-      while true:
-        case lex.buf[lex.bufpos]
-        of '`':
-          if lex.next("``"):
-            lex.kind = kind
-            inc lex.bufpos, 3
-            break
-          else:
-            lex.setError("Invalid javascript snippet")
-        of EndOfFile:
-          lex.setError("EOF reached before end of script")
-          return
+    elif lex.next("``javascript"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 13
+    elif lex.next("``sass"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 7
+      k = TK_SASS
+    else:
+      lex.setError("Unknown snippet. Tim knows about `js`|`javascript` or `sass`")
+      return
+    while true:
+      case lex.buf[lex.bufpos]
+      of '`':
+        if lex.next("``"):
+          lex.kind = k
+          inc lex.bufpos, 3
+          break
         else:
-          add lex.token, lex.buf[lex.bufpos]
-          inc lex.bufpos
+          lex.setError("Invalid snippet")
+      of EndOfFile:
+        lex.setError("EOF reached before end of snippet")
+        return
+      else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
 
 tokens:
   A            > "a"
@@ -65,7 +76,7 @@ tokens:
   Br           > "br"
   Button       > "button"
   Divide       > '/':
-    Comment  > '/'
+    Comment  > '/' .. EOL
   Canvas       > "canvas"
   Caption      > "caption"
   Center       > "center"
@@ -234,7 +245,9 @@ tokens:
   Video        > "video"
   WBR          > "wbr"
   Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
-  JS           > tokenize(handleJavaScript, '`')
+  JS
+  SASS
+  Snippet           > tokenize(handleSnippets, '`')
   LCurly       > '{'
   RCurly       > '}'
   LPar         > '('

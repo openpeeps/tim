@@ -63,13 +63,13 @@ else:
 </script>
 """
 
-  proc newCompiler(engine: TimEngine, timlTemplate: TimlTemplate, data: JsonNode, viewCode, after = ""): Compiler =
+  proc newCompiler(engine: TimEngine, timView: TimlTemplate, data: JsonNode, viewCode, after = ""): Compiler =
     result = Compiler.init(
-      astProgram = fromJson(engine.readBson(timlTemplate), Program),
+      astProgram = fromJson(engine.readBson(timView), Program),
       minify = engine.shouldMinify(),
-      timlTemplate = timlTemplate,
+      timView = timView,
       baseIndent = engine.getIndent(),
-      filePath = timlTemplate.getFilePath(),
+      filePath = timView.getFilePath(),
       data = data,
       viewCode = viewCode,
       after = after
@@ -115,7 +115,8 @@ else:
             ])
 
   proc compileCode(engine: var TimEngine, temp: var TimlTemplate) =
-    var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = temp.getType())
+    var p = engine.parse(temp.getSourceCode(), temp.getFilePath(),
+                        templateType = temp.getType())
     if p.hasError():
       # raise newException(SyntaxError, "\n"&p.getError())
       engine.errors = p.getError()
@@ -127,11 +128,12 @@ else:
       let c = Compiler.init(
         p.getStatements(),
         minify = engine.shouldMinify(),
-        timlTemplate = temp,
+        timView = temp,
         baseIndent = engine.getIndent(),
         filePath = temp.getFilePath()
       )
-      engine.writeHtml(temp, c.getHtml())
+      if not c.hasError():
+        engine.writeHtml(temp, c.getHtml())
 
   proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
           debug = false): seq[string] {.discardable.} =
@@ -149,12 +151,12 @@ else:
             let initTime = cpuTime()
             echo "\n✨ Watchout resolve changes"
             echo file.getName()
-            var timlTemplate = getTemplateByPath(Tim, file.getPath())
-            if timlTemplate.isPartial:
-              for depView in timlTemplate.getDependentViews():
+            var timView = getTemplateByPath(Tim, file.getPath())
+            if timView.isPartial:
+              for depView in timView.getDependentViews():
                 Tim.compileCode(getTemplateByPath(Tim, depView))
             else:
-              Tim.compileCode(timlTemplate)
+              Tim.compileCode(timView)
 
             if Tim.errors.len != 0:
               echo Tim.errors

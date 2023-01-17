@@ -34,6 +34,7 @@ type
     NTIdentifier
     NTView
     NTJavaScript
+    NTSass
     NTResult
 
   HtmlNodeType* = enum
@@ -231,6 +232,8 @@ type
       else: discard
     of NTJavaScript:
       jsCode*: string
+    of NTSass:
+      sassCode*: string
     else: discard
     meta*: MetaNode
 
@@ -250,6 +253,12 @@ proc newNode*(nt: NodeType, tk: TokenTuple): Node =
   ## Create a new Node
   result = Node(nodeName: getSymbolName(nt), nodeType: nt)
   result.meta = (tk.line, tk.pos, tk.col, tk.wsno)
+
+proc newSnippet*(tk: TokenTuple): Node =
+    if tk.kind == TK_JS:
+      result = newNode(NTJavaScript, tk)
+    elif tk.kind == TK_SASS:
+      result = newNode(NTSass, tk)
 
 proc newExpression*(expression: Node): Node =
   ## Add a new `NTStmtList` expression node

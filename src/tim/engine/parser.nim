@@ -480,9 +480,13 @@ proc parseHtmlElement(p: var Parser): Node =
 proc parseAssignment(p: var Parser): Node =
   discard
 
-proc parseJsSnippet(p: var Parser): Node =
-  result = newNode(NTJavaScript, p.current)
-  result.jsCode = p.current.value
+# import re # lazy house
+proc parseSnippet(p: var Parser): Node =
+  result = newSnippet(p.current)
+  if result.nodeType == NTJavaScript:
+    result.jsCode = p.current.value         # re.replace(p.current.value, re"\/\*(.*?)\*\/|\s\B")
+  else:
+    result.sassCode = p.current.value
   walk p
 
 proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple) =
@@ -624,10 +628,7 @@ proc parseIncludeCall(p: var Parser): Node =
 
 proc parseComment(p: var Parser): Node =
   # Actually, will skip comments
-  var this = p.current
   walk p
-  while p.current.line == this.line:
-    walk p
 
 proc parseViewLoader(p: var Parser): Node =
   if p.templateType != Layout:
@@ -643,7 +644,7 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     of TK_STRING: parseString
     of TK_IF: parseIfStmt
     of TK_FOR: parseForStmt
-    of TK_JS: parseJsSnippet
+    of TK_JS, TK_SASS: parseSnippet
     of TK_INCLUDE: parseIncludeCall
     of TK_MIXIN:
       if p.next.kind == TK_LPAR:

@@ -14,6 +14,7 @@ requires "toktok"
 requires "jsony"
 requires "bson"
 requires "watchout"
+requires "sass"
 
 requires "nyml"
 requires "klymene"

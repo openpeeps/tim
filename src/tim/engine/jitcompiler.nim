@@ -6,6 +6,7 @@
 
 import ./ast
 import std/[json, ropes, tables, macros]
+import pkg/sass
 
 from std/strutils import `%`, indent, multiReplace, join
 from ./meta import TimlTemplate, setPlaceHolderId
@@ -17,16 +18,16 @@ type
       ## All Nodes statements under a `Program` object instance
     minify: bool
       ## Whether to minify the final HTML output (disabled by default)
-    html, js: Rope
+    html, js, sass: Rope
       ## Contains the final HTML output, and javascript snippets (when provided)
-    timlTemplate: TimlTemplate
+    timView: TimlTemplate
     baseIndent: int
       ## Document base indentation
     data: JsonNode
       ## JSON data, if any
     logs: seq[string]
       ## Store errors at runtime without breaking the process
-    hasViewCode, hasJS: bool
+    hasViewCode, hasJS, hasSass: bool
     viewCode: string
       ## When compiler is initialized for layout,
       ## this field will contain the view code (HTML)
@@ -409,6 +410,10 @@ proc closeTag(c: var Compiler, node: Node, skipBr = false) =
       c.indentLine(node.meta, skipBr)
     add c.html, "</" & node.htmlNodeName & ">"
 
+include ./compileutils/log
+include ./compileutils/viewHandle
+include ./compileutils/snippetsHandle
+
 proc handleConditionStmt(c: var Compiler, ifCond: Node, ifBody: seq[Node],
               elifBranch: ElifBranch, elseBranch: seq[Node]) =
   if c.compInfixNode(ifCond):
@@ -469,23 +474,6 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
       of JObject: c.handleJObject(jsonSubNode)
       else: discard
 
-proc handleViewInclude(c: var Compiler) =
-  if c.hasViewCode:
-    if c.minify:
-      add c.html, c.viewCode
-    else:
-      add c.html, indent(c.viewCode, c.baseIndent * 2)
-  else:
-    add c.html, c.timlTemplate.setPlaceHolderId()
-
-  if c.hasJS:
-    add c.html, NewLine & "<script type=\"text/javascript\">"
-    add c.html, $c.js
-    add c.html, NewLine & "</script>"
-
-proc handleJavaScriptSnippet(c: var Compiler, node: Node) =
-  c.js &= NewLine & node.jsCode
-
 proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
   for node in nodes:
     if node == nil: continue # TODO sometimes we get nil. check parser
@@ -513,15 +501,19 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     of NTJavaScript:
       c.hasJs = true
       c.handleJavaScriptSnippet(node)
+    of NTSass:
+      c.hasSass = true
+      c.handleSassSnippet(node)
     else: discard
 
 proc init*(cInstance: typedesc[Compiler], astProgram: Program,
-    minify: bool, timlTemplate: TimlTemplate,
+    minify: bool, timView: TimlTemplate,
     baseIndent: int, filePath: string, data = %*{}, viewCode, after = ""): Compiler =
   ## Create a new Compiler instance
+  # ropes.enableCache()
   var c = Compiler(
       minify: minify,
-      timlTemplate: timlTemplate,
+      timView: timView,
       baseIndent: baseIndent,
       data: data,
       memtable: newTable[string, JsonNode](),
@@ -552,22 +544,22 @@ proc init*(cInstance: typedesc[Compiler], astProgram: Program,
     of NTJavaScript:
       c.hasJs = true
       c.handleJavaScriptSnippet(node)
+    of NTSass:
+      c.hasSass = true
+      c.handleSassSnippet(node)
     else: discard
 
-  if c.hasJS and c.hasViewCode == false:
-    add c.html, NewLine & "<script type=\"text/javascript\">"
-    add c.html, NewLine & "document.addEventListener(\"DOMContentLoaded\", async function(){"
-    add c.html, indent($c.js, 2)
-    add c.html, NewLine & "})"
-    add c.html, NewLine & "</script>"
-
+  if c.hasViewCode == false:
+    if c.hasJS:
+      add c.html, NewLine & "<script type=\"text/javascript\">"
+      add c.html, "document.addEventListener(\"DOMContentLoaded\", async function(){"
+      add c.html, indent($c.js, 2)
+      add c.html, "})"
+      add c.html, NewLine & "</script>"
+    if c.hasSass:
+      add c.html, NewLine & "<style>"
+      add c.html, $c.sass
+      add c.html, NewLine & "</style>"
   result = c
-  
-  # if after.len != 0:
-  #     add c.html, NewLine
-  #     add c.html, after
-
-  if c.logs.len != 0:
-    echo filePath
-    for error in c.logs:
-      echo indent("Warning: " & error, 2)
+  if c.hasError:
+    c.printErrors(filePath)

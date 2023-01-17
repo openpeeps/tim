@@ -6,6 +6,7 @@
 
 import ./ast, ./tokens
 import std/[tables, ropes, macros]
+import pkg/sass
 
 from std/strutils import `%`, indent, multiReplace, join, escape
 from ./meta import TimlTemplate, setPlaceHolderId
@@ -25,11 +26,13 @@ type
     timView: TimlTemplate
     minify: bool
       ## Whether to minify the final HTML output (disabled by default)
-    html: Rope
+    html, js, sass: Rope
       ## A rope containg the final HTML output
     baseIndent: int
       ## Document base indentation
-    hasViewCode: bool
+    logs: seq[string]
+      ## Store errors at runtime without breaking the process
+    hasViewCode, hasJS, hasSass: bool
     viewCode: string
       ## When compiler is initialized for layout,
       ## this field will contain the view code (HTML)
@@ -181,15 +184,6 @@ proc getHtml*(c: Compiler): string {.inline.} =
   ## Returns compiled HTML for static `timl` templates
   result = $(c.html)
 
-proc handleViewInclude(c: var Compiler) =
-  if c.hasViewCode:
-    if c.minify:
-      add c.html, c.viewCode
-    else:
-      add c.html, indent(c.viewCode, c.baseIndent * 2)
-  else:
-    add c.html, c.timView.setPlaceHolderId()
-
 template `>$`(ident: string) =
   case c.language:
   of Nim:
@@ -266,6 +260,10 @@ proc newInfixOp(c: var Compiler, a, b: Node, op: OperatorType, tkCond = TK_IF): 
 
 template br() =
   c.html &= NewLine
+
+include ./compileutils/log
+include ./compileutils/viewHandle
+include ./compileutils/snippetsHandle
 
 proc handleConditionStmt(c: var Compiler, node: Node) =
   br
@@ -351,6 +349,12 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
       c.writeStrValue(node)
     of NTInt:
       c.writeIntValue(node)
+    of NTJavaScript:
+      c.hasJs = true
+      c.handleJavaScriptSnippet(node)
+    of NTSass:
+      c.hasSass = true
+      c.handleSassSnippet(node)
     else: discard
 
 proc newCompiler*(program: Program, t: TimlTemplate, minify: bool,
@@ -375,9 +379,9 @@ proc newCompiler*(program: Program, t: TimlTemplate, minify: bool,
   of Php:
     c.html &= "function renderProductsView(object $app, object $this) {"
 
+  var metaNode: MetaNode
   if c.program.nodes.len != 0:
     if c.program.nodes[0].stmtList.nodeType == NTHtmlElement: 
-      var metaNode: MetaNode
       c.newResult(metaNode)
   for node in c.program.nodes:
     case node.stmtList.nodeType:
@@ -397,8 +401,31 @@ proc newCompiler*(program: Program, t: TimlTemplate, minify: bool,
       add c.html, c.getIdent(node)
     of NTView:
       c.handleViewInclude()
+    of NTJavaScript:
+      c.hasJs = true
+      c.handleJavaScriptSnippet(node)
+    of NTSass:
+      c.hasSass = true
+      c.handleSassSnippet(node)
     else: discard
   c.endResult()
+
+  var insertSnippets = c.hasJS or c.hasSass
+  if insertSnippets:
+    c.newResult(metaNode)
+  if c.hasJS:
+    add c.html, NewLine & "<script type=\"text/javascript\">"
+    add c.html, "document.addEventListener(\"DOMContentLoaded\", async function(){"
+    add c.html, indent($c.js, 2)
+    add c.html, "})"
+    add c.html, NewLine & "</script>"
+  if c.hasSass:
+    add c.html, NewLine & "<style>"
+    add c.html, $c.sass
+    add c.html, NewLine & "</style>"
+  if insertSnippets:
+    c.endResult()
+
   case c.language:
   of Php, JavaScript:
     c.html &= NewLine

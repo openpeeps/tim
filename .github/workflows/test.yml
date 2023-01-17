@@ -5,10 +5,12 @@ on:
     paths-ignore:
       - LICENSE
       - README.*
+      - examples
   pull_request:
     paths-ignore:
       - LICENSE
       - README.*
+      - examples
 
 jobs:
   test:

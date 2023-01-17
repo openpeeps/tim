@@ -11,17 +11,19 @@ const DockType = "<!DOCTYPE html>"
 var Tim*: TimEngine
 const DefaultLayout = "base"
 
-proc compileCode(engine: TimEngine, temp: var TimlTemplate) =
-  var p = engine.parse(temp.getSourceCode(), temp.getFilePath(), templateType = temp.getType())
+proc compileCode(engine: TimEngine, t: var TimlTemplate) =
+  var p = engine.parse(t.getSourceCode(), t.getFilePath(), templateType = t.getType())
   if p.hasError():
-    display(p.getError())
+    display p.getError()
     return
+  var c = newCompiler(p.getStatements, t, engine.shouldMinify,
+                      engine.getIndent, t.getFilePath)
+  if c.hasError():
+    display t.getFilePath
+    for err in c.getErrors():
+      display err
   # echo p.getStatementsStr(true)
-  let c = newCompiler(
-    p.getStatements, temp, engine.shouldMinify, engine.getIndent, temp.getFilePath)
-  # var test = ""
-  # add test, c.getHtml()
-  # echo test
+  # echo c.getHtml()
 
 proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
         debug = false): seq[string] {.discardable.} =
@@ -62,6 +64,7 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
         Tim.compileCode(layout)
         watchFiles.add layout.getFilePath()
         result.add layout.getName()
+
       # Start a new Thread with Watchout watching for live changes
       startThread(watchoutCallback, watchFiles, 450, shouldJoinThread = true)
   else: display("Can't find views")
