@@ -2,7 +2,7 @@ div.container > div.row.vh-100 > div.align-self-center
   h3.h2: "Tim Engine is Awesome!"
   p.h5.fw-light.text-muted: "A high-performance, compiled template engine & markup language"
   @include "button" 
-  // Vanilla JavaScript Yes?, please!
+  // Vanilla JavaScript? Yes, please!
   // Tim transpiles all JavaScript snippets and
   // insert the final output before closing </body>
   ```js
@@ -10,8 +10,7 @@ document.querySelector('button').addEventListener('click', function() {
   console.log("yay!")
 });
   ```
-  // SASS Flavours! Oh yeah!
-  // This has built-in support for SASS snippets
+  // SASS flavours? Oh, yeah!
   ```sass
 div.container
   button

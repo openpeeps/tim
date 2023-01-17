@@ -3,6 +3,6 @@ proc handleJavaScriptSnippet(c: var Compiler, node: Node) =
 
 proc handleSassSnippet(c: var Compiler, node: Node) =
   try:
-    c.sass &= NewLine & compile(node.sassCode, indentOnly = true)
+    c.sass &= NewLine & compileSass(node.sassCode)
   except SassException:
     c.logs.add(getCurrentExceptionMsg())

@@ -15,22 +15,60 @@ Instead of having closing tags, Tim relies on indentation and whitespace, allowi
 - [x] `for` Loops
 - [x] `if`, `elif`, `else` Conditionals
 - [x] Partials via `@include`
-- [ ] JIT Evaluator
+- [x] JIT Compiler w/ JSON computation
+- [ ] Transpiles to Nim, JavaScript, Python PHP
 - [ ] SEO / Semantic Checker
 - [x] Language Extension `.timl` 😎
 - [ ] Available as a NodeJS Addon (soon)
 - [x] Written in Nim language 👑
 - [x] Open Source | `MIT` License
 
-## Installing
+## Install as Nimble library
 ```
 nimble install tim
 ```
 
+## The look
+```tim
+div.container > div.row.vh-100 > div.align-self-center
+  h3: "Tim Engine is Awesome!"
+  p.text-muted: "A high-performance, compiled template engine & markup language"
+  @include "button"
+```
+
+### JavaScript Snippets
+Write JavaScript snippets or a component-based functionality direclty in your `.timl` file, using backticks.
+
+````tim
+main > div.container > div.row > div.col-lg-4.mx-auto
+  @include "button"
+
+  ```js
+document.querySelector('button').addEventListener('click', function() {
+  console.log("yay!")
+});
+  ```
+````
+
+### Sass Snippets
+Bult-in CSS support with SASS via `libsass`.
+````tim
+div.container.product > div.row > div.col-4.mx-auto
+  a.btn.cta-checkout > span: "Go to checkout"
+
+  ```sass
+div.product
+  btn
+    font-weight: bold
+  ```
+````
+
+This feature **requires** (libsass)[https://github.com/sass/libsass] library
+
 ## API Documentation
 https://openpeep.github.io/tim/
 
-## Setup
+## Setup in Nim with JIT Compilation
 
 ```nim
 import tim, tim/engine/meta
@@ -47,119 +85,6 @@ res.send(Tim.render("homepage"))
 
 ```
 
-# Code Syntax
-<details>
-    <summary>Sublime Text 4</summary>
-
-```yaml
-%YAML 1.2
----
-# See http://www.sublimetext.com/docs/syntax.html
-file_extensions:
-  - timl
-scope: source.timl
-variables:
-  ident: '[A-Za-z_][A-Za-z_0-9]*'
-contexts:
-  main:
-    - match: '"'
-      scope: punctuation.definition.string.begin.timl
-      push: double_quoted_string
-
-    - match: '//'
-      scope: punctuation.definition.comment.timl
-      push: line_comment
-
-    - match: '\|'
-      scope: markup.bold keyword.operator.logical
-
-    - match: '\*'
-      scope: entity.name.tag
-
-    - match: '>'
-      scope: punctuation
-
-    - match: ':'
-      scope: markup.bold variable.language
-
-    - match: '='
-      scope: markup.bold keyword.operator.assignment.timl
-
-    - match: '\b(html|head|meta|script|body|title)\b'
-      scope: entity.name.tag.timl
-
-    - match: '\b(main|section|article|aside|div|footer|header)\b'
-      scope: entity.name.tag.timl
-
-    - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span|u)\b'
-      scope: entity.name.type.text.timl
-
-    - match: '\b(table|tbody|td|tfoot|th|thead|tr)\b'
-      scope: entity.name.tag.table.timl
-
-    - match: '\b(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b'
-      scope: entity.name.tag.selfclosing.timl
-
-    - match: '\b(button|label|select|textarea|legend|datalist|output|option|optgroup)\b'
-      scope: entity.name.tag.form.timl
-
-    - match: '\b(ul|ol|dl|dt|dd|li)\b'
-      scope: entity.name.tag.list.timl
-
-    - match: '\b(if|elif|else|for|in)\b'
-      scope: keyword.control.timl
-
-    - match: '\b(-)?[0-9.]+\b'
-      scope: constant.numeric.timl
-
-    - match: '\b(true|false)\b'
-      scope: constant.language.timl
-
-    - match: '\b{{ident}}\b'
-      scope: punctuation.definition
-
-    - match: '@include'
-      scope: keyword.control.import.timl
-
-    - match: '@mixin'
-      scope: entity.name.function.timl
-
-  double_quoted_string:
-    - meta_scope: string.quoted.double.timl
-    - match: '\\.'
-      scope: constant.character.escape.timl
-    - match: '"'
-      scope: punctuation.definition.string.end.timl
-      pop: true
-
-  line_comment:
-    - meta_scope: comment.line.timl
-    - match: $
-      pop: true
-```
-
-</details>
-
-## Roadmap
-
-### `0.1.x`
-- [x] Lexer, Parser, AST Generator, Compiler
-- [x] SVG Support
-- [x] Output Minifier
-- [ ] Variable Assignments
-- [x] Conditional Statements
-- [x] Loops / Iterations
-- [x] Mixins implementation
-- [ ] SEO Checker
-- [ ] Semantic Checker
-- [x] Create Sublime Syntax
-- [ ] Create VSCode Syntax (yak)
-- [ ] Add tests
-- [ ] Add Benchmarks
-- [ ] Talk about it on ycombinator / stackoverflow / producthunt
-
-### `0.2.x`
-- [ ] JIT Evaluator
 
 ### 🎩 License
 Illustration of Tim Berners-Lee [made by Kagan McLeod](https://www.kaganmcleod.com).<br><br>
