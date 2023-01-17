@@ -63,7 +63,7 @@ div.product
   ```
 ````
 
-This feature **requires** (libsass)[https://github.com/sass/libsass] library
+This feature **requires** [libsass](https://github.com/sass/libsass) library
 
 ## API Documentation
 https://openpeep.github.io/tim/
