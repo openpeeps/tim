@@ -1,40 +1,54 @@
 <p align="center">
-    <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="140px"><br>
-    ⚡️ A high-performance template engine & markup language inspired by Emmet syntax.<br>
-    <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
+  <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="140px"><br>
+  ⚡️ A high-performance template engine & markup language inspired by Emmet syntax.<br>
+  <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
 </p>
 
-Tim is a templating engine that provides an elegant markup language inspired by the `Emmet` syntax.
-Instead of having closing tags, Tim relies on indentation and whitespace, allowing for clean, readable code and high-speed productivity.
+<img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/look.png" width="772px">
+<details>
+  <summary>Show me snippets, snippets, snippets! 😍</summary>
+  <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/snippets.png" width="772px">
+</details>
 
 ## 😍 Key Features
-- [x] Emmet-syntax 🤓
-- [ ] Mixins
 - [x] `layouts`, `views` and `partials` logic
 - [x] `Global`, `Scope`, and `Internal` variables
 - [x] `for` Loops
 - [x] `if`, `elif`, `else` Conditionals
 - [x] Partials via `@include`
-- [x] JIT Compiler w/ JSON computation
-- [ ] Transpiles to Nim, JavaScript, Python PHP
+- [ ] Mixins
+- [x] ♨️ JIT Compiler w/ JSON computation
+- [x] 🌎 Transpiles to Nim, JavaScript, Python, PHP
 - [ ] SEO / Semantic Checker
 - [x] Language Extension `.timl` 😎
-- [ ] Available as a NodeJS Addon (soon)
+- [x] Snippets 🎊
+    * JavaScript 🥰
+    * JSON 😍 
+    * YAML 🤩 w/ Built-in parser via Nyml
+    * SASS 🫠 w/ Built-in parser via `libsass`
 - [x] Written in Nim language 👑
 - [x] Open Source | `MIT` License
 
-## Install as Nimble library
-```
-nimble install tim
-```
+## CLI app vs Library 
+First of all, you should know the differences between the CLI app and the Library.
 
-## The look
-```tim
-div.container > div.row.vh-100 > div.align-self-center
-  h3: "Tim Engine is Awesome!"
-  p.text-muted: "A high-performance, compiled template engine & markup language"
-  @include "button"
-```
+### Tim CLI
+The CLI is a standalone cross-platform application that transpiles your **Tim templates** into source code for the current (supported) language.
+
+Of course, the generated source code will not look very nice, but who cares,
+since you have the Tim templates and finally the application will **render at super speed!**
+
+How many times have you heard _"Moustache is slow"_, or _"Pug.js compiling extremely slow"_, or _"...out of memory"_,
+or _"Jinja being extremely slow when..."_?
+
+Well, that's no longer the case! If even now, using **Tim Engine**, you complain that something is running slowly, well,
+the language you're running is to blame!
+
+### The library
+_todo_
+
+
+## Snippets
 
 ### JavaScript Snippets
 Write JavaScript snippets or a component-based functionality direclty in your `.timl` file, using backticks.
