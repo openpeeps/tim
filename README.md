@@ -4,10 +4,10 @@
   <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
 </p>
 
-<img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/look.png" width="772px">
+<img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim-look.png" width="772px">
 <details>
   <summary>Show me snippets, snippets, snippets! 😍</summary>
-  <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/snippets.png" width="772px">
+  <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim-snippets.png" width="772px">
 </details>
 
 ## 😍 Key Features
