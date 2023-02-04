@@ -1,6 +1,7 @@
-# A high-performance, compiled template engine inspired by Emmet syntax.
+# A high-performance compiled template
+# engine inspired by the Emmet syntax.
 #
-# (c) 2023 Tim Engine | MIT License
+# (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
@@ -26,6 +27,7 @@ type
     NTPrefixStmt
     NTInfixStmt
     NTIncludeCall
+    NTCall
     NTMixinCall
     NTMixinDef
     NTLet
@@ -35,6 +37,8 @@ type
     NTView
     NTJavaScript
     NTSass
+    NTJson
+    NTYaml
     NTResult
 
   HtmlNodeType* = enum
@@ -151,7 +155,8 @@ type
     GTE         = ">="
     LT          = "<"
     LTE         = "<="
-    AND         = "&"   # used for string concatenation
+    AND         = "and"
+    AMP         = "&"   # string concatenation
   
   HtmlAttributes* = Table[string, seq[Node]]
   IfBranch* = tuple[cond: Node, body: seq[Node]]
@@ -212,6 +217,9 @@ type
       infixLeft*, infixRight*: Node
     of NTIncludeCall:
       includeIdent*: string
+    of NTCall:
+      callIdent*: string
+      callParams*: seq[Node] # NTString or NTVariable
     of NTMixinCall:
       mixinIdent*: string
     of NTMixinDef:
@@ -234,6 +242,11 @@ type
       jsCode*: string
     of NTSass:
       sassCode*: string
+    of NTJson:
+      jsonIdent*: string
+      jsonCode*: string
+    of NTYaml:
+      yamlCode*: string
     else: discard
     meta*: MetaNode
 
@@ -243,7 +256,7 @@ type
 proc `$`*(node: Node): string =
   result = pretty(toJson(node))
 
-proc getSymbolName(symbol: NodeType|OperatorType): string =
+proc getSymbolName*(symbol: NodeType|OperatorType): string =
   # Get stringified symbol name (useful for debugging, otherwise is empty) 
   when not defined release:
     result = symbolName(symbol)
@@ -254,11 +267,18 @@ proc newNode*(nt: NodeType, tk: TokenTuple): Node =
   result = Node(nodeName: getSymbolName(nt), nodeType: nt)
   result.meta = (tk.line, tk.pos, tk.col, tk.wsno)
 
-proc newSnippet*(tk: TokenTuple): Node =
-    if tk.kind == TK_JS:
-      result = newNode(NTJavaScript, tk)
-    elif tk.kind == TK_SASS:
-      result = newNode(NTSass, tk)
+proc newSnippet*(tk: TokenTuple, ident = ""): Node =
+  ## Add a new Snippet node. It can be `NTJavaScript`,
+  ## `NTSass`, `NTJSON` or `NTYaml`
+  if tk.kind == TK_JS:
+    result = newNode(NTJavaScript, tk)
+  elif tk.kind == TK_SASS:
+    result = newNode(NTSass, tk)
+  elif tk.kind == TK_JSON:
+    result = newNode(NTJSon, tk)
+    result.jsonIdent = ident
+  elif tk.kind == TK_YAML:
+    result = newNode(NTYaml, tk)
 
 proc newExpression*(expression: Node): Node =
   ## Add a new `NTStmtList` expression node
@@ -277,6 +297,17 @@ proc newInfix*(infixLeft, infixRight: Node, infixOp: OperatorType): Node =
     infixRight: infixRight,
     infixOp: infixOp,
     infixOpSymbol: getSymbolName(infixOp)
+  )
+
+proc newInfix*(infixLeft: Node): Node =
+  ## Add a new `NTInfixStmt` node
+  Node(
+    nodeName: getSymbolName(NTInfixStmt),
+    nodeType: NTInfixStmt,
+    infixLeft: infixLeft,
+    # infixRight: infixRight,
+    # infixOp: infixOp,
+    # infixOpSymbol: getSymbolName(infixOp)
   )
 
 proc newInt*(iVal: int, tk: TokenTuple): Node =
@@ -314,6 +345,10 @@ proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
     ifBody: ifBranch.body,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
   )
+
+proc newCall*(ident: string, params: seq[Node]): Node =
+  ## Add a new `NTCall` node
+  Node(nodeName: getSymbolName(NTCall), nodeType: NTCall, callIdent: ident, callParams: params)
 
 proc newMixin*(tk: TokenTuple): Node =
   ## Add a new `NTMixinCall` node

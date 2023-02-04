@@ -1,44 +1,53 @@
-# A high-performance, compiled template engine inspired by Emmet syntax.
+# A high-performance compiled template engine inspired by the Emmet syntax.
 #
-# (c) 2023 Tim Engine | MIT License
+# (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import ./ast, ./tokens
-import std/[tables, ropes, macros]
-import pkg/sass
+import std/[ropes, tables, macros, strutils]
+import pkg/[pkginfo, sass]
+import pkg/klymene/cli
+import ./ast
 
-from std/strutils import `%`, indent, multiReplace, join, escape
-from ./meta import TimlTemplate, setPlaceHolderId
+when not defined cli:
+  when requires "packedjson":
+    import pkg/packedjson
+  else:
+    import std/json
+
+from ./meta import Template, setPlaceHolderId, getPlaceholderIndent, getType
+
+when defined cli:
+  type
+    Language* = enum
+      Nim = "nim"
+      JavaScript = "js"
+      Python = "python"
+      Php = "php"
+else:
+  type MemStorage = TableRef[string, JsonNode]
 
 type
-  Language* = enum
-    Nim = "nim"
-    JavaScript = "js"
-    Python = "python"
-    Php = "php"
-
   Compiler* = object
-    ## Compiles current AST program to HTML or SCF (Source Code Filters)
     program: Program
-      ## All Nodes statements under a `Program` object instance
-    language: Language
-    timView: TimlTemplate
+    `template`: Template
     minify: bool
-      ## Whether to minify the final HTML output (disabled by default)
-    html, js, sass: Rope
-      ## A rope containg the final HTML output
     baseIndent: int
-      ## Document base indentation
-    logs: seq[string]
-      ## Store errors at runtime without breaking the process
-    hasViewCode, hasJS, hasSass: bool
+    html, js, sass, json, yaml: Rope
+    hasViewCode, hasJS, hasSass, hasJson, hasYaml: bool
     viewCode: string
-      ## When compiler is initialized for layout,
-      ## this field will contain the view code (HTML)
+    when defined cli:
+      language: Language
+      prev, next: NodeType
+      firstParentNode: NodeType
+    else:
+      when requires "packedjson":
+        data: JsonTree
+      else:
+        data: JsonNode
+      memtable: MemStorage
     fixTail: bool
-    prev, next: NodeType
-    firstParentNode: MetaNode
+    logs: seq[string]
 
 const
   NewLine = "\n"
@@ -53,55 +62,60 @@ const
   UndefinedProperty = "Undefined property \"$1\""
   UndefinedVariable = "Undefined property \"$1\" in \"$2\""
 
-var langs = {
-  "nim": {
-    "if": "if $1:",
-    "elif": "elif $1:",
-    "else": "else:",
-    "fn": "proc render$1View[G, S](app: G, this: S) =",
-    "for": "for $1 in $2"
-  },
-  "js": {
-    "if": "if($1) {",
-    "elif": "} else if($1) {",
-    "else": "} else {",
-    "fn": "function render$1View(app = {}, this = {}) {$2}",
-    "for": ""
-  }
-}.toTable
+# defer
+proc writeNewLine(c: var Compiler, nodes: seq[Node])
+# proc getNewLine(c: var Compiler, nodes: seq[Node]): string
 
-proc writeNewLine(c: var Compiler, nodes: seq[Node]) # defer
-proc getNewLine(c: var Compiler, nodes: seq[Node]): string # defer
+proc hasError*(c: Compiler): bool =
+  result = c.logs.len != 0
 
-proc getIndent(c: var Compiler, nodeIndent: int): int =
-  if c.baseIndent == 2:
-    return int(nodeIndent / c.baseIndent)
-  result = nodeIndent
+proc getErrors*(c: Compiler): seq[string] =
+  result = c.logs
 
-proc getIndentLine(c: var Compiler, meta: MetaNode, skipBr = false): string =
+proc printErrors*(c: var Compiler, filePath: string) =
+  if c.logs.len != 0:
+    for error in c.logs:
+      display error, indent = 2
+    echo filePath
+    setLen(c.logs, 0)
+
+template `&==`(body): untyped =
+  when defined cli:
+    add(result, body)
+  else:
+    add(c.html, body)
+
+proc writeStrValue(c: var Compiler, node: Node) =
+  add c.html, node.sVal
+  c.fixTail = true
+
+when defined cli:
+  discard
+else:
+  include ./private/jitutils
+
+proc getHtml*(c: Compiler): string =
+  ## Returns compiled HTML for static `timl` templates
+  result = $(c.html)
+
+proc getIndentSize(c: var Compiler, isize: int): int =
+  result = if c.baseIndent == 2:
+              int(isize / c.baseIndent)
+           else: isize
+
+proc getIndent(c: var Compiler, meta: MetaNode, skipBr = false): string =
   if meta.pos != 0:
     if not skipBr:
       add result, NewLine
-    add result, indent("", c.getIndent(meta.pos))
+    add result, indent("", c.getIndentSize(meta.pos))
   else:
     if not skipBr:
-      add result, NewLIne
+      add result, NewLine
 
-proc indentLine(c: var Compiler, meta: MetaNode, skipBr = false) =
-  add c.html, c.getIndentLine(meta, skipBr)
+proc hasAttrs(node: Node): bool =
+  result = node.attrs.len != 0
 
-proc getIDAttribute(c: var Compiler, node: Node): string =
-  ## Write an ID HTML attribute to current HTML Element
-  add result, indent("id=", 1) & "\""
-  let idAttrNode = node.attrs["id"][0]
-  if idAttrNode.nodeType == NTString:
-    add result, idAttrNode.sVal
-  # else: c.writeValue(idAttrNode)
-  add result, "\""
-  # add c.html, ("id=\"$1\"" % [node.attrs["id"][0]]).indent(1)
-
-proc getAttributes(c: var Compiler, node: Node): string =
-  ## write one or more HTML attributes
+proc getAttrs(c: var Compiler, node: Node): string =
   for k, attrNodes in node.attrs.pairs():
     if k == "id": continue # handled by `writeIDAttribute`
     add result, indent("$1=" % [k], 1) & "\""
@@ -110,326 +124,212 @@ proc getAttributes(c: var Compiler, node: Node): string =
       if attrNode.nodeType == NTString:
         strAttrs.add attrNode.sVal
       elif attrNode.nodeType == NTVariable:
-        # TODO handle concat
-        discard
-        # c.writeValue(attrNode)
+        strAttrs.add c.getStringValue(attrNode)
     if strAttrs.len != 0:
       add result, join(strAttrs, " ")
     add result, "\""
-    # add c.html, ("$1=\"$2\"" % [k, join(v, " ")]).indent(1)
 
-proc writeStrValue(c: var Compiler, node: Node) =
-  add c.html, node.sVal
-  c.fixTail = true
+proc hasIDAttr(node: Node): bool =
+  ## Determine if current JsonNode has an HTML ID attribute attached to it
+  result = node.attrs.hasKey("id")
 
-proc writeIntValue(c: var Compiler, node: Node) =
-  add c.html, $node.iVal
-  c.fixTail = true
+proc getIDAttr(c: var Compiler, node: Node): string =
+  # Write an ID HTML attribute to current HTML Element
+  add result, indent("id=", 1) & "\""
+  let idAttrNode = node.attrs["id"][0]
+  if idAttrNode.nodeType == NTString:
+    add result, idAttrNode.sVal
+  else:
+    add result, c.getStringValue(idAttrNode)
+  add result, "\""
 
-proc getOpenTag(c: var Compiler, tag: string, node: Node, skipBr = false): string =
-  if not c.minify:
-    add result, c.getIndentLine(node.meta, skipBr = skipBr)
-  add result, "<" & tag
-  if node.attrs.hasKey("id"):
-    add result, c.getIDAttribute(node)
-  if node.attrs.len != 0:
-    add result, c.getAttributes(node)
-  if node.issctag:
-    add result, "/"
-  add result, ">"
-
-proc openTag(c: var Compiler, tag: string, node: Node, skipBr = false) =
+template `<>`(tag: string, node: Node, skipBr = false) =
   ## Open tag of the current JsonNode element
-  add c.html, c.getOpenTag(tag, node)
+  if not c.minify:
+    &== getIndent(c, node.meta, skipBr)
+  &== ("<" & tag)
+  if hasIDAttr(node):
+    &== getIDAttr(c, node)
+  if hasAttrs(node):
+    &== getAttrs(c, node)
+  if node.issctag:
+    &== "/"
+  &== ">"
 
-proc getCloseTag(c: var Compiler, node: Node, skipBr: bool): string =
+template `</>`(node: Node, skipBr = false) =
   ## Close an HTML tag
   if node.issctag == false:
     if not c.fixTail and not c.minify:
-      add result, c.getIndentLine(node.meta, skipBr)
-    add result, "</" & node.htmlNodeName & ">"
+      &== getIndent(c, node.meta, skipBr)
+    add c.html, "</" & node.htmlNodeName & ">"
 
-proc closeTag(c: var Compiler, node: Node, skipBr = false) =
-  ## Close an HTML tag
-  if node.issctag == false:
-    add c.html, c.getCloseTag(node, skipBr)
+proc getViewCode(c: var Compiler, node: Node): string =
+  result =
+    if c.hasViewCode:
+      if c.minify:
+        c.viewCode
+      else:
+        indent(c.viewCode, c.`template`.getPlaceholderIndent())
+    else:
+      c.`template`.setPlaceHolderId(node.meta.pos)
 
-proc newResult(c: var Compiler, meta: MetaNode) =
-  let pos = if meta.col == 0: 2
-        else: meta.col + 2
-  add c.html, NewLine
-  case c.language:
-  of Nim:
-    c.html &= indent("result &= \"\"\"", pos)
-  of Php:
-    c.html &= indent("$result = \"\";", pos)    # define $result var
-    c.html &= NewLine
-    c.html &= indent("$result .= <<<EOT", pos)
-    c.html &= NewLine
-  else: discard # TODO
-
-proc endResult(c: var Compiler, nl = false) =
-  case c.language:
-  of Nim:
-    c.html &= "\"\"\""
-  of Php:
-    c.html &= NewLine
-    c.html &= "EOT;"
-  else: discard # TODO
-  # c.prev = NTNone
-  if nl:
-    c.html &= NewLine
-
-proc getHtml*(c: Compiler): string {.inline.} =
-  ## Returns compiled HTML for static `timl` templates
-  result = $(c.html)
-
-template `>$`(ident: string) =
-  case c.language:
-  of Nim:
-    add result, $TK_DOT & n.sVal
-  of JavaScript:
-    discard
-  of Python:
-    discard
-  of Php:
-    add result, $TK_MINUS & $TK_GT & n.sVal
-
-template `>$`(i: int) =
-  add result, "[" & $(i) & "]"
-
-template `{`() =
-  if braces:
-    case c.language:
-    of Nim:
-      result = "\"\"\" & fmt(\"{"
-    of Php:
-      result = "{$"
-    else: discard # TODO
-
-template `}`() =
-  if braces:
-    case c.language:
-    of Nim:
-      add result, "}\") & \"\"\""
-    of Php:
-      add result, "}"
-    else: discard # TODO
-
-proc getIdent(c: var Compiler, node: Node, braces = false): string =
-  case node.nodeType:
-  of NTInt:
-    result = $(node.iVal)
-  of NTBool:
-    result = $(node.bVal)
-  of NTVariable:
-    `{`
-    case node.visibility:
-      of GlobalVar:
-        case c.language:
-        of Nim:
-          add result, "app" & $TK_DOT
-        of JavaScript:
-          discard
-        of Python:
-          discard
-        of Php:
-          add result, "app" & $TK_MINUS & $TK_GT
-      of ScopeVar:
-        add result, "this" & $TK_DOT
-      else: discard # InternalVar
-    # var accessorTk: string
-    add result, node.varIdent
-    if node.accessors.len != 0:
-      for n in node.accessors:
-        if n.nodeType == NTString:
-          >$ n.sVal
-        else:
-          >$ n.iVal
-    `}`
-  of NTString:
-    result = node.sVal
-  else: discard
-
-proc newInfixOp(c: var Compiler, a, b: Node, op: OperatorType, tkCond = TK_IF): string =
-  result = $tkCond
-  result &= indent(c.getIdent(a), 1)
-  result &= indent($op, 1)
-  result &= indent(c.getIdent(a), 1)
-  result &= $TK_COLON
-
-template br() =
-  c.html &= NewLine
-
-include ./compileutils/log
-include ./compileutils/viewHandle
-include ./compileutils/snippetsHandle
-
-proc handleConditionStmt(c: var Compiler, node: Node) =
-  br
-  var i = if node.meta.col == 0: 2 else: node.meta.col + 2
-  var infixCond = c.newInfixOp(node.ifCond.infixLeft, node.ifCond.infixRight, node.ifCond.infixOp)
-  add c.html, indent(infixCond, i)
-  c.writeNewLine(node.ifBody)
-  if node.elifBranch.len != 0:
-    for elifNode in node.elifBranch:
-      c.endResult()
-      br
-      infixCond = c.newInfixOp(
-              elifNode.cond.infixLeft,
-              elifNode.cond.infixRight,
-              elifNode.cond.infixOp,
-              TK_ELIF
-            )
-      add c.html, indent(infixCond, i)
-      c.prev = NTConditionStmt
-      c.writeNewLine(elifNode.body)
-      c.endResult(true)
-  c.endResult(true)
-  if node.elseBody.len != 0:
-    var elseTk = $TK_ELSE & $TK_COLON
-    c.html &= indent(elseTk, i)
-    c.prev = NTConditionStmt
-    for n in node.elseBody:
-      c.writeNewLine(node.elseBody)
-      c.endResult(true)
-
-proc handleForStmt(c: var Compiler, node: Node) =
-  c.endResult()
-  var forStmt = indent("\nfor $1 in $2:" % [node.forItem.varIdent, c.getIdent(node.forItems)], node.meta.col)
-  c.html &= forStmt
-  if node.forBody[0].nodeType == NTHtmlElement:
-    c.newResult(node.forBody[0].meta)
-  c.writeNewLine(node.forBody)
-  c.endResult()
-  c.newResult(c.firstParentNode)
-
-proc getNewLine(c: var Compiler, nodes: seq[Node]): string =
-  for node in nodes:
-    if node == nil: continue
-    case node.nodeType:
-    of NTHtmlElement:
-      let tag = node.htmlNodeName
-      add result, c.getOpenTag(tag, node)
-      if node.nodes.len != 0:
-        discard c.getNewLine(node.nodes)
-      add result, c.getCloseTag(node, false)
-      if c.fixTail: c.fixTail = false
-    of NTConditionStmt:
-      c.handleConditionStmt(node)
-    of NTString:
-      add result, c.getIdent(node)
-    else: discard
-
-proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
-  # if nodes[0].nodeType == NTHtmlElement:
-    # add c.html, NewLine
-    # add c.html, indent("result.add(\"\"\"", nodes[0].meta.col * 2)
-  for node in nodes:
-    if node == nil: continue # TODO
-    case node.nodeType:
-    of NTHtmlElement:
-      let tag = node.htmlNodeName
-      c.openTag(tag, node)
-      if node.nodes.len != 0:
-        c.writeNewLine(node.nodes)
-      c.closeTag(node, false)
-      if c.fixTail:
-        c.fixTail = false
-    of NTConditionStmt:
-      c.handleConditionStmt(node)
-    of NTForStmt:
-      c.handleForStmt(node)
-    of NTVariable:
-      add c.html, c.getIdent(node, true)
-      c.fixTail = true
-    of NTView:
-      c.handleViewInclude()
-    of NTString:
-      c.writeStrValue(node)
-    of NTInt:
-      c.writeIntValue(node)
-    of NTJavaScript:
-      c.hasJs = true
-      c.handleJavaScriptSnippet(node)
-    of NTSass:
-      c.hasSass = true
-      c.handleSassSnippet(node)
-    else: discard
-
-proc newCompiler*(program: Program, t: TimlTemplate, minify: bool,
-        indent: int, filePath: string, viewCode = "", lang = Nim): Compiler =
-  var c = Compiler(
-    language: lang,
-    program: program,
-    timView: t,
-    minify: false,
-    baseIndent: 2
-  )
-
-  case c.language
-  of Nim:
-    c.html &= "proc renderProductsView[G, S](app: G, this: S): string ="
-    if c.program.nodes.len == 0:
-      c.html &= NewLine & indent("discard", 2)
-  of JavaScript:
-    c.html &= "function renderProductsView(app = {}, this = {}) {"
-  of Python:
-    c.html &= "def renderProductsView(app: Dict, this: Dict):"
-  of Php:
-    c.html &= "function renderProductsView(object $app, object $this) {"
-
-  var metaNode: MetaNode
-  if c.program.nodes.len != 0:
-    if c.program.nodes[0].stmtList.nodeType == NTHtmlElement: 
-      c.newResult(metaNode)
-  for node in c.program.nodes:
-    case node.stmtList.nodeType:
-    of NTHtmlElement:
-      let tag = node.stmtList.htmlNodeName
-      c.firstParentNode = node.meta
-      c.openTag(tag, node.stmtList)
-      if node.stmtList.nodes.len != 0:
-        c.writeNewLine(node.stmtList.nodes)
-      c.closeTag(node.stmtList)
-    of NTConditionStmt:
-      c.endResult()
-      c.handleConditionStmt(node.stmtList)
-    of NTForStmt:
-      c.handleForStmt(node.stmtList)
-    of NTVariable:
-      add c.html, c.getIdent(node)
-    of NTView:
-      c.handleViewInclude()
-    of NTJavaScript:
-      c.hasJs = true
-      c.handleJavaScriptSnippet(node)
-    of NTSass:
-      c.hasSass = true
-      c.handleSassSnippet(node)
-    else: discard
-  c.endResult()
-
-  var insertSnippets = c.hasJS or c.hasSass
-  if insertSnippets:
-    c.newResult(metaNode)
+proc insertViewCode(c: var Compiler, node: Node) =
+  add c.html, c.getViewCode(node)
   if c.hasJS:
     add c.html, NewLine & "<script type=\"text/javascript\">"
-    add c.html, "document.addEventListener(\"DOMContentLoaded\", async function(){"
-    add c.html, indent($c.js, 2)
-    add c.html, "})"
+    add c.html, $c.js
     add c.html, NewLine & "</script>"
   if c.hasSass:
     add c.html, NewLine & "<style>"
     add c.html, $c.sass
     add c.html, NewLine & "</style>"
-  if insertSnippets:
-    c.endResult()
 
-  case c.language:
-  of Php, JavaScript:
-    c.html &= NewLine
-    c.html &= indent("return $result;", 2)
-    c.html &= NewLine & "}"
-  else: discard
-  result = c
+proc getJSSnippet(c: var Compiler, node: Node) =
+  c.js &= node.jsCode
+  if not c.hasJs: c.hasJs = true
+
+proc getSassSnippet(c: var Compiler, node: Node) =
+  try:
+    c.sass &= NewLine & compileSass(node.sassCode, outputStyle = OutputStyle.Compressed)
+  except SassException:
+    c.logs.add(getCurrentExceptionMsg())
+  if not c.hasSass: c.hasSass = true
+
+proc getJsonSnippet(c: var Compiler, node: Node) =
+  let jsonIdentName = 
+    if node.jsonIdent[0] == '#':
+      "id=\"$1\"" % node.jsonIdent[1..^1]
+    else:
+      "class=\"$1\"" % node.jsonIdent[1..^1]
+  c.json &= NewLine & "<script type=\"application/json\" $1>" % [jsonIdentName]
+  c.json &= node.jsonCode
+  c.json &= "</script>"
+  if not c.hasJson: c.hasJson = true
+
+proc getYamlSnippet(c: var Compiler, node: Node) =
+  c.yaml &= node.yamlCode
+  if not c.hasYaml: c.hasYaml = true
+
+proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
+  for node in nodes:
+    if node == nil: continue # TODO sometimes we get nil. check parser
+    case node.nodeType:
+    of NTHtmlElement:
+      let tag = node.htmlNodeName
+      tag <> node
+      c.fixTail = tag in ["textarea", "button"]
+      if node.nodes.len != 0:
+        c.writeNewLine(node.nodes)
+      node </> false
+      if c.fixTail: c.fixTail = false
+    of NTVariable:
+      &== c.getStringValue(node)
+    of NTInfixStmt:
+      c.handleInfixStmt(node)
+    of NTConditionStmt:
+      c.handleConditionStmt(node)
+    of NTString:
+      c.writeStrValue(node)
+    of NTForStmt:
+      c.handleForStmt(node)
+    of NTView:
+      c.insertViewCode(node)
+    of NTJavaScript:
+      c.getJSSnippet(node)
+    of NTSass:
+      c.getSassSnippet(node)
+    of NTJson:
+      c.getJsonSnippet(node)
+    of NTYaml:
+      c.getYamlSnippet(node)
+    else: discard
+
+proc compileProgram(c: var Compiler) =
+  # when not defined cli:
+  #   if c.hasSass and getType(c.`template`) == Layout:
+  for node in c.program.nodes:
+    case node.stmtList.nodeType:
+    of NTHtmlElement:
+      let tag = node.stmtList.htmlNodeName
+      tag <> node.stmtList
+      if node.stmtList.nodes.len != 0:
+        c.writeNewLine(node.stmtList.nodes)
+      node.stmtList </> false
+    of NTConditionStmt:
+      c.handleConditionStmt(node.stmtList)
+    of NTForStmt:
+      c.handleForStmt(node.stmtList)
+    of NTView:
+      c.insertViewCode(node.stmtList)
+    of NTJavaScript:
+      c.getJSSnippet(node.stmtList)
+    of NTSass:
+      c.getSassSnippet(node.stmtList)
+    of NTJson:
+      c.getJsonSnippet(node.stmtList)
+    of NTYaml:
+      c.getYamlSnippet(node.stmtList)
+    else: discard
+
+  when not defined cli:
+    # if c.hasViewCode == false:
+    if c.hasJson:
+      add c.html, $c.json
+    if c.hasJS:
+      add c.html, NewLine & "<script type=\"text/javascript\">"
+      add c.html, "document.addEventListener(\"DOMContentLoaded\", async function(){"
+      add c.html, indent($c.js, 2)
+      add c.html, "})"
+      add c.html, NewLine & "</script>"
+    if c.hasSass:
+      add c.html, NewLine & "<style>"
+      add c.html, $c.sass
+      add c.html, NewLine & "</style>"
+
+when defined cli:
+  proc newCompiler*(program: Program, `template`: Template, minify: bool,
+                    indent: int, filePath: string,
+                    viewCode = "", lang = Nim): Compiler =
+    ## Create a new Compiler instance for Command Line interface
+    var c = Compiler(
+      language: lang,
+      program: p,
+      `template`: `template`,
+      minify: minify,
+      baseIndent: indent
+    )
+    case c.language
+    of Nim:
+      c.html &= "proc renderProductsView[G, S](app: G, this: S): string ="
+      if c.program.nodes.len == 0:
+        c.html &= NewLine & indent("discard", 2)
+    of JavaScript:
+      c.html &= "function renderProductsView(app = {}, this = {}) {"
+    of Python:
+      c.html &= "def renderProductsView(app: Dict, this: Dict):"
+    of Php:
+      c.html &= "function renderProductsView(object $app, object $this) {"
+    var metaNode: MetaNode
+    if c.program.nodes.len != 0:
+      if c.program.nodes[0].stmtList.nodeType == NTHtmlElement: 
+        c.newResult(metaNode)
+    c.compileProgram()
+    result = c
+
+else:
+  proc newCompiler*(p: Program, `template`: Template, minify: bool,
+                    indent: int, filePath: string,
+                    data = %*{}, viewCode = "", hasViewCode = false): Compiler =
+    ## Create a new Compiler at runtime for just in time compilation
+    var c = Compiler(
+      program: p,
+      `template`: `template`,
+      data: data,
+      minify: minify,
+      baseIndent: indent,
+      viewCode: viewCode,
+      hasViewCode: hasViewCode,
+      memtable: newTable[string, JsonNode]()
+    )
+    c.compileProgram()
+    result = c

@@ -1,17 +1,20 @@
-# High-performance, compiled template engine inspired by Emmet syntax.
+# A high-performance compiled template engine inspired by the Emmet syntax.
 #
-# (c) 2022 Tim Engine is released under MIT License
+# (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import std/[tables, json, jsonutils]
+import std/[tables, json]
+from pkg/nyml import yaml, toJsonStr
+import pkg/jsony
 
 import tokens, ast
 from resolver import resolve, hasError, getError,
           getErrorLine, getErrorColumn, getFullCode
 
-from meta import TimEngine, TimlTemplate, TimlTemplateType
-from std/strutils import `%`, isDigit, join, endsWith, parseInt, parseBool, parseFloat
+from meta import TimEngine, Template, TemplateType
+from std/strutils import `%`, isDigit, join, endsWith, Newlines,
+                            split, parseInt, parseBool, parseFloat
 
 type
   Parser* = object
@@ -38,7 +41,7 @@ type
       ## conditional statement or other dynamic statements.
     error: string
       ## A parser/lexer error
-    templateType: TimlTemplateType
+    templateType: TemplateType
     ids: TableRef[string, int]
 
   PrefixFunction = proc(p: var Parser): Node
@@ -72,19 +75,21 @@ const
   TypeMismatch = "Type mismatch: x is type of $1 but y: $2"
   InvalidIDNotUnique = "The ID \"$1\" is also used for another element at line $2"
   InvalidJavaScript = "Invalid JavaScript snippet"
+  InvalidImportView = "Trying to load a view inside a $1"
 
 const
   tkVars = {TK_VARIABLE, TK_SAFE_VARIABLE}
-  tkComparables = {TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE} + tkVars
+  tkCallables = {TK_STARTSWITH}
+  tkComparables = {TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE} + tkVars + tkCallables
   tkOperators = {TK_EQ, TK_NEQ, TK_LT, TK_LTE, TK_GT, TK_GTE}
-  tkConditionals = {TK_IF, TK_ELIF, TK_ELSE, TK_IN, TK_OR}
+  tkConditionals = {TK_IF, TK_ELIF, TK_ELSE, TK_IN, TK_OR, TK_AND}
   tkLoops = {TK_FOR, TK_IN}
   tkCalc = {TK_PLUS, TK_MINUS, TK_DIVIDE, TK_MULTI}
   tkCall = {TK_INCLUDE, TK_MIXIN}
   tkNone = (TK_NONE, "", 0,0,0,0)
   tkSpecial = {TK_DOT, TK_COLON, TK_LCURLY, TK_RCURLY,
           TK_LPAR, TK_RPAR, TK_ID, TK_ASSIGN, TK_COMMA,
-          TK_AT, TK_NOT, TK_AND} + tkCalc + tkOperators + tkLoops
+          TK_AT, TK_NOT, TK_AMP} + tkCalc + tkOperators + tkLoops
   svgscTags = {
     TK_SVG_PATH, TK_SVG_CIRCLE, TK_SVG_POLYLINE, TK_SVG_ANIMATE,
     TK_SVG_ANIMATETRANSFORM, TK_SVG_ANIMATEMOTION,
@@ -144,7 +149,7 @@ proc isHTMLElement(token: TokenKind): bool =
              tkLoops + {TK_EOF}
 
 proc parse*(engine: TimEngine, code, path: string,
-      templateType: TimlTemplateType): Parser
+      templateType: TemplateType): Parser
 
 proc getStatements*(p: Parser, asNodes = true): Program =
   ## Return all HtmlNodes available in current document
@@ -152,9 +157,9 @@ proc getStatements*(p: Parser, asNodes = true): Program =
 
 proc getStatementsStr*(p: Parser, prettyString, prettyPlain = false): string = 
   ## Retrieve all HtmlNodes available in current document as stringified JSON
-  if prettyString or prettyPlain: 
-    return pretty(toJson(p.getStatements()))
-  result = $(toJson(p.statements))
+  # if prettyString or prettyPlain: 
+    # return pretty(toJson(p.getStatements()))
+  result = toJson(p.statements)
 
 template jit(p: var Parser) =
   ## Enable jit flag When current document contains
@@ -177,14 +182,15 @@ proc walk(p: var Parser, offset = 1) =
 
 proc getOperator(tk: TokenKind): OperatorType =
   case tk:
-  of TK_EQ: result = EQ
-  of TK_NEQ: result = NE
-  of TK_LT: result = LT
-  of TK_LTE: result = LTE
-  of TK_GT: result = GT
-  of TK_GTE: result = GTE
-  of TK_AND: result = AND
-  else: discard
+    of TK_EQ: result = EQ
+    of TK_NEQ: result = NE
+    of TK_LT: result = LT
+    of TK_LTE: result = LTE
+    of TK_GT: result = GT
+    of TK_GTE: result = GTE
+    of TK_AND: result = AND
+    of TK_AMP: result  = AMP
+    else: discard
 
 # prefix / infix handlers
 proc parseExpressionStmt(p: var Parser): Node
@@ -198,17 +204,6 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 proc isGlobalVar(tk: TokenTuple): bool = tk.value == "app"
 proc isScopeVar(tk: TokenTuple): bool = tk.value == "this"
 
-proc parseInfix(p: var Parser, infixLeft: Node, strict = false): Node =
-  let tk: TokenTuple = p.current
-  walk p
-  let infixRight: Node = p.parseExpression()
-  result = ast.newInfix(infixLeft, infixRight, getOperator(tk.kind))
-  if strict:
-    let lit = {NTInt, NTString, NTBool}
-    if infixLeft.nodeType in lit and infixRight.nodeType in lit and (infixLeft.nodeType != infixRight.nodeType):
-      p.setError(TypeMismatch % [infixLeft.nodeName, infixRight.nodeName])
-      result = nil
-
 proc parseInteger(p: var Parser): Node =
   # Parse a new `integer` node
   result = ast.newInt(parseInt(p.current.value), p.current)
@@ -220,23 +215,23 @@ proc parseBoolean(p: var Parser): Node =
   walk p
 
 template handleConcat() =
-  while p.current.kind == TK_AND:
+  while p.current.kind == TK_AMP:
     if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
       p.setError(InvalidStringConcat)
       return nil
     walk p
     let infixRight: Node = p.parseExpression()
     if result == nil:
-      result = ast.newInfix(leftNode, infixRight, getOperator(TK_AND))
+      result = ast.newInfix(leftNode, infixRight, getOperator(TK_AMP))
     else:
-      result = ast.newInfix(result, infixRight, getOperator(TK_AND))
+      result = ast.newInfix(result, infixRight, getOperator(TK_AMP))
 
 proc parseString(p: var Parser): Node =
   # Parse a new `string` node
   if p.hasError(): return
   var concated: bool
   let this = p.current
-  if p.next.kind == TK_AND:
+  if p.next.kind == TK_AMP:
     concated = true
     walk p
     var leftNode = ast.newString(this)
@@ -307,7 +302,7 @@ proc parseVariable(p: var Parser): Node =
     varVisibility = varVisibility
   )
   leftNode.accessors = accessors
-  if p.current.kind == TK_AND: # support infix concatenation X & Y
+  if p.current.kind == TK_AMP: # support infix concatenation X & Y
     handleConcat()
   if result == nil:
     result = leftNode
@@ -320,8 +315,10 @@ proc parseSafeVariable(p: var Parser): Node =
 
 template htmlAttributeNames(): untyped =
   (
-    p.current.kind in {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE, TK_IDENTIFIER,
-               TK_IF, TK_FOR, TK_ELIF, TK_ELSE, TK_OR, TK_IN} + tkHtml and p.next.kind == TK_ASSIGN
+    p.current.kind in {
+      TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE,
+      TK_IDENTIFIER, TK_IF, TK_FOR, TK_ELIF, TK_ELSE,
+      TK_OR, TK_IN} + tkHtml and p.next.kind == TK_ASSIGN
   )
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
@@ -410,7 +407,8 @@ proc newHtmlNode(p: var Parser): Node =
         result.nodes.add p.parseInteger()
       else:
         p.setError InvalidValueAssignment, p.prev.line, p.prev.col, true
-    elif p.current.kind in {TK_DOT, TK_ID, TK_IDENTIFIER} + tkHtml:
+    # elif p.current.kind in {TK_DOT, TK_ID, TK_IDENTIFIER} + tkHtml:
+    elif p.current.kind in {TK_DOT, TK_ID} or htmlAttributeNames():
       if p.current.line > result.meta.line:
         break # prevent bad loop
       result.attrs = p.getHtmlAttributes()
@@ -482,11 +480,23 @@ proc parseAssignment(p: var Parser): Node =
 
 # import re # lazy house
 proc parseSnippet(p: var Parser): Node =
-  result = newSnippet(p.current)
-  if result.nodeType == NTJavaScript:
+  if p.current.kind == TK_JS:
+    result = newSnippet(p.current)
     result.jsCode = p.current.value         # re.replace(p.current.value, re"\/\*(.*?)\*\/|\s\B")
-  else:
+  elif p.current.kind == TK_SASS:
+    result = newSnippet(p.current)
     result.sassCode = p.current.value
+  elif p.current.kind in {TK_JSON, TK_YAML}:
+    let code = p.current.value.split(Newlines, maxsplit = 1)
+    var ident = code[0]
+    p.current.value = code[1]
+    if p.current.kind == TK_JSON:
+      result = newSnippet(p.current, ident)
+      result.jsonCode = p.current.value
+    else:
+      p.current.kind = TK_JSON
+      result = newSnippet(p.current, ident)
+      result.jsonCode = yaml(p.current.value).toJsonStr
   walk p
 
 proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple) =
@@ -501,31 +511,60 @@ proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple)
       let bodyNode = p.parseExpression(exclude = {NTInt, NTString, NTBool})
       elseBody.add bodyNode
 
-proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
-  if p.next.kind notin tkComparables:
+proc parseInfix(p: var Parser, strict = false): Node =
+  walk p
+  if p.current.kind notin tkComparables:
     p.setError(InvalidConditionalStmt)
     return
-  walk p
-  let tkLeft = p.current
+  let
+    tkLeft = p.current
+    infixLeftFn = p.getPrefixFn(tkLeft.kind)
   var infixLeft: Node
-  let infixLeftFn = p.getPrefixFn(tkLeft.kind)
   if infixLeftFn != nil:
     infixLeft = infixLeftFn(p)
   else:
     p.setError(InvalidConditionalStmt)
     return
-  if tkLeft.kind notin tkVars and p.current.kind notin tkOperators:
-    p.setError(InvalidConditionalStmt)
+  var infixNode = ast.newInfix(infixLeft)
+  if p.current.kind == TK_AND:
+    infixNode.infixOp = getOperator(TK_AND)
+    infixNode.infixOpSymbol = getSymbolName(infixNode.infixOp)
+    while p.current.kind == TK_AND:
+      infixNode.infixRight = p.parseInfix()
+  elif p.current.kind in tkOperators:
+    let op = p.current
+    walk p
+    if p.current.kind notin tkComparables:
+      p.setError(InvalidConditionalStmt)
+      return
+    var
+      infixRight: Node
+      infixRightFn = p.getPrefixFn(p.current.kind)
+    if infixRightFn != nil:
+      infixRight = infixRightFn(p)
+      infixNode.infixOp = getOperator(op.kind)
+      infixNode.infixOpSymbol = getSymbolName(infixNode.infixOp)
+      infixNode.infixRight = infixRight
+    else:
+      p.setError(InvalidConditionalStmt)
+      return
+  else:
+    infixNode = infixLeft
+  result = infixNode
+  # if strict:
+  #   let lit = {NTInt, NTString, NTBool}
+  #   if infixLeft.nodeType in lit and infixRight.nodeType in lit and (infixLeft.nodeType != infixRight.nodeType):
+  #     p.setError(TypeMismatch % [infixLeft.nodeName, infixRight.nodeName])
+  #     result = nil
 
-  var infixNode = infixLeft
-  if tkLeft.kind notin tkVars and p.current.kind != TK_COLON:
-    infixNode = p.parseInfix(infixLeft, strict = true)
-  
+proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
+  var infixNode = p.parseInfix()
   if p.current.pos == this.pos:
     p.setError(InvalidIndentation)
     return
 
-  if p.current.kind == TK_COLON: walk p
+  if p.current.kind == TK_COLON:
+    walk p
   
   var ifBody: seq[Node]
   while p.current.pos > this.pos:     # parse body of `if` branch
@@ -542,6 +581,7 @@ proc parseIfStmt(p: var Parser): Node =
   var this = p.current
   var elseBody: seq[Node]
   result = newIfExpression(ifBranch = p.parseCondBranch(this), this)
+  # echo result
   while p.current.kind == TK_ELIF:
     let thisElif = p.current
     result.elifBranch.add p.parseCondBranch(thisElif)
@@ -577,7 +617,28 @@ proc parseForStmt(p: var Parser): Node =
     return newFor(singularIdent, pluralIdent, forBody, this)
   p.setError(NestableStmtIndentation)
 
+proc parseCall(p: var Parser): Node =
+  let tk = p.current
+  walk p, 2 # ident + (
+  var params: seq[Node]
+  while p.current.line == tk.line:
+    if p.current.kind == TK_RPAR: break
+    elif p.current.kind in tkComparables:
+      let node = p.parseExpression()
+      if node != nil:
+        params.add(node)
+      else: break
+    elif p.current.kind == TK_COMMA:
+      walk p
+  if p.current.kind == TK_RPAR:
+    walk p # )
+  else:
+    # TODO error
+    discard
+  result = newCall(tk.value[1..^1], params)
+
 proc parseMixinCall(p: var Parser): Node =
+  let this = p.current
   result = newMixin(p.current)
   walk p
 
@@ -632,7 +693,7 @@ proc parseComment(p: var Parser): Node =
 
 proc parseViewLoader(p: var Parser): Node =
   if p.templateType != Layout:
-    p.setError("Trying to load a view inside a $1" % [$p.templateType])
+    p.setError(InvalidImportView % [$p.templateType])
     return
   result = newView(p.current)
   walk p
@@ -644,13 +705,17 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
     of TK_STRING: parseString
     of TK_IF: parseIfStmt
     of TK_FOR: parseForStmt
-    of TK_JS, TK_SASS: parseSnippet
+    of TK_JS, TK_SASS, TK_JSON, TK_YAML: parseSnippet
     of TK_INCLUDE: parseIncludeCall
     of TK_MIXIN:
       if p.next.kind == TK_LPAR:
         parseMixinCall
       elif p.next.kind == TK_IDENTIFIER:
-        parseMixinDefinition
+        parseMixinCall
+      else: nil
+    of TK_STARTSWITH:
+      if p.next.kind == TK_LPAR:
+        parseCall
       else: nil
     of TK_VARIABLE: parseVariable
     of TK_SAFE_VARIABLE: parseSafeVariable
@@ -679,7 +744,7 @@ proc parseStatement(p: var Parser): Node =
     of TK_VARIABLE:    result = p.parseAssignment()
     else:              result = p.parseExpressionStmt()
 
-proc parse*(engine: TimEngine, code, path: string, templateType: TimlTemplateType): Parser =
+proc parse*(engine: TimEngine, code, path: string, templateType: TemplateType): Parser =
   ## Parse a new Tim document
   var
     resHandle = resolve(code, path, engine, templateType)

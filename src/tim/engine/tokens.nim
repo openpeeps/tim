@@ -1,8 +1,9 @@
-# A High-performance, compiled template engine
-# inspired by Emmmet Syntax.
+# A high-performance compiled template engine inspired by the Emmet syntax.
 #
-# (c) 2022 Made by Humans from OpenPeep | MIT License
-#          https://github.com/openpeep/toktok
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeep
+#          https://github.com/openpeep/tim
+
 import toktok
 
 static:
@@ -26,16 +27,21 @@ handlers:
   proc handleSnippets*(lex: var Lexer, kind: TokenKind) =    
     lex.startPos = lex.getColNumber(lex.bufpos)
     var k = TK_JS
-    if lex.next("``js"):
-      setLen(lex.token, 0)
-      inc lex.bufpos, 5
-    elif lex.next("``javascript"):
+    if lex.next("``javascript"):
       setLen(lex.token, 0)
       inc lex.bufpos, 13
     elif lex.next("``sass"):
       setLen(lex.token, 0)
       inc lex.bufpos, 7
       k = TK_SASS
+    elif lex.next("``yaml"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 7
+      k = TK_YAML
+    elif lex.next("``json"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 7
+      k = TK_JSON
     else:
       lex.setError("Unknown snippet. Tim knows about `js`|`javascript` or `sass`")
       return
@@ -247,6 +253,8 @@ tokens:
   Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
   JS
   SASS
+  YAML
+  JSON
   Snippet           > tokenize(handleSnippets, '`')
   LCurly       > '{'
   RCurly       > '}'
@@ -264,12 +272,13 @@ tokens:
     GTE      ? '='
   LT           > '<':
     LTE      ? '='
-  And          > '&'
+  AMP          > '&'
   Variable          > tokenize(handleCustomIdent, '$')
   Safe_Variable     > tokenize(handleCustomIdent, '%')
   If           > "if"
   Elif         > "elif"
   Else         > "else"
+  And          > "and"
   For          > "for"
   In           > "in"
   Or           > "or"
@@ -281,6 +290,7 @@ tokens:
     Include  ? "include"
     Mixin    ? "mixin"
     View     ? "view"
+    StartsWith ? "startsWith"
   PLUS         > '+'
   MINUS        > '-'
   MULTI        > '*'
