@@ -27,5 +27,5 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: sudo apt-get -y install libsass-dev
       - run: nimble install -Y
-      - run: nim --threads:on c -r src/tim.nim
+      - run: nim --threads:on c -r src/${{ github.event.repository.name }}.nim
       - run: nimble test
