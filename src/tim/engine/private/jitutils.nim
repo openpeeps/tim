@@ -255,7 +255,7 @@ include ./stdcalls
 proc compInfixNode(c: var Compiler, node: Node): bool =
   if node.nodeType == NTVariable:
     result = c.compVarNil(node)
-  else: # NTInfixStmt
+  elif node.nodeType == NTInfixStmt:
     case node.infixOp
     of EQ, NE:
       if node.infixLeft.nodeType == node.infixRight.nodeType:
@@ -324,6 +324,13 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
           elif callIdent == "endsWith":
             result = c.callStdEndsWith(node.infixRight.callParams)
     else: discard
+  elif node.nodeType == NTCall:
+    if node.callIdent == "startsWith":
+      result = c.callStdStartsWith(node.callParams)
+    elif node.callIdent == "endsWith":
+      result = c.callStdEndsWith(node.callParams)
+    elif node.callIdent == "contains":
+      result = c.callStdContains(node.callParams)
 
 proc handleConditionStmt(c: var Compiler, node: Node) =
   if c.compInfixNode(node.ifCond):

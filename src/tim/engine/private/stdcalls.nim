@@ -29,3 +29,6 @@ proc callStdEndsWith(c: var Compiler, params: seq[Node]): bool =
       prefixParam = c.getJsonData(params[1].varIdent)
   typeSafety((strParam.kind, JString), (prefixParam.kind, JString))
   result = strutils.endsWith(strParam.getStr, prefixParam.getStr)
+
+proc callStdContains(c: var Compiler, params: seq[Node]): bool =
+  discard

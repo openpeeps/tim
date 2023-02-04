@@ -98,8 +98,12 @@ else:
       reloadHandler = "\n" & """
   <script type="text/javascript">
   document.addEventListener("DOMContentLoaded", function() {
+    var connectionError = false
     var prevTime = localStorage.getItem("watchout") || 0
     function autoreload() {
+      if(connectionError) {
+        return;
+      }
       fetch('/dev/live')
         .then(res => res.json())
         .then(body => {
@@ -108,7 +112,9 @@ else:
             localStorage.setItem("watchout", body.state)
             location.reload()
           }
-        }).catch(function() {});
+        }).catch(function() {
+          connectionError = true
+        });
       setTimeout(autoreload, 500)
     }
     autoreload();

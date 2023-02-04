@@ -79,8 +79,9 @@ const
 
 const
   tkVars = {TK_VARIABLE, TK_SAFE_VARIABLE}
-  tkCallables = {TK_STARTSWITH}
-  tkComparables = {TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE} + tkVars + tkCallables
+  tkCallables = {TK_STARTSWITH, TK_ENDSWITH}
+  tkAssignables = {TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE} + tkVars
+  tkComparables = tkAssignables + tkCallables
   tkOperators = {TK_EQ, TK_NEQ, TK_LT, TK_LTE, TK_GT, TK_GTE}
   tkConditionals = {TK_IF, TK_ELIF, TK_ELSE, TK_IN, TK_OR, TK_AND}
   tkLoops = {TK_FOR, TK_IN}
@@ -179,6 +180,32 @@ proc walk(p: var Parser, offset = 1) =
     p.current = p.next
     p.next = p.lexer.getToken()
     inc i
+
+let stdTable = toTable({
+  "startsWith": @[
+    (pName: "s", pType: TK_STRING),
+    (pName: "prefix", pType: TK_STRING)
+  ],
+  "endsWith": @[
+    (pName: "s", pType: TK_STRING),
+    (pName: "suffix", pType: TK_STRING)
+  ],
+})
+
+template checkTypeSafety() =
+  let
+    t = stdTable[callIdent]
+    tlen = t.len
+    ilen = params.len
+  if len(params) == 0:
+    p.setError("Got none but `$1` expects $2 parameters." % [callIdent, $tlen])
+    return
+  elif len(params) != len(stdTable[callIdent]):
+    p.setError("Got $1 but `$2` expects $3 parameters" % [$ilen, callIdent, $tlen])
+    return
+  # else:
+  #   for p in params:
+  #     if p.pType != 
 
 proc getOperator(tk: TokenKind): OperatorType =
   case tk:
@@ -522,6 +549,7 @@ proc parseInfix(p: var Parser, strict = false): Node =
   var infixLeft: Node
   if infixLeftFn != nil:
     infixLeft = infixLeftFn(p)
+    if p.hasError(): return
   else:
     p.setError(InvalidConditionalStmt)
     return
@@ -542,6 +570,7 @@ proc parseInfix(p: var Parser, strict = false): Node =
       infixRightFn = p.getPrefixFn(p.current.kind)
     if infixRightFn != nil:
       infixRight = infixRightFn(p)
+      if p.hasError(): return
       infixNode.infixOp = getOperator(op.kind)
       infixNode.infixOpSymbol = getSymbolName(infixNode.infixOp)
       infixNode.infixRight = infixRight
@@ -559,6 +588,8 @@ proc parseInfix(p: var Parser, strict = false): Node =
 
 proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
   var infixNode = p.parseInfix()
+  if p.hasError():
+    return
   if p.current.pos == this.pos:
     p.setError(InvalidIndentation)
     return
@@ -581,7 +612,6 @@ proc parseIfStmt(p: var Parser): Node =
   var this = p.current
   var elseBody: seq[Node]
   result = newIfExpression(ifBranch = p.parseCondBranch(this), this)
-  # echo result
   while p.current.kind == TK_ELIF:
     let thisElif = p.current
     result.elifBranch.add p.parseCondBranch(thisElif)
@@ -630,12 +660,16 @@ proc parseCall(p: var Parser): Node =
       else: break
     elif p.current.kind == TK_COMMA:
       walk p
+    else:
+      break
   if p.current.kind == TK_RPAR:
     walk p # )
   else:
-    # TODO error
-    discard
-  result = newCall(tk.value[1..^1], params)
+    p.setError("EOL reached before closing call statement")
+    return
+  let callIdent = tk.value[1..^1]
+  checkTypeSafety()
+  result = newCall(callIdent, params)
 
 proc parseMixinCall(p: var Parser): Node =
   let this = p.current
@@ -713,7 +747,7 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
       elif p.next.kind == TK_IDENTIFIER:
         parseMixinCall
       else: nil
-    of TK_STARTSWITH:
+    of TK_STARTSWITH, TK_ENDSWITH:
       if p.next.kind == TK_LPAR:
         parseCall
       else: nil

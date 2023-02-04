@@ -291,6 +291,8 @@ tokens:
     Mixin    ? "mixin"
     View     ? "view"
     StartsWith ? "startsWith"
+    EndsWith   ? "endsWith"
+    Contains   > "contains"
   PLUS         > '+'
   MINUS        > '-'
   MULTI        > '*'
