@@ -5,12 +5,7 @@
 #          https://github.com/openpeep/tim
 
 import pkg/[bson, pkginfo]
-import std/[tables, md5]
-
-when requires "packedjson":
-  import pkg/packedjson
-else:
-  import std/json
+import std/[tables, md5, json]
 
 from std/math import sgn
 from std/strutils import `%`, strip, split, contains, join, endsWith, replace, parseInt
@@ -57,10 +52,7 @@ type
     when isMainModule:
       globalData: Globals
     else:
-      when requires "packedjson":
-        globalData: JsonTree
-      else:
-        globalData: JsonNode
+      globalData: JsonNode
     root: string
       ## root path to your Timl templates
     output: string
@@ -176,45 +168,25 @@ proc hasAnySources*(e: TimEngine): bool =
   ## objects stored in layouts, views or partials fields
   result = len(e.views) != 0
 
-when requires "packedjson":
-  proc setData*(t: var TimEngine, data: JsonTree) =
-    ## Add global data that can be accessed across templates
-    t.globalData = data
-else:
-  proc setData*(t: var TimEngine, data: JsonNode) =
-    ## Add global data that can be accessed across templates
-    t.globalData = data
+proc setData*(t: var TimEngine, data: JsonNode) =
+  ## Add global data that can be accessed across templates
+  t.globalData = data
 
 proc globalDataExists*(t: TimEngine): bool =
   ## Determine if global data is available
-  when requires "packedjson":
+  if t.globalData != nil:
     result = t.globalData.kind != JNull
-  else:
-    if t.globalData != nil:
-      result = t.globalData.kind != JNull
 
-when requires "packedjson":
-  proc getGlobalData*(t: TimEngine): JsonTree =
-    ## Retrieves global data
-    result = t.globalData
-  
-  proc merge*(data: JsonNode, key: string, mainGlobals, globals: JsonNode) =
-    data["globals"] = %*{}
-    for k, f in mainGlobals.pairs():
-      data[key][k] = f
-    for k, f in globals.pairs():
-      data[key][k] = f
-else:
-  proc getGlobalData*(t: TimEngine): JsonNode =
-    ## Retrieves global data
-    result = t.globalData
+proc getGlobalData*(t: TimEngine): JsonNode =
+  ## Retrieves global data
+  result = t.globalData
 
-  proc merge*(data: JsonNode, key: string, mainGlobals, globals: JsonNode) =
-    data["globals"] = %*{}
-    for k, f in mainGlobals.pairs():
-      data[key][k] = f
-    for k, f in globals.pairs():
-      data[key][k] = f
+proc merge*(data: JsonNode, key: string, mainGlobals, globals: JsonNode) =
+  data["globals"] = %*{}
+  for k, f in mainGlobals.pairs():
+    data[key][k] = f
+  for k, f in globals.pairs():
+    data[key][k] = f
 
 proc getPath(e: TimEngine, key, pathType: string): string =
   ## Retrieve path key for either a partial, view or layout

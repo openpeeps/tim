@@ -10,10 +10,7 @@ import pkg/klymene/cli
 import ./ast
 
 when not defined cli:
-  when requires "packedjson":
-    import pkg/packedjson
-  else:
-    import std/json
+  import std/json
 
 from ./meta import Template, setPlaceHolderId, getPlaceholderIndent, getType
 
@@ -41,10 +38,7 @@ type
       prev, next: NodeType
       firstParentNode: NodeType
     else:
-      when requires "packedjson":
-        data: JsonTree
-      else:
-        data: JsonNode
+      data: JsonNode
       memtable: MemStorage
     fixTail: bool
     logs: seq[string]

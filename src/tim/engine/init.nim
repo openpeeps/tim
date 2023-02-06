@@ -4,14 +4,9 @@
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
-import std/[tables, strutils]
+import std/[tables, strutils, json]
 import pkg/[pkginfo, jsony, klymene/cli]
 import tim/engine/[meta, ast, parser, compiler]
-
-when requires "packedjson":
-  import pkg/packedjson
-else:
-  import std/json
 
 export parser
 export meta except TimEngine
@@ -122,32 +117,18 @@ else:
   </script>
   """
 
-  when requires "packedjson":
-    proc newJIT(e: TimEngine, `template`: Template, data: JsonTree,
-                viewCode = "", hasViewCode = false): Compiler =
-      result = newCompiler(
-        p = fromJson(e.readBson(`template`), Program),
-        `template` = `template`,
-        minify = e.shouldMinify,
-        indent = e.getIndent,
-        filePath = `template`.getFilePath,
-        data = data,
-        viewCode = viewCode,
-        hasViewCode = hasViewCode
-      )
-  else:
-    proc newJIT(e: TimEngine, `template`: Template, data: JsonNode,
-                viewCode = "", hasViewCode = false): Compiler =
-      result = newCompiler(
-        p = fromJson(e.readBson(`template`), Program),
-        `template` = `template`,
-        minify = e.shouldMinify,
-        indent = e.getIndent,
-        filePath = `template`.getFilePath,
-        data = data,
-        viewCode = viewCode,
-        hasViewCode = hasViewCode
-      )
+  proc newJIT(e: TimEngine, `template`: Template, data: JsonNode,
+              viewCode = "", hasViewCode = false): Compiler =
+    result = newCompiler(
+      p = fromJson(e.readBson(`template`), Program),
+      `template` = `template`,
+      minify = e.shouldMinify,
+      indent = e.getIndent,
+      filePath = `template`.getFilePath,
+      data = data,
+      viewCode = viewCode,
+      hasViewCode = hasViewCode
+    )
 
   proc render*(e: TimEngine, viewName: string, layoutName = DefaultLayout,
               data, globals = %*{}): string =
@@ -160,11 +141,8 @@ else:
         if e.hasLayout(layoutName):
           layoutName
         else: DefaultLayout
-      when requires "packedjson":
-        var allData: JsonTree = %* {}
-      else:
-        var allData: JsonNode = %* {}
       var
+        allData: JsonNode = %* {}
         view: Template = e.getView viewName
         layout: Template = e.getLayout(layoutName)
       

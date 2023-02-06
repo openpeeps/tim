@@ -1,197 +1,42 @@
-# A high-performance, compiled template engine inspired by Emmet syntax.
+# A high-performance compiled template engine inspired by the Emmet syntax.
 #
-# (c) 2023 Tim Engine | MIT License
+# (c) 2023 George Lemon | MIT License
 #          Made by Humans from OpenPeep
 #          https://github.com/openpeep/tim
 
 when isMainModule:
-  ## Meet the King. Here we'll create a standalone cross-platform
-  ## command line application that can be used for transpiling
+  ## The standalone cross-language application
+  ## ====================
+  ## This is Tim as command line interface. It can be used for transpiling
   ## Tim sources to various programming/markup languages such as:
-  ## Nim, JavaScript, Python, XML, PHP, Go, Ruby, Java, Lua
+  ## Nim, JavaScript, Python, XML, PHP, Go, Ruby, Java, Lua.
+  ## **Note**: This is work in progress
   import klymene
-  import tim/commands/[initCommand, watchCommand]
+  import tim/commands/[initCommand, watchCommand, buildCommand]
 
   App:
     about:
       "A High-performance, compiled template engine & markup language"
       "Made by Humans from OpenPeep"
-      version "0.1.0"
 
     commands:
-      $ "init"              "Generate a new Tim configuration"
-      $ "watch"             "Transpile Tim to code and watch for changes"
+      $ "init"              "Generate a new Tim config"
+      $ "watch"             "Transpile and Watch for changes"
+      $ "build"             "Transpile Tim to targeting language"
 
 else:
-  import pkginfo, jsony
-  import tim/engine/[ast, parser, meta, jitcompiler]
-  import std/[tables, json]
-
-  from std/strutils import `%`, indent
-
-  when requires "watchout":
-    import watchout
-    from std/times import cpuTime
-
-  export parser
-  export meta except TimEngine
-  
-  const DockType = "<!DOCTYPE html>"
-  var Tim*: TimEngine
-  const DefaultLayout = "base"
-  var reloadHandler: string
-  when requires "supranim":
-    when not defined release:
-      reloadHandler = "\n" & """
-<script type="text/javascript">
-  document.addEventListener("DOMContentLoaded", function() {
-    var prevTime = localStorage.getItem("watchout") || 0
-    function autoreload() {
-      fetch('/dev/live')
-        .then(res => res.json())
-        .then(body => {
-          if(body.state == 0) return
-          if(body.state > prevTime) {
-            localStorage.setItem("watchout", body.state)
-            location.reload()
-          }
-        }).catch(function() {});
-      setTimeout(autoreload, 500)
-    }
-    autoreload();
-  });
-</script>
-"""
-
-  proc newCompiler(engine: TimEngine, timView: TimlTemplate, data: JsonNode, viewCode, after = ""): Compiler =
-    result = Compiler.init(
-      astProgram = fromJson(engine.readBson(timView), Program),
-      minify = engine.shouldMinify(),
-      timView = timView,
-      baseIndent = engine.getIndent(),
-      filePath = timView.getFilePath(),
-      data = data,
-      viewCode = viewCode,
-      after = after
-    )
-
-  proc render*(engine: TimEngine, key: string, layoutKey = DefaultLayout,
-          data: JsonNode = %*{}): string =
-    ## Renders a template view by name. Use dot notations
-    ## for accessing views in sub directories,
-    ## for example `render("product.sales.index")`
-    ## will try look for a timl template at `product/sales/index.timl`
-    if engine.hasView(key):
-      var view: TimlTemplate = engine.getView(key)
-      var allData: JsonNode = %* {}
-      if engine.globalDataExists:
-        allData.add("globals", engine.getGlobalData())
-      allData["scope"] = data
-      if not engine.hasLayout(layoutKey):
-        raise newException(TimDefect, "Could not find \"" & layoutKey & "\" layout.")
-
-      var layout: TimlTemplate = engine.getLayout(layoutKey)
-      result = DockType
-      if view.isJitEnabled():
-        # When enabled, will compile `timl` > `html` on the fly
-        var cview = engine.newCompiler(view, allData, after = reloadHandler)
-        var clayout = engine.newCompiler(layout, allData, cview.getHtml())
-        result.add clayout.getHtml()
-      else:
-        # Otherwise, load static views, but first
-        # check if requested layout is available as BSON
-        if layout.isJitEnabled():
-          let c = engine.newCompiler(layout, allData, view.getHtmlCode & reloadHandler)
-          result.add(c.getHtml())
-        else:
-          if engine.shouldMinify():
-            result.add(layout.getHtmlCode() % [
-              layout.getPlaceholderId, view.getHtmlCode & reloadHandler
-            ])
-          else:
-            result.add(layout.getHtmlCode() % [
-              layout.getPlaceholderId,
-              indent(view.getHtmlCode & reloadHandler, engine.getIndent)
-            ])
-
-  proc compileCode(engine: var TimEngine, temp: var TimlTemplate) =
-    var p = engine.parse(temp.getSourceCode(), temp.getFilePath(),
-                        templateType = temp.getType())
-    if p.hasError():
-      # raise newException(SyntaxError, "\n"&p.getError())
-      engine.errors = p.getError()
-      return
-    if p.hasJit() or temp.getType == Layout:
-      temp.enableJIT()
-      engine.writeBson(temp, p.getStatementsStr(), engine.getIndent())
-    else:
-      let c = Compiler.init(
-        p.getStatements(),
-        minify = engine.shouldMinify(),
-        timView = temp,
-        baseIndent = engine.getIndent(),
-        filePath = temp.getFilePath()
-      )
-      if not c.hasError():
-        engine.writeHtml(temp, c.getHtml())
-
-  proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
-          debug = false): seq[string] {.discardable.} =
-    ## Pre-compile ``views`` and ``layouts``
-    ## from ``.timl`` to HTML or BSON.
-    ##
-    ## Note that ``partials`` contents are collected on
-    ## compile-time and merged within the view.
-    if Tim.hasAnySources:
-      when not defined release:
-        # Enable auto precompile when in development mode
-        when requires "watchout":
-          # Will use `watchout` to watch for changes in `/templates` dir
-          proc watchoutCallback(file: watchout.File) {.closure.} =
-            let initTime = cpuTime()
-            echo "\n✨ Watchout resolve changes"
-            echo file.getName()
-            var timView = getTemplateByPath(Tim, file.getPath())
-            if timView.isPartial:
-              for depView in timView.getDependentViews():
-                Tim.compileCode(getTemplateByPath(Tim, depView))
-            else:
-              Tim.compileCode(timView)
-
-            if Tim.errors.len != 0:
-              echo Tim.errors
-              setLen(Tim.errors, 0)
-            else:
-              echo "Done in " & $(cpuTime() - initTime)
-              if callback != nil:
-                callback() # Run a custom callback, if available
-
-          var watchFiles: seq[string]
-          when compileOption("threads"):
-            for id, view in Tim.getViews().mpairs():
-              Tim.compileCode(view)
-              watchFiles.add view.getFilePath()
-              result.add view.getName()
-            
-            for id, partial in Tim.getPartials().pairs():
-              # Watch for changes in `partials` directory.
-              watchFiles.add partial.getFilePath()
-
-            for id, layout in Tim.getLayouts().mpairs():
-              Tim.compileCode(layout)
-              watchFiles.add layout.getFilePath()
-              result.add layout.getName()
-            if Tim.errors.len != 0:
-              echo Tim.errors
-              setLen(Tim.errors, 0)
-            # Start a new Thread with Watchout watching for live changes
-            startThread(watchoutCallback, watchFiles, 550)
-            return
-
-      for id, view in Tim.getViews().mpairs():
-        Tim.compileCode(view)
-        result.add view.getName()
-
-      for id, layout in Tim.getLayouts().mpairs():
-        Tim.compileCode(layout)
-        result.add layout.getName()
+  ## Tim as a Nimble Library
+  ## ==========================
+  ## Ready to be integrated with your backend. It comes with a
+  ## template manager that separates your layouts and views
+  ## in two types: `Static` and `Dynamic` templates.
+  ## 
+  ## A `layout` or a `view` is marked as dynamic when contains
+  ## either variables, conditions or for loops.
+  ## In this case its AST representation is converted to
+  ## Binary JSON so that it can be transpiled to HTML on the fly (JIT Compilation). 
+  ## 
+  ## While static templates are transpiled to HTML when calling `precompile` proc.
+  ## 
+  ## However, both layouts and views are saved in separate files.
+  include tim/engine/init
