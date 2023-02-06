@@ -1,8 +1,7 @@
-import watchout, std/tables
-import klymene/cli
-import tim/engine/[ast, parser, meta, compiler]
+import std/tables
+import pkg/[watchout, klymene/cli]
+import tim/engine/[ast, parser, meta, compiler/transpiler]
 
-from std/strutils import `%`, indent
 from std/os import getCurrentDir
 from std/times import cpuTime
 
@@ -22,8 +21,6 @@ proc compileCode(engine: TimEngine, t: var TimlTemplate) =
     display t.getFilePath
     for err in c.getErrors():
       display err
-  # echo p.getStatementsStr(true)
-  # echo c.getHtml()
 
 proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
         debug = false): seq[string] {.discardable.} =
@@ -50,29 +47,20 @@ proc precompile*(engine: var TimEngine, callback: proc() {.gcsafe, nimcall.} = n
         callback()
 
     var watchFiles: seq[string]
-    when compileOption("threads"):
-      for id, view in Tim.getViews().mpairs():
-        Tim.compileCode(view)
-        watchFiles.add view.getFilePath()
-        result.add view.getName()
-      
-      for id, partial in Tim.getPartials().pairs():
-        # Watch for changes in `partials` directory.
-        watchFiles.add partial.getFilePath()
+    for id, view in Tim.getViews().mpairs():
+      Tim.compileCode(view)
+      watchFiles.add view.getFilePath()
+      result.add view.getName()
+    
+    for id, partial in Tim.getPartials().pairs():
+      # Watch for changes in `partials` directory.
+      watchFiles.add partial.getFilePath()
 
-      for id, layout in Tim.getLayouts().mpairs():
-        Tim.compileCode(layout)
-        watchFiles.add layout.getFilePath()
-        result.add layout.getName()
+    for id, layout in Tim.getLayouts().mpairs():
+      Tim.compileCode(layout)
+      watchFiles.add layout.getFilePath()
+      result.add layout.getName()
 
-      # Start a new Thread with Watchout watching for live changes
-      startThread(watchoutCallback, watchFiles, 450, shouldJoinThread = true)
+    # Start a new Thread with Watchout watching for live changes
+    startThread(watchoutCallback, watchFiles, 450, shouldJoinThread = true)
   else: display("Can't find views")
-
-proc newTimEngine*() =
-  Tim.init(
-    source = getCurrentDir() & "/../examples/templates",
-    output = getCurrentDir() & "/../examples/storage",
-    indent = 2,
-    minified = true
-  )
