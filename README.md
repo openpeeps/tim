@@ -1,5 +1,4 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="140px"><br>
   ⚡️ A high-performance template engine & markup language inspired by Emmet syntax.<br>
   <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
 </p>
@@ -103,8 +102,5 @@ res.send(Tim.render("homepage"))
 
 
 ### 🎩 License
-Illustration of Tim Berners-Lee [made by Kagan McLeod](https://www.kaganmcleod.com).<br><br>
-This is an Open Source Software released under `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
-Copyright &copy; 2022 OpenPeep & Contributors &mdash; All rights reserved.
-
-<a href="https://hetzner.cloud/?ref=Hm0mYGM9NxZ4"><img src="https://openpeep.ro/banners/openpeep-footer.png" width="100%"></a>
+This | `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
+Copyright &copy; 2023 OpenPeep & Contributors &mdash; All rights reserved.
