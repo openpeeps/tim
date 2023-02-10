@@ -20,14 +20,19 @@ proc getVarValue(c: var Compiler, varNode: Node): string =
 proc getJsonData(c: var Compiler, key: string): JsonNode =
   if c.data.hasKey(key):
     result = c.data[key]
-  elif c.data.hasKey("globals"):
-    if c.data["globals"].hasKey(key):
-      result = c.data["globals"][key]
-  elif c.data.hasKey("scope"):
-    if c.data["scope"].hasKey(key):
-      result = c.data["scope"][key]
   else:
-    result = newJNull()
+    var checkNext = true
+    if c.data.hasKey("globals"):
+      if c.data["globals"].hasKey(key):
+        result = c.data["globals"][key]
+        checkNext = false
+    if checkNext:
+      if c.data.hasKey("scope"):
+        if c.data["scope"].hasKey(key):
+          result = c.data["scope"][key]
+          checkNext = false
+    if checkNext:
+      result = newJNull()
 
 proc getJsonValue(c: var Compiler, node: Node, jsonNodes: JsonNode): JsonNode =
   if node.accessors.len == 0:
@@ -243,7 +248,10 @@ proc compVarNil(c: var Compiler, node: Node): bool =
     let jsonNode = c.getJsonValue(node, c.memtable[node.varSymbol])
     if jsonNode != nil:
       result = jsonNode.len != 0
-  else: discard # TODO handle 
+  else:
+    let jsonNode = c.getJsonData(node.varIdent)
+    if jsonNode != nil:
+      result = jsonNode.len != 0
 
 proc tryGetFromMemtable(c: var Compiler, node: Node): JsonNode =
   if c.memtable.hasKey(node.varSymbol):

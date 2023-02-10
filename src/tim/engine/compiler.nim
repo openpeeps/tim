@@ -109,19 +109,39 @@ proc getIndent(c: var Compiler, meta: MetaNode, skipBr = false): string =
 proc hasAttrs(node: Node): bool =
   result = node.attrs.len != 0
 
-proc getAttrs(c: var Compiler, node: Node): string =
-  for k, attrNodes in node.attrs.pairs():
+proc getAttrs(c: var Compiler, attrs: HtmlAttributes): string =
+  var i = 0
+  var skipQuote: bool
+  let attrslen = attrs.len
+  for k, attrNodes in attrs.pairs():
     if k == "id": continue # handled by `writeIDAttribute`
-    add result, indent("$1=" % [k], 1) & "\""
     var strAttrs: seq[string]
-    for attrNode in attrNodes:
-      if attrNode.nodeType == NTString:
-        strAttrs.add attrNode.sVal
-      elif attrNode.nodeType == NTVariable:
-        strAttrs.add c.getStringValue(attrNode)
+    if k[0] == '$':
+      for attrNode in attrNodes:
+        if attrNode.nodeType == NTVariable:
+          strAttrs.add c.getStringValue(attrNode)
+    elif k[0] == '%':
+      # handle short hand conditional
+      # Example: $myvar == true ? checked="true" | disabled="disabled"
+      if attrNodes[0].nodeType == NTShortConditionStmt:
+        if c.compInfixNode(attrNodes[0].sIfCond):
+          add result, indent(c.getAttrs(attrNodes[0].sIfBody), 1)
+          skipQuote = true
+    else:
+      add result, indent("$1=" % [k], 1) & "\""
+      for attrNode in attrNodes:
+        if attrNode.nodeType == NTString:
+          strAttrs.add attrNode.sVal
+        elif attrNode.nodeType == NTVariable:
+          when defined cli:
+            discard # TODO
+          else:
+            strAttrs.add c.getStringValue(attrNode)
     if strAttrs.len != 0:
       add result, join(strAttrs, " ")
-    add result, "\""
+    if not skipQuote and i != attrslen:
+      add result, "\""
+    inc i
 
 proc hasIDAttr(node: Node): bool =
   ## Determine if current JsonNode has an HTML ID attribute attached to it
@@ -134,7 +154,10 @@ proc getIDAttr(c: var Compiler, node: Node): string =
   if idAttrNode.nodeType == NTString:
     add result, idAttrNode.sVal
   else:
-    add result, c.getStringValue(idAttrNode)
+    when defined cli:
+      discard
+    else:
+      add result, c.getStringValue(idAttrNode)
   add result, "\""
 
 template `<>`(tag: string, node: Node, skipBr = false) =
@@ -145,7 +168,7 @@ template `<>`(tag: string, node: Node, skipBr = false) =
   if hasIDAttr(node):
     &== getIDAttr(c, node)
   if hasAttrs(node):
-    &== getAttrs(c, node)
+    &== getAttrs(c, node.attrs)
   if node.issctag:
     &== "/"
   &== ">"

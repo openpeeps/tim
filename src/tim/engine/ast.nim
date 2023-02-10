@@ -22,6 +22,7 @@ type
     NTHtmlElement
     NTStatement
     NTConditionStmt
+    NTShortConditionStmt
     NTForStmt
     NTMixinStmt
     NTPrefixStmt
@@ -160,6 +161,7 @@ type
   
   HtmlAttributes* = Table[string, seq[Node]]
   IfBranch* = tuple[cond: Node, body: seq[Node]]
+  SIfBranch* = tuple[cond: Node, body: HtmlAttributes]
   ElifBranch* = seq[IfBranch]
   MetaNode* = tuple[line, pos, col, wsno: int]
   ParamTuple* = tuple[key, value, typeSymbol: string, `type`: NodeType]
@@ -199,6 +201,9 @@ type
       ifCond*: Node
       ifBody*, elseBody*: seq[Node]
       elifBranch*: ElifBranch
+    of NTShortConditionStmt:
+      sIfCond*: Node
+      sIfBody*: HtmlAttributes
     of NTForStmt:
       forItem*: Node  # NTVariable
       forItems*: Node # NTVariable
@@ -343,6 +348,16 @@ proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
     nodeType: NTConditionStmt,
     ifCond: ifBranch.cond,
     ifBody: ifBranch.body,
+    meta: (tk.line, tk.pos, tk.col, tk.wsno)
+  )
+
+proc newShortIfExpression*(ifBranch: SIfBranch, tk: TokenTuple): Node =
+  ## Add a new short hand conditional node
+  Node(
+    nodeName: getSymbolName(NTShortConditionStmt),
+    nodeType: NTShortConditionStmt,
+    sIfCond: ifBranch.cond,
+    sIfBody: ifBranch.body,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
   )
 

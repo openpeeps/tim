@@ -278,6 +278,8 @@ tokens:
   If           > "if"
   Elif         > "elif"
   Else         > "else"
+  SIf          > '?'      # short hand `if` statement
+  SElse        > '|'      # short hand `else` statement
   And          > "and"
   For          > "for"
   In           > "in"

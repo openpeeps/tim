@@ -223,6 +223,7 @@ proc getOperator(tk: TokenKind): OperatorType =
 proc parseExpressionStmt(p: var Parser): Node
 proc parseStatement(p: var Parser): Node
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node
+proc parseInfix(p: var Parser, strict = false): Node
 proc parseIfStmt(p: var Parser): Node
 proc parseForStmt(p: var Parser): Node
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
@@ -340,7 +341,7 @@ proc parseSafeVariable(p: var Parser): Node =
   walk p
   jit p
 
-template htmlAttributeNames(): untyped =
+template inHtmlAttributeNames(): untyped =
   (
     p.current.kind in {
       TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE,
@@ -350,7 +351,7 @@ template htmlAttributeNames(): untyped =
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
   # Parse all attributes and return it as a
-  # `Table[string, seq[string]]`
+  # `TableRef[string, seq[string]]`
   while true:
     if p.current.kind == TK_DOT:
       # Add `class=""` attribute
@@ -384,7 +385,7 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
             walk p
         else: p.setError InvalidAttributeId, true
       else: p.setError DuplicateAttrId % [p.next.value], true
-    elif htmlAttributeNames():
+    elif inHtmlAttributeNames:
       let attrName = p.current.value
       walk p
       if p.next.kind notin {TK_STRING, TK_VARIABLE, TK_SAFE_VARIABLE}:
@@ -406,6 +407,22 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         p.setError DuplicateAttributeKey % [attrName], true
       if p.current.line > p.prev.line or p.current.kind == TK_GT:
         break
+    elif p.current.kind == TK_LPAR:
+      # parse short hand conditional statement
+      let this = p.current
+      let infixNode = p.parseInfix()
+      if p.current.kind == TK_SIF:
+        walk p # ?
+        var ifBody = p.getHtmlAttributes()
+        if p.current.kind != TK_RPAR:
+          p.setError(InvalidConditionalStmt, true)
+        walk p # )
+        let astNode = newShortIfExpression((infixNode, ifBody), this) 
+        let condKey = "%_$1$2$3$4" % [$astNode.meta.line, $astNode.meta.pos,
+                                      $astNode.meta.col, $astNode.meta.wsno]
+        result[condKey] = @[astNode]
+      else:
+        p.setError(InvalidConditionalStmt, true)
     elif p.current.kind notin tkSpecial and p.prev.line == p.current.line:
       let attrName = p.current.value
       if not result.hasKey(attrName):
@@ -435,7 +452,7 @@ proc newHtmlNode(p: var Parser): Node =
       else:
         p.setError InvalidValueAssignment, p.prev.line, p.prev.col, true
     # elif p.current.kind in {TK_DOT, TK_ID, TK_IDENTIFIER} + tkHtml:
-    elif p.current.kind in {TK_DOT, TK_ID} or htmlAttributeNames():
+    elif p.current.kind in {TK_DOT, TK_ID} or inHtmlAttributeNames:
       if p.current.line > result.meta.line:
         break # prevent bad loop
       result.attrs = p.getHtmlAttributes()
