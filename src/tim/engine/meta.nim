@@ -5,14 +5,10 @@
 #          https://github.com/openpeep/tim
 
 import pkg/[bson, pkginfo]
-import std/[tables, md5, json]
+import std/[tables, md5, json, os, strutils, macros]
 
 from std/math import sgn
-from std/strutils import `%`, strip, split, contains, join, endsWith, replace, parseInt
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
-from std/os import getCurrentDir, normalizePath, normalizedPath, dirExists,
-           fileExists, walkDirRec, splitPath, createDir,
-           isHidden
 
 when isMainModule:
   type Globals* = ref object of RootObj
@@ -312,24 +308,6 @@ proc writeHtml*(e: TimEngine, t: Template, output: string, isTail = false) =
   let filePath = if not isTail: t.paths.html else: t.paths.tails
   writeFile(filePath, output)
 
-# import std/macros
-# macro newMixin*(ident: static string, callbackStmt) =
-#   expectKind callbackStmt, nnkStmtList
-#   if callbackStmt.len != 1:
-#     error("A mixin cannot have more than one handler", callbackStmt)
-#   expectKind callbackStmt[0], nnkProcDef # proc handler 
-#   echo callbackStmt.treeRepr
-#   var identHandler: NimNode
-#   for node in callbackStmt[0]:
-#     if node.kind == nnkIdent:
-#       identHandler = node
-#     elif node.kind == nnkFormalParams:
-#       for paramNode in node:
-#         echo paramNode.kind
-#   result = newStmtList()
-  # result.add quote do:
-    # Tim.registerMixin(`callbackStmt[0]`, `ident`)
-
 proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
   ## Short hand procedure for executing shell commands via execProcess
   return execProcess(inputCmd, args=inputArgs, options={poStdErrToStdOut, poUsePath})
@@ -363,6 +341,12 @@ proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
         if file.isHidden(): continue
         result.add file
 
+macro getAbsolutePath(p: string): untyped =
+  result = newStmtList()
+  let ppath = getProjectPath()
+  result.add quote do:
+    `ppath` / `p`
+
 proc init*(timEngine: var TimEngine, source, output: string,
       indent: int, minified = true, reloader: HotReloadType = None) =
   ## Initialize a new Tim Engine by providing the root path directory 
@@ -370,11 +354,10 @@ proc init*(timEngine: var TimEngine, source, output: string,
   ## Tim is able to auto-discover your .timl files
   var timlInOutDirs: seq[string]
   for path in @[source, output]:
-    var tpath = path
-    tpath.normalizePath()
+    var tpath = getAbsolutePath(path.normalizedPath())
     if not tpath.dirExists():
       createDir(tpath)
-    timlInOutDirs.add(path)
+    timlInOutDirs.add(tpath)
     if path == output:
       # create `bson` and `html` dirs inside `output` directory
       # where `bson` is used for saving the binary abstract syntax tree
@@ -437,14 +420,9 @@ proc init*(timEngine: var TimEngine, source, output: string,
             )
     # else:
       # createDir(tdirpath) # create `layouts`, `views`, `partials` directories
-
-  var rootPath = timlInOutDirs[0]
-  var outputPath = timlInOutDirs[1]
-  rootPath.normalizePath()
-  outputPath.normalizePath()
   timEngine = TimEngine(
-    root: rootPath,
-    output: outputPath,
+    root: timlInOutDirs[0],
+    output: timlInOutDirs[1],
     layouts: layoutsTable,
     views: viewsTable,
     partials: partialsTable,
@@ -452,9 +430,9 @@ proc init*(timEngine: var TimEngine, source, output: string,
     indent: indent,
     mixins: newTable[string, MixinHandler](),
     paths: (
-      layouts: rootPath & "/layouts",
-      views: rootPath & "/views",
-      partials: rootPath & "/partials"
+      layouts: timlInOutDirs[0] & "/layouts",
+      views: timlInOutDirs[0] & "/views",
+      partials: timlInOutDirs[0] & "/partials"
     )
   )
   when not defined release: # enable auto refresh browser for dev mode
