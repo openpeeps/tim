@@ -1,5 +1,4 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim.png" width="140px"><br>
   ⚡️ A high-performance template engine & markup language inspired by Emmet syntax.<br>
   <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
 </p>
@@ -68,46 +67,8 @@ Well, that's no longer the case!
 - [ ] ↳ `.py`
 - [ ] ↳ `.php` 
 
-
 ## Examples
-
-```json
-[
-  "apple", "grapefruits", "pineapple", "blueberries", "raspberries", "melons"
-]
-```
-
-Loops. A simple for loop
-```timl
-for $item in $this.fruits:
-  div > li > span: $item
-```
-
-Conditionals
-```timl
-if $this.fruits[0] == "apple":
-  
-```
-
-**Objects & Arrays**
-You can access an item in array using `[]`
-```timl
-div > li > h3: $this.fruits[0]
-```
-
-**Handling errors**
-JIT compiler will print errors at runtime
-
-Let's say we try to access an undefined property name
-```timl
-button: $this.fruits.name
-```
-
-Will result in.
-```
-Warning: templates/views/system/list.timl
-  Undefined property "name"
-```
+todo
 
 ## Snippets
 
@@ -147,7 +108,12 @@ import tim, tim/engine/meta
 export render, precompile
 
 var Tim*: TimEngine
-Tim.init(source = "./templates", output = "./storage/templates", minified = false, indent = 4)
+Tim.init(
+  source = "./templates",             # or ../templates if placed outside `src` directory
+  output = "./storage/templates",
+  minified = false,
+  indent = 4
+)
 
 # Precompile your `.timl` templates at boot-time
 Tim.precompile()
@@ -164,6 +130,5 @@ res.send(Tim.render("homepage"))
 - 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
-Illustration of Tim Berners-Lee [made by Kagan McLeod](https://www.kaganmcleod.com).<br><br>
-Tim &mdash; Open Source Software released under `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
+This | `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
 Copyright &copy; 2023 OpenPeep & Contributors &mdash; All rights reserved.
