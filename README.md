@@ -5,22 +5,31 @@
 </p>
 
 <p align="center">
+  <code>nimble install find</code>
+</p>
+
+<p align="center">
+  <a href="https://openpeep.github.io/tim/">API reference</a><br><br>
+  <img src="https://github.com/openpeep/tim/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeep/tim/workflows/docs/badge.svg" alt="Github Actions">
+</p>
+
+
+<p align="center">
 <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim-look.png" width="772px">
 </p>
+
 <details align="center">
-  <summary>Show me snippets, snippets, snippets! 😍</summary>
+  <summary>Got Snippets. Want some?</summary>
   <img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim-snippets.png" width="772px">
 </details>
 
 ## 😍 Key Features
 - [x] `layouts`, `views` and `partials` logic
 - [x] `Global`, `Scope`, and `Internal` variables
-- [x] `for` Loops
-- [x] `if`, `elif`, `else` Conditionals
+- [x] `for` Loop Statements
+- [x] `if`/`elif`/`else` Conditional Statements
 - [x] Partials via `@include`
 - [ ] Mixins
-- [x] ♨️ JIT Compiler w/ JSON computation
-- [x] 🌎 Transpiles to Nim, JavaScript, Python, PHP
 - [ ] SEO / Semantic Checker
 - [x] Language Extension `.timl` 😎
 - [x] Snippets 🎊
@@ -31,24 +40,74 @@
 - [x] Written in Nim language 👑
 - [x] Open Source | `MIT` License
 
-## CLI app vs Library 
-First of all, you should know the differences between the CLI app and the Library.
+## 😎 Library features
 
-### Tim CLI
-The CLI is a standalone cross-platform application that transpiles your **Tim templates** into source code for the current (supported) language.
+- [x] Everything in Basics 
+- [x] `Global` and `Scope` data using `JSON` (`std/json` or `pkg/packedjson`)
+- [x] Static transpilation to `HTML` files
+- [x] ♨️ JIT Compilation using `BSON` AST
+
+## 🌎 Standalone CLI
+The CLI is a standalone cross-language application that transpiles your **Tim templates** into source code for the current (supported) language.
 
 Of course, the generated source code will not look very nice, but who cares,
-since you have the Tim templates and finally the application will **render at super speed!**
+since you'll always have your `.timl` sources and finally, the application will **render at super speed!**
 
 How many times have you heard _"Moustache is slow"_, or _"Pug.js compiling extremely slow"_, or _"...out of memory"_,
 or _"Jinja being extremely slow when..."_?
 
-Well, that's no longer the case! If even now, using **Tim Engine**, you complain that something is running slowly, well,
-the language you're running is to blame!
+Well, that's no longer the case!
 
-### The library
-_todo_
+### CLI Features
+- [x] Everything in Basics
+- [x] `Global` and `Scope` data using language
+- [x] Cross-language
+- [ ] `.timl` ➡ `.nim`
+- [ ] ↳ `.js`
+- [ ] ↳ `.rb`
+- [ ] ↳ `.py`
+- [ ] ↳ `.php` 
 
+
+## Examples
+
+```json
+[
+  "apple", "grapefruits", "pineapple", "blueberries", "raspberries", "melons"
+]
+```
+
+Loops. A simple for loop
+```timl
+for $item in $this.fruits:
+  div > li > span: $item
+```
+
+Conditionals
+```timl
+if $this.fruits[0] == "apple":
+  
+```
+
+**Objects & Arrays**
+You can access an item in array using `[]`
+```timl
+div > li > h3: $this.fruits[0]
+```
+
+**Handling errors**
+JIT compiler will print errors at runtime
+
+Let's say we try to access an undefined property name
+```timl
+button: $this.fruits.name
+```
+
+Will result in.
+```
+Warning: templates/views/system/list.timl
+  Undefined property "name"
+```
 
 ## Snippets
 
@@ -67,7 +126,8 @@ document.querySelector('button').addEventListener('click', function() {
 ````
 
 ### Sass Snippets
-Bult-in CSS support with SASS via `libsass`.
+Built-in CSS support with SASS via `libsass` (install [libsass](https://github.com/sass/libsass) library)
+
 ````tim
 div.container.product > div.row > div.col-4.mx-auto
   a.btn.cta-checkout > span: "Go to checkout"
@@ -79,10 +139,6 @@ div.product
   ```
 ````
 
-This feature **requires** [libsass](https://github.com/sass/libsass) library
-
-## API Documentation
-https://openpeep.github.io/tim/
 
 ## Setup in Nim with JIT Compilation
 
@@ -101,10 +157,13 @@ res.send(Tim.render("homepage"))
 
 ```
 
+### ❤ Contributions & Support
+- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeep/tim/issues)
+- 👋 Wanna help? [Fork it!](https://github.com/openpeep/tim/fork)
+- 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
+- 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
 Illustration of Tim Berners-Lee [made by Kagan McLeod](https://www.kaganmcleod.com).<br><br>
-This is an Open Source Software released under `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
-Copyright &copy; 2022 OpenPeep & Contributors &mdash; All rights reserved.
-
-<a href="https://hetzner.cloud/?ref=Hm0mYGM9NxZ4"><img src="https://openpeep.ro/banners/openpeep-footer.png" width="100%"></a>
+Tim &mdash; Open Source Software released under `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
+Copyright &copy; 2023 OpenPeep & Contributors &mdash; All rights reserved.
