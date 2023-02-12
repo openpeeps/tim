@@ -243,15 +243,17 @@ proc compareVarLit(c: var Compiler, leftNode, rightNode: Node, op: OperatorType,
 proc compVarNil(c: var Compiler, node: Node): bool =
   # Evaluate NTVariable if returning value is anything but null
   # Example: `if $myvar:` 
+  var j: JsonNode
   if c.memtable.hasKey(node.varSymbol):
     # Check if is available in memtable
-    let jsonNode = c.getJsonValue(node, c.memtable[node.varSymbol])
-    if jsonNode != nil:
-      result = jsonNode.len != 0
+    j = c.getJsonValue(node, c.memtable[node.varSymbol])
   else:
-    let jsonNode = c.getJsonData(node.varIdent)
-    if jsonNode != nil:
-      result = jsonNode.len != 0
+    j = c.getJsonData(node.varIdent)
+  if j.kind == JBool:
+    result = j.getBool == true
+  elif j.kind == JNull: discard
+  else:
+    result = j.len != 0
 
 proc tryGetFromMemtable(c: var Compiler, node: Node): JsonNode =
   if c.memtable.hasKey(node.varSymbol):
@@ -326,19 +328,11 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
       elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTCall:
         result = c.compVarNil(node.infixLeft)
         if result:
-          let callIdent = node.infixRight.callIdent
-          if callIdent == "startsWith":
-            result = c.callStdStartsWith(node.infixRight.callParams)
-          elif callIdent == "endsWith":
-            result = c.callStdEndsWith(node.infixRight.callParams)
+          result = c.engine.imports[node.infixRight.callIdent].boolFn(getFnParams(c, node.infixRight))
     else: discard
   elif node.nodeType == NTCall:
-    if node.callIdent == "startsWith":
-      result = c.callStdStartsWith(node.callParams)
-    elif node.callIdent == "endsWith":
-      result = c.callStdEndsWith(node.callParams)
-    elif node.callIdent == "contains":
-      result = c.callStdContains(node.callParams)
+    if c.engine.imports.hasKey(node.callIdent):
+      result = c.engine.imports[node.callIdent].boolFn(getFnParams(c, node))
 
 proc handleConditionStmt(c: var Compiler, node: Node) =
   if c.compInfixNode(node.ifCond):
@@ -372,3 +366,10 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
       c.writeNewLine(forNode.forBody)
       c.memtable.del(forNode.forItem.varSymbol)
   else: discard
+
+proc callFunction(c: var Compiler, node: Node) =
+  if c.engine.imports.hasKey(node.callIdent):  
+    add c.html, c.engine.imports[node.callIdent].strFn(
+      getFnParams(c, node)
+    )
+    c.fixTail = true

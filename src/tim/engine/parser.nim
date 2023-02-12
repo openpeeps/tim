@@ -79,7 +79,7 @@ const
 
 const
   tkVars = {TK_VARIABLE, TK_SAFE_VARIABLE}
-  tkCallables = {TK_STARTSWITH, TK_ENDSWITH}
+  tkCallables = {TK_CALL}
   tkAssignables = {TK_STRING, TK_INTEGER, TK_BOOL_TRUE, TK_BOOL_FALSE} + tkVars
   tkComparables = tkAssignables + tkCallables
   tkOperators = {TK_EQ, TK_NEQ, TK_LT, TK_LTE, TK_GT, TK_GTE}
@@ -181,31 +181,31 @@ proc walk(p: var Parser, offset = 1) =
     p.next = p.lexer.getToken()
     inc i
 
-let stdTable = toTable({
-  "startsWith": @[
-    (pName: "s", pType: TK_STRING),
-    (pName: "prefix", pType: TK_STRING)
-  ],
-  "endsWith": @[
-    (pName: "s", pType: TK_STRING),
-    (pName: "suffix", pType: TK_STRING)
-  ],
-})
+# let stdTable = toTable({
+#   "startsWith": @[
+#     (pName: "s", pType: TK_STRING),
+#     (pName: "prefix", pType: TK_STRING)
+#   ],
+#   "endsWith": @[
+#     (pName: "s", pType: TK_STRING),
+#     (pName: "suffix", pType: TK_STRING)
+#   ],
+# })
 
-template checkTypeSafety() =
-  let
-    t = stdTable[callIdent]
-    tlen = t.len
-    ilen = params.len
-  if len(params) == 0:
-    p.setError("Got none but `$1` expects $2 parameters." % [callIdent, $tlen])
-    return
-  elif len(params) != len(stdTable[callIdent]):
-    p.setError("Got $1 but `$2` expects $3 parameters" % [$ilen, callIdent, $tlen])
-    return
-  # else:
-  #   for p in params:
-  #     if p.pType != 
+# template checkTypeSafety() =
+#   let
+#     t = stdTable[callIdent]
+#     tlen = t.len
+#     ilen = params.len
+#   if len(params) == 0:
+#     p.setError("Got none but `$1` expects $2 parameters." % [callIdent, $tlen])
+#     return
+#   elif len(params) != len(stdTable[callIdent]):
+#     p.setError("Got $1 but `$2` expects $3 parameters" % [$ilen, callIdent, $tlen])
+#     return
+#   # else:
+#   #   for p in params:
+#   #     if p.pType != 
 
 proc getOperator(tk: TokenKind): OperatorType =
   case tk:
@@ -226,6 +226,7 @@ proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node
 proc parseInfix(p: var Parser, strict = false): Node
 proc parseIfStmt(p: var Parser): Node
 proc parseForStmt(p: var Parser): Node
+proc parseCall(p: var Parser): Node
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction
 # proc getInfixFn(kind: TokenKind): InfixFunction
 
@@ -449,6 +450,8 @@ proc newHtmlNode(p: var Parser): Node =
         result.nodes.add p.parseVariable()
       elif p.current.kind == TK_INTEGER:
         result.nodes.add p.parseInteger()
+      elif p.current.kind == TkCall:
+        result.nodes.add p.parseCall()
       else:
         p.setError InvalidValueAssignment, p.prev.line, p.prev.col, true
     # elif p.current.kind in {TK_DOT, TK_ID, TK_IDENTIFIER} + tkHtml:
@@ -684,8 +687,7 @@ proc parseCall(p: var Parser): Node =
   else:
     p.setError("EOL reached before closing call statement")
     return
-  let callIdent = tk.value[1..^1]
-  checkTypeSafety()
+  let callIdent = tk.value
   result = newCall(callIdent, params)
 
 proc parseMixinCall(p: var Parser): Node =
@@ -764,7 +766,7 @@ proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
       elif p.next.kind == TK_IDENTIFIER:
         parseMixinCall
       else: nil
-    of TK_STARTSWITH, TK_ENDSWITH:
+    of TK_CALL:
       if p.next.kind == TK_LPAR:
         parseCall
       else: nil

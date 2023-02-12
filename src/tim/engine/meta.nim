@@ -10,7 +10,7 @@ import std/[tables, md5, json, os, strutils, macros]
 from std/math import sgn
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
 
-when isMainModule:
+when defined timEngineStandalone:
   type Globals* = ref object of RootObj
 
 type 
@@ -33,22 +33,36 @@ type
     meta: tuple[name: string, templateType: TemplateType]
       ## name of the current Template representing file name
       ## type of Template, either Layout, View or Partial
-  
+
   TimlTemplateTable = OrderedTableRef[string, Template]
 
   HotReloadType* = enum
     None, HttpReloader, WsReloader
+  
+  NKind* = enum
+    nkBool
+    nkInt
+    nkFloat
+    nkString
 
-  # Mixins
-  MixinHandler* = proc(args: varargs[string, `$`]): string {.fastcall.}
-  MixinStorage = TableRef[string, MixinHandler]
+  ImportFunction* = ref object
+    case nKind: NKind 
+    of nkInt:
+      intFn*: proc(params: seq[string]): int
+    of nkString:
+      strFn*: proc(params: seq[string]): string
+    of nkBool:
+      boolFn*: proc(params: seq[string]): bool
+    of nkFloat:
+      floatFn*: proc(params: seq[string]): float
 
   # Main Tim Engine
   TimEngine* = ref object
-    when isMainModule:
+    when defined timEngineStandalone:
       globalData: Globals
     else:
       globalData: JsonNode
+      imports*: TableRef[string, ImportFunction]
     root: string
       ## root path to your Timl templates
     output: string
@@ -65,30 +79,12 @@ type
       ## the base indentation (default to 2)
     paths: tuple[layouts, views, partials: string]
     reloader: HotReloadType
-    mixins: MixinStorage
     errors*: seq[string]
 
   SyntaxError* = object of CatchableError      # raise errors from Tim language
   TimDefect* = object of CatchableError
-  MixinDefect* = object of CatchableError
 
 const currentVersion = "0.1.0"
-
-#
-# Mixins API
-#
-proc newMixin*(e: TimEngine, handler: MixinHandler, ident: string) =
-  ## Register a new mixin
-  if not e.mixins.hasKey(ident):
-    e.mixins[ident] = handler
-  else:
-    raise newException(MixinDefect,
-      "A mixin named `$1` already exists" % [ident])
-
-proc callMixin*(e: TimEngine, ident: string, args: varargs[string, `$`]): string =
-  ## Call a mixin and return its value
-  if e.mixins.hasKey(ident):
-    result = e.mixins[ident](args)
 
 proc getIndent*(t: TimEngine): int = 
   ## Get preferred indentation size (2 or 4 spaces). Default 4
@@ -347,11 +343,13 @@ macro getAbsolutePath(p: string): untyped =
   result.add quote do:
     `ppath` / `p`
 
+
 proc init*(timEngine: var TimEngine, source, output: string,
       indent: int, minified = true, reloader: HotReloadType = None) =
   ## Initialize a new Tim Engine by providing the root path directory 
   ## to your templates (layouts, views and partials).
   ## Tim is able to auto-discover your .timl files
+  # echo imports
   var timlInOutDirs: seq[string]
   for path in @[source, output]:
     var tpath = getAbsolutePath(path.normalizedPath())
@@ -428,7 +426,6 @@ proc init*(timEngine: var TimEngine, source, output: string,
     partials: partialsTable,
     minified: minified,
     indent: indent,
-    mixins: newTable[string, MixinHandler](),
     paths: (
       layouts: timlInOutDirs[0] & "/layouts",
       views: timlInOutDirs[0] & "/views",
@@ -437,3 +434,176 @@ proc init*(timEngine: var TimEngine, source, output: string,
   )
   when not defined release: # enable auto refresh browser for dev mode
     timEngine.reloader = reloader
+
+# dumpAstGen:
+#   timEngine.imports = newTable[string, ImportFunction]()
+    # timEngine.imports["strutils.startswith"] = ImportFunction(nKind: nnkIdent, boolFn: proc(funcName: string, params: seq[string]): bool = startsWith(params[0], params[1]))
+#   timEngine.imports["aa"].boolFn = proc(funcName: string, params: seq[string]): bool = startsWith(params[0], params[1])
+
+when not defined timEngineStandalone:
+  var
+    stdlibs {.compileTime.} = nnkBracket.newTree()
+    pkglibs {.compileTime.} = nnkBracket.newTree()
+    stdlibsChecker {.compileTime.}: seq[string]
+    pkglibsChecker {.compileTime.}: seq[string]
+    functions {.compileTime.}: seq[
+      tuple[
+        prefix, ident: string,
+        params: JsonNode,
+        toString: bool,
+        returnType: NKind
+      ]
+    ]
+
+  macro init*(timEngine: var TimEngine, source, output: string,
+        indent: int, minified = true, reloader: HotReloadType = None,
+        imports: JsonNode) =
+    result = newStmtList()
+    var hasImports: bool
+    for imports in parseJSON(imports[1].strVal):
+      for pkgIdent, procs in pairs(imports):
+        if pkgIdent.startsWith("std/"):
+          let lib = pkgIdent[4..^1]
+          if lib notin stdlibsChecker:
+            stdlibs.add(ident lib)
+            stdlibsChecker.add(lib)
+          else: error("$1 already imported" % [pkgIdent])
+        elif pkgIdent.startsWith("pkg/"):
+          let pkg = pkgIdent[4..^1]
+          if pkg notin pkglibsChecker:
+            pkglibs.add(ident pkg)
+            pkglibsChecker.add(pkg)
+          else: error("$1 already imported" % [pkgIdent])
+        else: error("prefix import with `std` or `pkg`")
+        for p in procs:
+          var returnType: NKind
+          let returnTypeStr = p["return"].getStr
+          if returnTypeStr == "bool":
+            returnType = nkBool
+          elif returnTypeStr == "int":
+            returnType = nkInt
+          elif returnTypeStr == "string":
+            returnType = nkString
+          elif returnTypeStr == "float":
+            returnType = nkFloat
+          let toString =
+            if p.hasKey("toString"):
+              p["toString"].getBool == true:
+            else: false
+          functions.add (
+            pkgIdent[4..^1],
+            p["ident"].getStr,
+            p["params"],
+            toString,
+            returnType
+          )
+    if stdlibs.len != 0:
+      hasImports = true
+      result.add(
+        nnkImportStmt.newTree(
+          nnkInfix.newTree(
+            ident "/",
+            ident "std",
+            stdlibs
+          )
+        )
+      )
+    if pkglibs.len != 0:
+      hasImports = true
+      result.add(
+        nnkImportStmt.newTree(
+          nnkInfix.newTree(
+            ident "/",
+            ident "pkg",
+            pkglibs
+          )
+        )
+      )
+    result.add(newCall(ident "init", timEngine, source, output, indent, minified, reloader))
+    if hasImports:
+      let initImportsTable = 
+        newAssignment(
+          newDotExpr(timEngine, ident("imports")),
+          newCall(
+            nnkBracketExpr.newTree(
+              ident "newTable",
+              ident "string",
+              ident "ImportFunction"
+            )
+          )
+        )
+      result.add(initImportsTable)
+      for fn in functions:
+        var fnField, fnReturnType: string
+        case fn.returnType:
+        of nkInt:
+          fnField = "intFn"
+          fnReturnType = "int"
+        of nkString:
+          fnField = "strFn"
+          fnReturnType = "string"
+        of nkFloat:
+          fnField = "floatFn"
+          fnReturnType = "float"
+        of nkBool:
+          fnField = "boolFn"
+          fnReturnType = "bool"
+        
+        var i = 0
+        var callFn = nnkCall.newTree()
+        callFn.add(ident fn.ident)
+        for param in fn.params:
+          callFn.add(
+            nnkBracketExpr.newTree(
+              ident "params",
+              newLit(i)
+            )
+          )
+          inc i
+        if fn.toString:
+          callFn = nnkPrefix.newTree(ident "$", callFn)
+        result.add(
+          newAssignment(
+            nnkBracketExpr.newTree(
+              newDotExpr(
+                timEngine,
+                ident "imports"
+              ),
+              # newLit fn.prefix & "." & fn.ident
+              newlit fn.ident
+            ),
+            nnkObjConstr.newTree(
+              ident "ImportFunction",
+              newColonExpr(
+                ident "nKind",
+                ident $fn.returnType
+              ),
+              newColonExpr(
+                ident fnField,
+                nnkLambda.newTree(
+                  newEmptyNode(),
+                  newEmptyNode(),
+                  newEmptyNode(),
+                  nnkFormalParams.newTree(
+                    ident fnReturnType,
+                    nnkIdentDefs.newTree(
+                      ident "params",
+                      nnkBracketExpr.newTree(
+                        ident "seq",
+                        ident "string"
+                      ),
+                      newEmptyNode()
+                    )
+                  ),
+                  newEmptyNode(),
+                  newEmptyNode(),
+                  newStmtList(callFn)
+                )
+              )
+            )
+          )
+        )
+      # echo result.repr
+      # result.add quote do:
+      #   echo Tim.imports["startsWith"].boolFn(@["abc", "a"])
+      #   echo Tim.imports["icon"].strFn(@["alpha"])

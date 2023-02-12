@@ -24,6 +24,39 @@ handlers:
       else: break
     lex.setToken kind
 
+  #   Include  ? "include"
+  #   Mixin    ? "mixin"
+  #   View     ? "view"
+  #   StartsWith > "startsWith"
+  #   EndsWith   > "endsWith"
+  #   Contaisn   > "contains"
+  proc handleCalls*(lex: var Lexer, kind: TokenKind) =
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    setLen(lex.token, 0)
+    if lex.next("include"):
+      lex.setToken TK_INCLUDE, 8
+      lex.token = "include"
+    elif lex.next("view"):
+      lex.setToken TK_VIEW, 5
+      lex.token = "view"
+    # elif lex.next("startsWith"):
+    #   lex.setToken TK_STARTSWITH, 11
+    #   lex.token = "startsWith"
+    # elif lex.next("endsWith"):
+    #   lex.setToken TK_ENDSWITH, 9
+    #   lex.token = "endsWith"
+    else:
+      inc lex.bufpos
+      setLen(lex.token, 0)
+      while true:
+        if lex.hasLetters(lex.bufpos) or lex.hasNumbers(lex.bufpos):
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
+        else:
+          dec lex.bufpos
+          break
+      lex.setToken TK_CALL
+
   proc handleSnippets*(lex: var Lexer, kind: TokenKind) =    
     lex.startPos = lex.getColNumber(lex.bufpos)
     var k = TK_JS
@@ -259,9 +292,9 @@ tokens:
   LCurly       > '{'
   RCurly       > '}'
   LPar         > '('
+  RPar         > ')'
   LBra         > '['
   RBra         > ']'
-  RPar         > ')'
   Dot          > '.'
   ID           > '#'
   Assign       > '=':
@@ -288,13 +321,20 @@ tokens:
   Bool_False   > "false"
   Not          > '!':
     NEQ      ? '='
-  At           > '@':
-    Include  ? "include"
-    Mixin    ? "mixin"
-    View     ? "view"
-    StartsWith ? "startsWith"
-    EndsWith   ? "endsWith"
-    Contains   > "contains"
+  At           > tokenize(handleCalls, '@')
+  Include
+  View
+  StartsWith
+  EndsWith
+  Mixin
+  Call
+  # At           > '@':
+  #   Include  ? "include"
+  #   Mixin    ? "mixin"
+  #   View     ? "view"
+  #   StartsWith > "startsWith"
+  #   EndsWith   > "endsWith"
+  #   Contaisn   > "contains"
   PLUS         > '+'
   MINUS        > '-'
   MULTI        > '*'

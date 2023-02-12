@@ -33,7 +33,7 @@ when defined cli:
     if p.hasError():
       e.errors = @[p.getError()]
       return
-    var c = newCompiler(p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
+    var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
     if c.hasError():
       display t.getFilePath
       for err in c.getErrors():
@@ -120,6 +120,7 @@ else:
   proc newJIT(e: TimEngine, `template`: Template, data: JsonNode,
               viewCode = "", hasViewCode = false): Compiler =
     result = newCompiler(
+      e = e,
       p = fromJson(e.readBson(`template`), Program),
       `template` = `template`,
       minify = e.shouldMinify,
@@ -194,7 +195,7 @@ else:
       t.enableJIT()
       e.writeBson(t, p.getStatementsStr, e.getIndent())
     else:
-      var c = newCompiler(p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
+      var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
       if not c.hasError():
         e.writeHtml(t, c.getHtml())
       else:

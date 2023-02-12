@@ -9,12 +9,13 @@ import pkg/[pkginfo, sass]
 import pkg/klymene/cli
 import ./ast
 
-when not defined cli:
+when not defined timEngineStandalone:
   import std/json
 
-from ./meta import Template, setPlaceHolderId, getPlaceholderIndent, getType
+from ./meta import TimEngine, Template, ImportFunction, NKind,
+                  setPlaceHolderId, getPlaceholderIndent, getType
 
-when defined cli:
+when defined timEngineStandalone:
   type
     Language* = enum
       Nim = "nim"
@@ -33,11 +34,12 @@ type
     html, js, sass, json, yaml: Rope
     hasViewCode, hasJS, hasSass, hasJson, hasYaml: bool
     viewCode: string
-    when defined cli:
+    when defined timEngineStandalone:
       language: Language
       prev, next: NodeType
       firstParentNode: NodeType
     else:
+      engine: TimEngine
       data: JsonNode
       memtable: MemStorage
     fixTail: bool
@@ -74,7 +76,7 @@ proc printErrors*(c: var Compiler, filePath: string) =
     setLen(c.logs, 0)
 
 template `&==`(body): untyped =
-  when defined cli:
+  when defined timEngineStandalone:
     add(result, body)
   else:
     add(c.html, body)
@@ -83,7 +85,7 @@ proc writeStrValue(c: var Compiler, node: Node) =
   add c.html, node.sVal
   c.fixTail = true
 
-when defined cli:
+when defined timEngineStandalone:
   discard
 else:
   include ./private/jitutils
@@ -133,7 +135,7 @@ proc getAttrs(c: var Compiler, attrs: HtmlAttributes): string =
         if attrNode.nodeType == NTString:
           strAttrs.add attrNode.sVal
         elif attrNode.nodeType == NTVariable:
-          when defined cli:
+          when defined timEngineStandalone:
             discard # TODO
           else:
             strAttrs.add c.getStringValue(attrNode)
@@ -154,7 +156,7 @@ proc getIDAttr(c: var Compiler, node: Node): string =
   if idAttrNode.nodeType == NTString:
     add result, idAttrNode.sVal
   else:
-    when defined cli:
+    when defined timEngineStandalone:
       discard
     else:
       add result, c.getStringValue(idAttrNode)
@@ -259,10 +261,12 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
       c.getJsonSnippet(node)
     of NTYaml:
       c.getYamlSnippet(node)
+    of NTCall:
+      c.callFunction(node)
     else: discard
 
 proc compileProgram(c: var Compiler) =
-  # when not defined cli:
+  # when not defined timEngineStandalone:
   #   if c.hasSass and getType(c.`template`) == Layout:
   for node in c.program.nodes:
     case node.stmtList.nodeType:
@@ -286,9 +290,11 @@ proc compileProgram(c: var Compiler) =
       c.getJsonSnippet(node.stmtList)
     of NTYaml:
       c.getYamlSnippet(node.stmtList)
+    of NTCall:
+      c.callFunction(node.stmtList)
     else: discard
 
-  when not defined cli:
+  when not defined timEngineStandalone:
     # if c.hasViewCode == false:
     if c.hasJson:
       add c.html, $c.json
@@ -303,7 +309,7 @@ proc compileProgram(c: var Compiler) =
       add c.html, $c.sass
       add c.html, NewLine & "</style>"
 
-when defined cli:
+when defined timEngineStandalone:
   proc newCompiler*(program: Program, `template`: Template, minify: bool,
                     indent: int, filePath: string,
                     viewCode = "", lang = Nim): Compiler =
@@ -332,13 +338,13 @@ when defined cli:
         c.newResult(metaNode)
     c.compileProgram()
     result = c
-
 else:
-  proc newCompiler*(p: Program, `template`: Template, minify: bool,
+  proc newCompiler*(e: TimEngine, p: Program, `template`: Template, minify: bool,
                     indent: int, filePath: string,
                     data = %*{}, viewCode = "", hasViewCode = false): Compiler =
     ## Create a new Compiler at runtime for just in time compilation
     var c = Compiler(
+      engine: e,
       program: p,
       `template`: `template`,
       data: data,
@@ -346,7 +352,7 @@ else:
       baseIndent: indent,
       viewCode: viewCode,
       hasViewCode: hasViewCode,
-      memtable: newTable[string, JsonNode]()
+      memtable: newTable[string, JsonNode](),
     )
     c.compileProgram()
     result = c
