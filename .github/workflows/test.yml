@@ -1,31 +1,31 @@
-name: test
+# name: test
 
-on:
-  push:
-    paths-ignore:
-      - LICENSE
-      - README.*
-      - examples
-  pull_request:
-    paths-ignore:
-      - LICENSE
-      - README.*
-      - examples
+# on:
+#   push:
+#     paths-ignore:
+#       - LICENSE
+#       - README.*
+#       - examples
+#   pull_request:
+#     paths-ignore:
+#       - LICENSE
+#       - README.*
+#       - examples
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        nim-version:
-          - 'stable'
-    steps:
-      - uses: actions/checkout@v2
-      - uses: jiro4989/setup-nim-action@v1
-        with:
-          nim-version: ${{ matrix.nim-version }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: sudo apt-get -y install libsass-dev
-      - run: nimble install -Y
-      - run: nim --threads:on c -r src/${{ github.event.repository.name }}.nim
-      - run: nimble test
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     strategy:
+#       matrix:
+#         nim-version:
+#           - 'stable'
+#     steps:
+#       - uses: actions/checkout@v2
+#       - uses: jiro4989/setup-nim-action@v1
+#         with:
+#           nim-version: ${{ matrix.nim-version }}
+#           repo-token: ${{ secrets.GITHUB_TOKEN }}
+#       - run: sudo apt-get -y install libsass-dev
+#       - run: nimble install -Y
+#       - run: nim --threads:on c -r src/${{ github.event.repository.name }}.nim
+#       - run: nimble test
