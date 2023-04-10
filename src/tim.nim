@@ -20,9 +20,12 @@ when isMainModule:
       "Made by Humans from OpenPeep"
 
     commands:
-      $ "init"              "Generate a new Tim config"
-      $ "watch"             "Transpile and Watch for changes"
-      $ "build"             "Transpile Tim to targeting language"
+      $ "init":
+        ? "Generate a new Tim config"
+      $ "watch":
+        ? "Transpile and Watch for changes"
+      $ "build":
+        ? "Transpile Tim to targeting language"
 
 else:
   ## Tim as a Nimble Library
