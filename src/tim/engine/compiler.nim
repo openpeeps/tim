@@ -56,7 +56,7 @@ const
   InvalidArrayAccess = "Array indices must be positive integers. Got $1[\"$2\"]"
   ArrayIndexOutBounds = "Index out of bounds [$1]. \"$2\" size is [$3]"
   UndefinedProperty = "Undefined property \"$1\""
-  UndefinedVariable = "Undefined property \"$1\" in \"$2\""
+  UndefinedVariable = "Undefined variable \"$1\" in \"$2\""
 
 # defer
 proc writeNewLine(c: var Compiler, nodes: seq[Node])
@@ -75,7 +75,7 @@ proc printErrors*(c: var Compiler, filePath: string) =
     echo filePath
     setLen(c.logs, 0)
 
-template `&==`(body): untyped =
+template writeHtml(body): untyped =
   when defined timEngineStandalone:
     add(result, body)
   else:
@@ -95,9 +95,10 @@ proc getHtml*(c: Compiler): string =
   result = $(c.html)
 
 proc getIndentSize(c: var Compiler, isize: int): int =
-  result = if c.baseIndent == 2:
-              int(isize / c.baseIndent)
-           else: isize
+  result =
+    if c.baseIndent == 2:
+      int(isize / c.baseIndent)
+    else: isize
 
 proc getIndent(c: var Compiler, meta: MetaNode, skipBr = false): string =
   if meta.pos != 0:
@@ -116,7 +117,8 @@ proc getAttrs(c: var Compiler, attrs: HtmlAttributes): string =
   var skipQuote: bool
   let attrslen = attrs.len
   for k, attrNodes in attrs.pairs():
-    if k == "id": continue # handled by `writeIDAttribute`
+    if k == "id":
+      continue # handled by `writeIDAttribute`
     var strAttrs: seq[string]
     if k[0] == '$':
       for attrNode in attrNodes:
@@ -133,7 +135,16 @@ proc getAttrs(c: var Compiler, attrs: HtmlAttributes): string =
       add result, indent("$1=" % [k], 1) & "\""
       for attrNode in attrNodes:
         if attrNode.nodeType == NTString:
-          strAttrs.add attrNode.sVal
+          if attrNode.sConcat.len == 0:
+            strAttrs.add attrNode.sVal
+          else:
+            var strInterp = attrNode.sVal
+            for varInterp in attrNode.sConcat:
+              when defined timEngineStandalone:
+                discard # TODO
+              else:
+                strInterp &= c.getStringValue(varInterp)
+            strAttrs.add strInterp
         elif attrNode.nodeType == NTVariable:
           when defined timEngineStandalone:
             discard # TODO
@@ -143,6 +154,8 @@ proc getAttrs(c: var Compiler, attrs: HtmlAttributes): string =
       add result, join(strAttrs, " ")
     if not skipQuote and i != attrslen:
       add result, "\""
+    else:
+      skipQuote = false
     inc i
 
 proc hasIDAttr(node: Node): bool =
@@ -165,21 +178,20 @@ proc getIDAttr(c: var Compiler, node: Node): string =
 template `<>`(tag: string, node: Node, skipBr = false) =
   ## Open tag of the current JsonNode element
   if not c.minify:
-    &== getIndent(c, node.meta, skipBr)
-  &== ("<" & tag)
-  if hasIDAttr(node):
-    &== getIDAttr(c, node)
+    writeHtml getIndent(c, node.meta, skipBr)
+  writeHtml ("<" & tag)
+  if hasIDAttr(node): writeHtml getIDAttr(c, node)
   if hasAttrs(node):
-    &== getAttrs(c, node.attrs)
+    writeHtml getAttrs(c, node.attrs)
   if node.issctag:
-    &== "/"
-  &== ">"
+    writeHtml "/" # self closing tag
+  writeHtml ">"
 
 template `</>`(node: Node, skipBr = false) =
   ## Close an HTML tag
   if node.issctag == false:
     if not c.fixTail and not c.minify:
-      &== getIndent(c, node.meta, skipBr)
+      writeHtml getIndent(c, node.meta, skipBr)
     add c.html, "</" & node.htmlNodeName & ">"
 
 proc getViewCode(c: var Compiler, node: Node): string =
@@ -242,7 +254,7 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
       node </> false
       if c.fixTail: c.fixTail = false
     of NTVariable:
-      &== c.getStringValue(node)
+      writeHtml c.getStringValue(node)
     of NTInfixStmt:
       c.handleInfixStmt(node)
     of NTConditionStmt:

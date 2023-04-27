@@ -76,6 +76,7 @@ const
   InvalidIDNotUnique = "The ID \"$1\" is also used for another element at line $2"
   InvalidJavaScript = "Invalid JavaScript snippet"
   InvalidImportView = "Trying to load a view inside a $1"
+  InvalidStringInterpolation = "Invalid string interpolation"
 
 const
   tkVars = {TK_VARIABLE, TK_SAFE_VARIABLE}
@@ -180,32 +181,6 @@ proc walk(p: var Parser, offset = 1) =
     p.current = p.next
     p.next = p.lexer.getToken()
     inc i
-
-# let stdTable = toTable({
-#   "startsWith": @[
-#     (pName: "s", pType: TK_STRING),
-#     (pName: "prefix", pType: TK_STRING)
-#   ],
-#   "endsWith": @[
-#     (pName: "s", pType: TK_STRING),
-#     (pName: "suffix", pType: TK_STRING)
-#   ],
-# })
-
-# template checkTypeSafety() =
-#   let
-#     t = stdTable[callIdent]
-#     tlen = t.len
-#     ilen = params.len
-#   if len(params) == 0:
-#     p.setError("Got none but `$1` expects $2 parameters." % [callIdent, $tlen])
-#     return
-#   elif len(params) != len(stdTable[callIdent]):
-#     p.setError("Got $1 but `$2` expects $3 parameters" % [$ilen, callIdent, $tlen])
-#     return
-#   # else:
-#   #   for p in params:
-#   #     if p.pType != 
 
 proc getOperator(tk: TokenKind): OperatorType =
   case tk:
@@ -365,6 +340,13 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         else:
           result[attrKey] = @[newString(p.next)]
         walk p, 2
+        while p.current.kind == TK_LCURLY and p.next.kind == TK_VARIABLE:
+          # parse string interpolation
+          walk p
+          result[attrKey][^1].sConcat.add(p.parseVariable())
+          if p.current.kind == TK_RCURLY:
+            walk p
+          else: p.setError(InvalidStringInterpolation, true)
       else:
         p.setError(InvalidClassAttribute)
         walk p
@@ -422,6 +404,7 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         let condKey = "%_$1$2$3$4" % [$astNode.meta.line, $astNode.meta.pos,
                                       $astNode.meta.col, $astNode.meta.wsno]
         result[condKey] = @[astNode]
+        jit p
       else:
         p.setError(InvalidConditionalStmt, true)
     elif p.current.kind notin tkSpecial and p.prev.line == p.current.line:
@@ -559,7 +542,7 @@ proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple)
       elseBody.add bodyNode
 
 proc parseInfix(p: var Parser, strict = false): Node =
-  walk p
+  walk p # `if` or `(` for short hand conditions
   if p.current.kind notin tkComparables:
     p.setError(InvalidConditionalStmt)
     return
@@ -802,6 +785,8 @@ proc parse*(engine: TimEngine, code, path: string, templateType: TemplateType): 
   var
     resHandle = resolve(code, path, engine, templateType)
     p: Parser = Parser(engine: engine, templateType: templateType, ids: newTable[string, int]())
+  if p.templateType == Layout:
+    jit(p) # force enabling jit for layout templates
   if resHandle.hasError():
     p.setError(resHandle.getError, resHandle.getErrorLine, resHandle.getErrorColumn)
     return p

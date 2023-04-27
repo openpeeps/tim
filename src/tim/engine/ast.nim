@@ -193,6 +193,7 @@ type
       fVal*: float
     of NTString:
       sVal*: string
+      sConcat*: seq[Node]
     of NTBool:
       bVal*: bool
     of NTId:
@@ -323,12 +324,13 @@ proc newBool*(bVal: bool): Node =
   ## Add a new `NTBool` node
   Node(nodeName: getSymbolName(NTBool), nodeType: NTBool, bVal: bVal)
 
-proc newString*(tk: TokenTuple): Node =
+proc newString*(tk: TokenTuple, strs: seq[Node] = @[]): Node =
   ## Add a new `NTString` node
   Node(
     nodeName: getSymbolName(NTString),
     nodeType: NTString,
     sVal: tk.value,
+    sConcat: strs,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
   )
 

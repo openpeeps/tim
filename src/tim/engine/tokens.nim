@@ -24,12 +24,6 @@ handlers:
       else: break
     lex.setToken kind
 
-  #   Include  ? "include"
-  #   Mixin    ? "mixin"
-  #   View     ? "view"
-  #   StartsWith > "startsWith"
-  #   EndsWith   > "endsWith"
-  #   Contaisn   > "contains"
   proc handleCalls*(lex: var Lexer, kind: TokenKind) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
@@ -39,12 +33,6 @@ handlers:
     elif lex.next("view"):
       lex.setToken TK_VIEW, 5
       lex.token = "view"
-    # elif lex.next("startsWith"):
-    #   lex.setToken TK_STARTSWITH, 11
-    #   lex.token = "startsWith"
-    # elif lex.next("endsWith"):
-    #   lex.setToken TK_ENDSWITH, 9
-    #   lex.token = "endsWith"
     else:
       inc lex.bufpos
       setLen(lex.token, 0)
@@ -86,7 +74,8 @@ handlers:
           inc lex.bufpos, 3
           break
         else:
-          lex.setError("Invalid snippet")
+          add lex.token, lex.buf[lex.bufpos]
+          inc lex.bufpos
       of EndOfFile:
         lex.setError("EOF reached before end of snippet")
         return

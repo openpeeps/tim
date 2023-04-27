@@ -46,6 +46,7 @@ type
     nkString
 
   ImportFunction* = ref object
+    paramCount*: int
     case nKind: NKind 
     of nkInt:
       intFn*: proc(params: seq[string]): int
@@ -220,29 +221,29 @@ proc hasView*(e: TimEngine, key: string): bool =
   ## Use dot annotation for accessing views in subdirectories
   result = e.views.hasKey(e.getPath(key, "views"))
 
-method getView*(e: TimEngine, key: string): Template {.base.} =
+proc getView*(e: TimEngine, key: string): Template =
   ## Retrieve a view template by key.
   ## Use dot annotation for accessing views in subdirectories
   result = e.views[e.getPath(key, "views")]
 
-method hasPartial*(e: TimEngine, key: string): bool {.base.} =
+proc hasPartial*(e: TimEngine, key: string): bool =
   ## Determine if a specific view exists by name.
   ## Use dot annotation for accessing views in subdirectories
   result = e.partials.hasKey(e.getPath(key, "partials"))
 
-method getPartials*(e: TimEngine): TimlTemplateTable {.base.} =
+proc getPartials*(e: TimEngine): TimlTemplateTable =
   ## Retrieve entire table of partials as TimlTemplateTable
   result = e.partials
 
-method getStoragePath*(e: var TimEngine): string {.base.} =
+proc getStoragePath*(e: TimEngine): string =
   ## Retrieve the absolute path of TimEngine output directory
   result = e.output
 
-method getBsonPath*(e: Template): string {.base.} = 
+proc getBsonPath*(e: Template): string = 
   ## Get the absolute path of BSON AST file
   result = e.paths.ast
 
-method shouldMinify*(e: TimEngine): bool {.base.} =
+proc shouldMinify*(e: TimEngine): bool =
   ## Determine if Tim Engine should minify the final HTML
   result = e.minified
 
@@ -301,8 +302,16 @@ proc readBson*(e: TimEngine, t: Template): string =
   result = document["ast"]
 
 proc writeHtml*(e: TimEngine, t: Template, output: string, isTail = false) =
-  let filePath = if not isTail: t.paths.html else: t.paths.tails
+  let filePath =
+    if not isTail:
+      t.paths.html
+    else:
+      t.paths.tails
+  discard existsOrCreateDir(e.getStoragePath() / "html") # create `html` directory
   writeFile(filePath, output)
+
+proc flush*(tempDir: string) =
+  removeDir(tempDir)
 
 proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
   ## Short hand procedure for executing shell commands via execProcess
@@ -346,10 +355,9 @@ macro getAbsolutePath(p: string): untyped =
 
 proc init*(timEngine: var TimEngine, source, output: string,
       indent: int, minified = true, reloader: HotReloadType = None) =
-  ## Initialize a new Tim Engine by providing the root path directory 
-  ## to your templates (layouts, views and partials).
-  ## Tim is able to auto-discover your .timl files
-  # echo imports
+  ## Initialize a new Tim Engine providing the source path 
+  ## to your templates (layouts, views and partials) and output directory,
+  ## where will save the compiled templates.
   var timlInOutDirs: seq[string]
   for path in @[source, output]:
     var tpath = getAbsolutePath(path.normalizedPath())
@@ -357,15 +365,21 @@ proc init*(timEngine: var TimEngine, source, output: string,
       createDir(tpath)
     timlInOutDirs.add(tpath)
     if path == output:
-      # create `bson` and `html` dirs inside `output` directory
-      # where `bson` is used for saving the binary abstract syntax tree
-      # for pages that requires dynamic computation,
-      # such as data assignation, and conditional statements,
-      # and second the `html` directory is reserved for
-      # saving the final HTML output.
+      # create `bson` and `html` dirs inside `output` directory, where
+      #
+      # `bson` is used for saving the binary abstract syntax tree
+      # for pages that requires dynamic computation, such as data assignation,
+      # and conditional statements.
+      #
+      # `html` directory is reserved for saving the final HTML output.
       for inDir in @["bson", "html"]:
-        let innerDir = path & "/" & inDir
-        if not dirExists(innerDir): createDir(innerDir)
+        # let innerDir = path & "/" & inDir
+        let outputDir = getAbsolutePath(path.normalizedPath() / inDir)
+        if not dirExists(outputDir):
+          createDir(outputDir)
+        else:
+          flush(outputDir)      # flush cached files inside `html` and `ast`
+          createDir(outputDir)  # then recreate directories
 
   var layoutsTable, viewsTable,
       partialsTable = newOrderedTable[string, Template]()
@@ -451,7 +465,8 @@ when not defined timEngineStandalone:
         prefix, ident: string,
         params: JsonNode,
         toString: bool,
-        returnType: NKind
+        returnType: NKind,
+        paramCount: int
       ]
     ]
 
@@ -474,9 +489,11 @@ when not defined timEngineStandalone:
             pkglibs.add(ident pkg)
             pkglibsChecker.add(pkg)
           else: error("$1 already imported" % [pkgIdent])
-        else: error("prefix import with `std` or `pkg`")
+        else: error("prefix imported modules with `std` or `pkg`")
         for p in procs:
-          var returnType: NKind
+          var
+            returnType: NKind
+            paramCount = p["params"].len
           let returnTypeStr = p["return"].getStr
           if returnTypeStr == "bool":
             returnType = nkBool
@@ -490,13 +507,14 @@ when not defined timEngineStandalone:
             if p.hasKey("toString"):
               p["toString"].getBool == true:
             else: false
-          functions.add (
+          functions.add((
             pkgIdent[4..^1],
             p["ident"].getStr,
             p["params"],
             toString,
-            returnType
-          )
+            returnType,
+            paramCount,
+          ))
     if stdlibs.len != 0:
       hasImports = true
       result.add(
@@ -561,7 +579,7 @@ when not defined timEngineStandalone:
           )
           inc i
         if fn.toString:
-          callFn = nnkPrefix.newTree(ident "$", callFn)
+          callFn = nnkPrefix.newTree(ident("$"), callFn)
         result.add(
           newAssignment(
             nnkBracketExpr.newTree(
@@ -576,7 +594,11 @@ when not defined timEngineStandalone:
               ident "ImportFunction",
               newColonExpr(
                 ident "nKind",
-                ident $fn.returnType
+                ident($fn.returnType)
+              ),
+              newColonExpr(
+                ident "paramCount",
+                newLit(fn.paramCount)
               ),
               newColonExpr(
                 ident fnField,
@@ -603,7 +625,4 @@ when not defined timEngineStandalone:
             )
           )
         )
-      # echo result.repr
-      # result.add quote do:
-      #   echo Tim.imports["startsWith"].boolFn(@["abc", "a"])
-      #   echo Tim.imports["icon"].strFn(@["alpha"])
+    # echo result.repr

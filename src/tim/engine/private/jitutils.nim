@@ -17,6 +17,13 @@ proc getVarValue(c: var Compiler, varNode: Node): string =
           ("`", "&grave;")
         )
 
+proc getVarTypeStr(varVisibility: VarVisibility): string =
+  result =
+    if varVisibility == GlobalVar:
+      "globals"
+    else:
+      "scope"
+
 proc getJsonData(c: var Compiler, key: string): JsonNode =
   if c.data.hasKey(key):
     result = c.data[key]
@@ -167,7 +174,7 @@ macro isNotEqualString*(a, b: string): untyped =
     `a` != `b`
 
 proc handleInfixStmt(c: var Compiler, node: Node) = 
-  if node.infixOp == AND:
+  if node.infixOp == AMP:
     if node.infixLeft.nodeType == NTVariable:
       add c.html, c.getStringValue(node.infixLeft)
     elif node.infixLeft.nodeType == NTString:
@@ -243,15 +250,18 @@ proc compareVarLit(c: var Compiler, leftNode, rightNode: Node, op: OperatorType,
 proc compVarNil(c: var Compiler, node: Node): bool =
   # Evaluate NTVariable if returning value is anything but null
   # Example: `if $myvar:` 
-  var j: JsonNode
+  var j = newJNull()
   if c.memtable.hasKey(node.varSymbol):
     # Check if is available in memtable
     j = c.getJsonValue(node, c.memtable[node.varSymbol])
   else:
     j = c.getJsonData(node.varIdent)
+  if j == nil:
+    return
   if j.kind == JBool:
     result = j.getBool == true
-  elif j.kind == JNull: discard
+  # elif j.kind == JNull: not needed
+    # c.logs.add(UndefinedVariable % [node.varSymbol, getVarTypeStr(node.visibility)])
   else:
     result = j.len != 0
 
@@ -260,7 +270,20 @@ proc tryGetFromMemtable(c: var Compiler, node: Node): JsonNode =
     return c.getJsonValue(node, c.memtable[node.varSymbol])
   result = nil
 
-include ./stdcalls
+proc getFnParams(c: var Compiler, node: Node, paramCount: int): seq[string] =
+  var i = 0
+  for param in node.callParams:
+    if param.nodeType == NTVariable:
+      var strParam = c.tryGetFromMemtable(param)
+      if strParam == nil:
+        strParam = c.getJsonData(param.varIdent)
+      add result, strParam.getStr
+    else:
+      add result, param.sVal
+    inc i
+  while paramCount > i:
+    add result, newString(0)
+    inc i
 
 proc compInfixNode(c: var Compiler, node: Node): bool =
   if node.nodeType == NTVariable:
@@ -309,13 +332,12 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
 
       elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTInt:
         result = c.compareVarLit(node.infixLeft, node.infixRight, node.infixOp)
-      
       elif node.infixleft.nodeType == NTInt and node.infixRight.nodeType == NTVariable:
         result = c.compareVarLit(node.infixRight, node.infixLeft, node.infixOp, true)
-
-      else: c.logs.add(InvalidComparison % [
-        node.infixLeft.nodeName, node.infixRight.nodeName
-      ])
+      else:
+        c.logs.add(InvalidComparison % [
+          node.infixLeft.nodeName, node.infixRight.nodeName
+        ])
     of AND:
       if node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTInfixStmt:
         result = c.compVarNil(node.infixLeft)
@@ -328,11 +350,13 @@ proc compInfixNode(c: var Compiler, node: Node): bool =
       elif node.infixLeft.nodeType == NTVariable and node.infixRight.nodeType == NTCall:
         result = c.compVarNil(node.infixLeft)
         if result:
-          result = c.engine.imports[node.infixRight.callIdent].boolFn(getFnParams(c, node.infixRight))
+          let fn = c.engine.imports[node.infixRight.callIdent]
+          result = fn.boolFn(getFnParams(c, node.infixRight, fn.paramCount))
     else: discard
   elif node.nodeType == NTCall:
     if c.engine.imports.hasKey(node.callIdent):
-      result = c.engine.imports[node.callIdent].boolFn(getFnParams(c, node))
+      let fn = c.engine.imports[node.callIdent]
+      result = fn.boolFn(getFnParams(c, node, fn.paramCount))
 
 proc handleConditionStmt(c: var Compiler, node: Node) =
   if c.compInfixNode(node.ifCond):
@@ -368,8 +392,8 @@ proc handleForStmt(c: var Compiler, forNode: Node) =
   else: discard
 
 proc callFunction(c: var Compiler, node: Node) =
-  if c.engine.imports.hasKey(node.callIdent):  
-    add c.html, c.engine.imports[node.callIdent].strFn(
-      getFnParams(c, node)
-    )
+  ## Execute a function that returns a string
+  if c.engine.imports.hasKey(node.callIdent):
+    let fn = c.engine.imports[node.callIdent]
+    add c.html, fn.strFn(getFnParams(c, node, fn.paramCount))
     c.fixTail = true

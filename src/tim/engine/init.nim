@@ -35,9 +35,9 @@ when defined cli:
       return
     var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
     if c.hasError():
-      display t.getFilePath
       for err in c.getErrors():
         display err
+      display t.getFilePath
 
   proc precompile*(e: TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
                   debug = false): seq[string] {.discardable.} =
@@ -117,15 +117,15 @@ else:
   </script>
   """
 
-  proc newJIT(e: TimEngine, `template`: Template, data: JsonNode,
+  proc newJIT(e: TimEngine, tpl: Template, data: JsonNode,
               viewCode = "", hasViewCode = false): Compiler =
     result = newCompiler(
       e = e,
-      p = fromJson(e.readBson(`template`), Program),
-      `template` = `template`,
+      p = fromJson(e.readBson(tpl), Program),
+      `template` = tpl,
       minify = e.shouldMinify,
       indent = e.getIndent,
-      filePath = `template`.getFilePath,
+      filePath = tpl.getFilePath,
       data = data,
       viewCode = viewCode,
       hasViewCode = hasViewCode
@@ -159,13 +159,13 @@ else:
         var clayout = newJIT(e, layout, allData, cview.getHtml & reloadHandler, hasViewCode = true)
         add result, clayout.getHtml
         if clayout.hasError:
-          display("Warning:" & indent(layout.getFilePath, 1), br = "before")
           for err in clayout.getErrors:
-            display(err, indent = 2)
+            display(span("Warning", fgYellow), span(err))
+            display(indent(layout.getFilePath, 1), br="after")
         if cview.hasError:
-          display("Warning:" & indent(view.getFilePath, 1), br = "before")
           for err in cview.getErrors:
-            display(err, indent = 2)
+            display(span("Warning", fgYellow), span(err))
+            display(indent(view.getFilePath, 1), br="after")
       else:
         if layout.isJitEnabled:
           # Compile requested layout at runtime 
