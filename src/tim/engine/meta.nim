@@ -1,11 +1,15 @@
-# A high-performance compiled template engine inspired by the Emmet syntax.
+# A high-performance compiled template engine
+# inspired by the Emmet syntax.
 #
 # (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeep
-#          https://github.com/openpeep/tim
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
 
-import pkg/[bson, pkginfo]
+import pkg/pkginfo
+import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 import std/[tables, md5, json, os, strutils, macros]
+
+import ./ast
 
 from std/math import sgn
 from std/osproc import execProcess, poStdErrToStdOut, poUsePath
@@ -67,7 +71,7 @@ type
     root: string
       ## root path to your Timl templates
     output: string
-      ## root path for HTML and BSON AST output
+      ## root path for HTML and AST output
     layouts: TimlTemplateTable
       ## a table representing `.timl` layouts
     views: TimlTemplateTable
@@ -251,9 +255,9 @@ proc hashName(input: string): string =
   ## Create a MD5 hashed version of given input string
   result = getMD5(input)
 
-proc bsonPath(outputDir, filePath: string): string =
+proc astPath(outputDir, filePath: string): string =
   ## Set the BSON AST path and return the string
-  result = outputDir & "/bson/" & hashName(filePath) & ".ast.bson"
+  result = outputDir & "/ast/" & hashName(filePath) & ".ast"
   normalizePath(result)
 
 proc htmlPath(outputDir, filePath: string, isTail = false): string =
@@ -272,16 +276,25 @@ proc getTemplateByPath*(engine: TimEngine, filePath: string): var Template =
   else:
     result = engine.partials[fp]
 
-proc writeBson*(e: TimEngine, t: Template, ast: string, baseIndent: int) =
-  ## Write current JSON AST to BSON
-  var doc = newBsonDocument()
-  doc["ast"] = ast
-  doc["version"] = currentVersion
-  doc["baseIndent"] = baseIndent
+# proc writeBson*(e: TimEngine, t: Template, ast: string, baseIndent: int) =
+#   ## Write current JSON AST to BSON
+#   var doc = newBsonDocument()
+#   doc["ast"] = ast
+#   doc["version"] = currentVersion
+#   doc["baseIndent"] = baseIndent
+#   try:
+#     writeFile(t.paths.ast, doc.bytes)
+#   except IOError:
+#     e.errors.add "Could not write BSON file for $1" % [t.meta.name]
+
+proc writeAst*(e: TimEngine, t: Template, ast: Program, baseIndent: int) =
+  var s = MsgStream.init()
+  s.pack(ast)  
+  # s.pack_bin(sizeof(ast))
   try:
-    writeFile(t.paths.ast, doc.bytes)
+    writeFile(t.paths.ast, s.data)
   except IOError:
-    e.errors.add "Could not write BSON file for $1" % [t.meta.name]
+    e.errors.add "Could not build AST for $1" % [t.meta.name]
 
 proc checkDocVersion(docVersion: string): bool =
   let docv = parseInt replace(docVersion, ".", "")
@@ -291,15 +304,26 @@ proc checkDocVersion(docVersion: string): bool =
 proc getReloadType*(engine: TimEngine): HotReloadType =
   result = engine.reloader
 
-proc readBson*(e: TimEngine, t: Template): string =
-  ## Read current BSON and parse to JSON
-  let document: Bson = newBsonDocument(readFile(t.paths.ast))
-  let docv: string = document["version"] # TODO use pkginfo to extract current version from nimble file
-  if not checkDocVersion(docv):
-    # TODO error message
-    raise newException(TimDefect,
-      "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, currentVersion])
-  result = document["ast"]
+# proc readBson*(e: TimEngine, t: Template): string =
+#   ## Read current BSON and parse to JSON
+#   let document: Bson = newBsonDocument(readFile(t.paths.ast))
+#   let docv: string = document["version"] # TODO use pkginfo to extract current version from nimble file
+#   if not checkDocVersion(docv):
+#     # TODO error message
+#     raise newException(TimDefect,
+#       "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, currentVersion])
+#   result = document["ast"]
+
+proc readAst*(e: TimEngine, t: Template): Program =
+  ## Read current AST and return as `ast.Program`
+  var astProgram: Program
+  unpack(readFile(t.paths.ast), astProgram)
+  result = astProgram
+  # if not checkDocVersion(docv):
+  #   # TODO error message
+  #   raise newException(TimDefect,
+  #     "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, currentVersion])
+  # result = document["ast"]
 
 proc writeHtml*(e: TimEngine, t: Template, output: string, isTail = false) =
   let filePath =
@@ -365,14 +389,14 @@ proc init*(timEngine: var TimEngine, source, output: string,
       createDir(tpath)
     timlInOutDirs.add(tpath)
     if path == output:
-      # create `bson` and `html` dirs inside `output` directory, where
+      # create `ast` and `html` dirs inside `output` directory, where
       #
-      # `bson` is used for saving the binary abstract syntax tree
+      # `ast` is used for saving the binary abstract syntax tree
       # for pages that requires dynamic computation, such as data assignation,
       # and conditional statements.
       #
       # `html` directory is reserved for saving the final HTML output.
-      for inDir in @["bson", "html"]:
+      for inDir in @["ast", "html"]:
         # let innerDir = path & "/" & inDir
         let outputDir = getAbsolutePath(path.normalizedPath() / inDir)
         if not dirExists(outputDir):
@@ -401,7 +425,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
               meta: (name: fname.tail, templateType: Layout),
               paths: (
                 file: filePath,
-                ast: bsonPath(timlInOutDirs[1], filePath),
+                ast: astPath(timlInOutDirs[1], filePath),
                 html: htmlPath(timlInOutDirs[1], filePath),
                 tails: htmlPath(timlInOutDirs[1], filePath, true)
               )
@@ -413,7 +437,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
               meta: (name: fname.tail, templateType: View),
               paths: (
                 file: filePath,
-                ast: bsonPath(timlInOutDirs[1], filePath),
+                ast: astPath(timlInOutDirs[1], filePath),
                 html: htmlPath(timlInOutDirs[1], filePath),
                 tails: htmlPath(timlInOutDirs[1], filePath, true)
               )
@@ -425,7 +449,7 @@ proc init*(timEngine: var TimEngine, source, output: string,
               meta: (name: fname.tail, templateType: Partial),
               paths: (
                 file: filePath,
-                ast: bsonPath(timlInOutDirs[1], filePath),
+                ast: astPath(timlInOutDirs[1], filePath),
                 html: htmlPath(timlInOutDirs[1], filePath),
                 tails: htmlPath(timlInOutDirs[1], filePath, true)
               )
@@ -625,4 +649,3 @@ when not defined timEngineStandalone:
             )
           )
         )
-    # echo result.repr

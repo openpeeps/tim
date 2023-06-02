@@ -1,11 +1,12 @@
-# A high-performance compiled template engine inspired by the Emmet syntax.
+# A high-performance compiled template engine
+# inspired by the Emmet syntax.
 #
 # (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeep
-#          https://github.com/openpeep/tim
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
 
 import std/[tables, strutils, json]
-import pkg/[pkginfo, jsony, klymene/cli]
+import pkg/[pkginfo, jsony, kapsis/cli]
 import tim/engine/[meta, ast, parser, compiler]
 
 export parser
@@ -121,7 +122,7 @@ else:
               viewCode = "", hasViewCode = false): Compiler =
     result = newCompiler(
       e = e,
-      p = fromJson(e.readBson(tpl), Program),
+      p = e.readAst(tpl),
       `template` = tpl,
       minify = e.shouldMinify,
       indent = e.getIndent,
@@ -193,7 +194,7 @@ else:
       return
     if p.hasJit:
       t.enableJIT()
-      e.writeBson(t, p.getStatementsStr, e.getIndent())
+      e.writeAst(t, p.getStatements, e.getIndent())
     else:
       var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
       if not c.hasError():

@@ -1,12 +1,13 @@
-# A high-performance compiled template engine inspired by the Emmet syntax.
+# A high-performance compiled template engine
+# inspired by the Emmet syntax.
 #
 # (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeep
-#          https://github.com/openpeep/tim
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
 
-import std/[ropes, tables, macros, strutils]
+import std/[tables, macros, strutils]
 import pkg/[pkginfo, sass]
-import pkg/klymene/cli
+import pkg/kapsis/cli
 import ./ast
 
 when not defined timEngineStandalone:
@@ -31,7 +32,7 @@ type
     `template`: Template
     minify: bool
     baseIndent: int
-    html, js, sass, json, yaml: Rope
+    html, js, sass, json, yaml: string
     hasViewCode, hasJS, hasSass, hasJson, hasYaml: bool
     viewCode: string
     when defined timEngineStandalone:
