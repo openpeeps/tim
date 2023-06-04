@@ -17,6 +17,7 @@ when defined napibuild:
       errInitFnArgs = "`init` function requires 4 arguments\n"
       errNotInitialized = "TimEngine is not initialized"
       errRenderFnArgs = "`render` function expect at least 1 argument\n"
+      errDefaultLayoutNotFound = "`base.timl` layout is missing from your `/layouts` directory"
 
   var timEngine: TimEngine
 
@@ -28,56 +29,108 @@ when defined napibuild:
    * @param output {string}   Output path for binary AST and precompiled templates
    * @param indent {int}      Indentation size (when `minify` is false)
    * @param minify {bool}     Whether to minify the final output
+   * @param global {object}   Global data
    */
     """
     renderFnHint = """
   /**
-   * @param view {string}       The name of the view (without file extension)
+   * @param view {string}       Name a view to render (`timl` file name without extension)
    * @param scope {object}      Scope data (Optional) 
    * @param layout {string}     Name a layout to wrap the view (Optional)
    */
     """
+    docktype = "<!DOCTYPE html>"
+    defaultLayoutName = "base"
+
+  template precompileCode() =
+    var p = timEngine.parse(t.getSourceCode, t.getFilePath, templateType = t.getType)
+    if p.hasError:
+      assert error(p.getError, errIdent)
+      return
+    if p.hasJit:
+      t.enableJIT
+      timEngine.writeAst(t, p.getStatements, timEngine.getIndent)
+    else:
+      var c = newCompiler(timEngine, p.getStatements, t, timEngine.shouldMinify, timEngine.getIndent, t.getFilePath)
+      if not c.hasError:
+        timEngine.writeHtml(t, c.getHtml)
+
+  proc newJITCompilation(tp: Template, data: JsonNode, viewCode = "", hasViewCode = false): Compiler =
+    result = newCompiler(timEngine, timEngine.readAst(tp),
+                        `template` = tp,
+                        minify = timEngine.shouldMinify,
+                        indent = timEngine.getIndent,
+                        filePath = tp.getFilePath,
+                        data = data,
+                        viewCode = viewCode,
+                        hasViewCode = hasViewCode
+                      )
 
   init proc(module: Module) =
-    module.registerFn(4, "init"):
+    module.registerFn(5, "init"):
       ## Create an instance of TimEngine.
       ## To be called in the main state of your application
       if timEngine == nil:
-        if args.len == 4:
+        if not Env.expect(args, errIdent,
+            ("source", napi_string), ("output", napi_string),
+            ("indent", napi_number), ("minified", napi_boolean),
+            ("globals", napi_object)): return
+        if args.len == 5:
           timEngine.init(
             source = args[0].getStr,
             output = args[1].getStr,
             indent = args[2].getInt,
             minified = args[3].getBool
           )
+          timEngine.setData(args[4].tryGetJson)
         else: assert error($errInitFnArgs & initFnHint, errIdent)
       else: assert error($errInitialized, errIdent)
 
     module.registerFn(0, "precompile"):
       ## Export `precompile` function.
       ## To be used in the main state of your application
-      discard
+      if timEngine != nil:
+        for k, t in timEngine.getViews.mpairs:
+          precompileCode()
+        for k, t in timEngine.getLayouts.mpairs:
+          precompileCode()
+      else: assert error($errNotInitialized, errIdent)
 
     module.registerFn(3, "render"):
       ## Export `render` function
       if args.len != 0:
         if timEngine != nil:
-          let viewName = args[0].getStr
+          let
+            viewName = args[0].getStr
+            layoutName =
+              if args.len == 3:
+                if timEngine.hasLayout(args[2].getStr):
+                  args[2].getStr
+                else: defaultLayoutName
+              else: defaultLayoutName
+          if layoutName == defaultLayoutName:
+            if not timEngine.hasLayout(defaultLayoutName):
+              assert error($errDefaultLayoutNotFound, errIdent)
+
+          # echo args[1].expect(napi_object)
           if timEngine.hasView(viewName):
-            let tp: Template = timEngine.getView(viewName)
-            var tParser: Parser = timEngine.parse(tp.getSourceCode(), tp.getFilePath, templateType = tp.getType())
-            if not tParser.hasError:
-              # echo args[1].expect(napi_object)
-              var jsonData: JsonNode = newJObject()
-              jsonData["scope"] = args[1].tryGetJson
-              jsonData["globals"] = newJObject() # todo
-              var timCompiler: Compiler = timEngine.newCompiler(tParser.getStatements(), tp,
-                                            timEngine.shouldMinify, timEngine.getIndent,
-                                            tp.getFilePath, data = jsonData)
-              return %* timCompiler.getHtml()
-            else: assert error(tParser.getError, errIdent)
+            var tpv, tpl: Template
+            # create a JsonNode to expose available data
+            var jsonData = newJObject()
+            jsonData["scope"] =
+              if args.len >= 2:
+                args[1].tryGetJson
+              else: newJObject()
+            tpv = timEngine.getView(viewName)
+            tpl = timEngine.getLayout(layoutName)
+            if tpv.isJitEnabled:
+              # when enabled, compiles timl code to HTML on the fly
+              var cview = newJITCompilation(tpv, jsonData)
+              var clayout = newJITCompilation(tpl, jsonData, cview.getHtml, hasViewCode = true)
+            # todo handle compiler warnings
+              return %*(docktype & clayout.getHtml)
         else: assert error($errNotInitialized, errIdent)
-      else: assert error($errRenderFnArgs & renderFnHint, errIdent)r
+      else: assert error($errRenderFnArgs & renderFnHint, errIdent)
 else:
   when isMainModule:
     ## The standalone cross-language application
