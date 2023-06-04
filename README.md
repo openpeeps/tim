@@ -1,4 +1,5 @@
 <p align="center">
+  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github" alt="Tim Engine" width="200px" height="200px">
   ⚡️ A high-performance template engine & markup language inspired by the Emmet syntax.<br>
   <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
 </p>
@@ -8,13 +9,12 @@
 </p>
 
 <p align="center">
-  <a href="https://openpeep.github.io/tim/">API reference</a><br><br>
-  <img src="https://github.com/openpeep/tim/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeep/tim/workflows/docs/badge.svg" alt="Github Actions">
+  <a href="https://openpeeps.github.io/tim/">API reference</a><br><br>
+  <img src="https://github.com/openpeeps/tim/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeeps/tim/workflows/docs/badge.svg" alt="Github Actions">
 </p>
 
-
 <p align="center">
-<img src="https://raw.githubusercontent.com/openpeep/tim/main/.github/tim-look.png" width="772px">
+<img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/tim-look.png" width="772px">
 </p>
 
 ## 😍 Key Features
@@ -123,11 +123,11 @@ Error (57:4): The ID "schemaFieldEditor" is also used for another element at lin
 ```
 
 ### ❤ Contributions & Support
-- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeep/tim/issues)
-- 👋 Wanna help? [Fork it!](https://github.com/openpeep/tim/fork)
+- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/tim/issues)
+- 👋 Wanna help? [Fork it!](https://github.com/openpeeps/tim/fork)
 - 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
 - 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
-TimEngine | `MIT` license. [Made by Humans from OpenPeep](https://github.com/openpeep).<br>
-Copyright &copy; 2023 OpenPeep & Contributors &mdash; All rights reserved.
+Tim Engine | `MIT` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+Copyright &copy; 2023 OpenPeeps & Contributors &mdash; All rights reserved.
