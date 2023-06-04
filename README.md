@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github" alt="Tim Engine" width="200px" height="200px">
+  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png" alt="Tim Engine" width="200px" height="200px"><br>
   ⚡️ A high-performance template engine & markup language inspired by the Emmet syntax.<br>
   <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
 </p>
