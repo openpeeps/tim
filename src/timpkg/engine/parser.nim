@@ -379,7 +379,9 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
           result[attrName] = @[p.parseVariable()]
       else:
         p.setError DuplicateAttributeKey % [attrName], true
-      if p.curr.line > p.prev.line or p.curr.kind == TKGT:
+      # if p.curr.line > p.prev.line or p.curr.kind == TKGT:
+      #   break
+      if p.curr.kind == TKGT:
         break
     elif p.curr.kind == TKLPAR:
       # parse short hand conditional statement
@@ -430,8 +432,9 @@ proc newHtmlNode(p: var Parser): Node =
         p.setError InvalidValueAssignment, p.prev.line, p.prev.col, true
     # elif p.curr.kind in {TKDOT, TKID, TKIDENTIFIER} + tkHtml:
     elif p.curr.kind in {TKDOT, TKID} or inHtmlAttributeNames:
-      if p.curr.line > result.meta.line:
-        break # prevent bad loop
+      # if p.curr.line > result.meta.line:
+        # break # prevent bad loop
+      # if p.curr.kind == TKColon: break
       result.attrs = p.getHtmlAttributes()
       if p.hasError():
         break
