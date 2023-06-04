@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <code>nimble install find</code>
+  <code>nimble install tim</code>
 </p>
 
 <p align="center">
