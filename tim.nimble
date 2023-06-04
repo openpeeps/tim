@@ -20,7 +20,7 @@ requires "sass#head"
 requires "nyml"
 requires "kapsis"
 requires "denim"
-requires "msgpack4nim"
+requires "msgpack4nim#head"
 
 task tests, "Run tests":
   exec "testament p 'tests/*.nim'"

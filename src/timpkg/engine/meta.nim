@@ -5,14 +5,11 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
+import ./ast
 import pkg/pkginfo
 import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
 import std/[tables, md5, json, os, strutils, macros]
-
-import ./ast
-
 from std/math import sgn
-from std/osproc import execProcess, poStdErrToStdOut, poUsePath
 
 when defined timEngineStandalone:
   type Globals* = ref object of RootObj
@@ -88,6 +85,7 @@ type
 
   SyntaxError* = object of CatchableError      # raise errors from Tim language
   TimDefect* = object of CatchableError
+  TimParsingError* = object of CatchableError
 
 const currentVersion = "0.1.0"
 
@@ -160,10 +158,9 @@ proc getHtmlCode*(t: Template): string =
   ## TODO retrieve source code from built-in memory table
   result = readFile(t.paths.html)
 
-proc hasAnySources*(e: TimEngine): bool =
-  ## Determine if current TimEngine has any TimlDirectory
-  ## objects stored in layouts, views or partials fields
-  result = len(e.views) != 0
+proc templatesExists*(e: TimEngine): bool =
+  ## Check for available templates in `layouts` and `views
+  result = len(e.views) != 0 or len(e.layouts) != 0
 
 proc setData*(t: var TimEngine, data: JsonNode) =
   ## Add global data that can be accessed across templates
@@ -337,38 +334,14 @@ proc writeHtml*(e: TimEngine, t: Template, output: string, isTail = false) =
 proc flush*(tempDir: string) =
   removeDir(tempDir)
 
-proc cmd(inputCmd: string, inputArgs: openarray[string]): auto {.discardable.} =
-  ## Short hand procedure for executing shell commands via execProcess
-  return execProcess(inputCmd, args=inputArgs, options={poStdErrToStdOut, poUsePath})
-  # result = staticExec(inputCmd & " " & join(inputArgs, " "))
-
-proc finder(findArgs: seq[string] = @[], path=""): seq[string] {.thread.} =
-  ## Recursively search for files.
-  ##
-  ## TODO
-  ## Optionally, you can set the maximum depth level,
-  ## whether to ignore a certain types of files,
-  ## by extension and/or visibility (dot files)
-  ##
-  ## This procedure is using `find` for Unix systems, while
-  ## on Windows is making use of walkDirRec's Nim iterator.
-  when defined windows:
-    var files: seq[string]
-    for file in walkDirRec(path):
-      if file.isHidden(): continue
-      if file.endsWith(".timl"):
-        files.add(file)
-    result = files
-  else:
-    var args: seq[string] = findArgs
-    args.insert(path, 0)
-    var files = cmd("find", args).strip()
-    if files.len == 0: # "Unable to find any files at given location"
-      result = @[]
-    else:
-      for file in files.split("\n"):
-        if file.isHidden(): continue
-        result.add file
+proc finder(findArgs: seq[string] = @[], path=""): seq[string] =
+  ## Recursively search for timl templates.
+  var files: seq[string]
+  for file in walkDirRec(path):
+    if file.isHidden(): continue
+    if file.endsWith(".timl"):
+      files.add(file)
+  result = files
 
 macro getAbsolutePath(p: string): untyped =
   result = newStmtList()
@@ -409,53 +382,53 @@ proc init*(timEngine: var TimEngine, source, output: string,
       partialsTable = newOrderedTable[string, Template]()
   for tdir in @["views", "layouts", "partials"]:
     var tdirpath = timlInOutDirs[0] & "/" & tdir
-    # if dirExists(tdirpath):
-      # TODO look for .timl files only
-    let files = finder(findArgs = @["-type", "f", "-print"], path = tdirpath)
-    if files.len != 0:
-      for f in files:
-        let fname = splitPath(f)
-        var filePath = f
-        filePath.normalizePath()
-        case tdir:
-          of "layouts":
-            layoutsTable[filePath] = Template(
-              id: hashName(filePath),
-              timlType: Layout,
-              meta: (name: fname.tail, templateType: Layout),
-              paths: (
-                file: filePath,
-                ast: astPath(timlInOutDirs[1], filePath),
-                html: htmlPath(timlInOutDirs[1], filePath),
-                tails: htmlPath(timlInOutDirs[1], filePath, true)
+    if not dirExists(tdirpath):
+      createDir(tdirpath)
+    else:
+      let files = finder(findArgs = @["-type", "f", "-print"], path = tdirpath)
+      if files.len != 0:
+        for f in files:
+          let fname = splitPath(f)
+          var filePath = f
+          filePath.normalizePath()
+          case tdir:
+            of "layouts":
+              layoutsTable[filePath] = Template(
+                id: hashName(filePath),
+                timlType: Layout,
+                meta: (name: fname.tail, templateType: Layout),
+                paths: (
+                  file: filePath,
+                  ast: astPath(timlInOutDirs[1], filePath),
+                  html: htmlPath(timlInOutDirs[1], filePath),
+                  tails: htmlPath(timlInOutDirs[1], filePath, true)
+                )
+              )                            
+            of "views":
+              viewsTable[filePath] = Template(
+                id: hashName(filePath),
+                timlType: View,
+                meta: (name: fname.tail, templateType: View),
+                paths: (
+                  file: filePath,
+                  ast: astPath(timlInOutDirs[1], filePath),
+                  html: htmlPath(timlInOutDirs[1], filePath),
+                  tails: htmlPath(timlInOutDirs[1], filePath, true)
+                )
               )
-            )                            
-          of "views":
-            viewsTable[filePath] = Template(
-              id: hashName(filePath),
-              timlType: View,
-              meta: (name: fname.tail, templateType: View),
-              paths: (
-                file: filePath,
-                ast: astPath(timlInOutDirs[1], filePath),
-                html: htmlPath(timlInOutDirs[1], filePath),
-                tails: htmlPath(timlInOutDirs[1], filePath, true)
+            of "partials":
+              partialsTable[filePath] = Template(
+                id: hashName(filePath),
+                timlType: Partial,
+                meta: (name: fname.tail, templateType: Partial),
+                paths: (
+                  file: filePath,
+                  ast: astPath(timlInOutDirs[1], filePath),
+                  html: htmlPath(timlInOutDirs[1], filePath),
+                  tails: htmlPath(timlInOutDirs[1], filePath, true)
+                )
               )
-            )
-          of "partials":
-            partialsTable[filePath] = Template(
-              id: hashName(filePath),
-              timlType: Partial,
-              meta: (name: fname.tail, templateType: Partial),
-              paths: (
-                file: filePath,
-                ast: astPath(timlInOutDirs[1], filePath),
-                html: htmlPath(timlInOutDirs[1], filePath),
-                tails: htmlPath(timlInOutDirs[1], filePath, true)
-              )
-            )
-    # else:
-      # createDir(tdirpath) # create `layouts`, `views`, `partials` directories
+
   timEngine = TimEngine(
     root: timlInOutDirs[0],
     output: timlInOutDirs[1],
@@ -472,11 +445,6 @@ proc init*(timEngine: var TimEngine, source, output: string,
   )
   when not defined release: # enable auto refresh browser for dev mode
     timEngine.reloader = reloader
-
-# dumpAstGen:
-#   timEngine.imports = newTable[string, ImportFunction]()
-    # timEngine.imports["strutils.startswith"] = ImportFunction(nKind: nnkIdent, boolFn: proc(funcName: string, params: seq[string]): bool = startsWith(params[0], params[1]))
-#   timEngine.imports["aa"].boolFn = proc(funcName: string, params: seq[string]): bool = startsWith(params[0], params[1])
 
 when not defined timEngineStandalone:
   var

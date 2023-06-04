@@ -7,7 +7,7 @@
 
 import std/[tables, strutils, json]
 import pkg/[pkginfo, jsony, kapsis/cli]
-import tim/engine/[meta, ast, parser, compiler]
+import timpkg/engine/[meta, ast, parser, compiler]
 
 export parser
 export meta except TimEngine
@@ -47,7 +47,7 @@ when defined cli:
     ##
     ## Note that ``partials`` contents are collected on
     ## compile-time and merged within the view.
-    if e.hasAnySources:
+    if e.templatesExists:
       # Will use `watchout` to watch for changes in `/templates` dir
       display "✨ Watching for changes..."
       proc watchoutCallback(file: watchout.File) {.closure.} =
@@ -144,9 +144,9 @@ else:
           layoutName
         else: DefaultLayout
       var
-        allData: JsonNode = %* {}
+        allData = newJObject()
         view: Template = e.getView viewName
-        layout: Template = e.getLayout(layoutName)
+        layout: Template = e.getLayout layoutName
       
       if e.globalDataExists:
         allData.merge("globals", e.getGlobalData, globals)
@@ -205,7 +205,7 @@ else:
   proc precompile*(e: TimEngine, callback: proc() {.gcsafe, nimcall.} = nil, debug = false) =
     ## Precompile `views` and `layouts` from `.timl`
     ## to static HTML or BSON.
-    if e.hasAnySources:
+    if e.templatesExists:
       when not defined release:
         when requires "watchout":
           # Will use `watchout` to watch for changes in `/templates` dir
@@ -263,3 +263,10 @@ else:
           for err in e.errors:
             display err
           setLen(e.errors, 0)
+
+  proc tim2html*(code: string, minify = false, indent = 2, data = %*{}): string =
+    ## Parse timl `code` to HTML
+    var p = parser.parse(code)
+    if not p.hasError:
+      result = newCompiler(p.getStatements, minify, indent, data).getHtml
+    else: raise newException(TimParsingError, p.getError)

@@ -24,7 +24,7 @@ when defined timEngineStandalone:
       Python = "python"
       Php = "php"
 else:
-  type MemStorage = TableRef[string, JsonNode]
+  type Memtable = TableRef[string, JsonNode]
 
 type
   Compiler* = object
@@ -42,7 +42,7 @@ type
     else:
       engine: TimEngine
       data: JsonNode
-      memtable: MemStorage
+      memtable: Memtable
     fixTail: bool
     logs: seq[string]
 
@@ -184,8 +184,8 @@ template `<>`(tag: string, node: Node, skipBr = false) =
   if hasIDAttr(node): writeHtml getIDAttr(c, node)
   if hasAttrs(node):
     writeHtml getAttrs(c, node.attrs)
-  if node.issctag:
-    writeHtml "/" # self closing tag
+  # if node.issctag:
+    # writeHtml "/" # self closing tag
   writeHtml ">"
 
 template `</>`(node: Node, skipBr = false) =
@@ -365,7 +365,16 @@ else:
       baseIndent: indent,
       viewCode: viewCode,
       hasViewCode: hasViewCode,
-      memtable: newTable[string, JsonNode](),
+      memtable: Memtable(),
     )
+    c.compileProgram()
+    result = c
+
+  proc newCompiler*(program: Program, minify: bool, indent: int, data: JsonNode): Compiler =
+    var jsonData = newJObject()
+    jsonData["globals"] = newJObject()
+    jsonData["scope"] = if data != nil: data else: newJObject()
+    var c = Compiler(program: program, minify: minify,
+                    baseIndent: indent, data: jsonData, memtable: Memtable())
     c.compileProgram()
     result = c

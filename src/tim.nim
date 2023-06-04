@@ -9,7 +9,7 @@ when defined napibuild:
   import pkg/denim
   import std/[os, tables]
   import std/json except `%*`
-  import pkg/tim/engine/[meta, parser, compiler]
+  import timpkg/engine/[meta, parser, compiler]
 
   type
     ErrorMessage = enum
@@ -169,4 +169,4 @@ else:
     ## While static templates are transpiled to HTML when calling `precompile` proc.
     ## 
     ## However, both layouts and views are saved in separate files.
-    include tim/engine/init
+    include timpkg/engine/init

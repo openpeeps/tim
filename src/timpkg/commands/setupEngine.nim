@@ -1,6 +1,13 @@
+# A high-performance compiled template engine
+# inspired by the Emmet syntax.
+#
+# (c) 2023 George Lemon | MIT License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
+
 import std/tables
 import pkg/[watchout, klymene/cli]
-import tim/engine/[ast, parser, meta, compiler/transpiler]
+import timpkg/engine/[ast, parser, meta, compiler/transpiler]
 
 from std/os import getCurrentDir
 from std/times import cpuTime
