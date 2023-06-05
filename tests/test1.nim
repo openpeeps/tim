@@ -1,6 +1,6 @@
+import std/[unittest, json, htmlparser,
+            xmltree, strtabs, sequtils]
 import tim
-import std/[unittest, json, htmlparser, xmltree, strtabs]
-from std/os import getCurrentDir, dirExists, fileExists
 
 Tim.init(
   source = "./examples/templates",
@@ -24,17 +24,20 @@ test "can precompile":
   Tim.precompile()
 
 test "can render (file)":
-  let output = Tim.render("index").parseHtml
-  for h1 in output.findAll("h1"):
-    check h1.attrs.hasKey("class") == true
-    check h1.attrs["class"] == "fw-bold"
-    check h1.attrsLen == 1
-    check h1.innerText == "This is Tim Engine!"
-  for p in output.findAll("p"):
-    check p.attrs.hasKey("class") == true
-    check p.attrs["class"] == "lead"
-    check p.attrsLen == 1
-    check p.innerText == "A high-performance template engine & markup language"
+  let
+    output = Tim.render("index").parseHtml
+    h1 = output.findAll("h1").toSeq[0]
+    p = output.findAll("p").toSeq[0]
+
+  check h1.attrs.hasKey("class") == true
+  check h1.attrs["class"] == "fw-bold"
+  check h1.attrsLen == 1
+  check h1.innerText == "This is Tim Engine!"
+
+  check p.attrs.hasKey("class") == true
+  check p.attrs["class"] == "lead"
+  check p.attrsLen == 1
+  check p.innerText == "A high-performance template engine & markup language"
 
 test "can render (code)":
   var output = tim2html("div > span: \"Hello\"", true)
@@ -43,10 +46,11 @@ test "can render (code)":
   output = tim2html("""
 a.text-link href="https://openpeeps.github.io/tim/": "API Reference"
   """)
-  let xmlcode = output.parseHtml
-  for a in xmlcode.findAll("a"):
-    check a.attrsLen == 2
-    check a.attrs["class"] == "text-link"
+  let
+    xmlcode = output.parseHtml
+    a = xmlcode.findAll("a").toSeq[0]
+  check a.attrsLen == 2
+  check a.attrs["class"] == "text-link"
 
 test "can render loop (code)":
   var output = tim2html("""
@@ -79,4 +83,22 @@ else:
     "enabled": true,
     "counter": 120
   })
-  echo output
+
+test "can render element with multi-line attributes":
+  let output = tim2html("""
+main > div
+  button#nav-advanced-tab.nav-link
+      data-bs-toggle="pill"
+      data-bs-target="#nav-advanced"
+      type="button"
+      role="tab"
+      aria-controls="pills-home"
+      aria-selected="true": "Advanced"
+  a href="#": "Hello"
+  """, minify = true)
+  let
+    xmlOutput = output.parseHtml
+    btn = xmlOutput.findAll("button").toSeq[0]
+    a = xmlOutput.findAll("a").toSeq[0]
+  check btn.attrsLen == 8
+  check a.attrsLen == 1
