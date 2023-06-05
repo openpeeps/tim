@@ -24,15 +24,18 @@ test "can precompile":
   Tim.precompile()
 
 test "can render (file)":
+  let x = Tim.render("index", data = %*{
+    "headline": "Tallulah bottoms recently departed!"
+  })
   let
-    output = Tim.render("index").parseHtml
+    output = x.parseHtml
     h1 = output.findAll("h1").toSeq[0]
     p = output.findAll("p").toSeq[0]
 
   check h1.attrs.hasKey("class") == true
   check h1.attrs["class"] == "fw-bold"
   check h1.attrsLen == 1
-  check h1.innerText == "This is Tim Engine!"
+  check h1.innerText == "Tallulah bottoms recently departed!"
 
   check p.attrs.hasKey("class") == true
   check p.attrs["class"] == "lead"
@@ -41,7 +44,7 @@ test "can render (file)":
 
 test "can render (code)":
   var output = tim2html("div > span: \"Hello\"", true)
-  check output == "<div><span>Hello</span></div>"
+  check(output == "<div><span>Hello</span></div>")
 
   output = tim2html("""
 a.text-link href="https://openpeeps.github.io/tim/": "API Reference"

@@ -1,0 +1,3 @@
+div.container > div.row > div.col-12
+  h1.fw-bold: $this.headline
+  p.lead: "A high-performance template engine & markup language"

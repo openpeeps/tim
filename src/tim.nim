@@ -57,7 +57,7 @@ when defined napibuild:
 
   proc newJITCompilation(tp: Template, data: JsonNode, viewCode = "", hasViewCode = false): Compiler =
     result = newCompiler(timEngine, timEngine.readAst(tp),
-                        `template` = tp,
+                        tpl = tp,
                         minify = timEngine.shouldMinify,
                         indent = timEngine.getIndent,
                         filePath = tp.getFilePath,

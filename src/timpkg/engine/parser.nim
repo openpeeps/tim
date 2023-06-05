@@ -28,9 +28,7 @@ type
     parentNode: seq[Node]
     statements: Program
     enableJit: bool
-      ## Determine if current Timl document needs a JIT compilation.
-      ## This is set true when current document contains either a
-      ## conditional statement or other dynamic statements.
+    hasView: bool
     error: string
     templateType: TemplateType
     ids: TableRef[string, int]
@@ -68,6 +66,7 @@ const
   InvalidJavaScript = "Invalid JavaScript snippet"
   InvalidImportView = "Trying to load a view inside a $1"
   InvalidStringInterpolation = "Invalid string interpolation"
+  DuplicateViewLoader = "Cannot render more than one `@view`. Use `@include` instead"
 
 const
   tkVars = {TKVariable, TKSafeVariable}
@@ -720,7 +719,11 @@ proc parseViewLoader(p: var Parser): Node =
   if p.templateType != Layout:
     p.setError(InvalidImportView % [$p.templateType])
     return
+  elif p.hasView:
+    p.setError(DuplicateViewLoader)
+    return
   result = newView(p.curr)
+  p.hasView = true
   walk p
 
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =

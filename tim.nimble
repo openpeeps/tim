@@ -27,11 +27,11 @@ task tests, "Run tests":
 
 task dev, "Compile Tim":
   echo "\n✨ Compiling..." & "\n"
-  exec "nim --gc:arc --skipProjCfg:on --out:bin/tim --hints:off -d:cli --threads:on c src/tim.nim"
+  exec "nim --gc:arc --out:bin/tim --hints:off -d:cli --threads:on c src/tim.nim"
 
 task prod, "Compile Tim for release":
   echo "\n✨ Compiling..." & $version & "\n"
-  exec "nim c --gc:arc --skipProjCfg:on --out:bin/tim --threads:on -d:release -d:danger --hints:off --opt:speed --checks:off src/tim.nim"
+  exec "nim c --gc:arc --out:bin/tim --threads:on -d:release -d:danger --hints:off --opt:speed --checks:off src/tim.nim"
 
 task napi, "Compile Tim via NAPI":
   exec "denim build src/tim.nim"

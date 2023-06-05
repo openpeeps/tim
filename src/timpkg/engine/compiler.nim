@@ -29,7 +29,7 @@ else:
 type
   Compiler* = object
     program: Program
-    `template`: Template
+    tpl: Template
     minify: bool
     baseIndent: int
     html, js, sass, json, yaml: string
@@ -184,8 +184,6 @@ template `<>`(tag: string, node: Node, skipBr = false) =
   if hasIDAttr(node): writeHtml getIDAttr(c, node)
   if hasAttrs(node):
     writeHtml getAttrs(c, node.attrs)
-  # if node.issctag:
-    # writeHtml "/" # self closing tag
   writeHtml ">"
 
 template `</>`(node: Node, skipBr = false) =
@@ -195,18 +193,19 @@ template `</>`(node: Node, skipBr = false) =
       writeHtml getIndent(c, node.meta, skipBr)
     add c.html, "</" & node.htmlNodeName & ">"
 
-proc getViewCode(c: var Compiler, node: Node): string =
+proc getCode(c: var Compiler, node: Node): string =
   result =
     if c.hasViewCode:
       if c.minify:
         c.viewCode
       else:
-        indent(c.viewCode, c.`template`.getPlaceholderIndent())
+        indent(c.viewCode, node.meta.pos)
+        # indent(c.viewCode, c.tpl.getPlaceholderIndent())
     else:
-      c.`template`.setPlaceHolderId(node.meta.pos)
+      c.tpl.setPlaceHolderId(node.meta.pos)
 
-proc insertViewCode(c: var Compiler, node: Node) =
-  add c.html, c.getViewCode(node)
+proc handleView(c: var Compiler, node: Node) =
+  add c.html, c.getCode(node)
   if c.hasJS:
     add c.html, NewLine & "<script type=\"text/javascript\">"
     add c.html, $c.js
@@ -265,7 +264,7 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
     of NTForStmt:
       c.handleForStmt(node)
     of NTView:
-      c.insertViewCode(node)
+      c.handleView(node)
     of NTJavaScript:
       c.getJSSnippet(node)
     of NTSass:
@@ -280,7 +279,7 @@ proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
 
 proc compileProgram(c: var Compiler) =
   # when not defined timEngineStandalone:
-  #   if c.hasSass and getType(c.`template`) == Layout:
+  #   if c.hasSass and getType(c.tpl) == Layout:
   for node in c.program.nodes:
     case node.stmtList.nodeType:
     of NTHtmlElement:
@@ -294,7 +293,7 @@ proc compileProgram(c: var Compiler) =
     of NTForStmt:
       c.handleForStmt(node.stmtList)
     of NTView:
-      c.insertViewCode(node.stmtList)
+      c.handleView(node.stmtList)
     of NTJavaScript:
       c.getJSSnippet(node.stmtList)
     of NTSass:
@@ -323,14 +322,14 @@ proc compileProgram(c: var Compiler) =
       add c.html, NewLine & "</style>"
 
 when defined timEngineStandalone:
-  proc newCompiler*(program: Program, `template`: Template, minify: bool,
+  proc newCompiler*(program: Program, tpl: Template, minify: bool,
                     indent: int, filePath: string,
                     viewCode = "", lang = Nim): Compiler =
     ## Create a new Compiler instance for Command Line interface
     var c = Compiler(
       language: lang,
-      program: p,
-      `template`: `template`,
+      program: program,
+      tpl: tpl,
       minify: minify,
       baseIndent: indent
     )
@@ -352,14 +351,14 @@ when defined timEngineStandalone:
     c.compileProgram()
     result = c
 else:
-  proc newCompiler*(e: TimEngine, p: Program, `template`: Template, minify: bool,
-                    indent: int, filePath: string,
-                    data = %*{}, viewCode = "", hasViewCode = false): Compiler =
+  proc newCompiler*(e: TimEngine, p: Program, tpl: Template, minify: bool,
+                    indent: int, filePath: string, data = %*{}, viewCode = "",
+                    hasViewCode = false): Compiler =
     ## Create a new Compiler at runtime for just in time compilation
     var c = Compiler(
       engine: e,
       program: p,
-      `template`: `template`,
+      tpl: tpl,
       data: data,
       minify: minify,
       baseIndent: indent,

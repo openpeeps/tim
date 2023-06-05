@@ -17,72 +17,7 @@ var Tim*: TimEngine
 const DefaultLayout = "base"
 
 when defined cli:
-  import pkg/watchout
-  from std/os import getCurrentDir
-  from std/times import cpuTime
-
-  proc newTimEngine*() =
-    Tim.init(
-      source = getCurrentDir() & "/../examples/templates",
-      output = getCurrentDir() & "/../examples/storage",
-      indent = 2,
-      minified = true
-    )
-
-  proc compileCode(e: TimEngine, t: Template) =
-    var p = e.parse(t.getSourceCode, t.getFilePath, templateType = t.getType)
-    if p.hasError():
-      e.errors = @[p.getError()]
-      return
-    var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
-    if c.hasError():
-      for err in c.getErrors():
-        display err
-      display t.getFilePath
-
-  proc precompile*(e: TimEngine, callback: proc() {.gcsafe, nimcall.} = nil,
-                  debug = false): seq[string] {.discardable.} =
-    ## Pre-compile ``views`` and ``layouts``
-    ## from ``.timl`` to HTML or BSON.
-    ##
-    ## Note that ``partials`` contents are collected on
-    ## compile-time and merged within the view.
-    if e.templatesExists:
-      # Will use `watchout` to watch for changes in `/templates` dir
-      display "✨ Watching for changes..."
-      proc watchoutCallback(file: watchout.File) {.closure.} =
-        let initTime = cpuTime()
-        display "✨ Changes detected"
-        display file.getName(), indent = 3
-        var timlTemplate = getTemplateByPath(e, file.getPath())
-        if timlTemplate.isPartial:
-          for depView in timlTemplate.getDependentViews():
-            e.compileCode(getTemplateByPath(e, depView))
-        else:
-          e.compileCode(timlTemplate)
-        display("Done in: $1" % [$(cpuTime() - initTime)])
-        if callback != nil: # Run a custom callback, if available
-          callback()
-
-      var watchFiles: seq[string]
-      for id, view in e.getViews().mpairs():
-        e.compileCode(view)
-        watchFiles.add view.getFilePath()
-        result.add view.getName()
-      
-      for id, partial in e.getPartials().pairs():
-        # Watch for changes in `partials` directory.
-        watchFiles.add partial.getFilePath()
-
-      for id, layout in e.getLayouts().mpairs():
-        e.compileCode(layout)
-        watchFiles.add layout.getFilePath()
-        result.add layout.getName()
-
-      # Start a new Thread with Watchout watching for live changes
-      startThread(watchoutCallback, watchFiles, 450, shouldJoinThread = true)
-    else: display("Can't find views")
-
+  include ./cli/init
 else:
   when requires "watchout":
     import watchout
@@ -123,7 +58,7 @@ else:
     result = newCompiler(
       e = e,
       p = e.readAst(tpl),
-      `template` = tpl,
+      tpl = tpl,
       minify = e.shouldMinify,
       indent = e.getIndent,
       filePath = tpl.getFilePath,
@@ -134,10 +69,8 @@ else:
 
   proc render*(e: TimEngine, viewName: string, layoutName = DefaultLayout,
               data, globals = %*{}): string =
-    ## Renders a template view by name. Use dot notations
-    ## for accessing views in sub directories,
-    ## for example `render("product.sales.index")`
-    ## will try look for a timl template at `product/sales/index.timl`
+    ## Render a template view by name (without extension). Use dot notation
+    ## to render a nested template render("checkout.loggedin")
     if e.hasView viewName:
       let layoutName = 
         if e.hasLayout(layoutName):
@@ -147,7 +80,6 @@ else:
         allData = newJObject()
         view: Template = e.getView viewName
         layout: Template = e.getLayout layoutName
-      
       if e.globalDataExists:
         allData.merge("globals", e.getGlobalData, globals)
       else:
@@ -155,7 +87,7 @@ else:
       allData.add("scope", data)
       result = DockType
       if view.isJitEnabled:
-        # When enabled, will compile `timl` > `html` on the fly
+        # Compile view at runtime
         var cview = newJIT(e, view, allData)
         var clayout = newJIT(e, layout, allData, cview.getHtml & reloadHandler, hasViewCode = true)
         add result, clayout.getHtml
@@ -169,7 +101,7 @@ else:
             display(indent(view.getFilePath, 1), br="after")
       else:
         if layout.isJitEnabled:
-          # Compile requested layout at runtime 
+          # Compile layout at runtime
           let c = newJIT(e, layout, allData, view.getHtmlCode & reloadHandler, hasViewCode = true)
           add result, c.getHtml
           if c.hasError:
@@ -188,15 +120,14 @@ else:
           ]
 
   proc compileCode(e: TimEngine, t: Template, fModified = false) =
-    if not t.isModified and fModified == false: return
-    # todo rewrite resolver
+    # if not t.isModified and fModified == false: return
     var p = e.parse(t.getSourceCode, t.getFilePath, templateType = t.getType)
-    if p.hasError():
-      e.errors = @[p.getError()]
+    if p.hasError:
+      e.errors = @[p.getError]
       return
     if p.hasJit:
-      t.enableJIT
-      e.writeAst(t, p.getStatements, e.getIndent())
+      t.enableJit
+      e.writeAst(t, p.getStatements, e.getIndent)
     else:
       var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
       if not c.hasError():
@@ -223,7 +154,7 @@ else:
                 if timPartial.isModified:
                   fModified = true
                 e.compileCode(timPartial)
-              e.compileCode(timView, fModified)
+              # e.compileCode(timView, fModified)
             else:
               e.compileCode(timView)
             if e.errors.len != 0:

@@ -284,21 +284,10 @@ proc getTemplateByPath*(engine: TimEngine, filePath: string): var Template =
   else:
     result = engine.partials[fp]
 
-# proc writeBson*(e: TimEngine, t: Template, ast: string, baseIndent: int) =
-#   ## Write current JSON AST to BSON
-#   var doc = newBsonDocument()
-#   doc["ast"] = ast
-#   doc["version"] = currentVersion
-#   doc["baseIndent"] = baseIndent
-#   try:
-#     writeFile(t.paths.ast, doc.bytes)
-#   except IOError:
-#     e.errors.add "Could not write BSON file for $1" % [t.meta.name]
-
 proc writeAst*(e: TimEngine, t: Template, ast: Program, baseIndent: int) =
   var s = MsgStream.init()
   s.pack(ast)
-  # s.pack_bin(sizeof(ast))
+  s.pack_bin(sizeof(ast))
   try:
     writeFile(t.paths.ast, s.data)
   except IOError:
@@ -345,7 +334,7 @@ macro getAbsolutePath(p: string): untyped =
 
 proc newTemplate(basePath, filePath, fileName: string, templateType: TemplateType): Template =
   result = Template(id: hashName(filePath), `type`: templateType,
-                    meta: (name: fileName, templateType: Layout),
+                    meta: (name: fileName, templateType: templateType),
                     paths: (
                       file: filePath,
                       ast: astPath(basePath, filePath),
