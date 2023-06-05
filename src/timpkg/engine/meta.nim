@@ -8,7 +8,7 @@
 import ./ast
 import pkg/pkginfo
 import pkg/[msgpack4nim, msgpack4nim/msgpack4collection]
-import std/[tables, md5, json, os, strutils, macros]
+import std/[tables, md5, times, json, os, strutils, macros]
 from std/math import sgn
 
 when defined timEngineStandalone:
@@ -23,7 +23,7 @@ type
   Template* = ref object
     id: string
     jit: bool
-    case timlType: TemplateType
+    case `type`: TemplateType
     of Partial:
       dependents: seq[string]                ## a sequence containing all views that include this partial
     of Layout:
@@ -35,7 +35,7 @@ type
       ## name of the current Template representing file name
       ## type of Template, either Layout, View or Partial
 
-  TimlTemplateTable = OrderedTableRef[string, Template]
+  TemplatesTable = OrderedTableRef[string, Template]
 
   HotReloadType* = enum
     None, HttpReloader, WsReloader
@@ -58,7 +58,6 @@ type
     of nkFloat:
       floatFn*: proc(params: seq[string]): float
 
-  # Main Tim Engine
   TimEngine* = ref object
     when defined timEngineStandalone:
       globalData: Globals
@@ -66,19 +65,10 @@ type
       globalData: JsonNode
       imports*: TableRef[string, ImportFunction]
     root: string
-      ## root path to your Timl templates
     output: string
-      ## root path for HTML and AST output
-    layouts: TimlTemplateTable
-      ## a table representing `.timl` layouts
-    views: TimlTemplateTable
-      ## a table representing `.timl` views
-    partials: TimlTemplateTable
-      ## a table representing `.timl` partials
+    layouts, views, partials: TemplatesTable
     minified: bool
-      ## whether it should minify the final HTML output
     indent: int
-      ## the base indentation (default to 2)
     paths: tuple[layouts, views, partials: string]
     reloader: HotReloadType
     errors*: seq[string]
@@ -87,7 +77,7 @@ type
   TimDefect* = object of CatchableError
   TimParsingError* = object of CatchableError
 
-const currentVersion = "0.1.0"
+const currentVersion = "0.1.0" # todo use pkginfo to extract the current version from .nimble
 
 proc getIndent*(t: TimEngine): int = 
   ## Get preferred indentation size (2 or 4 spaces). Default 4
@@ -123,6 +113,27 @@ proc enableJIT*(t: Template) =
 proc isJitEnabled*(t: Template): bool =
   result = t.jit
 
+proc isModified*(t: Template): bool =
+  let srcModified = t.paths.file.getLastModificationTime
+  let astExists = fileExists(t.paths.ast)
+  let htmlExists = fileExists(t.paths.html)
+  if astExists and htmlExists == false:
+    let astModified = t.paths.ast.getLastModificationTime
+    result = srcModified > astModified
+    t.jit = true
+  elif astExists and htmlExists:
+    let astModified = t.paths.ast.getLastModificationTime
+    let htmlModified = t.paths.html.getLastModificationTime
+    if astModified > htmlModified:
+      result = srcModified > astModified
+      t.jit = true
+    else:
+      result = srcModified > htmlModified
+  elif htmlExists and astExists == false:
+    let htmlModified = t.paths.html.getLastModificationTime
+    result = srcModified > htmlModified
+  else: discard
+
 proc getPathDir*(engine: TimEngine, key: string): string =
   if key == "layouts":
     result = engine.paths.layouts
@@ -133,7 +144,7 @@ proc getPathDir*(engine: TimEngine, key: string): string =
 
 proc isPartial*(t: Template): bool =
   ## Determine if current template is a `partial`
-  result = t.timlType == Partial
+  result = t.`type` == Partial
 
 proc addDependentView*(t: var Template, path: string) =
   ## Add a new view that includes the current partial.
@@ -199,8 +210,8 @@ proc getPath(e: TimEngine, key, pathType: string): string =
   result &= ".timl"
   result = normalizedPath(result) # normalize path for Windows
 
-proc getLayouts*(e: TimEngine): TimlTemplateTable =
-  ## Retrieve entire table of layouts as TimlTemplateTable
+proc getLayouts*(e: TimEngine): TemplatesTable =
+  ## Retrieve entire table of layouts as TemplatesTable
   result = e.layouts
 
 proc hasLayout*(e: TimEngine, key: string): bool =
@@ -213,8 +224,8 @@ proc getLayout*(e: TimEngine, key: string): Template =
   ## Use dot annotation for accessing views in subdirectories
   result = e.layouts[e.getPath(key, "layouts")]
 
-proc getViews*(e: TimEngine): TimlTemplateTable =
-  ## Retrieve entire table of views as TimlTemplateTable
+proc getViews*(e: TimEngine): TemplatesTable =
+  ## Retrieve entire table of views as TemplatesTable
   result = e.views
 
 proc hasView*(e: TimEngine, key: string): bool =
@@ -232,8 +243,8 @@ proc hasPartial*(e: TimEngine, key: string): bool =
   ## Use dot annotation for accessing views in subdirectories
   result = e.partials.hasKey(e.getPath(key, "partials"))
 
-proc getPartials*(e: TimEngine): TimlTemplateTable =
-  ## Retrieve entire table of partials as TimlTemplateTable
+proc getPartials*(e: TimEngine): TemplatesTable =
+  ## Retrieve entire table of partials as TemplatesTable
   result = e.partials
 
 proc getStoragePath*(e: TimEngine): string =
@@ -286,7 +297,7 @@ proc getTemplateByPath*(engine: TimEngine, filePath: string): var Template =
 
 proc writeAst*(e: TimEngine, t: Template, ast: Program, baseIndent: int) =
   var s = MsgStream.init()
-  s.pack(ast)  
+  s.pack(ast)
   # s.pack_bin(sizeof(ast))
   try:
     writeFile(t.paths.ast, s.data)
@@ -301,47 +312,30 @@ proc checkDocVersion(docVersion: string): bool =
 proc getReloadType*(engine: TimEngine): HotReloadType =
   result = engine.reloader
 
-# proc readBson*(e: TimEngine, t: Template): string =
-#   ## Read current BSON and parse to JSON
-#   let document: Bson = newBsonDocument(readFile(t.paths.ast))
-#   let docv: string = document["version"] # TODO use pkginfo to extract current version from nimble file
-#   if not checkDocVersion(docv):
-#     # TODO error message
-#     raise newException(TimDefect,
-#       "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, currentVersion])
-#   result = document["ast"]
-
 proc readAst*(e: TimEngine, t: Template): Program =
-  ## Read current AST and return as `ast.Program`
+  ## Unpack binary AST and return the `Program`
   var astProgram: Program
   unpack(readFile(t.paths.ast), astProgram)
   result = astProgram
-  # if not checkDocVersion(docv):
-  #   # TODO error message
-  #   raise newException(TimDefect,
-  #     "This template has been compiled with an older version ($1) of Tim Engine. Please upgrade to $2" % [docv, currentVersion])
-  # result = document["ast"]
 
 proc writeHtml*(e: TimEngine, t: Template, output: string, isTail = false) =
+  ## Write HTML file to disk
   let filePath =
-    if not isTail:
-      t.paths.html
-    else:
-      t.paths.tails
+    if not isTail: t.paths.html
+    else: t.paths.tails
   discard existsOrCreateDir(e.getStoragePath() / "html") # create `html` directory
   writeFile(filePath, output)
 
 proc flush*(tempDir: string) =
+  ## Flush specific directory
+  ## todo to flush only known directories
   removeDir(tempDir)
 
-proc finder(findArgs: seq[string] = @[], path=""): seq[string] =
-  ## Recursively search for timl templates.
-  var files: seq[string]
-  for file in walkDirRec(path):
-    if file.isHidden(): continue
-    if file.endsWith(".timl"):
-      files.add(file)
-  result = files
+proc finder(files: var seq[string], path="") =
+  for file in walkDirRec path:
+    if file.isHidden: continue
+    if file.endsWith ".timl":
+      add files, file
 
 macro getAbsolutePath(p: string): untyped =
   result = newStmtList()
@@ -349,101 +343,64 @@ macro getAbsolutePath(p: string): untyped =
   result.add quote do:
     `ppath` / `p`
 
+proc newTemplate(basePath, filePath, fileName: string, templateType: TemplateType): Template =
+  result = Template(id: hashName(filePath), `type`: templateType,
+                    meta: (name: fileName, templateType: Layout),
+                    paths: (
+                      file: filePath,
+                      ast: astPath(basePath, filePath),
+                      html: htmlPath(basePath, filePath),
+                      tails: htmlPath(basePath, filePath, true)
+                    )
+                  )
 
 proc init*(timEngine: var TimEngine, source, output: string,
       indent: int, minified = true, reloader: HotReloadType = None) =
   ## Initialize a new Tim Engine providing the source path 
   ## to your templates (layouts, views and partials) and output directory,
   ## where will save the compiled templates.
-  var timlInOutDirs: seq[string]
-  for path in @[source, output]:
-    var tpath = getAbsolutePath(path.normalizedPath())
-    if not tpath.dirExists():
-      createDir(tpath)
-    timlInOutDirs.add(tpath)
-    if path == output:
-      # create `ast` and `html` dirs inside `output` directory, where
-      #
-      # `ast` is used for saving the binary abstract syntax tree
-      # for pages that requires dynamic computation, such as data assignation,
-      # and conditional statements.
-      #
-      # `html` directory is reserved for saving the final HTML output.
-      for inDir in @["ast", "html"]:
-        # let innerDir = path & "/" & inDir
-        let outputDir = getAbsolutePath(path.normalizedPath() / inDir)
-        if not dirExists(outputDir):
-          createDir(outputDir)
-        else:
-          flush(outputDir)      # flush cached files inside `html` and `ast`
-          createDir(outputDir)  # then recreate directories
-
-  var layoutsTable, viewsTable,
-      partialsTable = newOrderedTable[string, Template]()
+  let
+    srcDirPath = getAbsolutePath(source.normalizedPath())
+    outputDirPath = getAbsolutePath(output.normalizedPath())
+  # for path in @[source, output]:
+  discard existsOrCreateDir(srcDirPath)
+  discard existsOrCreateDir(outputDirPath)
+  discard existsOrCreateDir(outputDirPath / "ast")
+  discard existsOrCreateDir(outputDirPath / "html")
+  var layoutsTable, viewsTable, partialsTable = TemplatesTable()
   for tdir in @["views", "layouts", "partials"]:
-    var tdirpath = timlInOutDirs[0] & "/" & tdir
-    if not dirExists(tdirpath):
-      createDir(tdirpath)
+    if not dirExists(srcDirPath / tdir):
+      createDir(srcDirPath / tdir)
     else:
-      let files = finder(findArgs = @["-type", "f", "-print"], path = tdirpath)
-      if files.len != 0:
-        for f in files:
-          let fname = splitPath(f)
-          var filePath = f
-          filePath.normalizePath()
-          case tdir:
-            of "layouts":
-              layoutsTable[filePath] = Template(
-                id: hashName(filePath),
-                timlType: Layout,
-                meta: (name: fname.tail, templateType: Layout),
-                paths: (
-                  file: filePath,
-                  ast: astPath(timlInOutDirs[1], filePath),
-                  html: htmlPath(timlInOutDirs[1], filePath),
-                  tails: htmlPath(timlInOutDirs[1], filePath, true)
-                )
-              )                            
-            of "views":
-              viewsTable[filePath] = Template(
-                id: hashName(filePath),
-                timlType: View,
-                meta: (name: fname.tail, templateType: View),
-                paths: (
-                  file: filePath,
-                  ast: astPath(timlInOutDirs[1], filePath),
-                  html: htmlPath(timlInOutDirs[1], filePath),
-                  tails: htmlPath(timlInOutDirs[1], filePath, true)
-                )
-              )
-            of "partials":
-              partialsTable[filePath] = Template(
-                id: hashName(filePath),
-                timlType: Partial,
-                meta: (name: fname.tail, templateType: Partial),
-                paths: (
-                  file: filePath,
-                  ast: astPath(timlInOutDirs[1], filePath),
-                  html: htmlPath(timlInOutDirs[1], filePath),
-                  tails: htmlPath(timlInOutDirs[1], filePath, true)
-                )
-              )
+      var files: seq[string]
+      files.finder(path = srcDirPath / tdir)
+      for f in files:
+        let fname = splitPath(f)
+        let filePath = f.normalizedPath
+        case tdir:
+        of "layouts":
+          layoutsTable[filePath] = newTemplate(outputDirPath, filePath, fname.tail, Layout)
+        of "views":
+          viewsTable[filePath] = newTemplate(outputDirPath, filePath, fname.tail, View)
+        of "partials":
+          partialsTable[filePath] = newTemplate(outputDirPath, filePath, fname.tail, Partial)
 
   timEngine = TimEngine(
-    root: timlInOutDirs[0],
-    output: timlInOutDirs[1],
+    root: srcDirPath,
+    output: outputDirPath,
     layouts: layoutsTable,
     views: viewsTable,
     partials: partialsTable,
     minified: minified,
     indent: indent,
     paths: (
-      layouts: timlInOutDirs[0] & "/layouts",
-      views: timlInOutDirs[0] & "/views",
-      partials: timlInOutDirs[0] & "/partials"
+      layouts: srcDirPath / "layouts",
+      views: srcDirPath / "views",
+      partials: srcDirPath / "partials"
     )
   )
-  when not defined release: # enable auto refresh browser for dev mode
+  when not defined release:
+    # enable in-browser auto refresh
     timEngine.reloader = reloader
 
 when not defined timEngineStandalone:
@@ -529,7 +486,8 @@ when not defined timEngineStandalone:
           )
         )
       )
-    result.add(newCall(ident "init", timEngine, source, output, indent, minified, reloader))
+    add result, newCall(ident("init"), timEngine, source,
+                      output, indent, minified, reloader)
     if hasImports:
       let initImportsTable = 
         newAssignment(

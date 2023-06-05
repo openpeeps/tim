@@ -187,13 +187,15 @@ else:
               indent(view.getHtmlCode & reloadHandler, layout.getPlaceholderIndent)
           ]
 
-  proc compileCode(e: TimEngine, t: Template) =
+  proc compileCode(e: TimEngine, t: Template, fModified = false) =
+    if not t.isModified and fModified == false: return
+    # todo rewrite resolver
     var p = e.parse(t.getSourceCode, t.getFilePath, templateType = t.getType)
     if p.hasError():
       e.errors = @[p.getError()]
       return
     if p.hasJit:
-      t.enableJIT()
+      t.enableJIT
       e.writeAst(t, p.getStatements, e.getIndent())
     else:
       var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
@@ -203,20 +205,25 @@ else:
         e.errors = c.getErrors()
 
   proc precompile*(e: TimEngine, callback: proc() {.gcsafe, nimcall.} = nil, debug = false) =
-    ## Precompile `views` and `layouts` from `.timl`
-    ## to static HTML or BSON.
+    ## Precompile `views` and `layouts` from `.timl` to static HTML or packed AST via MessagePack.
+    ## To be used in the main state of your application.
     if e.templatesExists:
       when not defined release:
         when requires "watchout":
           # Will use `watchout` to watch for changes in `/templates` dir
           proc watchoutCallback(file: watchout.File) {.closure.} =
             let initTime = cpuTime()
-            echo "\n✨ Watchout resolve changes"
-            echo file.getName()
+            display "\n✨ Watchout resolve changes"
+            display file.getName()
             var timView = getTemplateByPath(e, file.getPath())
+            var fModified = false # to force compilation
             if timView.isPartial:
               for depView in timView.getDependentViews():
-                e.compileCode(getTemplateByPath(e, depView))
+                let timPartial = getTemplateByPath(e, depView)
+                if timPartial.isModified:
+                  fModified = true
+                e.compileCode(timPartial)
+              e.compileCode(timView, fModified)
             else:
               e.compileCode(timView)
             if e.errors.len != 0:
@@ -231,16 +238,16 @@ else:
           var watchFiles: seq[string]
           display("✓ Tim Templates", indent = 2)
           when compileOption("threads"):
-            for id, view in e.getViews().mpairs():
+            for id, view in e.getViews:
               e.compileCode(view)
               watchFiles.add view.getFilePath()
               display(view.getName(), indent = 6)
             
-            for id, partial in e.getPartials().pairs():
+            for id, partial in e.getPartials:
               # Watch for changes in `partials` directory.
               watchFiles.add partial.getFilePath()
 
-            for id, layout in e.getLayouts().mpairs():
+            for id, layout in e.getLayouts:
               e.compileCode(layout)
               watchFiles.add layout.getFilePath()
               display(layout.getName(), indent = 6)
@@ -252,11 +259,12 @@ else:
             # Start a new Thread with Watchout watching for live changes
             startThread(watchoutCallback, watchFiles, 550)
       else:
-        for id, view in e.getViews().mpairs():
+        display("✓ Tim Templates", indent = 2)
+        for id, view in e.getViews:
           e.compileCode(view)
           display(view.getName(), indent = 6)
 
-        for id, layout in e.getLayouts().mpairs():
+        for id, layout in e.getLayouts:
           e.compileCode(layout)
           display(layout.getName(), indent = 6)
         if e.errors.len != 0:
@@ -265,7 +273,8 @@ else:
           setLen(e.errors, 0)
 
   proc tim2html*(code: string, minify = false, indent = 2, data = %*{}): string =
-    ## Parse timl `code` to HTML
+    ## Parse snippets of timl `code` to HTML.
+    ## Note: calling this proc won't generate/cache AST.
     var p = parser.parse(code)
     if not p.hasError:
       result = newCompiler(p.getStatements, minify, indent, data).getHtml
