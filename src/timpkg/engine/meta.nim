@@ -132,7 +132,7 @@ proc isModified*(t: Template): bool =
   elif htmlExists and astExists == false:
     let htmlModified = t.paths.html.getLastModificationTime
     result = srcModified > htmlModified
-  else: discard
+  else: result = true # new file
 
 proc getPathDir*(engine: TimEngine, key: string): string =
   if key == "layouts":
