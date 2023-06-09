@@ -326,11 +326,14 @@ proc finder(files: var seq[string], path="") =
     if file.endsWith ".timl":
       add files, file
 
-macro getAbsolutePath(p: string): untyped =
+macro getAbsolutePath(path: string): untyped =
   result = newStmtList()
-  let ppath = getProjectPath()
+  let abspath = getProjectPath()
   result.add quote do:
-    `ppath` / `p`
+    if isAbsolute(`path`):
+      `path`
+    else:
+      `abspath` / `path`
 
 proc newTemplate(basePath, filePath, fileName: string, templateType: TemplateType): Template =
   result = Template(id: hashName(filePath), `type`: templateType,
