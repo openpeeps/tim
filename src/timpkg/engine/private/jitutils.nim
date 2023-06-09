@@ -376,20 +376,21 @@ proc handleConditionStmt(c: var Compiler, node: Node) =
 
 proc handleForStmt(c: var Compiler, forNode: Node) =
   let jsonItems = c.getValue(forNode.forItems)
-  case jsonItems.kind:
-  of JArray:
-    for item in jsonItems:
-      c.storeValue(forNode.forItem.varSymbol, item)
-      c.writeNewLine(forNode.forBody)
-      c.memtable.del(forNode.forItem.varSymbol)
-  of JObject:
-    for k, v in pairs(jsonItems):
-      var kvObject = newJObject()
-      kvObject[k] = v
-      c.storeValue(forNode.forItem.varSymbol, kvObject)
-      c.writeNewLine(forNode.forBody)
-      c.memtable.del(forNode.forItem.varSymbol)
-  else: discard
+  if jsonItems != nil:
+    case jsonItems.kind:
+    of JArray:
+      for item in jsonItems:
+        c.storeValue(forNode.forItem.varSymbol, item)
+        c.writeNewLine(forNode.forBody)
+        c.memtable.del(forNode.forItem.varSymbol)
+    of JObject:
+      for k, v in pairs(jsonItems):
+        var kvObject = newJObject()
+        kvObject[k] = v
+        c.storeValue(forNode.forItem.varSymbol, kvObject)
+        c.writeNewLine(forNode.forBody)
+        c.memtable.del(forNode.forItem.varSymbol)
+    else: discard
 
 proc callFunction(c: var Compiler, node: Node) =
   ## Execute a function that returns a string
