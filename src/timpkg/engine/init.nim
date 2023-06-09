@@ -7,7 +7,7 @@
 
 import std/[tables, strutils, json]
 import pkg/[pkginfo, jsony, kapsis/cli]
-import timpkg/engine/[meta, ast, parser, compiler]
+import timpkg/engine/[meta, ast, parser, compiler, utils]
 
 export parser
 export meta except TimEngine
@@ -99,15 +99,18 @@ else:
           for err in cview.getErrors:
             display(span("Warning", fgYellow), span(err))
             display(indent(view.getFilePath, 1), br="after")
+        freem(cview)
+        freem(clayout)
       else:
         if layout.isJitEnabled:
           # Compile layout at runtime
-          let c = newJIT(e, layout, allData, view.getHtmlCode & reloadHandler, hasViewCode = true)
+          var c = newJIT(e, layout, allData, view.getHtmlCode & reloadHandler, hasViewCode = true)
           add result, c.getHtml
           if c.hasError:
             display("Warning:" & indent(layout.getFilePath, 1), br = "before")
             for err in c.getErrors:
               display(err, indent = 2)
+          freem(c)
         else:
           # Otherwise get the precompiled HTML layout from memory
           # and resolve the `@view` placeholder using the current
@@ -128,12 +131,14 @@ else:
     if p.hasJit:
       t.enableJit
       e.writeAst(t, p.getStatements, e.getIndent)
+      freem(p)
     else:
       var c = newCompiler(e, p.getStatements, t, e.shouldMinify, e.getIndent, t.getFilePath)
       if not c.hasError():
         e.writeHtml(t, c.getHtml())
       else:
         e.errors = c.getErrors()
+      freem(c)
 
   proc precompile*(e: TimEngine, callback: proc() {.gcsafe, nimcall.} = nil, debug = false) =
     ## Precompile `views` and `layouts` from `.timl` to static HTML or packed AST via MessagePack.
@@ -209,4 +214,5 @@ else:
     var p = parser.parse(code)
     if not p.hasError:
       result = newCompiler(p.getStatements, minify, indent, data).getHtml
+      freem(p)
     else: raise newException(TimParsingError, p.getError)
