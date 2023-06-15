@@ -147,10 +147,10 @@ proc isPartial*(t: Template): bool =
   result = t.`type` == Partial
 
 proc addDependentView*(t: var Template, path: string) =
-  ## Add a new view that includes the current partial.
-  ## This is mainly used to auto reload (recompile) views
-  ## when a partial get modified
-  t.dependents.add(path)
+  ## Add dependent templates. Used to auto-recompile
+  ## templates and dependencies.
+  if path notin t.dependents:
+    add t.dependents, path
 
 proc getDependentViews*(t: var Template): seq[string] =
   ## Retrieve all views included in current partial.

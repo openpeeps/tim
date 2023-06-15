@@ -155,10 +155,10 @@ else:
             var fModified = false # to force compilation
             if timView.isPartial:
               for depView in timView.getDependentViews():
-                let timPartial = getTemplateByPath(e, depView)
-                if timPartial.isModified:
+                let dep = getTemplateByPath(e, depView)
+                if dep.isModified:
                   fModified = true
-                e.compileCode(timPartial)
+                e.compileCode(dep)
               # e.compileCode(timView, fModified)
             else:
               e.compileCode(timView)
