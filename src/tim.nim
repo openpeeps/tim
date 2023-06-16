@@ -131,6 +131,22 @@ when defined napibuild:
               return %*(docktype & clayout.getHtml)
         else: assert error($errNotInitialized, errIdent)
       else: assert error($errRenderFnArgs & renderFnHint, errIdent)
+elif defined emscripten:
+  import std/[json, unicode]
+  import timpkg/engine/[meta, parser, compiler, ast]
+
+  # https://emscripten.org/docs/api_reference/emscripten.h.html
+  proc emscripten_run_script(code: cstring) {.importc.}
+
+  # proc tim2html(code: string, minify = false, indent = 2, data = %*{}): string {.cdecl .} =
+
+  proc tim(code: cstring, minify = false, indent = 2): cstring {.exportc.} =
+    var p = parser.parse($code)
+    if not p.hasError:
+      return cstring(newCompiler(p.getStatements, minify, indent, data = %*{}).getHtml)
+    let jsError = "throw new Error('" & p.getError & "');"
+    emscripten_run_script(cstring(jsError))    
+
 else:
   when isMainModule:
     ## The standalone cross-language application
