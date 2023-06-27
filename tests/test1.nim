@@ -42,6 +42,9 @@ test "can render (file)":
   check p.attrsLen == 1
   check p.innerText == "A high-performance template engine & markup language"
 
+test "can render static (file)":
+  let x = Tim.render("static")
+
 test "can render (code)":
   var output = tim2html("div > span: \"Hello\"", true)
   check(output == "<div><span>Hello</span></div>")
@@ -80,7 +83,6 @@ elif $this.counter >= 120:
   span: "greater or equal"
 else:
   span > u: "nothing here"
-
   """, data = %*{
     "hello": "world",
     "enabled": true,

@@ -9,7 +9,7 @@ when defined napibuild:
   import pkg/denim
   import std/[os, tables]
   import std/json except `%*`
-  import timpkg/engine/[meta, parser, compiler]
+  import ./timpkg/engine/[meta, parser, compiler]
 
   type
     ErrorMessage = enum
@@ -130,7 +130,7 @@ elif isMainModule:
   ## Nim, JavaScript, Python, XML, PHP, Go, Ruby, Java, Lua.
   ## **Note**: This is work in progress
   import kapsis
-  import timpkg/commands/[initCommand, watchCommand, buildCommand]
+  import ./timpkg/commands/[initCommand, watchCommand, buildCommand]
 
   App:
     about:

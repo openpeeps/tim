@@ -1,4 +1,4 @@
-# A high-performance compiled template engine
+# A high-performance template engine & markup language
 # inspired by the Emmet syntax.
 #
 # (c) 2023 George Lemon | MIT License
@@ -7,7 +7,7 @@
 
 import std/[tables, strutils, json]
 import pkg/[pkginfo, jsony, kapsis/cli]
-import timpkg/engine/[meta, ast, parser, compiler, utils]
+import ./meta, ./ast, ./parser, ./compiler, ./utils
 
 export parser
 export meta except TimEngine

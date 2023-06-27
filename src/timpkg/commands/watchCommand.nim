@@ -8,4 +8,3 @@
 import kapsis/runtime
 
 proc runCommand*(v: Values) =
-  discard # todo

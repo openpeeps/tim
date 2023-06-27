@@ -1,4 +1,4 @@
-# A high-performance compiled template engine
+# A high-performance template engine & markup language
 # inspired by the Emmet syntax.
 #
 # (c) 2023 George Lemon | MIT License
