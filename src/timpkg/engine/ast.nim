@@ -41,6 +41,7 @@ type
     NTJson
     NTYaml
     NTResult
+    NTDo
 
   HtmlNodeType* = enum
     HtmlDoctype
@@ -253,6 +254,8 @@ type
       jsonCode*: string
     of NTYaml:
       yamlCode*: string
+    of NTDo:
+      doRuntime*: seq[Node]
     else: discard
     meta*: MetaNode
 
@@ -276,14 +279,14 @@ proc newNode*(nt: NodeType, tk: TokenTuple): Node =
 proc newSnippet*(tk: TokenTuple, ident = ""): Node =
   ## Add a new Snippet node. It can be `NTJavaScript`,
   ## `NTSass`, `NTJSON` or `NTYaml`
-  if tk.kind == TK_JS:
+  if tk.kind == tkJS:
     result = newNode(NTJavaScript, tk)
-  elif tk.kind == TK_SASS:
+  elif tk.kind == tkSASS:
     result = newNode(NTSass, tk)
-  elif tk.kind == TK_JSON:
+  elif tk.kind == tkJSON:
     result = newNode(NTJSon, tk)
     result.jsonIdent = ident
-  elif tk.kind == TK_YAML:
+  elif tk.kind == tkYAML:
     result = newNode(NTYaml, tk)
 
 proc newExpression*(expression: Node): Node =
@@ -417,5 +420,12 @@ proc newVarCallValAccessor*(tk: TokenTuple): Node =
     accessorKind: Value,
     varIdent: tk.value,
     varSymbol: "$" & tk.value,
+    meta: (tk.line, tk.pos, tk.col, tk.wsno)
+  )
+
+proc newRuntime*(tk: TokenTuple): Node =
+  result = Node(
+    nodeName: getSymbolName(NTDo),
+    nodeType: NTDo,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
   )

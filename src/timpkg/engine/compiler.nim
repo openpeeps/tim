@@ -6,7 +6,7 @@
 #          https://github.com/openpeeps/tim
 
 import std/[tables, macros, strutils]
-import pkg/[pkginfo, sass]
+import pkg/pkginfo # sass
 import pkg/kapsis/cli
 import ./ast
 
@@ -220,11 +220,12 @@ proc getJSSnippet(c: var Compiler, node: Node) =
   if not c.hasJs: c.hasJs = true
 
 proc getSassSnippet(c: var Compiler, node: Node) =
-  try:
-    c.sass &= NewLine & compileSass(node.sassCode, outputStyle = OutputStyle.Compressed)
-  except SassException:
-    c.logs.add(getCurrentExceptionMsg())
-  if not c.hasSass: c.hasSass = true
+  # try:
+  #   c.sass &= NewLine & compileSass(node.sassCode, outputStyle = OutputStyle.Compressed)
+  # except SassException:
+  #   c.logs.add(getCurrentExceptionMsg())
+  # if not c.hasSass: c.hasSass = true
+  discard
 
 proc getJsonSnippet(c: var Compiler, node: Node) =
   let jsonIdentName = 
@@ -312,9 +313,10 @@ proc compileProgram(c: var Compiler) =
       add c.html, $c.json
     if c.hasJS:
       add c.html, NewLine & "<script type=\"text/javascript\">"
-      add c.html, "document.addEventListener(\"DOMContentLoaded\", async function(){"
-      add c.html, indent($c.js, 2)
-      add c.html, "})"
+      # add c.html, "document.addEventListener(\"DOMContentLoaded\", async function(){"
+      # add c.html, indent($c.js, 2)
+      # add c.html, "})"
+      add c.html, c.js
       add c.html, NewLine & "</script>"
     if c.hasSass:
       add c.html, NewLine & "<style>"

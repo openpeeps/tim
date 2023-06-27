@@ -8,7 +8,7 @@
 import toktok
 
 static:
-  Program.settings(true, "TK_")
+  Program.settings(false, "tk")
 
 handlers:
   proc handleVarFmt*(lex: var Lexer, kind: TokenKind) =
@@ -29,10 +29,10 @@ handlers:
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
     if lex.next("include"):
-      lex.setToken TK_INCLUDE, 8
+      lex.setToken tkInclude, 8
       lex.token = "include"
     elif lex.next("view"):
-      lex.setToken TK_VIEW, 5
+      lex.setToken tkView, 5
       lex.token = "view"
     else:
       inc lex.bufpos
@@ -44,26 +44,26 @@ handlers:
         else:
           dec lex.bufpos
           break
-      lex.setToken TK_CALL
+      lex.setToken tkCall
 
   proc handleSnippets*(lex: var Lexer, kind: TokenKind) =    
     lex.startPos = lex.getColNumber(lex.bufpos)
-    var k = TK_JS
+    var k = tkJs
     if lex.next("``javascript"):
       setLen(lex.token, 0)
       inc lex.bufpos, 13
     elif lex.next("``sass"):
       setLen(lex.token, 0)
       inc lex.bufpos, 7
-      k = TK_SASS
+      k = tkSass
     elif lex.next("``yaml"):
       setLen(lex.token, 0)
       inc lex.bufpos, 7
-      k = TK_YAML
+      k = tkYaml
     elif lex.next("``json"):
       setLen(lex.token, 0)
       inc lex.bufpos, 7
-      k = TK_JSON
+      k = tkJson
     else:
       lex.setError("Unknown snippet. Tim knows about `js`|`javascript` or `sass`")
       return
@@ -83,6 +83,10 @@ handlers:
       else:
         add lex.token, lex.buf[lex.bufpos]
         inc lex.bufpos
+
+  proc handleDoBlock*(lex: var Lexer, kind: TokenKind) =
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    setLen(lex.token, 0)
 
 tokens:
   A            > "a"
@@ -273,7 +277,7 @@ tokens:
   Var          > "var"
   Video        > "video"
   WBR          > "wbr"
-  Attr                        # a TK_IDENTIFIER followed by `=` becomes TK_ATTR
+  Attr                        # a tkIdentifier followed by `=` becomes tkAttr
   JS
   SASS
   YAML
@@ -312,6 +316,7 @@ tokens:
   Not          > '!':
     NEQ      ? '='
   At           > tokenize(handleCalls, '@')
+  Runtime
   Include
   View
   StartsWith
@@ -319,6 +324,7 @@ tokens:
   Mixin
   Call
   # At           > '@':
+    # Do ? tokenize(handleDoBlock, "do")
   #   Include  ? "include"
   #   Mixin    ? "mixin"
   #   View     ? "view"

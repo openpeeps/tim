@@ -69,45 +69,45 @@ const
   DuplicateViewLoader = "Cannot render more than one `@view`. Use `@include` instead"
 
 const
-  tkVars = {TKVariable, TKSafeVariable}
-  tkCallables = {TKCall}
-  tkAssignables = {TKString, TKInteger, TKBOOL_TRUE, TKBOOL_FALSE} + tkVars
+  tkVars = {tkVariable, tkSafevariable}
+  tkCallables = {tkCall}
+  tkAssignables = {tkString, tkInteger, tkBool_true, tkBool_false} + tkVars
   tkComparables = tkAssignables + tkCallables
-  tkOperators = {TKEQ, TKNEQ, TKLT, TKLTE, TKGT, TKGTE}
-  tkConditionals = {TKIF, TKELIF, TKELSE, TKIN, TKOR, TKAND}
-  tkLoops = {TKFOR, TKIN}
-  tkCalc = {TKPLUS, TKMINUS, TKDIVIDE, TKMULTI}
-  tkCall = {TKINCLUDE, TKMIXIN}
-  tkNone = (TKNONE, "", 0,0,0,0)
-  tkSpecial = {TKDOT, TKCOLON, TKLCURLY, TKRCURLY,
-          TKLPAR, TKRPAR, TKID, TKASSIGN, TKCOMMA,
-          TKAT, TKNOT, TKAMP} + tkCalc + tkOperators + tkLoops
+  tkOperators = {tkEq, tkNeq, tkLt, tkLte, tkGt, tkGte}
+  tkConditionals = {tkIf, tkElif, tkElse, tkIn, tkOr, tkAnd}
+  tkLoops = {tkFor, tkIn}
+  tkCalc = {tkPlus, tkMinus, tkDivide, tkMulti}
+  tkCallSet = {tkInclude, tkMixin}
+  tkNone = (tkNone, "", 0,0,0,0)
+  tkSpecial = {tkDot, tkColon, tkLcurly, tkRcurly,
+          tkLpar, tkRpar, tkId, tkAssign, tkComma,
+          tkAt, tkNot, tkAmp} + tkCalc + tkOperators + tkLoops
   svgscTags = {
-    TKSVG_PATH, TKSVG_CIRCLE, TKSVG_POLYLINE, TKSVG_ANIMATE,
-    TKSVG_ANIMATETRANSFORM, TKSVG_ANIMATEMOTION,
-    TKSVG_FE_BLEND, TKSVG_FE_COLORMATRIX, TKSVG_FE_COMPOSITE,
-    TKSVG_FE_CONVOLVEMATRIX, TKSVG_FE_DISPLACEMENTMAP
+    tkSvg_path, tkSvg_circle, tkSvg_polyline, tkSvg_animate,
+    tkSvg_animatetransform, tkSvg_animatemotion,
+    tkSvg_fe_blend, tkSvg_fe_colormatrix, tkSvg_fe_composite,
+    tkSvg_fe_convolvematrix, tkSvg_fe_displacementmap
   }
   scTags = {
-    TKAREA, TKBASE, TKBR, TKCOL, TKEMBED,
-    TKHR, TKIMG, TKINPUT, TKLINK, TKMETA,
-    TKPARAM, TKSOURCE, TKTRACK, TKWBR} + svgscTags
+    tkArea, tkBase, tkBr, tkCol, tkEmbed,
+    tkHr, tkImg, tkInput, tkLink, tkMeta,
+    tkParam, tkSource, tkTrack, tkWbr} + svgscTags
 
   tkHtml = {
-    TKA, TKABBR, TKACRONYM, TKADDRESS, TKAPPLET, TKAREA, TKARTICLE, TKASIDE,
-    TKAUDIO, TKBOLD, TKBASE, TKBASEFONT, TKBDI, TKBDO, TKBIG, TKBLOCKQUOTE,
-    TKBODY, TKBR, TKBUTTON, TKCANVAS, TKCAPTION, TKCENTER, TKCITE, TKCODE,
-    TKCOL, TKCOLGROUP, TKDATA, TKDATA, TKDATALIST, TKDD, TKDEL, TKDETAILS,
-    TKDFN, TKDIALOG, TKDIR, TKDOCTYPE, TKDL, TKDT, TKEM, TKEMBED, TKFIELDSET,
-    TKFIGCAPTION, TKFIGURE, TKFONT, TKFOOTER, TKH1, TKH2, TKH3, TKH4, TKH5, TKH6,
-    TKHEAD, TKHEADER, TKHR, TKHTML, TKITALIC, TKIFRAME, TKIMG, TKINPUT, TKINS,
-    TKKBD, TKLABEL, TKLEGEND, TKLI, TKLINK, TKMAIN, TKMAP, TKMARK, TKMETER,
-    TKNAV, TKNOFRAMES, TKNOSCRIPT, TKOBJECT, TKOL, TKOPTGROUP, TKOPTION, TKOUTPUT,
-    TKPARAGRAPH, TKPARAM, TKPRE, TKPROGRESS, TKQUOTATION, TKRP, TKRT, TKRUBY, TKSTRIKE,
-    TKSAMP, TKSECTION, TKSELECT, TKSMALL, TKSOURCE, TKSPAN, TKSTRIKE_LONG, TKSTRONG,
-    TKSTYLE, TKSUB, TKSUMMARY, TKSUP, TKTABLE, TKTBODY, TKTD, TKTEMPLATE,
-    TKTEXTAREA, TKTFOOT, TKTH, TKTHEAD, TKTIME, TKTITLE, TKTR, TKTRACK, TKTT, TKUNDERLINE,
-    TKUL, TKVAR, TKVIDEO, TKWBR
+    tkA, tkAbbr, tkAcronym, tkAddress, tkApplet, tkArea, tkArticle, tkAside,
+    tkAudio, tkBold, tkBase, tkBasefont, tkBdi, tkBdo, tkBig, tkBlockquote,
+    tkBody, tkBr, tkButton, tkCanvas, tkCaption, tkCenter, tkCite, tkCode,
+    tkCol, tkColgroup, tkData, tkData, tkDatalist, tkDd, tkDel, tkDetails,
+    tkDfn, tkDialog, tkDir, tkDoctype, tkDl, tkDt, tkEm, tkEmbed, tkFieldset,
+    tkFigcaption, tkFigure, tkFont, tkFooter, tkH1, tkH2, tkH3, tkH4, tkH5, tkH6,
+    tkHead, tkHeader, tkHr, tkHtml, tkItalic, tkIframe, tkImg, tkInput, tkIns,
+    tkKbd, tkLabel, tkLegend, tkLi, tkLink, tkMain, tkMap, tkMark, tkMeter,
+    tkNav, tkNoframes, tkNoscript, tkObject, tkOl, tkOptgroup, tkOption, tkOutput,
+    tkParagraph, tkParam, tkPre, tkProgress, tkQuotation, tkRp, tkRt, tkRuby, tkStrike,
+    tkSamp, tkSection, tkSelect, tkSmall, tkSource, tkSpan, tkStrike_long, tkStrong,
+    tkStyle, tkSub, tkSummary, tkSup, tkTable, tkTbody, tkTd, tkTemplate,
+    tkTextarea, tkTfoot, tkTh, tkThead, tkTime, tkTitle, tkTr, tkTrack, tkTt, tkUnderline,
+    tkUl, tkVar, tkVideo, tkWbr
   }
 
 template setError(p: var Parser, msg: string, breakStmt: bool) =
@@ -137,8 +137,8 @@ proc getError*(p: var Parser): string =
 
 proc isHTMLElement(token: TokenKind): bool =
   result = token notin tkComparables + tkOperators +
-             tkConditionals + tkCalc + tkCall +
-             tkLoops + {TKEOF}
+             tkConditionals + tkCalc + tkCallSet +
+             tkLoops + {tkEof}
 
 proc parse*(engine: TimEngine, code, path: string,
       templateType: TemplateType): Parser
@@ -174,14 +174,14 @@ proc walk(p: var Parser, offset = 1) =
 
 proc getOperator(tk: TokenKind): OperatorType =
   case tk:
-    of TKEQ: result = EQ
-    of TKNEQ: result = NE
-    of TKLT: result = LT
-    of TKLTE: result = LTE
-    of TKGT: result = GT
-    of TKGTE: result = GTE
-    of TKAND: result = AND
-    of TKAMP: result  = AMP
+    of tkEq: result = EQ
+    of tkNeq: result = NE
+    of tkLt: result = LT
+    of tkLte: result = LTE
+    of tkGt: result = GT
+    of tkGte: result = GTE
+    of tkAnd: result = AND
+    of tkAmp: result  = AMP
     else: discard
 
 # prefix / infix handlers
@@ -209,23 +209,23 @@ proc parseBoolean(p: var Parser): Node =
   walk p
 
 template handleConcat() =
-  while p.curr.kind == TKAMP:
-    if p.next.kind notin {TKString, TKVariable, TKSafeVariable}:
+  while p.curr.kind == tkAmp:
+    if p.next.kind notin {tkString, tkVariable, tkSafevariable}:
       p.setError(InvalidStringConcat)
       return nil
     walk p
     let infixRight: Node = p.parseExpression()
     if result == nil:
-      result = ast.newInfix(leftNode, infixRight, getOperator(TKAMP))
+      result = ast.newInfix(leftNode, infixRight, getOperator(tkAmp))
     else:
-      result = ast.newInfix(result, infixRight, getOperator(TKAMP))
+      result = ast.newInfix(result, infixRight, getOperator(tkAmp))
 
 proc parseString(p: var Parser): Node =
   # Parse a new `string` node
   if p.hasError(): return
   var concated: bool
   let this = p.curr
-  if p.next.kind == TKAMP:
+  if p.next.kind == tkAmp:
     concated = true
     walk p
     var leftNode = ast.newString(this)
@@ -253,27 +253,27 @@ proc parseVariable(p: var Parser): Node =
     walk p
   else:
     varVisibility = VarVisibility.InternalVar
-  if p.curr.kind in {TKDOT, TKLBRA}:
+  if p.curr.kind in {tkDot, tkLbra}:
     walk p
-  if p.curr.kind == TKIDENTIFIER or p.curr.kind notin tkSpecial and p.curr.kind != TKEOF:
+  if p.curr.kind == tkIdentifier or p.curr.kind notin tkSpecial and p.curr.kind != tkEof:
     this = p.curr
     walk p
     while true:
-      if p.curr.kind == TKEOF: break
+      if p.curr.kind == tkEof: break
       # if p.curr.wsno != 0 or p.curr.line != this.line:
       #     p.setError(InvalidAccessorDeclaration, true)
-      if p.curr.kind == TKDOT:
+      if p.curr.kind == tkDot:
         walk p # .
-        if p.curr.kind == TKIDENTIFIER or p.curr.kind notin tkSpecial:
+        if p.curr.kind == tkIdentifier or p.curr.kind notin tkSpecial:
           accessors.add newString(p.curr)
           walk p # .
           if p.curr.wsno != 0: break
         else: p.setError(InvalidVarDeclaration, true)
-      elif p.curr.kind == TKLBRA:
-        if p.next.kind != TKInteger:
+      elif p.curr.kind == tkLbra:
+        if p.next.kind != tkInteger:
           p.setError(InvalidArrayIndex, true)
         walk p # [
-        if p.next.kind != TKRBRA:
+        if p.next.kind != tkRbra:
           p.setError(InvalidAccessorDeclaration, true)
         accessors.add(p.parseInteger())
         walk p # ]
@@ -296,7 +296,7 @@ proc parseVariable(p: var Parser): Node =
     varVisibility = varVisibility
   )
   leftNode.accessors = accessors
-  if p.curr.kind == TKAMP: # support infix concatenation X & Y
+  if p.curr.kind == tkAmp: # support infix concatenation X & Y
     handleConcat()
   if result == nil:
     result = leftNode
@@ -310,16 +310,16 @@ proc parseSafeVariable(p: var Parser): Node =
 template inHtmlAttributeNames(): untyped =
   (
     p.curr.kind in {
-      TKString, TKVariable, TKSafeVariable,
-      TKIDENTIFIER, TKIF, TKFOR, TKELIF, TKELSE,
-      TKOR, TKIN} + tkHtml and p.next.kind == TKASSIGN
+      tkString, tkVariable, tkSafevariable,
+      tkIdentifier, tkIf, tkFor, tkElif, tkElse,
+      tkOr, tkIn} + tkHtml and p.next.kind == tkAssign
   )
 
 proc getHtmlAttributes(p: var Parser): HtmlAttributes =
   # Parse all attributes and return it as a
   # `TableRef[string, seq[string]]`
   while true:
-    if p.curr.kind == TKDOT:
+    if p.curr.kind == tkDot:
       # Add `class=""` attribute
       let attrKey = "class"
       if p.next.kind notin tkSpecial:
@@ -330,24 +330,24 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         else:
           result[attrKey] = @[newString(p.next)]
         walk p, 2
-        while p.curr.kind == TKLCURLY and p.next.kind == TKVariable:
+        while p.curr.kind == tkLcurly and p.next.kind == tkVariable:
           # parse string interpolation
           walk p
           result[attrKey][^1].sConcat.add(p.parseVariable())
-          if p.curr.kind == TKRCURLY:
+          if p.curr.kind == tkRcurly:
             walk p
           else: p.setError(InvalidStringInterpolation, true)
       else:
         p.setError(InvalidClassAttribute)
         walk p
         break
-    elif p.curr.kind == TKID:
+    elif p.curr.kind == tkId:
       # Set `id=""` HTML attribute
       let attrKey = "id"
       if not result.hasKey(attrKey):
         if p.next.kind notin tkSpecial:
           walk p
-          if p.curr.kind in {TKVariable, TKSafeVariable}:
+          if p.curr.kind in {tkVariable, tkSafevariable}:
             result[attrKey] = @[p.parseVariable()]
           else:
             if p.ids.hasKey(p.curr.value):
@@ -361,11 +361,11 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
     elif inHtmlAttributeNames:
       let attrName = p.curr.value
       walk p
-      if p.next.kind notin {TKString, TKVariable, TKSafeVariable}:
+      if p.next.kind notin {tkString, tkVariable, tkSafevariable}:
         p.setError InvalidAttributeValue % [attrName], true
       if not result.hasKey(attrName):
         walk p
-        if p.curr.kind == TKString:
+        if p.curr.kind == tkString:
           if attrName == "id":
             if p.ids.hasKey(p.curr.value):
               p.setError InvalidIDNotUnique % [p.curr.value, $(p.ids[p.curr.value])], true
@@ -378,18 +378,18 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
           result[attrName] = @[p.parseVariable()]
       else:
         p.setError DuplicateAttributeKey % [attrName], true
-      # if p.curr.line > p.prev.line or p.curr.kind == TKGT:
+      # if p.curr.line > p.prev.line or p.curr.kind == tkGt:
       #   break
-      if p.curr.kind == TKGT:
+      if p.curr.kind == tkGt:
         break
-    elif p.curr.kind == TKLPAR:
+    elif p.curr.kind == tkLpar:
       # parse short hand conditional statement
       let this = p.curr
       let infixNode = p.parseInfix()
-      if p.curr.kind == TKSIF:
+      if p.curr.kind == tkSif:
         walk p # ?
         var ifBody = p.getHtmlAttributes()
-        if p.curr.kind != TKRPAR:
+        if p.curr.kind != tkRpar:
           p.setError(InvalidConditionalStmt, true)
         walk p # )
         let astNode = newShortIfExpression((infixNode, ifBody), this) 
@@ -417,23 +417,23 @@ proc newHtmlNode(p: var Parser): Node =
     result.meta.pos = p.lvl * 4 # set real indentation size
   while true:
     if p.hasError(): return nil
-    if p.curr.kind == TKCOLON:
+    if p.curr.kind == tkColon:
       walk p
-      if p.curr.kind == TKString:
+      if p.curr.kind == tkString:
         result.nodes.add p.parseString()
-      elif p.curr.kind in {TKVariable, TKSafeVariable}:
+      elif p.curr.kind in {tkVariable, tkSafevariable}:
         result.nodes.add p.parseVariable()
-      elif p.curr.kind == TKInteger:
+      elif p.curr.kind == tkInteger:
         result.nodes.add p.parseInteger()
-      elif p.curr.kind == TkCall:
+      elif p.curr.kind == tkCall:
         result.nodes.add p.parseCall()
       else:
         p.setError InvalidValueAssignment, p.prev.line, p.prev.col, true
-    # elif p.curr.kind in {TKDOT, TKID, TKIDENTIFIER} + tkHtml:
-    elif p.curr.kind in {TKDOT, TKID} or inHtmlAttributeNames:
+    # elif p.curr.kind in {tkDot, tkId, tkIdentifier} + tkHtml:
+    elif p.curr.kind in {tkDot, tkId} or inHtmlAttributeNames:
       # if p.curr.line > result.meta.line:
         # break # prevent bad loop
-      # if p.curr.kind == TKColon: break
+      # if p.curr.kind == tkColon: break
       result.attrs = p.getHtmlAttributes()
       if p.hasError():
         break
@@ -449,17 +449,17 @@ proc parseHtmlElement(p: var Parser): Node =
     if result.meta.line > p.parentNode[^1].meta.line:
       p.parentNode.add(result)
   var node: Node
-  while p.curr.kind == TKGT:
+  while p.curr.kind == tkGt:
     walk p
     if not p.curr.kind.isHTMLElement():
       p.setError(InvalidNestDeclaration)
     inc p.lvl
     node = p.parseHtmlElement()
-    if p.curr.kind != TKEOF and p.curr.pos != 0:
+    if p.curr.kind != tkEof and p.curr.pos != 0:
       if p.curr.line > node.meta.line:
         let currentParent = p.parentNode[^1]
         while p.curr.pos > currentParent.meta.col:
-          if p.curr.kind == TKEOF: break
+          if p.curr.kind == tkEof: break
           var subNode = p.parseExpression()
           if subNode != nil:
             node.nodes.add(subNode)
@@ -478,12 +478,12 @@ proc parseHtmlElement(p: var Parser): Node =
   if p.curr.pos > currentParent.meta.col:
     inc p.lvl
   while p.curr.pos > currentParent.meta.col:
-    if p.curr.kind == TKEOF: break
+    if p.curr.kind == tkEof: break
     var subNode = p.parseExpression()
     if subNode != nil:
       result.nodes.add(subNode)
     elif p.hasError(): break
-    if p.curr.kind == TKEOF or p.curr.pos == 0: break # prevent division by zero
+    if p.curr.kind == tkEof or p.curr.pos == 0: break # prevent division by zero
     if p.curr.pos < currentParent.meta.col:
       # dec lvl, currentParent.meta.col div p.curr.pos
       dec p.lvl
@@ -498,21 +498,21 @@ proc parseAssignment(p: var Parser): Node =
 
 # import re # lazy house
 proc parseSnippet(p: var Parser): Node =
-  if p.curr.kind == TKJS:
+  if p.curr.kind == tkJs:
     result = newSnippet(p.curr)
     result.jsCode = p.curr.value         # re.replace(p.curr.value, re"\/\*(.*?)\*\/|\s\B")
-  elif p.curr.kind == TKSASS:
+  elif p.curr.kind == tkSass:
     result = newSnippet(p.curr)
     result.sassCode = p.curr.value
-  elif p.curr.kind in {TKJSON, TKYAML}:
+  elif p.curr.kind in {tkJson, tkYaml}:
     let code = p.curr.value.split(Newlines, maxsplit = 1)
     var ident = code[0]
     p.curr.value = code[1]
-    if p.curr.kind == TKJSON:
+    if p.curr.kind == tkJson:
       result = newSnippet(p.curr, ident)
       result.jsonCode = p.curr.value
     else:
-      p.curr.kind = TKJSON
+      p.curr.kind = tkJson
       result = newSnippet(p.curr, ident)
       result.jsonCode = yaml(p.curr.value).toJsonStr
   walk p
@@ -521,11 +521,11 @@ proc parseElseBranch(p: var Parser, elseBody: var seq[Node], ifThis: TokenTuple)
   if p.curr.pos == ifThis.pos:
     var this = p.curr
     walk p
-    if p.curr.kind == TKCOLON: walk p
+    if p.curr.kind == tkColon: walk p
     if this.pos >= p.curr.pos:
       p.setError(NestableStmtIndentation)
       return
-    while p.curr.pos > this.pos and p.curr.kind != TKEOF:
+    while p.curr.pos > this.pos and p.curr.kind != tkEof:
       let bodyNode = p.parseExpression(exclude = {NTInt, NTString, NTBool})
       elseBody.add bodyNode
 
@@ -545,10 +545,10 @@ proc parseInfix(p: var Parser, strict = false): Node =
     p.setError(InvalidConditionalStmt)
     return
   var infixNode = ast.newInfix(infixLeft)
-  if p.curr.kind == TKAND:
-    infixNode.infixOp = getOperator(TKAND)
+  if p.curr.kind == tkAnd:
+    infixNode.infixOp = getOperator(tkAnd)
     infixNode.infixOpSymbol = getSymbolName(infixNode.infixOp)
-    while p.curr.kind == TKAND:
+    while p.curr.kind == tkAnd:
       infixNode.infixRight = p.parseInfix()
   elif p.curr.kind in tkOperators:
     let op = p.curr
@@ -585,12 +585,12 @@ proc parseCondBranch(p: var Parser, this: TokenTuple): IfBranch =
     p.setError(InvalidIndentation)
     return
 
-  if p.curr.kind == TKCOLON:
+  if p.curr.kind == tkColon:
     walk p
   
   var ifBody: seq[Node]
-  while p.curr.pos > this.pos and p.curr.kind != TKEOF:     # parse body of `if` branch
-    if p.curr.kind in {TKELIF, TKELSE}:
+  while p.curr.pos > this.pos and p.curr.kind != tkEof:     # parse body of `if` branch
+    if p.curr.kind in {tkElif, tkElse}:
       p.setError(InvalidIndentation, true)
       break
     ifBody.add p.parseExpression()
@@ -603,12 +603,12 @@ proc parseIfStmt(p: var Parser): Node =
   var this = p.curr
   var elseBody: seq[Node]
   result = newIfExpression(ifBranch = p.parseCondBranch(this), this)
-  while p.curr.kind == TKELIF:
+  while p.curr.kind == tkElif:
     let thisElif = p.curr
     result.elifBranch.add p.parseCondBranch(thisElif)
     if p.hasError(): break
 
-  if p.curr.kind == TKELSE:       # parse body of `else` branch
+  if p.curr.kind == tkElse:       # parse body of `else` branch
     p.parseElseBranch(elseBody, this)
     if p.hasError(): return         # catch error from `parseElseBranch`
     result.elseBody = elseBody
@@ -618,18 +618,18 @@ proc parseForStmt(p: var Parser): Node =
   let this = p.curr
   walk p
   let singularIdent = p.parseVariable()
-  if p.curr.kind != TKIN:
+  if p.curr.kind != tkIn:
     p.setError(InvalidIteration)
     return
   walk p # `in`
-  if p.curr.kind != TKVariable:
+  if p.curr.kind != tkVariable:
     p.setError(InvalidIteration)
     return
   let pluralIdent = p.parseVariable()
-  if p.curr.kind == TKCOLON:
+  if p.curr.kind == tkColon:
     walk p
   var forBody: seq[Node]
-  while p.curr.pos > this.pos and p.curr.kind != TKEOF:
+  while p.curr.pos > this.pos and p.curr.kind != tkEof:
     let subNode = p.parseExpression()
     if subNode != nil:
       forBody.add subNode
@@ -643,17 +643,17 @@ proc parseCall(p: var Parser): Node =
   walk p, 2 # ident + (
   var params: seq[Node]
   while p.curr.line == tk.line:
-    if p.curr.kind == TKRPAR: break
+    if p.curr.kind == tkRpar: break
     elif p.curr.kind in tkComparables:
       let node = p.parseExpression()
       if node != nil:
         params.add(node)
       else: break
-    elif p.curr.kind == TKCOMMA:
+    elif p.curr.kind == tkComma:
       walk p
     else:
       break
-  if p.curr.kind == TKRPAR:
+  if p.curr.kind == tkRpar:
     walk p # )
   else:
     p.setError("EOL reached before closing call statement")
@@ -671,25 +671,25 @@ proc parseMixinDefinition(p: var Parser): Node =
   walk p
   let ident = p.curr
   result = newMixinDef(p.curr)
-  if p.next.kind != TKLPAR:
+  if p.next.kind != tkLpar:
     p.setError(InvalidMixinDefinition % [ident.value])
     return
   walk p, 2
 
-  while p.curr.kind != TKRPAR:
+  while p.curr.kind != tkRpar:
     var paramDef: ParamTuple
-    if p.curr.kind == TKIDENTIFIER:
+    if p.curr.kind == tkIdentifier:
       paramDef.key = p.curr.value
       walk p
-      if p.curr.kind == TKCOLON:
-        if p.next.kind notin {TKTYPE_BOOL, TKTYPE_INT, TKTYPE_STRING}: # todo handle float
+      if p.curr.kind == tkColon:
+        if p.next.kind notin {tkType_bool, tkType_int, tkType_string}: # todo handle float
           p.setError(InvalidIndentation % [ident.value], true)
         walk p
         # todo in a fancy way, please
-        if p.curr.kind == TKTYPE_BOOL:
+        if p.curr.kind == tkType_bool:
           paramDef.`type` = NTBool
           paramDef.typeSymbol = $NTBool
-        elif p.curr.kind == TKTYPE_INT:
+        elif p.curr.kind == tkType_int:
           paramDef.`type` = NTInt
           paramDef.typeSymbol = $NTInt
         else:
@@ -699,8 +699,8 @@ proc parseMixinDefinition(p: var Parser): Node =
       p.setError(InvalidMixinDefinition % [ident.value], true)
     result.mixinParamsDef.add(paramDef)
     walk p
-    if p.curr.kind == TKCOMMA:
-      if p.next.kind != TKIDENTIFIER:
+    if p.curr.kind == tkComma:
+      if p.next.kind != tkIdentifier:
         p.setError(InvalidMixinDefinition % [ident.value], true)
       walk p
   walk p
@@ -726,29 +726,44 @@ proc parseViewLoader(p: var Parser): Node =
   p.hasView = true
   walk p
 
+proc parseDoBlock(p: var Parser): Node =
+  let tk = p.curr
+  walk p # do
+  result = newRuntime(p.curr)
+  # if p.curr.kind == tkColon:
+  #   walk p
+  #   while p.curr.pos > tk.pos:
+  #     let node = p.parseExpression()
+  #     if node != nil:
+  #       add result.doRuntime, node
+  #     else: return
+  # else:
+  p.setError("`@do` block missing assignment token")
+
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
   result = case kind
-    of TKInteger: parseInteger
-    of TKBOOL_TRUE, TKBOOL_FALSE: parseBoolean
-    of TKString: parseString
-    of TKIF: parseIfStmt
-    of TKFOR: parseForStmt
-    of TKJS, TKSASS, TKJSON, TKYAML: parseSnippet
-    of TKINCLUDE: parseIncludeCall
-    of TKMIXIN:
-      if p.next.kind == TKLPAR:
+    of tkInteger: parseInteger
+    of tkBool_true, tkBool_false: parseBoolean
+    of tkString: parseString
+    of tkIf: parseIfStmt
+    of tkFor: parseForStmt
+    of tkJs, tkSass, tkJson, tkYaml: parseSnippet
+    of tkInclude: parseIncludeCall
+    of tkMixin:
+      if p.next.kind == tkLpar:
         parseMixinCall
-      elif p.next.kind == TKIDENTIFIER:
+      elif p.next.kind == tkIdentifier:
         parseMixinCall
       else: nil
-    of TKCall:
-      if p.next.kind == TKLPAR:
+    of tkCall:
+      if p.next.kind == tkLpar:
         parseCall
       else: nil
-    of TKVariable: parseVariable
-    of TKSafeVariable: parseSafeVariable
-    of TKCOMMENT: parseComment
-    of TKVIEW: parseViewLoader
+    of tkVariable: parseVariable
+    of tkSafevariable: parseSafeVariable
+    of tkComment: parseComment
+    of tkView: parseViewLoader
+    # of tkDo: parseDoBlock
     else: parseHtmlElement
 
 proc parseExpression(p: var Parser, exclude: set[NodeType] = {}): Node =
@@ -769,7 +784,7 @@ proc parseExpressionStmt(p: var Parser): Node =
 
 proc parseStatement(p: var Parser): Node =
   case p.curr.kind:
-    of TKVariable:    result = p.parseAssignment()
+    of tkVariable:    result = p.parseAssignment()
     else:              result = p.parseExpressionStmt()
 
 proc parse*(engine: TimEngine, code, path: string, templateType: TemplateType): Parser =
@@ -788,7 +803,7 @@ proc parse*(engine: TimEngine, code, path: string, templateType: TemplateType): 
   p.curr = p.lexer.getToken()
   p.next    = p.lexer.getToken()
   p.statements = Program()
-  while p.hasError() == false and p.curr.kind != TKEOF:
+  while p.hasError() == false and p.curr.kind != tkEof:
     var statement: Node = p.parseStatement()
     if statement != nil:
       p.statements.nodes.add(statement)
@@ -800,7 +815,7 @@ proc parse*(code: string): Parser =
   p.lexer = Lexer.init(code, allowMultilineStrings = true)
   p.curr = p.lexer.getToken
   p.next = p.lexer.getToken
-  while p.hasError == false and p.curr.kind != TKEOF:
+  while p.hasError == false and p.curr.kind != tkEof:
     var stmtNode: Node = p.parseStatement()
     if stmtNode != nil:
       p.statements.nodes.add(stmtNode)

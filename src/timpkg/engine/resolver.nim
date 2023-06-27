@@ -118,14 +118,14 @@ template loadCode(p: var Importer, indent: int) =
       getTemplateByPath(p.engine, path).addDependentView(p.currentFilePath)
 
 template resolveChunks(p: var Importer) =
-  if p.current.kind == TK_INCLUDE:
+  if p.current.kind == tkInclude:
     let indent = p.current.col
-    if p.next.kind != TK_STRING:
+    if p.next.kind != tkString:
       p.setError "Invalid import statement missing file path.", p.currentFilePath
       break
     jump p
     loadCode(p, indent)
-  elif p.current.kind == TK_VIEW and p.templateType != Layout:
+  elif p.current.kind == tkView and p.templateType != Layout:
     p.setError("Trying to load a view inside a $1" % [$p.templateType], p.currentFilePath)
     break
 
@@ -140,7 +140,7 @@ proc resolve*(viewCode, currentFilePath: string,
           excludes: excludes)
   p.current = p.lex.getToken()
   p.next = p.lex.getToken()
-  while p.error.len == 0 and p.current.kind != TK_EOF:
+  while p.error.len == 0 and p.current.kind != tkEof:
     p.resolveChunks()
     jump p
   if p.error.len == 0:
