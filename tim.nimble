@@ -14,9 +14,8 @@ requires "nim >= 1.6.0"
 requires "pkginfo"
 requires "toktok"
 requires "jsony"
-requires "bson"
 requires "watchout"
-requires "sass#head"
+# requires "sass#head"
 requires "nyml"
 requires "kapsis"
 requires "denim"
@@ -33,5 +32,8 @@ task prod, "Compile Tim for release":
   echo "\n✨ Compiling..." & $version & "\n"
   exec "nim c --gc:arc --out:bin/tim --threads:on -d:release -d:danger --hints:off --opt:speed --checks:off src/tim.nim"
 
+task emsdk, "Compile Tim with Emscripten":
+  exec "nim c -d:emscripten src/tim.nim"
+
 task napi, "Compile Tim via NAPI":
-  exec "denim build src/tim.nim"
+  exec "denim build src/tim.nim --cmake --release --yes"
