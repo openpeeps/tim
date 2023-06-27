@@ -109,6 +109,7 @@ when defined napibuild:
       else: assert error($errNotInitialized, errIdent)
 
 elif defined emscripten:
+  import std/json
   import timpkg/engine/[meta, parser, compiler, ast]
 
   # https://emscripten.org/docs/api_reference/emscripten.h.html
