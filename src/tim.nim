@@ -130,7 +130,7 @@ elif isMainModule:
   ## Nim, JavaScript, Python, XML, PHP, Go, Ruby, Java, Lua.
   ## **Note**: This is work in progress
   import kapsis
-  import tim/commands/[initCommand, watchCommand, buildCommand]
+  import timpkg/commands/[initCommand, watchCommand, buildCommand]
 
   App:
     about:
