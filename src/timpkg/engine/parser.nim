@@ -9,7 +9,7 @@ import std/[tables, json]
 from pkg/nyml import yaml, toJsonStr
 import pkg/jsony
 
-import tokens, ast
+import ./tokens, ./ast
 from resolver import resolve, hasError, getError,
           getErrorLine, getErrorColumn, getFullCode
 
@@ -71,16 +71,16 @@ const
 const
   tkVars = {tkVariable, tkSafevariable}
   tkCallables = {tkCall}
-  tkAssignables = {tkString, tkInteger, tkBool_true, tkBool_false} + tkVars
+  tkAssignables = {tkString, tkInteger, tkBool} + tkVars
   tkComparables = tkAssignables + tkCallables
-  tkOperators = {tkEq, tkNeq, tkLt, tkLte, tkGt, tkGte}
+  tkOperators = {tkEq, tkNe, tkLt, tkLte, tkGt, tkGte}
   tkConditionals = {tkIf, tkElif, tkElse, tkIn, tkOr, tkAnd}
   tkLoops = {tkFor, tkIn}
   tkCalc = {tkPlus, tkMinus, tkDivide, tkMulti}
   tkCallSet = {tkInclude, tkMixin}
   tkNone = (tkNone, "", 0,0,0,0)
-  tkSpecial = {tkDot, tkColon, tkLcurly, tkRcurly,
-          tkLpar, tkRpar, tkId, tkAssign, tkComma,
+  tkSpecial = {tkDot, tkColon, tkLC, tkRC,
+          tkLP, tkRP, tkId, tkAssign, tkComma,
           tkAt, tkNot, tkAmp} + tkCalc + tkOperators + tkLoops
   svgscTags = {
     tkSvg_path, tkSvg_circle, tkSvg_polyline, tkSvg_animate,
@@ -175,7 +175,7 @@ proc walk(p: var Parser, offset = 1) =
 proc getOperator(tk: TokenKind): OperatorType =
   case tk:
     of tkEq: result = EQ
-    of tkNeq: result = NE
+    of tkNe: result = NE
     of tkLt: result = LT
     of tkLte: result = LTE
     of tkGt: result = GT
@@ -253,7 +253,7 @@ proc parseVariable(p: var Parser): Node =
     walk p
   else:
     varVisibility = VarVisibility.InternalVar
-  if p.curr.kind in {tkDot, tkLbra}:
+  if p.curr.kind in {tkDot, tkLB}:
     walk p
   if p.curr.kind == tkIdentifier or p.curr.kind notin tkSpecial and p.curr.kind != tkEof:
     this = p.curr
@@ -269,11 +269,11 @@ proc parseVariable(p: var Parser): Node =
           walk p # .
           if p.curr.wsno != 0: break
         else: p.setError(InvalidVarDeclaration, true)
-      elif p.curr.kind == tkLbra:
+      elif p.curr.kind == tkLB:
         if p.next.kind != tkInteger:
           p.setError(InvalidArrayIndex, true)
         walk p # [
-        if p.next.kind != tkRbra:
+        if p.next.kind != tkRB:
           p.setError(InvalidAccessorDeclaration, true)
         accessors.add(p.parseInteger())
         walk p # ]
@@ -330,11 +330,11 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
         else:
           result[attrKey] = @[newString(p.next)]
         walk p, 2
-        while p.curr.kind == tkLcurly and p.next.kind == tkVariable:
+        while p.curr.kind == tkLC and p.next.kind == tkVariable:
           # parse string interpolation
           walk p
           result[attrKey][^1].sConcat.add(p.parseVariable())
-          if p.curr.kind == tkRcurly:
+          if p.curr.kind == tkRC:
             walk p
           else: p.setError(InvalidStringInterpolation, true)
       else:
@@ -382,14 +382,14 @@ proc getHtmlAttributes(p: var Parser): HtmlAttributes =
       #   break
       if p.curr.kind == tkGt:
         break
-    elif p.curr.kind == tkLpar:
+    elif p.curr.kind == tkLP:
       # parse short hand conditional statement
       let this = p.curr
       let infixNode = p.parseInfix()
       if p.curr.kind == tkSif:
         walk p # ?
         var ifBody = p.getHtmlAttributes()
-        if p.curr.kind != tkRpar:
+        if p.curr.kind != tkRP:
           p.setError(InvalidConditionalStmt, true)
         walk p # )
         let astNode = newShortIfExpression((infixNode, ifBody), this) 
@@ -643,7 +643,7 @@ proc parseCall(p: var Parser): Node =
   walk p, 2 # ident + (
   var params: seq[Node]
   while p.curr.line == tk.line:
-    if p.curr.kind == tkRpar: break
+    if p.curr.kind == tkRP: break
     elif p.curr.kind in tkComparables:
       let node = p.parseExpression()
       if node != nil:
@@ -653,7 +653,7 @@ proc parseCall(p: var Parser): Node =
       walk p
     else:
       break
-  if p.curr.kind == tkRpar:
+  if p.curr.kind == tkRP:
     walk p # )
   else:
     p.setError("EOL reached before closing call statement")
@@ -671,12 +671,12 @@ proc parseMixinDefinition(p: var Parser): Node =
   walk p
   let ident = p.curr
   result = newMixinDef(p.curr)
-  if p.next.kind != tkLpar:
+  if p.next.kind != tkLP:
     p.setError(InvalidMixinDefinition % [ident.value])
     return
   walk p, 2
 
-  while p.curr.kind != tkRpar:
+  while p.curr.kind != tkRP:
     var paramDef: ParamTuple
     if p.curr.kind == tkIdentifier:
       paramDef.key = p.curr.value
@@ -743,20 +743,20 @@ proc parseDoBlock(p: var Parser): Node =
 proc getPrefixFn(p: var Parser, kind: TokenKind): PrefixFunction =
   result = case kind
     of tkInteger: parseInteger
-    of tkBool_true, tkBool_false: parseBoolean
+    of tkBool: parseBoolean
     of tkString: parseString
     of tkIf: parseIfStmt
     of tkFor: parseForStmt
     of tkJs, tkSass, tkJson, tkYaml: parseSnippet
     of tkInclude: parseIncludeCall
     of tkMixin:
-      if p.next.kind == tkLpar:
+      if p.next.kind == tkLP:
         parseMixinCall
       elif p.next.kind == tkIdentifier:
         parseMixinCall
       else: nil
     of tkCall:
-      if p.next.kind == tkLpar:
+      if p.next.kind == tkLP:
         parseCall
       else: nil
     of tkVariable: parseVariable

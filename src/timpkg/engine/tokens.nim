@@ -7,11 +7,8 @@
 
 import toktok
 
-static:
-  Program.settings(false, "tk")
-
 handlers:
-  proc handleVarFmt*(lex: var Lexer, kind: TokenKind) =
+  proc handleVarFmt(lex: var Lexer, kind: TokenKind) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
     inc lex.bufpos
@@ -25,7 +22,7 @@ handlers:
       else: break
     lex.setToken kind
 
-  proc handleCalls*(lex: var Lexer, kind: TokenKind) =
+  proc handleCalls(lex: var Lexer, kind: TokenKind) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
     if lex.next("include"):
@@ -46,7 +43,7 @@ handlers:
           break
       lex.setToken tkCall
 
-  proc handleSnippets*(lex: var Lexer, kind: TokenKind) =    
+  proc handleSnippets(lex: var Lexer, kind: TokenKind) =    
     lex.startPos = lex.getColNumber(lex.bufpos)
     var k = tkJs
     if lex.next("``javascript"):
@@ -84,260 +81,268 @@ handlers:
         add lex.token, lex.buf[lex.bufpos]
         inc lex.bufpos
 
-  proc handleDoBlock*(lex: var Lexer, kind: TokenKind) =
+  proc handleDoBlock(lex: var Lexer, kind: TokenKind) =
     lex.startPos = lex.getColNumber(lex.bufpos)
     setLen(lex.token, 0)
 
-tokens:
-  A            > "a"
-  Abbr         > "abbr"
-  Acronym      > "acronym"
-  Address      > "address"
-  Applet       > "applet"
-  Area         > "area"
-  Article      > "article"
-  Aside        > "aside"
-  Audio        > "audio"
-  Bold         > "b"
-  Base         > "base"
-  Basefont     > "basefont"
-  Bdi          > "bdi"
-  Bdo          > "bdo"
-  Big          > "big"
-  Blockquote   > "blockquote"
-  Body         > "body"
-  Br           > "br"
-  Button       > "button"
-  Divide       > '/':
-    Comment  > '/' .. EOL
-  Canvas       > "canvas"
-  Caption      > "caption"
-  Center       > "center"
-  Cite         > "cite"
-  Code         > "code"
-  Col          > "col"
-  Colgroup     > "colgroup"
-  Data         > "data"
-  Datalist     > "datalist"
-  DD           > "dd"
-  Del          > "del"
-  Details      > "details"
-  DFN          > "dfn"
-  Dialog       > "dialog"
-  Dir          > "dir"
-  Div          > "div"
-  Doctype      > "doctype"
-  DL           > "dl"
-  DT           > "dt"
-  EM           > "em"
-  Embed        > "embed"
-  Fieldset     > "fieldset"
-  Figcaption   > "figcaption"
-  Figure       > "figure"
-  Font         > "font"
-  Footer       > "footer"
-  Form         > "form"
-  Frame        > "frame"
-  Frameset     > "frameset"
-  H1           > "h1"
-  H2           > "h2"
-  H3           > "h3"
-  H4           > "h4"
-  H5           > "h5"
-  H6           > "h6"
-  Head         > "head"
-  Header       > "header"
-  Hr           > "hr"
-  Html         > "html"
-  Italic       > "i"
-  Iframe       > "iframe"
-  Img          > "img"
-  Input        > "input"
-  Ins          > "ins"
-  Kbd          > "kbd"
-  Label        > "label"
-  Legend       > "legend"
-  Li           > "li"
-  Link         > "link"
-  Main         > "main"
-  Map          > "map"
-  Mark         > "mark"
-  Meta         > "meta"
-  Meter        > "meter"
-  Nav          > "nav"
-  Noframes     > "noframes"
-  Noscript     > "noscript"
-  Object       > "object"
-  Ol           > "ol"
-  Optgroup     > "optgroup"
-  Option       > "option"
-  Output       > "output"
-  Paragraph    > "p"
-  Param        > "param"
-  Pre          > "pre"
-  Progress     > "progress"
-  Quotation    > "q"
-  RP           > "rp"
-  RT           > "rt"
-  Ruby         > "ruby"
-  Strike       > "s"
-  Samp         > "samp"
-  Script       > "script"
-  Section      > "section"
-  Select       > "select"
-  Small        > "small"
-  Source       > "source"
-  Span         > "span"
-  Strike_Long  > "strike"
-  Strong       > "strong"
-  Style        > "style"
-  Sub          > "sub"
-  Summary      > "summary"
-  Sup          > "sup"
-  # 
-  # SVG Support
-  # 
-  SVG                  > "svg"
-  SVG_Animate          > "animate"
-  SVG_AnimateMotion    > "animateMotion"
-  SVG_AnimateTransform > "animateTransform"
-  SVG_Circle           > "circle"
-  SVG_ClipPath         > "clipPath"
-  SVG_Defs             > "defs"
-  SVG_Desc             > "desc"
-  SVG_Discard          > "discard"
-  SVG_Ellipse          > "ellipse"
-  SVG_Fe_Blend         > "feBlend"
-  SVG_Fe_ColorMatrix   > "feColorMatrix"
-  SVG_Fe_ComponentTransfer    > "feComponentTransfer"
-  SVG_Fe_Composite            > "feComposite"
-  SVG_Fe_ConvolveMatrix       > "feConvolveMatrix"
-  SVG_Fe_DiffuseLighting      > "feDiffuseLighting"
-  SVG_Fe_DisplacementMap      > "feDisplacementMap"
-  SVG_Fe_DistantLight         > "feDistantLight"
-  SVG_Fe_DropShadow           > "feDropShadow"
-  SVG_Fe_Flood                > "feFlood"
-  SVG_Fe_FuncA                > "feFuncA"
-  SVG_Fe_FuncB                > "feFuncB"
-  SVG_Fe_FuncG                > "feFuncG"
-  SVG_Fe_FuncR                > "feFuncR"
-  SVG_Fe_GaussianBlur         > "feGaussianBlur"
-  SVG_Fe_Image                > "feImage"
-  SVG_Fe_Merge                > "feMerge"
-  SVG_Fe_Morphology           > "feMorphology"
-  SVG_Fe_Offset               > "feOffset"
-  SVG_Fe_PointLight           > "fePointLight"
-  SVG_Fe_SpecularLighting     > "feSpecularLighting"
-  SVG_Fe_SpotLight            > "feSpotLight"
-  SVG_Fe_Title                > "feTitle"
-  SVG_Fe_Turbulence           > "feTurbulence"
-  SVG_Filter                  > "filter"
-  SVG_foreignObject           > "foreignObject"
-  SVG_G                       > "g"
-  SVG_Hatch                   > "hatch"
-  SVG_HatchPath               > "hatchpath"
-  SVG_Image                   > "image"
-  SVG_Line                    > "line"
-  SVG_LinearGradient          > "linearGradient"
-  SVG_Marker                  > "marker"
-  SVG_Mask                    > "mask"
-  SVG_Metadata                > "metadata"
-  SVG_Mpath                   > "mpath"
-  SVG_Path                    > "path"
-  SVG_Pattern                 > "pattern"
-  SVG_Polygon                 > "polygon"
-  SVG_Polyline                > "polyline"
-  SVG_RadialGradient          > "radialGradient"
-  SVG_Rect                    > "rect"
-  SVG_Set                     > "set"
-  SVG_Stop                    > "stop"
-  SVG_Switch                  > "switch"
-  SVG_Symbol                  > "symbol"
-  SVG_Text                    > "text"
-  SVG_TextPath                > "textpath"
-  SVG_TSpan                   > "tspan"
-  SVG_Use                     > "use"
-  SVG_View                    > "view"
+  proc handleCustomIdent(lex: var Lexer, kind: TokenKind) =
+    ## Handle variable declarations based the following char sets
+    ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    setLen(lex.token, 0)
+    inc lex.bufpos
+    while true:
+      if lex.hasLetters(lex.bufpos):
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
+      elif lex.hasNumbers(lex.bufpos):
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
+      else:
+        dec lex.bufpos
+        break
+    lex.setToken kind
 
-  Table        > "table"
-  Tbody        > "tbody"
-  TD           > "td"
-  Template     > "template"
-  Textarea     > "textarea"
-  Tfoot        > "tfoot"
-  TH           > "th"
-  Thead        > "thead"
-  Time         > "time"
-  Title        > "title"
-  TR           > "tr"
-  Track        > "track"
-  TT           > "tt"
-  Underline    > "u"  
-  UL           > "ul"
-  Var          > "var"
-  Video        > "video"
-  WBR          > "wbr"
-  Attr                        # a tkIdentifier followed by `=` becomes tkAttr
-  JS
-  SASS
-  YAML
-  JSON
-  Snippet           > tokenize(handleSnippets, '`')
-  LCurly       > '{'
-  RCurly       > '}'
-  LPar         > '('
-  RPar         > ')'
-  LBra         > '['
-  RBra         > ']'
-  Dot          > '.'
-  ID           > '#'
-  Assign       > '=':
-    EQ       ? '='
-  Colon        > ':'
-  Comma        > ','
-  GT           > '>':
-    GTE      ? '='
-  LT           > '<':
-    LTE      ? '='
-  AMP          > '&'
-  Variable          > tokenize(handleCustomIdent, '$')
-  Safe_Variable     > tokenize(handleCustomIdent, '%')
-  If           > "if"
-  Elif         > "elif"
-  Else         > "else"
-  SIf          > '?'      # short hand `if` statement
-  SElse        > '|'      # short hand `else` statement
-  And          > "and"
-  For          > "for"
-  In           > "in"
-  Or           > "or"
-  Bool_True    > "true"
-  Bool_False   > "false"
-  Not          > '!':
-    NEQ      ? '='
-  At           > tokenize(handleCalls, '@')
-  Runtime
-  Include
-  View
-  StartsWith
-  EndsWith
-  Mixin
-  Call
-  # At           > '@':
-    # Do ? tokenize(handleDoBlock, "do")
-  #   Include  ? "include"
-  #   Mixin    ? "mixin"
-  #   View     ? "view"
-  #   StartsWith > "startsWith"
-  #   EndsWith   > "endsWith"
-  #   Contaisn   > "contains"
-  PLUS         > '+'
-  MINUS        > '-'
-  MULTI        > '*'
-  Defer        > "defer"
-  Type_Bool         > "bool"
-  Type_Int          > "int"
-  Type_String       > "string"
-  None
+registerTokens defaultSettings:
+  a           = "a"
+  abbr        = "abbr"
+  acronym     = "acronym"
+  address     = "address"
+  applet      = "applet"
+  area        = "area"
+  article     = "article"
+  aside       = "aside"
+  audio       = "audio"
+  bold        = "b"
+  base        = "base"
+  basefont    = "basefont"
+  bdi         = "bdi"
+  bdo         = "bdo"
+  big         = "big"
+  blockquote  = "blockquote"
+  body        = "body"
+  br          = "br"
+  button      = "button"
+  divide      = '/':
+    comment = '/' .. EOL
+  canvas      = "canvas"
+  caption     = "caption"
+  center      = "center"
+  cite        = "cite"
+  code        = "code"
+  col         = "col"
+  colgroup    = "colgroup"
+  data        = "data"
+  datalist    = "datalist"
+  dD          = "dd"
+  del         = "del"
+  details     = "details"
+  dFN         = "dfn"
+  dialog      = "dialog"
+  dir         = "dir"
+  `div`         = "div"
+  doctype     = "doctype"
+  dl          = "dl"
+  dt          = "dt"
+  em          = "em"
+  embed       = "embed"
+  fieldset    = "fieldset"
+  figcaption  = "figcaption"
+  figure      = "figure"
+  font        = "font"
+  footer      = "footer"
+  form        = "form"
+  frame       = "frame"
+  frameset    = "frameset"
+  h1          = "h1"
+  h2          = "h2"
+  h3          = "h3"
+  h4          = "h4"
+  h5          = "h5"
+  h6          = "h6"
+  head        = "head"
+  header      = "header"
+  hr          = "hr"
+  html        = "html"
+  italic      = "i"
+  iframe      = "iframe"
+  img         = "img"
+  input       = "input"
+  ins         = "ins"
+  kbd         = "kbd"
+  label       = "label"
+  legend      = "legend"
+  li          = "li"
+  link        = "link"
+  main        = "main"
+  map         = "map"
+  mark        = "mark"
+  meta        = "meta"
+  meter       = "meter"
+  nav         = "nav"
+  noframes    = "noframes"
+  noscript    = "noscript"
+  `object`      = "object"
+  ol          = "ol"
+  optgroup    = "optgroup"
+  option      = "option"
+  output      = "output"
+  paragraph   = "p"
+  param       = "param"
+  pre         = "pre"
+  progress    = "progress"
+  quotation   = "q"
+  rp          = "rp"
+  rt          = "rt"
+  ruby        = "ruby"
+  strike      = "s"
+  samp        = "samp"
+  script      = "script"
+  section     = "section"
+  select      = "select"
+  small       = "small"
+  source      = "source"
+  span        = "span"
+  strike_Long = "strike"
+  strong      = "strong"
+  style       = "style"
+  sub         = "sub"
+  summary     = "summary"
+  sup         = "sup"
+
+  svg                 = "svg"
+  svg_Animate         = "animate"
+  svg_AnimateMotion   = "animateMotion"
+  svg_AnimateTransform = "animateTransform"
+  svg_Circle          = "circle"
+  svg_ClipPath        = "clipPath"
+  svg_Defs            = "defs"
+  svg_Desc            = "desc"
+  svg_Discard         = "discard"
+  svg_Ellipse         = "ellipse"
+  svg_Fe_Blend        = "feBlend"
+  svg_Fe_ColorMatrix  = "feColorMatrix"
+  svg_Fe_ComponentTransfer   = "feComponentTransfer"
+  svg_Fe_Composite           = "feComposite"
+  svg_Fe_ConvolveMatrix      = "feConvolveMatrix"
+  svg_Fe_DiffuseLighting     = "feDiffuseLighting"
+  svg_Fe_DisplacementMap     = "feDisplacementMap"
+  svg_Fe_DistantLight        = "feDistantLight"
+  svg_Fe_DropShadow          = "feDropShadow"
+  svg_Fe_Flood               = "feFlood"
+  svg_Fe_FuncA               = "feFuncA"
+  svg_Fe_FuncB               = "feFuncB"
+  svg_Fe_FuncG               = "feFuncG"
+  svg_Fe_FuncR               = "feFuncR"
+  svg_Fe_GaussianBlur        = "feGaussianBlur"
+  svg_Fe_Image               = "feImage"
+  svg_Fe_Merge               = "feMerge"
+  svg_Fe_Morphology          = "feMorphology"
+  svg_Fe_Offset              = "feOffset"
+  svg_Fe_PointLight          = "fePointLight"
+  svg_Fe_SpecularLighting    = "feSpecularLighting"
+  svg_Fe_SpotLight           = "feSpotLight"
+  svg_Fe_Title               = "feTitle"
+  svg_Fe_Turbulence          = "feTurbulence"
+  svg_Filter                 = "filter"
+  svg_foreignObject          = "foreignObject"
+  svg_G                      = "g"
+  svg_Hatch                  = "hatch"
+  svg_HatchPath              = "hatchpath"
+  svg_Image                  = "image"
+  svg_Line                   = "line"
+  svg_LinearGradient         = "linearGradient"
+  svg_Marker                 = "marker"
+  svg_Mask                   = "mask"
+  svg_Metadata               = "metadata"
+  svg_Mpath                  = "mpath"
+  svg_Path                   = "path"
+  svg_Pattern                = "pattern"
+  svg_Polygon                = "polygon"
+  svg_Polyline               = "polyline"
+  svg_RadialGradient         = "radialGradient"
+  svg_Rect                   = "rect"
+  svg_Set                    = "set"
+  svg_Stop                   = "stop"
+  svg_Switch                 = "switch"
+  svg_Symbol                 = "symbol"
+  svg_Text                   = "text"
+  svg_TextPath               = "textpath"
+  svg_TSpan                  = "tspan"
+  svg_Use                    = "use"
+  svg_View                   = "view"
+
+  table       = "table"
+  tbody       = "tbody"
+  td          = "td"
+  `template`  = "template"
+  textarea    = "textarea"
+  tfoot       = "tfoot"
+  tH          = "th"
+  thead       = "thead"
+  time        = "time"
+  title       = "title"
+  tR          = "tr"
+  track       = "track"
+  tT          = "tt"
+  underline   = "u"  
+  uL          = "ul"
+  `var`         = "var"
+  video       = "video"
+  wbr         = "wbr"
+  attr                        # a tkIdentifier followed by `=` becomes tkAttr
+  js
+  sass
+  yaml
+  json
+  snippet          = tokenize(handleSnippets, '`')
+  lc = '{'
+  rc = '}'
+  lp = '('
+  rp = ')'
+  lb   = '['
+  rb   = ']'
+  dot  = '.'
+  id   = '#'
+  assign = '=':
+    eq   = '='
+  colon  = ':'
+  comma  = ','
+  gt     = '>':
+    gte  = '='
+  lt     = '<':
+    lte  = '='
+  amp    = '&'
+  variable = tokenize(handleCustomIdent, '$')
+  safeVariable = tokenize(handleCustomIdent, '%')
+  `if`   = "if"
+  `elif` = "elif"
+  `else` = "else"
+  sif    = '?'      # short hand `if` statement
+  selse  = '|'      # short hand `else` statement
+  `and`  = "and"
+  `for`  = "for"
+  `in`   = "in"
+  `or`   = "or"
+  `bool` = ["true", "false"]
+  `not`  = '!':
+    ne = '='
+  at = tokenize(handleCalls, '@')
+  runtime
+  `include`
+  `view`
+  startsWith
+  endsWith
+  `mixin`
+  call
+  plus = '+'
+  minus = '-'
+  multi = '*'
+  `defer` = "defer"
+  typeBool = "bool"
+  typeInt = "int"
+  typeString = "string"
+  typeFloat = "float"
+  none
 
 #export TokenTuple, TokenKind
