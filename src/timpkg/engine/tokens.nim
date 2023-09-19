@@ -1,16 +1,15 @@
-# A high-performance compiled template engine
-# inspired by the Emmet syntax.
+# A blazing fast, cross-platform, multi-language
+# template engine and markup language written in Nim.
 #
-# (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim
+#    Made by Humans from OpenPeeps
+#    (c) George Lemon | LGPLv3 License
+#    https://github.com/openpeeps/tim
 
 import toktok
 
 handlers:
   proc handleVarFmt(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
+    lexReady lex
     inc lex.bufpos
     while true:
       if lex.hasLetters(lex.bufpos):
@@ -23,14 +22,59 @@ handlers:
     lex.setToken kind
 
   proc handleCalls(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
-    if lex.next("include"):
+    template collectSnippet(tkind: TokenKind) =
+      while true:
+        case lex.buf[lex.bufpos]
+        of EndOfFile:
+          lex.setError("EOF reached before closing @end")
+          return
+        of '@':
+          if lex.next("end"):
+            lex.kind = tkind
+            lex.token = lex.token.unindent(pos + 2)
+            inc lex.bufpos, 4
+            break
+          else:
+            add lex
+        else:
+          add lex
+    lexReady lex
+    if lex.next("js"):
+      # setLen(lex.token, 0)
+      let pos = lex.getColNumber(lex.bufpos)
+      inc lex.bufpos, 3
+      collectSnippet(tkJS)
+    elif lex.next("sass"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 5
+      # k = tkSass
+    elif lex.next("yaml"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 5
+      # k = tkYaml
+    elif lex.next("json"):
+      setLen(lex.token, 0)
+      inc lex.bufpos, 5
+      # k = tkJson
+    elif lex.next("include"):
       lex.setToken tkInclude, 8
-      lex.token = "include"
     elif lex.next("view"):
       lex.setToken tkView, 5
-      lex.token = "view"
+    elif lex.next("wasm"):
+      let pos = lex.getColNumber(lex.bufpos)
+      inc lex.bufpos, 5
+      if lex.buf[lex.bufpos] == '#':
+        var ident: string
+        while true:
+          if lex.buf[lex.bufpos] in Whitespace:
+            break
+          inc lex.bufpos
+          add ident, lex.buf[lex.bufpos]
+        lex.attr.add(ident.strip())
+        collectSnippet(tkWasm)
+      else:
+        lex.setError("Invalid Runtime snippet missing ID attribute")
+        return
     else:
       inc lex.bufpos
       setLen(lex.token, 0)
@@ -43,53 +87,47 @@ handlers:
           break
       lex.setToken tkCall
 
-  proc handleSnippets(lex: var Lexer, kind: TokenKind) =    
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    var k = tkJs
-    if lex.next("``javascript"):
-      setLen(lex.token, 0)
-      inc lex.bufpos, 13
-    elif lex.next("``sass"):
-      setLen(lex.token, 0)
-      inc lex.bufpos, 7
-      k = tkSass
-    elif lex.next("``yaml"):
-      setLen(lex.token, 0)
-      inc lex.bufpos, 7
-      k = tkYaml
-    elif lex.next("``json"):
-      setLen(lex.token, 0)
-      inc lex.bufpos, 7
-      k = tkJson
-    else:
-      lex.setError("Unknown snippet. Tim knows about `js`|`javascript` or `sass`")
-      return
-    while true:
-      case lex.buf[lex.bufpos]
-      of '`':
-        if lex.next("``"):
-          lex.kind = k
-          inc lex.bufpos, 3
-          break
-        else:
-          add lex.token, lex.buf[lex.bufpos]
-          inc lex.bufpos
-      of EndOfFile:
-        lex.setError("EOF reached before end of snippet")
-        return
-      else:
-        add lex.token, lex.buf[lex.bufpos]
-        inc lex.bufpos
-
-  proc handleDoBlock(lex: var Lexer, kind: TokenKind) =
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
+  # proc handleSnippets(lex: var Lexer, kind: TokenKind) =    
+  #   lex.startPos = lex.getColNumber(lex.bufpos)
+  #   var k = tkJs
+  #   if lex.next("javascript"):
+  #     setLen(lex.token, 0)
+  #     inc lex.bufpos, 11
+  #   elif lex.next("sass"):
+  #     setLen(lex.token, 0)
+  #     inc lex.bufpos, 5
+  #     k = tkSass
+  #   elif lex.next("yaml"):
+  #     setLen(lex.token, 0)
+  #     inc lex.bufpos, 5
+  #     k = tkYaml
+  #   elif lex.next("json"):
+  #     setLen(lex.token, 0)
+  #     inc lex.bufpos, 5
+  #     k = tkJson
+  #   else:
+  #     lex.setError("Unknown snippet. Tim knows about `js`|`javascript` or `sass`")
+  #     return
+  #   while true:
+  #     case lex.buf[lex.bufpos]
+  #     of '`':
+  #       if lex.next("``"):
+  #         lex.kind = k
+  #         inc lex.bufpos, 3
+  #         break
+  #       else:
+  #         add(lex)
+  #     of EndOfFile:
+  #       lex.setError("EOF reached before end of snippet")
+  #       return
+  #     else:
+  #       add lex.token, lex.buf[lex.bufpos]
+  #       inc lex.bufpos
 
   proc handleCustomIdent(lex: var Lexer, kind: TokenKind) =
     ## Handle variable declarations based the following char sets
     ## ``{'a'..'z', 'A'..'Z', '_', '-'}`` and ``{'0'..'9'}``
-    lex.startPos = lex.getColNumber(lex.bufpos)
-    setLen(lex.token, 0)
+    lexReady lex
     inc lex.bufpos
     while true:
       if lex.hasLetters(lex.bufpos):
@@ -295,7 +333,7 @@ registerTokens defaultSettings:
   sass
   yaml
   json
-  snippet          = tokenize(handleSnippets, '`')
+  # snippet = tokenize(handleSnippets, '`')
   lc = '{'
   rc = '}'
   lp = '('
@@ -328,13 +366,13 @@ registerTokens defaultSettings:
   `not`  = '!':
     ne = '='
   at = tokenize(handleCalls, '@')
-  runtime
   `include`
-  `view`
-  startsWith
-  endsWith
+  view
   `mixin`
   call
+  # `end`
+  runtime
+  wasm
   plus = '+'
   minus = '-'
   multi = '*'
@@ -344,5 +382,3 @@ registerTokens defaultSettings:
   typeString = "string"
   typeFloat = "float"
   none
-
-#export TokenTuple, TokenKind

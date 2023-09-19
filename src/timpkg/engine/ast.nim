@@ -1,9 +1,9 @@
-# A high-performance compiled template engine
-# inspired by the Emmet syntax.
+# A blazing fast, cross-platform, multi-language
+# template engine and markup language written in Nim.
 #
-# (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim
+#    Made by Humans from OpenPeeps
+#    (c) George Lemon | LGPLv3 License
+#    https://github.com/openpeeps/tim
 
 import std/[tables, json, jsonutils]
 
@@ -12,147 +12,41 @@ from std/enumutils import symbolName
 
 type
   NodeType* = enum
-    NTNone
-    NTStmtList
-    NTInt
-    NTFloat
-    NTString
-    NTBool
-    NTId
-    NTHtmlElement
-    NTStatement
-    NTConditionStmt
-    NTShortConditionStmt
-    NTForStmt
-    NTMixinStmt
-    NTPrefixStmt
-    NTInfixStmt
-    NTIncludeCall
-    NTCall
-    NTMixinCall
-    NTMixinDef
-    NTLet
-    NTVar
-    NTVariable
-    NTIdentifier
-    NTView
-    NTJavaScript
-    NTSass
-    NTJson
-    NTYaml
-    NTResult
-    NTDo
+    ntNone = "none"
+    ntStmtList = "StatementList"
+    ntInt = "int"
+    ntFloat = "float"
+    ntString = "string"
+    ntBool = "bool"
+    ntId = "ident"
+    ntHtmlElement = "HtmlElement"
+    ntStatement
+    ntVarExpr = "VariableDeclaration"
+    ntCondition = "ConditionStatement"
+    ntShortConditionStmt = "ShortConditionStatement"
+    ntForStmt = "ForStatement"
+    ntMixinStmt = "MixinStatement"
+    ntInfixStmt
+    ntIncludeCall
+    ntCall
+    ntMixinCall
+    ntMixinDef
+    ntLet
+    ntVar
+    ntVariable
+    ntIdentifier
+    ntView
+    ntJavaScript
+    ntSass
+    ntJson
+    ntYaml
+    ntResult
+    ntRuntime
 
-  HtmlNodeType* = enum
-    HtmlDoctype
-    HtmlA
-    HtmlAbbr
-    HtmlAcronym
-    HtmlAddress
-    HtmlApplet
-    HtmlArea
-    HtmlArticle
-    HtmlAside
-    HtmlAudio
-    HtmlB
-    HtmlBase
-    HtmlBasefont
-    HtmlBdi
-    HtmlBdo
-    HtmlBig
-    HtmlBlockquote
-    HtmlBody
-    HtmlBr
-    HtmlButton
-    HtmlCanvas
-    HtmlCaption
-    HtmlCenter
-    HtmlCite
-    HtmlCode
-    HtmlCol
-    HtmlColgroup
-    HtmlData
-    HtmlDatalist
-    HtmlDd
-    HtmlDel
-    HtmlDetails
-    HtmlDfn
-    HtmlDialog
-    HtmlDir
-    HtmlDiv
-    HtmlDl
-    HtmlDt
-    HtmlEm
-    HtmlEmbed
-    HtmlFieldset
-    HtmlFigcaption
-    HtmlFigure
-    HtmlFont
-    HtmlFooter
-    HtmlForm
-    HtmlFrame
-    HtmlFrameset
-    HtmlH1
-    HtmlH2
-    HtmlH3
-    HtmlH4
-    HtmlH5
-    HtmlH6
-    HtmlHead
-    HtmlHeader
-    HtmlHr
-    HtmlHtml
-    HtmlI
-    HtmlIframe
-    HtmlImg
-    HtmlInput
-    HtmlIns
-    HtmlKbd
-    HtmlLabel
-    HtmlLegend
-    HtmlLi
-    HtmlLink
-    HtmlMain
-    HtmlMap
-    HtmlMark
-    HtmlMeta
-    HtmlMeter
-    HtmlNav
-    HtmlNoframes
-    HtmlNoscript
-    HtmlObject
-    HtmlOl
-    HtmlOptgroup
-    HtmlOption
-    HtmlOutput
-    HtmlP
-    HtmlParam
-    HtmlPre
-    HtmlProgress
-    HtmlQ
-    HtmlRp
-    HtmlRT
-    HtmlRuby
-    HtmlS
-    HtmlSamp
-    HtmlScript
-    HtmlSection
-    HtmlSelect
-    HtmlSmall
-    HtmlSource
-    HtmlSpan
-    HtmlStrike
-    HtmlStrong
-    HtmlStyle
-    HtmlSub
-    HtmlSummary
-    HtmlSup
-    HtmlTextarea
-  
-  OperatorType* {.pure.} = enum
-    None
+  InfixOp* {.pure.} = enum
+    None = "none" 
     EQ          = "=="
-    NE          = "!="
+    NEQ         = "!="
     GT          = ">"
     GTE         = ">="
     LT          = "<"
@@ -171,72 +65,63 @@ type
     None, Key, Value
 
   VarVisibility* = enum
-    ## Defines three types of variables:
-    ##
-    ## - `GlobalVar` is reserved for data provided at the main level of your app using `setData()`. Global variables can be accessed in tim templates using `$app` object.
-    ##
-    ## - `ScopeVar` variables are defined at controller level via `render()` proc and exposed to its view, layout and partials under `$this` object.
-    ##
-    ## - `InternalVar` variables have some limitations. Can be defined in timl templates, and can hold either `string`, `int`, `float`, `bool`.
-    ##
-    ## **Note:** `$app` and `$this` are reserved variables.
-    ## **Note** Global/Scope variables can be accessed using dot notation.
     GlobalVar
     ScopeVar
     InternalVar
 
-  Node* = ref object
-    nodeName*: string
-    case nodeType*: NodeType
-    of NTInt: 
+  Node* {.acyclic.} = ref object
+    case nt*: NodeType
+    of ntInt: 
       iVal*: int
-    of NTFloat:
+    of ntFloat:
       fVal*: float
-    of NTString:
+    of ntString:
       sVal*: string
       sConcat*: seq[Node]
-    of NTBool:
+    of ntBool:
       bVal*: bool
-    of NTId:
+    of ntId:
       idVal*: string
-    of NTConditionStmt:
+    of ntCondition:
       ifCond*: Node
       ifBody*, elseBody*: seq[Node]
       elifBranch*: ElifBranch
-    of NTShortConditionStmt:
+    of ntShortConditionStmt:
       sIfCond*: Node
       sIfBody*: HtmlAttributes
-    of NTForStmt:
-      forItem*: Node  # NTVariable
-      forItems*: Node # NTVariable
+    of ntForStmt:
+      forItem*: Node  # ntVariable
+      forItems*: Node # ntVariable
       forBody*: seq[Node]
-    of NTHtmlElement:
+    of ntHtmlElement:
       htmlNodeName*: string
-      htmlNodeType*: HtmlNodeType
       attrs*: HtmlAttributes
       nodes*: seq[Node]
-      issctag*: bool
-    of NTStmtList:
+      selfCloser*: bool
+    of ntStmtList:
       stmtList*: Node
-    of NTInfixStmt:
-      infixOp*: OperatorType
-      infixOpSymbol*: string
+    of ntInfixStmt:
+      infixOp*: InfixOp
       infixLeft*, infixRight*: Node
-    of NTIncludeCall:
+    of ntIncludeCall:
       includeIdent*: string
-    of NTCall:
+    of ntCall:
       callIdent*: string
-      callParams*: seq[Node] # NTString or NTVariable
-    of NTMixinCall:
+      callParams*: seq[Node] # ntString or ntVariable
+    of ntMixinCall:
       mixinIdent*: string
-    of NTMixinDef:
+    of ntMixinDef:
       mixinIdentDef*: string
       mixinParamsDef*: seq[ParamTuple]
       mixinBody*: seq[Node]
-    of NTVariable:
+    of ntVarExpr:
+      varIdentExpr*: string
+      varTypeExpr*: NodeType # ntBool, ntInt, ntString, ntFloat
+      varValue*: Node
+    of ntVariable: # todo rename ntVarCall
       varIdent*: string
       varSymbol*: string
-      varType*: NodeType # NTBool, NTInt, NTString
+      varType*: NodeType # ntBool, ntInt, ntString, ntFloat
       visibility*: VarVisibility
       isSafeVar*: bool
       dataStorage*: bool
@@ -245,103 +130,97 @@ type
       of Key:
         byKey*: string
       else: discard
-    of NTJavaScript:
+    of ntJavaScript:
       jsCode*: string
-    of NTSass:
+    of ntSass:
       sassCode*: string
-    of NTJson:
-      jsonIdent*: string
-      jsonCode*: string
-    of NTYaml:
+    of ntJson:
+      jsonIdent*, jsonCode*: string
+    of ntYaml:
       yamlCode*: string
-    of NTDo:
-      doRuntime*: seq[Node]
+    of ntRuntime:
+      runtimeIdent*, runtimeCode*: string
     else: discard
     meta*: MetaNode
 
-  Program* = object
+  Tree* = object
     nodes*: seq[Node]
 
 proc `$`*(node: Node): string =
   result = pretty(toJson(node))
 
-proc getSymbolName*(symbol: NodeType|OperatorType): string =
-  # Get stringified symbol name (useful for debugging, otherwise is empty) 
-  when not defined release:
-    result = symbolName(symbol)
-  else: result = ""
+proc `$`*(tree: Tree): string =
+  result = pretty(toJson(tree))
 
 proc newNode*(nt: NodeType, tk: TokenTuple): Node =
   ## Create a new Node
-  result = Node(nodeName: getSymbolName(nt), nodeType: nt)
+  result = Node(nt: nt)
   result.meta = (tk.line, tk.pos, tk.col, tk.wsno)
 
 proc newSnippet*(tk: TokenTuple, ident = ""): Node =
-  ## Add a new Snippet node. It can be `NTJavaScript`,
-  ## `NTSass`, `NTJSON` or `NTYaml`
+  ## Add a new Snippet node. It can be `ntJavaScript`,
+  ## `ntSass`, `ntJSON` or `ntYaml`
   if tk.kind == tkJS:
-    result = newNode(NTJavaScript, tk)
+    result = newNode(ntJavaScript, tk)
   elif tk.kind == tkSASS:
-    result = newNode(NTSass, tk)
+    result = newNode(ntSass, tk)
   elif tk.kind == tkJSON:
-    result = newNode(NTJSon, tk)
+    result = newNode(ntJSon, tk)
     result.jsonIdent = ident
   elif tk.kind == tkYAML:
-    result = newNode(NTYaml, tk)
+    result = newNode(ntYaml, tk)
 
 proc newExpression*(expression: Node): Node =
-  ## Add a new `NTStmtList` expression node
+  ## Add a new `ntStmtList` expression node
   result = Node(
-    nodeName: getSymbolName(NTStmtList),
-    nodeType: NTStmtList,
+    nt: ntStmtList,
     stmtList: expression
   )
 
-proc newInfix*(infixLeft, infixRight: Node, infixOp: OperatorType): Node =
-  ## Add a new `NTInfixStmt` node
+proc newInfix*(infixLeft, infixRight: Node, infixOp: InfixOp): Node =
+  ## Add a new `ntInfixStmt` node
   Node(
-    nodeName: getSymbolName(NTInfixStmt),
-    nodeType: NTInfixStmt,
+    nt: ntInfixStmt,
     infixLeft: infixLeft,
     infixRight: infixRight,
     infixOp: infixOp,
-    infixOpSymbol: getSymbolName(infixOp)
   )
+
+proc newVar*(tk: TokenTuple, varType: NodeType, varValue: Node): Node =
+  result = newNode(ntVarExpr, tk)
+  result.varIdentExpr = tk.value
+  result.varTypeExpr = varType
+  result.varValue = varValue
 
 proc newInfix*(infixLeft: Node): Node =
-  ## Add a new `NTInfixStmt` node
-  Node(
-    nodeName: getSymbolName(NTInfixStmt),
-    nodeType: NTInfixStmt,
-    infixLeft: infixLeft,
-    # infixRight: infixRight,
-    # infixOp: infixOp,
-    # infixOpSymbol: getSymbolName(infixOp)
-  )
+  ## Add a new `ntInfixStmt` node
+  Node(nt: ntInfixStmt, infixLeft: infixLeft)
 
 proc newInt*(iVal: int, tk: TokenTuple): Node =
-  ## Add a new `NTInt` node
-  Node(nodeName: getSymbolName(NTInt), nodeType: NTInt, iVal: iVal, meta: (tk.line, tk.pos, tk.col, tk.wsno))
+  ## Add a new `ntInt` node
+  Node(nt: ntInt, iVal: iVal, meta: (tk.line, tk.pos, tk.col, tk.wsno))
 
 proc newBool*(bVal: bool): Node =
-  ## Add a new `NTBool` node
-  Node(nodeName: getSymbolName(NTBool), nodeType: NTBool, bVal: bVal)
+  ## Add a new `ntBool` node
+  Node(nt: ntBool, bVal: bVal)
+
+proc newFloat*(fVal: float): Node =
+  ## Add a new `ntFloat` node
+  Node(nt: ntFloat, fVal: fVal) 
 
 proc newString*(tk: TokenTuple, strs: seq[Node] = @[]): Node =
-  ## Add a new `NTString` node
+  ## Add a new `ntString` node
   Node(
-    nodeName: getSymbolName(NTString),
-    nodeType: NTString,
+    nt: ntString,
     sVal: tk.value,
     sConcat: strs,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
   )
 
 proc newHtmlElement*(tk: TokenTuple): Node =
-  ## Add a new `NTHtmlElement` node
+  ## Add a new `ntHtmlElement` node
   Node(
-    nodeName: getSymbolName(NTHtmlElement),
-    nodeType: NTHtmlElement,
+    nt: ntHtmlElement,
     htmlNodeName: tk.value,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
   )
@@ -349,8 +228,7 @@ proc newHtmlElement*(tk: TokenTuple): Node =
 proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
   ## Add a mew Conditional node
   Node(
-    nodeName: getSymbolName(NTConditionStmt),
-    nodeType: NTConditionStmt,
+    nt: ntCondition,
     ifCond: ifBranch.cond,
     ifBody: ifBranch.body,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
@@ -359,42 +237,41 @@ proc newIfExpression*(ifBranch: IfBranch, tk: TokenTuple): Node =
 proc newShortIfExpression*(ifBranch: SIfBranch, tk: TokenTuple): Node =
   ## Add a new short hand conditional node
   Node(
-    nodeName: getSymbolName(NTShortConditionStmt),
-    nodeType: NTShortConditionStmt,
+    nt: ntShortConditionStmt,
     sIfCond: ifBranch.cond,
     sIfBody: ifBranch.body,
     meta: (tk.line, tk.pos, tk.col, tk.wsno)
   )
 
 proc newCall*(ident: string, params: seq[Node]): Node =
-  ## Add a new `NTCall` node
-  Node(nodeName: getSymbolName(NTCall), nodeType: NTCall, callIdent: ident, callParams: params)
+  ## Add a new `ntCall` node
+  Node(nt: ntCall, callIdent: ident, callParams: params)
 
 proc newMixin*(tk: TokenTuple): Node =
-  ## Add a new `NTMixinCall` node
-  Node(nodeName: getSymbolName(NTMixinCall), nodeType: NTMixinCall, mixinIdent: tk.value)
+  ## Add a new `ntMixinCall` node
+  Node(nt: ntMixinCall, mixinIdent: tk.value)
 
 proc newMixinDef*(tk: TokenTuple): Node = 
-  Node(nodeName: getSymbolName(NTMixinDef), nodeType: NTMixinDef, mixinIdentDef: tk.value)
+  Node(nt: ntMixinDef, mixinIdentDef: tk.value)
 
 proc newView*(tk: TokenTuple): Node =
-  Node(nodeName: getSymbolName(NTView), nodeType: NTView, meta: (tk.line, tk.pos, tk.col, tk.wsno))
+  Node(nt: ntView, meta: (tk.line, tk.pos, tk.col, tk.wsno))
 
 proc newInclude*(ident: string): Node =
-  ## Add a new `NTIncludeCall` node
-  Node(nodeName: getSymbolName(NTIncludeCall), nodeType: NTIncludeCall, includeIdent: ident)
+  ## Add a new `ntIncludeCall` node
+  Node(nt: ntIncludeCall, includeIdent: ident)
 
 proc newFor*(itemVarIdent, itemsVarIdent: Node, body: seq[Node], tk: TokenTuple): Node =
-  ## Add a new `NTForStmt` node
-  result = newNode(NTForStmt, tk)
+  ## Add a new `ntForStmt` node
+  result = newNode(ntForStmt, tk)
   result.forBody = body
   result.forItem = itemVarIdent
   result.forItems = itemsVarIdent
 
 proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false,
-        varType = NTString, varVisibility: VarVisibility = GlobalVar): Node =
-  ## Add a new `NTVariable` node
-  result = newNode(NTVariable, tk)
+        varType = ntString, varVisibility: VarVisibility = GlobalVar): Node =
+  ## Add a new `ntVariable` node
+  result = newNode(ntVariable, tk)
   result.varIdent = tk.value
   result.varSymbol = "$" & tk.value
   result.isSafeVar = isSafeVar
@@ -404,8 +281,7 @@ proc newVariable*(tk: TokenTuple, isSafeVar, dataStorage = false,
 
 proc newVarCallKeyAccessor*(tk: TokenTuple, fid: string): Node =
   result = Node(
-    nodeName: getSymbolName(NTVariable),
-    nodeType:  NTVariable,
+    nt:  ntVariable,
     accessorKind: Key,
     byKey: fid,
     varIdent: tk.value,
@@ -415,8 +291,7 @@ proc newVarCallKeyAccessor*(tk: TokenTuple, fid: string): Node =
 
 proc newVarCallValAccessor*(tk: TokenTuple): Node =
   result = Node(
-    nodeName: getSymbolName(NTVariable),
-    nodeType:  NTVariable,
+    nt:  ntVariable,
     accessorKind: Value,
     varIdent: tk.value,
     varSymbol: "$" & tk.value,
@@ -424,8 +299,4 @@ proc newVarCallValAccessor*(tk: TokenTuple): Node =
   )
 
 proc newRuntime*(tk: TokenTuple): Node =
-  result = Node(
-    nodeName: getSymbolName(NTDo),
-    nodeType: NTDo,
-    meta: (tk.line, tk.pos, tk.col, tk.wsno)
-  )
+  result = Node(nt: ntRuntime, runtimeCode: tk.value, runtimeIdent: tk.attr[0])

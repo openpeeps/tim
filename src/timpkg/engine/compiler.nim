@@ -1,381 +1,389 @@
-# A high-performance compiled template engine
-# inspired by the Emmet syntax.
+# A blazing fast, cross-platform, multi-language
+# template engine and markup language written in Nim.
 #
-# (c) 2023 George Lemon | MIT License
-#          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim
+#    Made by Humans from OpenPeeps
+#    (c) George Lemon | LGPLv3 License
+#    https://github.com/openpeeps/tim
 
-import std/[tables, macros, strutils]
-import pkg/pkginfo # sass
-import pkg/kapsis/cli
+import std/[tables, critbits, strutils, json]
+
 import ./ast
-
-when not defined timEngineStandalone:
-  import std/json
-
-from ./meta import TimEngine, Template, ImportFunction, NKind,
-                  setPlaceHolderId, getPlaceholderIndent, getType
-
-when defined timEngineStandalone:
-  type
-    Language* = enum
-      Nim = "nim"
-      JavaScript = "js"
-      Python = "python"
-      Php = "php"
-else:
-  type Memtable = TableRef[string, JsonNode]
+from ./meta import Tim, Template, TemplateType, getType
 
 type
-  Compiler* = object
-    program: Program
+  ScopeTable = TableRef[string, Node]
+  HtmlCompiler* = ref object
+    ast: Tree
     tpl: Template
+    case templateType: TemplateType
+    of ttLayout:
+      head: string
+    else: discard
     minify: bool
-    baseIndent: int
-    html, js, sass, json, yaml: string
-    hasViewCode, hasJS, hasSass, hasJson, hasYaml: bool
-    viewCode: string
-    when defined timEngineStandalone:
-      language: Language
-      prev, next: NodeType
-      firstParentNode: NodeType
+    indent: int
+    html, js, sass, json,
+      yaml, runtime: string
+    hasJs, hasSass, hasJson,
+      hasYaml, hasRuntime: bool
+    output: string
+    error: string
+    nl: string = "\n"
+    stickytail: bool
+      ## if false inserts a \n line before closing
+      ## the element. This does not apply
+      ## to `textarea`, `submit` `button` and self closing tags. 
+    when defined timStandalone:
+      discard
     else:
-      engine: TimEngine
+      engine: Tim
       data: JsonNode
-      memtable: Memtable
-    fixTail: bool
-    logs: seq[string]
+      globalScope: ScopeTable = ScopeTable()
 
-const
-  NewLine = "\n"
-  InvalidAccessorKey = "Invalid property accessor \"$1\" for $2 ($3)"
-  InvalidConversion = "Failed to convert $1 \"$2\" to string"
-  InvalidComparison = "Can't compare $1 and $2 values"
-  InvalidObjectAccess = "Invalid object access"
-  UndefinedPropertyAccessor = "Undefined property accessor \"$1\" in data storage"
-  UndefinedArray = "Undefined array"
-  InvalidArrayAccess = "Array indices must be positive integers. Got $1[\"$2\"]"
-  ArrayIndexOutBounds = "Index out of bounds [$1]. \"$2\" size is [$3]"
-  UndefinedProperty = "Undefined property \"$1\""
-  UndefinedVariable = "Undefined variable \"$1\" in \"$2\""
+#
+# Forward declaration
+#
+proc writeInnerNode(c: HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable])
+proc writeNode(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
 
-# defer
-proc writeNewLine(c: var Compiler, nodes: seq[Node])
-# proc getNewLine(c: var Compiler, nodes: seq[Node]): string
+proc hasError*(c: HtmlCompiler): bool =
+  result = c.error.len > 0
 
-proc hasError*(c: Compiler): bool =
-  result = c.logs.len != 0
+proc getError*(c: HtmlCompiler): string =
+  result = c.error
 
-proc getErrors*(c: Compiler): seq[string] =
-  result = c.logs
+when not defined timStandalone:
+  # Available when Tim is imported as a Nim library.
+  # If you want native performance, you can switch
+  # to Tim CLI and transpile `.timl` templates to static `.nim` files
 
-proc printErrors*(c: var Compiler, filePath: string) =
-  if c.logs.len != 0:
-    for error in c.logs:
-      display error, indent = 2
-    echo filePath
-    setLen(c.logs, 0)
+  #
+  # Scope API
+  #
+  proc globalScope(c: HtmlCompiler, node: Node) =
+    # Add `node` to global scope
+    c.globalScope[node.varIdentExpr] = node
 
-template writeHtml(body): untyped =
-  when defined timEngineStandalone:
-    add(result, body)
-  else:
-    add(c.html, body)
+  proc `+=`(scope: ScopeTable, node: Node) =
+    # Add `node` to current `scope` 
+    scope[node.varIdentExpr] = node
 
-proc writeStrValue(c: var Compiler, node: Node) =
-  add c.html, node.sVal
-  c.fixTail = true
+  proc stack(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+    # Add `node` to either local or global scope
+    if scopetables.len > 0:
+      scopetables[^1] += node
+      return
+    c.globalScope += node
 
-when defined timEngineStandalone:
-  discard
-else:
-  include ./private/jitutils
+  proc getCurrentScope(c: HtmlCompiler, scopetables: var seq[ScopeTable]): ScopeTable =
+    # Returns the current `ScopeTable`. When not found,
+    # returns the `globalScope` ScopeTable
+    if scopetables.len > 0:
+      return scopetables[^1] # the last scope
+    return c.globalScope
 
-proc getHtml*(c: Compiler): string =
-  ## Returns compiled HTML for static `timl` templates
-  result = $(c.html)
+  proc getScope(c: HtmlCompiler, key: string,
+      scopetables: var seq[var ScopeTable]): tuple[scopeTable: ScopeTable, index: int] =
+    # Walks (bottom-top) through available `scopetables`, and finds
+    # the closest `ScopeTable` that contains a node for given `key`.
+    # If found returns the ScopeTable followed by index (position).
+    for i in countdown(scopetables.high, scopetables.low):
+      if scopetables[i].hasKey(key):
+        return (scopetables[i], i)
+    if likely c.globalScope.hasKey(key):
+      result = (c.globalScope, 0)
 
-proc getIndentSize(c: var Compiler, isize: int): int =
-  result =
-    if c.baseIndent == 2:
-      int(isize / c.baseIndent)
-    else: isize
+  proc inScope(key: string, scopetables: var seq[ScopeTable]): bool =
+    # Performs a quick search in the current `ScopeTable`
+    if scopetables.len > 0:
+      result = scopetables[^1].hasKey(key)
 
-proc getIndent(c: var Compiler, meta: MetaNode, skipBr = false): string =
-  if meta.pos != 0:
-    if not skipBr:
-      add result, NewLine
-    add result, indent("", c.getIndentSize(meta.pos))
-  else:
-    if not skipBr:
-      add result, NewLine
+  proc fromScope(c: HtmlCompiler, key: string, scopetables: var seq[ScopeTable]): Node =
+    # Retrieves a node with given `key` from `scopetables`
+    let some = c.getScope(key, scopetables)
+    if some.scopeTable != nil:
+      result = some.scopeTable[key]
 
-proc hasAttrs(node: Node): bool =
-  result = node.attrs.len != 0
+  #
+  # AST Evaluators for JIT computation
+  #
+  proc getValue(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
+  proc writeValue(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
+  
+  proc infixEvaluator(c: HtmlCompiler, lhs, rhs: Node, infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
+    # Evaluates `a` with `b` based on given infix operator
+    case infixOp:
+    of EQ:
+      case lhs.nt:
+      of ntBool:
+        case rhs.nt
+        of ntBool:
+          result = lhs.bVal == rhs.bVal
+        else: discard
+      of ntString:
+        case rhs.nt
+        of ntString:
+          result = lhs.sVal == rhs.sVal
+        else: discard
+      of ntInt:
+        case rhs.nt
+        of ntInt:
+          result = lhs.iVal == rhs.iVal
+        of ntFloat:
+          result = toFloat(lhs.iVal) == rhs.fVal
+        else: discard
+      of ntFloat:
+        case rhs.nt
+        of ntFloat:
+          result = lhs.fVal == rhs.fVal
+        of ntInt:
+          result = lhs.fVal == toFloat(rhs.iVal)
+        else: discard
+      else: discard
+    of GT:
+      case lhs.nt:
+      of ntInt:
+        case rhs.nt
+        of ntInt:
+          result = lhs.iVal > rhs.iVal
+        of ntFloat:
+          result = toFloat(lhs.iVal) > rhs.fVal
+        else: discard
+      of ntFloat:
+        case rhs.nt
+        of ntFloat:
+          result = lhs.fVal > rhs.fVal
+        of ntInt:
+          result = lhs.fVal > toFloat(rhs.iVal)
+        else: discard
+      else: discard # handle float
+    of GTE:
+      case lhs.nt:
+      of ntInt:
+        case rhs.nt
+        of ntInt:
+          result = lhs.iVal >= rhs.iVal
+        of ntFloat:
+          result = toFloat(lhs.iVal) >= rhs.fVal
+        else: discard
+      of ntFloat:
+        case rhs.nt
+        of ntFloat:
+          result = lhs.fVal >= rhs.fVal
+        of ntInt:
+          result = lhs.fVal >= toFloat(rhs.iVal)
+        else: discard
+      else: discard # handle float
+    else: discard # todo
 
-proc getAttrs(c: var Compiler, attrs: HtmlAttributes): string =
+  proc evalCondition(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+    # Evaluates an `if`, `elif`, `else` conditional node  
+    if c.infixEvaluator(node.ifCond.infixLeft,
+        node.ifCond.infixRight, node.ifCond.infixOp, scopetables):
+      c.writeInnerNode(node.ifBody, scopetables)
+      return # condition is truthy
+
+    # handle `elif` branches
+    if node.elifBranch.len > 0:
+      for elifBranch in node.elifBranch:
+        if c.infixEvaluator(elifBranch.cond.infixLeft,
+            elifBranch.cond.infixRight, elifBranch.cond.infixOp, scopetables):
+          c.writeInnerNode(elifBranch.body, scopetables)
+          return # condition is truthy
+
+    # handle `else` branch
+    if node.elseBody.len > 0:
+      c.writeInnerNode(node.elseBody, scopetables)
+
+  proc evalFor(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+    # Evaluates a `for` node
+    discard
+
+  proc evalVar(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
+    # Evaluates a variable call
+    let varNode = c.fromScope(node.varIdent, scopetables)
+    if likely(varNode != nil):
+      return varNode
+    # todo error, variable not found
+  
+  proc getValue(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
+    case node.nt
+    of ntVariable:
+      let varNode = c.evalVar(node, scopetables)
+    else: discard
+
+  proc writeValue(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+    case node.nt
+    of ntVariable:
+      let varNode = c.evalVar(node, scopetables)
+      if likely(varNode != nil):
+        case varNode.varValue.nt
+        of ntString:
+          add c.output, varNode.varValue.sVal
+        of ntInt:
+          add c.output, $(varNode.varValue.iVal)
+        of ntFloat:
+          add c.output, $(varNode.varValue.fVal)
+        of ntBool:
+          add c.output, $(varNode.varValue.bVal)
+        else:
+          echo "error"
+    else: discard
+    c.stickytail = true
+
+proc getId(c: HtmlCompiler, node: Node): string =
+  add result, indent("id=", 1) & "\""
+  let attrNode = node.attrs["id"][0]
+  case attrNode.nt
+  of ntString:
+    add result, attrNode.sVal
+  else: discard # todo
+  add result, "\""
+
+proc getAttrs(c: HtmlCompiler, attrs: HtmlAttributes): string =
   var i = 0
   var skipQuote: bool
-  let attrslen = attrs.len
-  for k, attrNodes in attrs.pairs():
-    if k == "id":
-      continue # handled by `writeIDAttribute`
-    var strAttrs: seq[string]
-    if k[0] == '$':
-      for attrNode in attrNodes:
-        if attrNode.nodeType == NTVariable:
-          strAttrs.add c.getStringValue(attrNode)
-    elif k[0] == '%':
-      # handle short hand conditional
-      # Example: $myvar == true ? checked="true" | disabled="disabled"
-      if attrNodes[0].nodeType == NTShortConditionStmt:
-        if c.compInfixNode(attrNodes[0].sIfCond):
-          add result, indent(c.getAttrs(attrNodes[0].sIfBody), 1)
-          skipQuote = true
-    else:
-      add result, indent("$1=" % [k], 1) & "\""
-      for attrNode in attrNodes:
-        if attrNode.nodeType == NTString:
-          if attrNode.sConcat.len == 0:
-            strAttrs.add attrNode.sVal
-          else:
-            var strInterp = attrNode.sVal
-            for varInterp in attrNode.sConcat:
-              when defined timEngineStandalone:
-                discard # TODO
-              else:
-                strInterp &= c.getStringValue(varInterp)
-            strAttrs.add strInterp
-        elif attrNode.nodeType == NTVariable:
-          when defined timEngineStandalone:
-            discard # TODO
-          else:
-            strAttrs.add c.getStringValue(attrNode)
-    if strAttrs.len != 0:
-      add result, join(strAttrs, " ")
-    if not skipQuote and i != attrslen:
+  let len = attrs.len
+  for k, attrNodes in attrs:
+    var attrStr: seq[string]
+    add result, indent("$1=" % [k], 1) & "\""
+    for attrNode in attrNodes:
+      case attrNode.nt
+      of ntString:
+        if attrNode.sConcat.len == 0:
+          add attrStr, attrNode.sVal
+        else: discard
+      else: discard
+    add result, attrStr.join(" ")
+    if not skipQuote and i != len:
       add result, "\""
     else:
       skipQuote = false
     inc i
 
-proc hasIDAttr(node: Node): bool =
-  ## Determine if current JsonNode has an HTML ID attribute attached to it
-  result = node.attrs.hasKey("id")
-
-proc getIDAttr(c: var Compiler, node: Node): string =
-  # Write an ID HTML attribute to current HTML Element
-  add result, indent("id=", 1) & "\""
-  let idAttrNode = node.attrs["id"][0]
-  if idAttrNode.nodeType == NTString:
-    add result, idAttrNode.sVal
+proc baseIndent(c: HtmlCompiler, isize: int): int =
+  if c.indent == 2:
+    int(isize / c.indent)
   else:
-    when defined timEngineStandalone:
-      discard
-    else:
-      add result, c.getStringValue(idAttrNode)
-  add result, "\""
+    isize
 
-template `<>`(tag: string, node: Node, skipBr = false) =
-  ## Open tag of the current JsonNode element
-  if not c.minify:
-    writeHtml getIndent(c, node.meta, skipBr)
-  writeHtml ("<" & tag)
-  if hasIDAttr(node): writeHtml getIDAttr(c, node)
-  if hasAttrs(node):
-    writeHtml getAttrs(c, node.attrs)
-  writeHtml ">"
+proc getIndent(c: HtmlCompiler, meta: MetaNode, skipbr = false): string =
+  case meta.pos
+  of 0:
+    if not c.stickytail:
+      add result, c.nl
+  else:
+    if not c.stickytail:
+      add result, c.nl
+      add result, indent("", c.baseIndent(meta.pos))
 
-template `</>`(node: Node, skipBr = false) =
-  ## Close an HTML tag
-  if node.issctag == false:
-    if not c.fixTail and not c.minify:
-      writeHtml getIndent(c, node.meta, skipBr)
-    add c.html, "</" & node.htmlNodeName & ">"
+template htmlblock(tag: string, body: untyped) =
+  var isSelfcloser: bool
+  case c.minify:
+  of false:
+    if c.stickytail == true:
+      c.stickytail = false
+    add c.output, c.getIndent(node.meta) 
+  else: discard
+  add c.output, "<" & tag
+  case node.nt
+  of ntStmtList:
+    isSelfcloser = node.stmtList.selfCloser
+    if node.stmtList.attrs.hasKey("id"):
+      add c.output, c.getId(node.stmtList)
+      node.stmtList.attrs.del("id")
+    if node.stmtList.attrs.len > 0:
+      add c.output, c.getAttrs(node.stmtList.attrs)
+  else:
+    isSelfcloser = node.selfCloser
+    if node.attrs.hasKey("id"):
+      add c.output, c.getId(node)
+      node.attrs.del("id")
+    if node.attrs.len > 0:
+      add c.output, c.getAttrs(node.attrs)
+  add c.output, ">"
+  body
+  case isSelfcloser
+  of false:
+    case c.minify:
+    of false:
+      add c.output, c.getIndent(node.meta) 
+    else: discard
+    add c.output, "</" & tag & ">"
+    c.stickytail = false
+  else: discard
 
-proc getCode(c: var Compiler, node: Node): string =
-  result =
-    if c.hasViewCode:
-      if c.minify:
-        c.viewCode
-      else:
-        indent(c.viewCode, node.meta.pos)
-        # indent(c.viewCode, c.tpl.getPlaceholderIndent())
-    else:
-      c.tpl.setPlaceHolderId(node.meta.pos)
-
-proc handleView(c: var Compiler, node: Node) =
-  add c.html, c.getCode(node)
-  if c.hasJS:
-    add c.html, NewLine & "<script type=\"text/javascript\">"
-    add c.html, $c.js
-    add c.html, NewLine & "</script>"
-  if c.hasSass:
-    add c.html, NewLine & "<style>"
-    add c.html, $c.sass
-    add c.html, NewLine & "</style>"
-
-proc getJSSnippet(c: var Compiler, node: Node) =
-  c.js &= node.jsCode
-  if not c.hasJs: c.hasJs = true
-
-proc getSassSnippet(c: var Compiler, node: Node) =
-  # try:
-  #   c.sass &= NewLine & compileSass(node.sassCode, outputStyle = OutputStyle.Compressed)
-  # except SassException:
-  #   c.logs.add(getCurrentExceptionMsg())
-  # if not c.hasSass: c.hasSass = true
-  discard
-
-proc getJsonSnippet(c: var Compiler, node: Node) =
-  let jsonIdentName = 
-    if node.jsonIdent[0] == '#':
-      "id=\"$1\"" % node.jsonIdent[1..^1]
-    else:
-      "class=\"$1\"" % node.jsonIdent[1..^1]
-  c.json &= NewLine & "<script type=\"application/json\" $1>" % [jsonIdentName]
-  c.json &= node.jsonCode
-  c.json &= "</script>"
-  if not c.hasJson: c.hasJson = true
-
-proc getYamlSnippet(c: var Compiler, node: Node) =
-  c.yaml &= node.yamlCode
-  if not c.hasYaml: c.hasYaml = true
-
-proc writeNewLine(c: var Compiler, nodes: seq[Node]) =
+proc writeInnerNode(c: HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable]) =
   for node in nodes:
-    if node == nil: continue # TODO sometimes we get nil. check parser
-    case node.nodeType:
-    of NTHtmlElement:
+    case node.nt:
+    of ntHtmlElement:
       let tag = node.htmlNodeName
-      tag <> node
-      c.fixTail = tag in ["textarea", "button"]
-      if node.nodes.len != 0:
-        c.writeNewLine(node.nodes)
-      node </> false
-      if c.fixTail: c.fixTail = false
-    of NTVariable:
-      writeHtml c.getStringValue(node)
-    of NTInfixStmt:
-      c.handleInfixStmt(node)
-    of NTConditionStmt:
-      c.handleConditionStmt(node)
-    of NTString:
-      c.writeStrValue(node)
-    of NTForStmt:
-      c.handleForStmt(node)
-    of NTView:
-      c.handleView(node)
-    of NTJavaScript:
-      c.getJSSnippet(node)
-    of NTSass:
-      c.getSassSnippet(node)
-    of NTJson:
-      c.getJsonSnippet(node)
-    of NTYaml:
-      c.getYamlSnippet(node)
-    of NTCall:
-      c.callFunction(node)
+      htmlblock tag:
+        if node.nodes.len > 0:
+          c.writeInnerNode(node.nodes, scopetables)
+    of ntString:
+      add c.output, node.sVal
+      c.stickytail = true
+    of ntVariable:
+      c.writeValue(node, scopetables)
+    of ntCondition:
+      c.evalCondition(node, scopetables)
+    of ntView:
+      add c.output, c.getIndent(node.meta)
+      c.head = c.output
+      reset(c.output)
     else: discard
 
-proc compileProgram(c: var Compiler) =
-  # when not defined timEngineStandalone:
-  #   if c.hasSass and getType(c.tpl) == Layout:
-  for node in c.program.nodes:
-    case node.stmtList.nodeType:
-    of NTHtmlElement:
-      let tag = node.stmtList.htmlNodeName
-      tag <> node.stmtList
-      if node.stmtList.nodes.len != 0:
-        c.writeNewLine(node.stmtList.nodes)
-      node.stmtList </> false
-    of NTConditionStmt:
-      c.handleConditionStmt(node.stmtList)
-    of NTForStmt:
-      c.handleForStmt(node.stmtList)
-    of NTView:
-      c.handleView(node.stmtList)
-    of NTJavaScript:
-      c.getJSSnippet(node.stmtList)
-    of NTSass:
-      c.getSassSnippet(node.stmtList)
-    of NTJson:
-      c.getJsonSnippet(node.stmtList)
-    of NTYaml:
-      c.getYamlSnippet(node.stmtList)
-    of NTCall:
-      c.callFunction(node.stmtList)
-    else: discard
+proc writeNode(c: HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+  case node.stmtList.nt:
+  of ntHtmlElement:
+    let tag = node.stmtList.htmlNodeName
+    htmlblock tag:
+      if node.stmtList.nodes.len > 0:
+        c.writeInnerNode(node.stmtList.nodes, scopetables)
+  of ntCondition:
+    c.evalCondition(node.stmtList, scopetables)
+  of ntForStmt:
+    c.evalFor(node.stmtList, scopetables)
+  of ntVarExpr:
+    if likely(not c.globalScope.hasKey(node.stmtList.varIdentExpr)):
+      c.globalScope += node.stmtList
+  of ntView:
+    # echo node
+    discard
+  else: discard
 
-  when not defined timEngineStandalone:
-    # if c.hasViewCode == false:
-    if c.hasJson:
-      add c.html, $c.json
-    if c.hasJS:
-      add c.html, NewLine & "<script type=\"text/javascript\">"
-      # add c.html, "document.addEventListener(\"DOMContentLoaded\", async function(){"
-      # add c.html, indent($c.js, 2)
-      # add c.html, "})"
-      add c.html, c.js
-      add c.html, NewLine & "</script>"
-    if c.hasSass:
-      add c.html, NewLine & "<style>"
-      add c.html, $c.sass
-      add c.html, NewLine & "</style>"
+#
+# Public API
+#
+proc newHtmlCompiler*(ast: Tree, minify: bool,
+    indent: range[2..4], tpl: Template): HtmlCompiler =
+  ## Creates a new instance of `HtmlCompiler`
+  result = HtmlCompiler(ast: ast, minify: minify,
+      indent: indent, tpl: tpl, templateType: tpl.getType)
+  if minify: setLen(result.nl, 0)
+  var scopetables = newSeq[ScopeTable]()
+  for i in 0 .. result.ast.nodes.high:
+    result.writeNode(result.ast.nodes[i], scopetables)
 
-when defined timEngineStandalone:
-  proc newCompiler*(program: Program, tpl: Template, minify: bool,
-                    indent: int, filePath: string,
-                    viewCode = "", lang = Nim): Compiler =
-    ## Create a new Compiler instance for Command Line interface
-    var c = Compiler(
-      language: lang,
-      program: program,
-      tpl: tpl,
-      minify: minify,
-      baseIndent: indent
-    )
-    case c.language
-    of Nim:
-      c.html &= "proc renderProductsView[G, S](app: G, this: S): string ="
-      if c.program.nodes.len == 0:
-        c.html &= NewLine & indent("discard", 2)
-    of JavaScript:
-      c.html &= "function renderProductsView(app = {}, this = {}) {"
-    of Python:
-      c.html &= "def renderProductsView(app: Dict, this: Dict):"
-    of Php:
-      c.html &= "function renderProductsView(object $app, object $this) {"
-    var metaNode: MetaNode
-    if c.program.nodes.len != 0:
-      if c.program.nodes[0].stmtList.nodeType == NTHtmlElement: 
-        c.newResult(metaNode)
-    c.compileProgram()
-    result = c
-else:
-  proc newCompiler*(e: TimEngine, p: Program, tpl: Template, minify: bool,
-                    indent: int, filePath: string, data = %*{}, viewCode = "",
-                    hasViewCode = false): Compiler =
-    ## Create a new Compiler at runtime for just in time compilation
-    var c = Compiler(
-      engine: e,
-      program: p,
-      tpl: tpl,
-      data: data,
-      minify: minify,
-      baseIndent: indent,
-      viewCode: viewCode,
-      hasViewCode: hasViewCode,
-      memtable: Memtable(),
-    )
-    c.compileProgram()
-    result = c
+proc getHtml*(c: var HtmlCompiler): string =
+  case c.minify:
+  of true:
+    result = c.output
+  else:
+    if c.output.len > 0:
+      result = c.output[1..^1]
 
-  proc newCompiler*(program: Program, minify: bool, indent: int, data: JsonNode): Compiler =
-    var jsonData = newJObject()
-    jsonData["globals"] = newJObject()
-    jsonData["scope"] = if data != nil: data else: newJObject()
-    var c = Compiler(program: program, minify: minify,
-                    baseIndent: indent, data: jsonData, memtable: Memtable())
-    c.compileProgram()
-    result = c
+proc getHead*(c: var HtmlCompiler): string =
+  ## Returns the top of a split layout 
+  assert c.templateType == ttLayout
+  case c.minify
+  of true:
+    result = c.head
+  else:
+    if c.head.len > 0:
+      result = c.head[1..^1]
+
+proc getTail*(c: var HtmlCompiler): string =
+  ## Returns the tail of a layout
+  assert c.templateType == ttLayout
+  return c.getHtml()
