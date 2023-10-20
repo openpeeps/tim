@@ -32,7 +32,7 @@
     * YAML 🤩 w/ Built-in parser via Nyml
     * SASS 🫠 w/ Built-in parser via `libsass`
 - [x] Written in Nim language 👑
-- [x] Open Source | `MIT` License
+- [x] Open Source | `LGPLv3` License
 
 ## 😎 Library features
 - [x] Everything in **Key features**
@@ -129,5 +129,5 @@ Error (57:4): The ID "schemaFieldEditor" is also used for another element at lin
 - 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
-Tim Engine | `MIT` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+Tim Engine | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
 Copyright &copy; 2023 OpenPeeps & Contributors &mdash; All rights reserved.
