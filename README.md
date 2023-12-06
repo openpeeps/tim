@@ -1,133 +1,51 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png" alt="Tim Engine" width="200px" height="200px"><br>
-  ⚡️ A high-performance template engine & markup language inspired by the Emmet syntax.<br>
-  <strong>Fast</strong> • <strong>Compiled</strong> • Written in Nim language 👑
-</p>
+A fast, compiled, multi-threading templating engine and markup language written in Nim
+Can be used from Nim, Node/Bun (as addon) or as a standalone CLI application.
 
-<p align="center">
-  <code>nimble install tim</code>
-</p>
+## Key features
+- Fast, compiled, multi-threading
+- Transpile `timl` to your favorite language [See Supported languages](#supported-languages)
+- As a Nimble library for `Nim` development
+- Available for **Node** & **Bun** [Tim Engine for NodeJS and Bun](#tim-for-javascript)
+- Easy to learn, intuitive syntax
+- Built-in Browser Sync & Reload
+- Written in Nim language
+- Open Source | MIT License
 
-<p align="center">
-  <a href="https://openpeeps.github.io/tim/">API reference</a><br><br>
-  <img src="https://github.com/openpeeps/tim/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeeps/tim/workflows/docs/badge.svg" alt="Github Actions">
-</p>
+## Examples
+Tim requires the following directories to be created `layouts`, `views`, `partials`. Also,
+pre-compile to binary AST and static HTML
 
-<p align="center">
-<img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/tim-look.png" width="772px">
-</p>
+Using Tim as a Nimble library:
 
-## 😍 Key Features
-- [x] `layouts`, `views` and `partials` logic
-- [x] `Global`, `Scope`, and `Internal` variables
-- [x] `for` Loop Statements
-- [x] `if`/`elif`/`else` Conditional Statements
-- [x] Partials via `@include`
-- [ ] Mixins
-- [ ] SEO / Semantic Checker
-- [x] Language Extension `.timl` 😎
-- [x] Snippets 🎊
-    * JavaScript 🥰
-    * JSON 😍 
-    * YAML 🤩 w/ Built-in parser via Nyml
-    * SASS 🫠 w/ Built-in parser via `libsass`
-- [x] Written in Nim language 👑
-- [x] Open Source | `MIT` License
-
-## 😎 Library features
-- [x] Everything in **Key features**
-- [x] `Global` and `Scope` data using `JSON` (`std/json` or `pkg/packedjson`)
-- [x] Static transpilation to `HTML` files
-- [x] ♨️ JIT Compilation via MsgPacked AST 
-
-## 🌎 Standalone CLI
-The CLI is a standalone cross-language application that transpiles your **Tim templates** into source code for the current (supported) language.
-
-Of course, the generated source code will not look very nice, but who cares,
-since you'll always have your `.timl` sources and finally, your application will **render at super speed!**
-
-How many times have you heard _"Moustache is slow"_, or _"Pug.js compiling extremely slow"_, or _"...out of memory"_,
-or _"Jinja being extremely slow when..."_?
-
-Well, that's no longer the case!
-
-### CLI Features
-- [x] Everything in Basics
-- [x] `Global` and `Scope` data using language
-- [x] Cross-language
-- [ ] `.timl` ➡ `.nim`
-- [ ] ↳ `.js`
-- [ ] ↳ `.rb`
-- [ ] ↳ `.py`
-- [ ] ↳ `.php` 
-
-
-## Setup in Nim with JIT Compilation
+```tim
+div.container > div.row > div.col-12
+  h1.display-3: "Tim is awesome!"
+  p: "This is Tim Engine, a fast template-engine & markup language"
+  for $x in $items:
+    span: $x
+```
 
 ```nim
-import tim, tim/engine/meta
-export render, precompile
+import tim
 
-var Tim*: TimEngine
-Tim.init(
-  source = "./templates",             # or ../templates if placed outside `src` directory
-  output = "./storage/templates",
-  minified = false,
-  indent = 4
-)
+# Create a singleton of `Tim`
+var timl = newTim("./templates", "./storage", currentSourcePath(), minify = true, indent = 2)
 
-# Precompile your `.timl` templates at boot-time
-Tim.precompile()
+# tell Tim to precompile available `.timl` templates.
+# this must be called once in the main state of your application
+timl.precompile(flush = true, waitThread = true)
 
-# Render a specific view by name (filename, or subdir.filename_without_ext)
-res.send(Tim.render("homepage"))
-
+timl.render("index")
 ```
 
-## Snippets
+### CLI
+Work in progress
 
-### JavaScript Snippets
-Write JavaScript snippets or a component-based functionality direclty in your `.timl` file, using backticks.
-
-````tim
-main > div.container > div.row > div.col-lg-4.mx-auto
-  @include "button"
-
-  ```js
-document.querySelector('button').addEventListener('click', function() {
-  console.log("yay!")
-});
-  ```
-````
-
-### Sass Snippets
-Built-in CSS support with SASS via `libsass` (install [libsass](https://github.com/sass/libsass) library)
-
-````tim
-div.container.product > div.row > div.col-4.mx-auto
-  a.btn.cta-checkout > span: "Go to checkout"
-
-  ```sass
-div.product
-  btn
-    font-weight: bold
-  ```
-````
-
-### Errors
-
-
-```
-Error (57:4): The ID "schemaFieldEditor" is also used for another element at line 40
-/vasco/templates/views/system/list.timl
-```
-
-### ❤ Contributions & Support
-- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/tim/issues)
-- 👋 Wanna help? [Fork it!](https://github.com/openpeeps/tim/fork)
+- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/bro/issues)
+- 👋 Wanna help? [Fork it!](https://github.com/openpeeps/bro/fork)
 - 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
-- 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
+- 🥰 [Donate to OpenPeeps via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
-### 🎩 License
-Tim Engine | `MIT` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+## 🎩 License 
+Tim Engine is an Open Source software released under LGPLv3. Proudly made in 🇪🇺 Europe [by Humans from OpenPeeps](https://github.com/openpeeps).
 Copyright &copy; 2023 OpenPeeps & Contributors &mdash; All rights reserved.

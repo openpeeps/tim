@@ -1,148 +1,186 @@
-# A high-performance compiled template engine
-# inspired by the Emmet syntax.
+# A super fast template engine for cool kids
 #
-# (c) 2023 George Lemon | MIT License
+# (c) 2023 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
+import std/json except `%*`
+import tim/engine/[meta, parser, compiler, logging]
+import pkg/[watchout, kapsis/cli]
+
+from std/strutils import `%`, indent
+from std/os import `/`
+
+
+const
+  DOCKTYPE = "<!DOCKTYPE html>"
+  defaultLayout = "base"
+
+proc jitCompiler*(engine: Tim, tpl: TimTemplate, data: JsonNode): HtmlCompiler =
+  ## Compiles `tpl` AST at runtime
+  newCompiler(engine.readAst(tpl), tpl, engine.isMinified(), engine.getIndentSize(), data)
+
+proc displayErrors(l: Logger) =
+  for err in l.errors:
+    display(err)
+  display(l.filePath)
+
+proc compileCode*(engine: Tim, tpl: TimTemplate) =
+  # Compiles `tpl` TimTemplate to either `.html` or binary `.ast`
+  var p: Parser = engine.newParser(tpl)
+  if likely(not p.hasError):
+    if tpl.jitEnabled():
+      # when enabled, will save the generated binary ast
+      # to disk for runtime computation. 
+      engine.writeAst(tpl, p.getAst)
+    else:
+      # otherwise, compiles the generated AST and save
+      # a pre-compiled HTML version on disk
+      var c = newCompiler(p.getAst, tpl, engine.isMinified, engine.getIndentSize)
+      if likely(not c.hasError):
+        case tpl.getType:
+        of ttView:
+          engine.writeHtml(tpl, c.getHtml)
+        of ttLayout:
+          engine.writeHtml(tpl, c.getHead)
+          engine.writeHtmlTail(tpl, c.getTail)
+        else: discard
+      else: c.logger.displayErrors()
+  else:
+    p.logger.displayErrors()
+
+proc precompile*(engine: Tim, callback: TimCallback = nil,
+    flush = true, waitThread = false) =
+  ## Precompiles available templates inside `layouts` and `views`
+  ## directories to either static `.html` or binary `.ast`.
+  ## 
+  ## Partials are not part of the precompilation processs. These
+  ## are include-only files that can be imported into layouts
+  ## or views via `@import` statement.
+  ## 
+  ## By enabling flushing ensures outdated files are deleted. 
+  if flush: engine.flush()
+  when not defined release:
+    when defined timHotCode:
+      var watchable: seq[string]
+      proc onFound(file: watchout.File) =
+        # echo indent(file.getName(), 3)
+        let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+        case tpl.getType
+        of ttView, ttLayout:
+          engine.compileCode(tpl)
+          if engine.errors.len > 0:
+            for err in engine.errors:
+              echo err
+            # setLen(engine.errors, 0)
+        else: discard
+
+      proc onChange(file: watchout.File) =
+        echo "✨ Changes detected"
+        echo indent(file.getName() & "\n", 3)
+        let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+        case tpl.getType()
+        of ttView, ttLayout:
+          engine.compileCode(tpl)
+          if engine.errors.len > 0:
+            for err in engine.errors:
+              echo err
+            # setLen(engine.errors, 0)
+        else:
+          discard
+          # echo "getting dependencies"
+
+      proc onDelete(file: watchout.File) =
+        discard
+        # echo "✨ Deleted\n", file.getName()
+      # echo "✨ Tim Engine - Syncing Templates"
+      var w = newWatchout(@[engine.getSourcePath() / "*"], onChange, onFound)
+      w.start(waitThread)
+    else:
+      for tpl in engine.getViews():
+        engine.compileCode(tpl)
+      for tpl in engine.getLayouts():
+        engine.compileCode(tpl)
+  else:
+    for tpl in engine.getViews():
+      engine.compileCode(tpl)
+    for tpl in engine.getLayouts():
+      engine.compileCode(tpl)
+
+proc render*(engine: Tim, viewName: string,
+    layoutName = defaultLayout, global, local = newJObject()): string =
+  ## Renders a view based on `viewName` and `layoutName`.
+  ## Exposing data to a template is possible using `global` or
+  ## `local` objects.
+  if engine.hasView(viewName):
+    var view: TimTemplate = engine.getView(viewName)
+    var data: JsonNode = newJObject()
+    if likely(engine.hasLayout(layoutName)):
+      var layout: TimTemplate = engine.getLayout(layoutName)
+      if not view.jitEnabled:
+        # render a pre-compiled HTML
+        result = DOCKTYPE
+        add result, layout.getHtml()
+        add result, indent(view.getHtml(), layout.getViewIndent)
+        add result, layout.getTail()
+      else:
+        # compile and render template at runtime
+        var data = newJObject()
+        data["global"] = global
+        data["local"] = local
+        result = DOCKTYPE
+        var layoutTail: string
+        if not layout.jitEnabled:
+          # when requested layout is pre-rendered
+          # will use the static HTML version from disk
+          add result, layout.getHtml()
+          layoutTail = layout.getTail()
+        else:
+          var clayout = engine.jitCompiler(layout, data)
+          if likely(not clayout.hasError):
+            add result, clayout.getHtml()
+            layoutTail = clayout.getTail()
+          else:
+            clayout.logger.displayErrors()
+        var cview = engine.jitCompiler(view, data)
+        if likely(not cview.hasError):
+          add result, indent(cview.getHtml(), layout.getViewIndent)
+        else:
+          cview.logger.displayErrors()
+        add result, layoutTail
+    else:
+      raise newException(TimError, "No layouts available")
+  else:
+    raise newException(TimError, "View not found: `$1`" % [viewName])
 
 when defined napibuild:
+  # Setup for building Tim as a node addon via NAPI
   import pkg/denim
-  import std/[os, tables]
-  import std/json except `%*`
-  import ./timpkg/engine/[meta, parser, compiler]
+  from std/sequtils import toSeq
 
-  type
-    ErrorMessage = enum
-      errInitialized = "TimEngine is already initialied"
-      errInitFnArgs = "`init` function requires 4 arguments\n"
-      errNotInitialized = "TimEngine is not initialized"
-      errRenderFnArgs = "`render` function expect at least 1 argument\n"
-      errDefaultLayoutNotFound = "`base.timl` layout is missing from your `/layouts` directory"
-
-  var timEngine: TimEngine
-
-  const
-    errIdent = "TimEngine"
-    docktype = "<!DOCTYPE html>"
-    defaultLayoutName = "base"
-
-  template precompileCode() =
-    var p = timEngine.parse(t.getSourceCode, t.getFilePath, templateType = t.getType)
-    if p.hasError:
-      assert error(p.getError, errIdent)
-      return
-    if p.hasJit:
-      t.enableJIT
-      timEngine.writeAst(t, p.getStatements, timEngine.getIndent)
-    else:
-      var c = newCompiler(timEngine, p.getStatements, t, timEngine.shouldMinify, timEngine.getIndent, t.getFilePath)
-      if not c.hasError:
-        timEngine.writeHtml(t, c.getHtml)
-
-  proc newJITCompilation(tp: Template, data: JsonNode, viewCode = "", hasViewCode = false): Compiler =
-    result = newCompiler(timEngine, timEngine.readAst(tp),
-                        tpl = tp,
-                        minify = timEngine.shouldMinify,
-                        indent = timEngine.getIndent,
-                        filePath = tp.getFilePath,
-                        data = data,
-                        viewCode = viewCode,
-                        hasViewCode = hasViewCode
-                      )
-
+  var timjs: Tim
   init proc(module: Module) =
-    proc init(source: string, output: string, indent: int, minify: bool, globals: object) {.export_napi.} =
-      ## Create an instance of TimEngine.
-      ## To be called in the main state of your application
-      if timEngine == nil:
-        timEngine.init(
-          source = args[0].getStr,
-          output = args[1].getStr,
-          indent = args[2].getInt,
-          minified = args[3].getBool
-        )
-        timEngine.setData(args[4].tryGetJson)
-      else: assert error($errInitialized, errIdent)
+    proc init(src: string, output: string,
+        basepath: string, minify: bool, indent: int) {.export_napi.} =
+      ## Initialize Tim Engine
+      timjs = newTim(
+        args.get("src").getStr,
+        args.get("output").getStr,
+        args.get("basepath").getStr,
+        args.get("minify").getBool,
+        args.get("indent").getInt
+      )
 
-    proc precompile() {.export_napi.} =
-      ## Export `precompile` function.
-      ## To be used in the main state of your application
-      if timEngine != nil:
-        for k, t in timEngine.getViews.mpairs:
-          precompileCode()
-        for k, t in timEngine.getLayouts.mpairs:
-          precompileCode()
-      else: assert error($errNotInitialized, errIdent)
+    proc precompileSync() {.export_napi.} =
+      ## Precompile Tim templates
+      timjs.precompile(flush = true, waitThread = false)
 
-    proc render(view: string, scope: object, layout: string): string {.export_napi.} =
-      ## Export `render` function
-      if timEngine != nil:
-        let
-          viewName = args[0].getStr
-          layoutName =
-            if args.len == 3:
-              if timEngine.hasLayout(args[2].getStr):
-                args[2].getStr
-              else: defaultLayoutName
-            else: defaultLayoutName
-        if layoutName == defaultLayoutName:
-          if not timEngine.hasLayout(defaultLayoutName):
-            assert error($errDefaultLayoutNotFound, errIdent)
+    proc renderSync(view: string) {.export_napi.} =
+      ## Render a `view` by name
+      let x = timjs.render(args.get("view").getStr)
+      return %*(x)
 
-        # echo args[1].expect(napi_object)
-        if timEngine.hasView(viewName):
-          var tpv, tpl: Template
-          # create a JsonNode to expose available data
-          var jsonData = newJObject()
-          jsonData["scope"] =
-            if args.len >= 2:
-              args[1].tryGetJson
-            else: newJObject()
-          tpv = timEngine.getView(viewName)
-          tpl = timEngine.getLayout(layoutName)
-          if tpv.isJitEnabled:
-            # when enabled, compiles timl code to HTML on the fly
-            var cview = newJITCompilation(tpv, jsonData)
-            var clayout = newJITCompilation(tpl, jsonData, cview.getHtml, hasViewCode = true)
-          # todo handle compiler warnings
-            return %*(docktype & clayout.getHtml)
-      else: assert error($errNotInitialized, errIdent)
+elif not isMainModule:
+  import tim/engine/[meta, parser, compiler, logging]
 
-elif defined emscripten:
-  import std/json
-  import timpkg/engine/[meta, parser, compiler, ast]
-
-  # https://emscripten.org/docs/api_reference/emscripten.h.html
-  proc emscripten_run_script(code: cstring) {.importc.}
-
-  proc tim(code: cstring, minify: bool, indent = 2): cstring {.exportc.} =
-    var p = parser.parse($code)
-    if not p.hasError:
-      return cstring(newCompiler(p.getStatements, true, indent, data = %*{}).getHtml)
-    let jsError = "throw new Error('" & p.getError & "');"
-    emscripten_run_script(cstring(jsError))    
-
-elif isMainModule:
-  ## The standalone cross-language application
-  ## ====================
-  ## This is Tim as command line interface. It can be used for transpiling
-  ## Tim sources to various programming/markup languages such as:
-  ## Nim, JavaScript, Python, XML, PHP, Go, Ruby, Java, Lua.
-  ## **Note**: This is work in progress
-  import kapsis
-  import ./timpkg/commands/[initCommand, watchCommand, buildCommand]
-
-  App:
-    about:
-      "A High-performance, compiled template engine & markup language"
-      "Made by Humans from OpenPeep"
-
-    commands:
-      $ "init":
-        ? "Generate a new Tim config"
-      $ "watch":
-        ? "Transpile and Watch for changes"
-      $ "build":
-        ? "Transpile Tim to targeting language"
-else:
-  include timpkg/engine/init
+  export parser, compiler, json
+  export meta except Tim

@@ -1,41 +1,40 @@
-# A blazing fast, cross-platform, multi-language
-# template engine and markup language written in Nim.
+# A super fast template engine for cool kids
 #
-#    Made by Humans from OpenPeeps
-#    (c) George Lemon | LGPLv3 License
-#    https://github.com/openpeeps/tim
+# (c) 2023 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
 
 import std/[macros, os, json, strutils, base64, tables]
-import pkg/checksums/md5
+import pkg/[checksums/md5, supersnappy, flatty]
 
 export getProjectPath
 
-from ./ast import Tree
+from ./ast import Ast
 
 when defined timStandalone:
   type Globals* = ref object of RootObj
 
 type
-  TemplateType* = enum
+  TimTemplateType* = enum
     ttLayout = "layouts"
     ttView = "views"
     ttPartial = "partials"
 
   TemplateSourcePaths = tuple[src, ast, html: string]
-  Template* = ref object
-    ast*: Tree
+  TimTemplate* = ref object
+    # ast*: Ast
     templateId: string
-    templateJit: bool
+    jit: bool
     templateName: string
-    case templateType: TemplateType
+    case templateType: TimTemplateType
     of ttPartial:
       discard
     of ttLayout:
-      discard
+      viewIndent: uint
     else: discard
     sources*: TemplateSourcePaths
 
-  TemplateTable = TableRef[string, Template]
+  TemplateTable = TableRef[string, TimTemplate]
 
   TimCallback* = proc() {.nimcall, gcsafe.}
   Tim* = ref object
@@ -57,20 +56,7 @@ type
 
   TimError* = object of CatchableError
 
-# proc setPlaceholderIndent*(t: var Template, pos: int) =
-#   t.placeholderIndent = pos
-
-# proc setPlaceHolderId*(t: var Template, pos: int): string =
-#   t.setPlaceholderIndent pos
-#   result = "$viewHandle_" & t.id & ""
-
-# proc getPlaceholderId*(t: Template): string =
-#   result = "viewHandle_" & t.id & ""
-
-# proc getPlaceholderIndent*(t: var Template): int =
-#   result = t.placeholderIndent
-
-proc getPath(engine: Tim, key: string, templateType: TemplateType): string =
+proc getPath(engine: Tim, key: string, templateType: TimTemplateType): string =
   ## Retrieve path key for either a partial, view or layout
   var k: string
   var tree: seq[string]
@@ -108,68 +94,85 @@ proc getAstStoragePath*(engine: Tim): string =
   result = engine.output / "ast"
 
 #
-# Template API
+# TimTemplate API
 #
-proc newTemplate(id: string, templateType: TemplateType,
-    sources: TemplateSourcePaths): Template =
-  Template(templateId: id, templateType: templateType, sources: sources)
+proc newTemplate(id: string, templateType: TimTemplateType,
+    sources: TemplateSourcePaths): TimTemplate =
+  TimTemplate(templateId: id, templateType: templateType, sources: sources)
 
-proc getType*(t: Template): TemplateType =
+proc getType*(t: TimTemplate): TimTemplateType =
   t.templateType
 
-proc getHash*(t: Template): string =
+proc getHash*(t: TimTemplate): string =
   hashid(t.sources.src)
 
-proc getName*(t: Template): string =
+proc getName*(t: TimTemplate): string =
   t.templateName
 
-proc getTemplateId*(t: Template): string =
+proc getTemplateId*(t: TimTemplate): string =
   t.templateId
 
-proc writeHtml*(engine: Tim, tpl: Template, htmlCode: string) =
+proc setViewIndent*(t: TimTemplate, i: uint) =
+  assert t.templateType == ttLayout
+  t.viewIndent = i
+
+proc getViewIndent*(t: TimTemplate): uint =
+  assert t.templateType == ttLayout
+  t.viewIndent
+
+proc writeHtml*(engine: Tim, tpl: TimTemplate, htmlCode: string) =
   ## Writes `htmlCode` on disk using `tpl` info
   writeFile(tpl.sources.html, htmlCode)
 
-proc writeHtmlTail*(engine: Tim, tpl: Template, htmlCode: string) =
+proc writeHtmlTail*(engine: Tim, tpl: TimTemplate, htmlCode: string) =
   ## Writes `htmlCode` tails on disk using `tpl` info
   writeFile(tpl.sources.html.changeFileExt("tail"), htmlCode)
 
-proc writeAst*(engine: Tim, tpl: Template, astCode: Tree) =
+proc writeAst*(engine: Tim, tpl: TimTemplate, astCode: Ast) =
   ## Writes `astCode` on disk using `tpl` info
-  # writeFile(tpl.sources.ast, tpl.tree)
-  discard
+  writeFile(tpl.sources.ast, supersnappy.compress(flatty.toFlatty(astCode)))
 
-proc getSourcePath*(t: Template): string =
-  ## Returns the absolute source path of `t` Template
+proc readAst*(engine: Tim, tpl: TimTemplate): Ast = 
+  ## Get `AST` of `tpl` TimTemplate from storage
+  try:
+    let binAst = readFile(tpl.sources.ast)
+    result = flatty.fromFlatty(supersnappy.uncompress(binAst), Ast)
+  except IOError:
+    discard
+
+proc getSourcePath*(t: TimTemplate): string =
+  ## Returns the absolute source path of `t` TimTemplate
   result = t.sources.src
 
-proc getAstPath*(t: Template): string =
-  ## Returns the absolute `html` path of `t` Template
+proc getAstPath*(t: TimTemplate): string =
+  ## Returns the absolute `html` path of `t` TimTemplate
   result = t.sources.ast
 
-proc getHtmlPath*(t: Template): string =
-  ## Returns the absolute `ast` path of `t` Template 
+proc getHtmlPath*(t: TimTemplate): string =
+  ## Returns the absolute `ast` path of `t` TimTemplate 
   result = t.sources.html
 
-proc enableJIT*(t: Template) =
-  t.templateJit = true
+proc jitEnable*(t: TimTemplate) =
+  if not t.jit: t.jit = true
 
-proc hasjit*(t: Template): bool =
-  t.templateJit
+proc jitEnabled*(t: TimTemplate): bool = t.jit
 
-proc getHtml*(t: Template): string =
-  ## Returns precompiled static HTML of `t` Template
-  result = readFile(t.getHtmlPath)
+proc getHtml*(t: TimTemplate): string =
+  ## Returns precompiled static HTML of `t` TimTemplate
+  try:
+    result = readFile(t.getHtmlPath)
+  except IOError:
+    result = ""
 
-proc getTail*(t: Template): string =
+proc getTail*(t: TimTemplate): string =
   ## Returns the tail of a split layout
   result = readFile(t.getHtmlPath.changeFileExt("tail"))
 
-iterator getViews*(engine: Tim): Template =
+iterator getViews*(engine: Tim): TimTemplate =
   for id, tpl in engine.views:
     yield tpl
 
-iterator getLayouts*(engine: Tim): Template =
+iterator getLayouts*(engine: Tim): TimTemplate =
   for id, tpl in engine.layouts:
     yield tpl
 
@@ -177,7 +180,7 @@ iterator getLayouts*(engine: Tim): Template =
 # Tim Engine API
 #
 
-proc getTemplateByPath*(engine: Tim, path: string): Template =
+proc getTemplateByPath*(engine: Tim, path: string): TimTemplate =
   ## Search for `path` in `layouts` or `views` table
   let id = hashid(path) # todo extract parent dir from path?
   if engine.views.hasKey(path):
@@ -201,16 +204,16 @@ proc hasLayout*(engine: Tim, key: string): bool =
   ## Determine if `key` exists in `layouts` table
   result = engine.layouts.hasKey(engine.getPath(key, ttLayout))
 
-proc getLayout*(engine: Tim, key: string): Template =
-  ## Returns a `Template` layout with `layoutName`
+proc getLayout*(engine: Tim, key: string): TimTemplate =
+  ## Returns a `TimTemplate` layout with `layoutName`
   result = engine.layouts[engine.getPath(key, ttLayout)]
 
 proc hasView*(engine: Tim, key: string): bool =
   ## Determine if `key` exists in `views` table
   result = engine.views.hasKey(engine.getPath(key, ttView))
 
-proc getView*(engine: Tim, key: string): Template =
-  ## Returns a `Template` view with `key`
+proc getView*(engine: Tim, key: string): TimTemplate =
+  ## Returns a `TimTemplate` view with `key`
   result = engine.views[engine.getPath(key, ttView)]
 
 proc newTim*(src, output, basepath: string,
@@ -237,7 +240,8 @@ proc newTim*(src, output, basepath: string,
     )
 
   for sourceDir in [ttLayout, ttView, ttPartial]:
-    discard existsOrCreateDir(result.src / $sourceDir)
+    if not dirExists(result.src / $sourceDir):
+      raise newException(TimError, "Missing $1 directory: \n$2" % [$sourceDir, result.src / $sourceDir])
     for fpath in walkDirRec(result.src / $sourceDir):
       let
         id = hashid(fpath)

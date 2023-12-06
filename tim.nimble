@@ -2,36 +2,34 @@
 
 version       = "0.1.0"
 author        = "George Lemon"
-description   = "High-performance, compiled template engine inspired by Emmet syntax"
+description   = "A new awesome nimble package"
 license       = "MIT"
 srcDir        = "src"
 installExt    = @["nim"]
 bin           = @["tim"]
-binDir        = "bin"
+
 
 # Dependencies
 
-requires "nim >= 1.6.0"
-requires "pkginfo"
+requires "nim >= 2.0.0"
 requires "toktok"
 requires "jsony"
-requires "watchout"
-requires "nyml"
-requires "kapsis"
-requires "denim"
-requires "msgpack4nim#head"
+requires "importer"
+requires "watchout#head"
+requires "kapsis#head"
+requires "denim#head"
+requires "checksums"
+requires "flatty"
+requires "supersnappy"
+requires "stashtable"
+# requires "httpx"
+# requires "websocketx"
 
-task tests, "Run tests":
-  exec "testament p 'tests/*.nim'"
+task node, "Build a NODE addon":
+  exec "denim build src/tim.nim --cmake --yes"
 
-task dev, "Dev build":
-  exec "nimble build"
+task example, "Build example":
+  exec "nim c -d:timHotCode --threads:on --mm:arc -o:./bin/app example/app.nim"
 
-task prod, "Release build":
-  exec "nimble build -d:release"
-
-task emsdk, "Build a .wasm via Emscripten":
-  exec "nim c -d:emscripten src/tim.nim"
-
-task napi, "Compile Tim via NAPI":
-  exec "denim build src/tim.nim --cmake --release --yes"
+task pexample, "Build example":
+  exec "nim c -d:timHotCode -d:danger --passC:-flto --threads:on --mm:arc -o:./bin/app example/app.nim"
