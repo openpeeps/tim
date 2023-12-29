@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[macros, os, json, strutils, base64, tables]
+import std/[macros, os, json, strutils, sequtils, base64, tables]
 import pkg/[checksums/md5, supersnappy, flatty]
 
 export getProjectPath
@@ -16,15 +16,15 @@ when defined timStandalone:
 
 type
   TimTemplateType* = enum
+    ttInvalid
     ttLayout = "layouts"
     ttView = "views"
     ttPartial = "partials"
 
   TemplateSourcePaths = tuple[src, ast, html: string]
   TimTemplate* = ref object
-    # ast*: Ast
-    templateId: string
     jit: bool
+    templateId: string
     templateName: string
     case templateType: TimTemplateType
     of ttPartial:
@@ -33,6 +33,7 @@ type
       viewIndent: uint
     else: discard
     sources*: TemplateSourcePaths
+    dependents: Table[string, string]
 
   TemplateTable = TableRef[string, TimTemplate]
 
@@ -96,20 +97,29 @@ proc getAstStoragePath*(engine: Tim): string =
 #
 # TimTemplate API
 #
-proc newTemplate(id: string, templateType: TimTemplateType,
+proc newTemplate(id: string, tplType: TimTemplateType,
     sources: TemplateSourcePaths): TimTemplate =
-  TimTemplate(templateId: id, templateType: templateType, sources: sources)
+  TimTemplate(
+    templateId: id,
+    templateType: tplType,
+    templateName: sources.src.extractFilename,
+    sources: sources
+  )
 
 proc getType*(t: TimTemplate): TimTemplateType =
+  ## Get template type of `t`
   t.templateType
 
 proc getHash*(t: TimTemplate): string =
+  ## Returns the hashed path of `t`
   hashid(t.sources.src)
 
 proc getName*(t: TimTemplate): string =
+  ## Get template name of `t`
   t.templateName
 
 proc getTemplateId*(t: TimTemplate): string =
+  ## Get template id of `t`
   t.templateId
 
 proc setViewIndent*(t: TimTemplate, i: uint) =
@@ -119,6 +129,16 @@ proc setViewIndent*(t: TimTemplate, i: uint) =
 proc getViewIndent*(t: TimTemplate): uint =
   assert t.templateType == ttLayout
   t.viewIndent
+
+proc hasDep*(t: TimTemplate, path: string): bool =
+  t.dependents.hasKey(path)
+
+proc addDep*(t: TimTemplate, path: string) =
+  ## Add a new dependent
+  t.dependents[path] = path
+
+proc getDeps*(t: TimTemplate): seq[string] =
+  t.dependents.keys.toSeq()
 
 proc writeHtml*(engine: Tim, tpl: TimTemplate, htmlCode: string) =
   ## Writes `htmlCode` on disk using `tpl` info
@@ -194,18 +214,21 @@ proc getTemplateByPath*(engine: Tim, path: string): TimTemplate =
     htmlPath = engine.output / "html" / id & ".html"
     sources = (src: path, ast: astPath, html: htmlPath)
   if engine.src / $ttLayout in path:
-    result = newTemplate(id, ttLayout, sources)
-  elif engine.src / $ttView in path:
-    result = newTemplate(id, ttView, sources)
-  elif engine.src / $ttPartial in path:
-    result = newTemplate(id, ttPartial, sources)
+    engine.layouts[path] = newTemplate(id, ttLayout, sources)
+    return engine.layouts[path]
+  if engine.src / $ttView in path:
+    engine.views[path] = newTemplate(id, ttView, sources)
+    return engine.views[path]
+  if engine.src / $ttPartial in path:
+    engine.partials[path] = newTemplate(id, ttPartial, sources)
+    return engine.partials[path]
 
 proc hasLayout*(engine: Tim, key: string): bool =
   ## Determine if `key` exists in `layouts` table
   result = engine.layouts.hasKey(engine.getPath(key, ttLayout))
 
 proc getLayout*(engine: Tim, key: string): TimTemplate =
-  ## Returns a `TimTemplate` layout with `layoutName`
+  ## Get a `TimTemplate` from `layouts` by `key`
   result = engine.layouts[engine.getPath(key, ttLayout)]
 
 proc hasView*(engine: Tim, key: string): bool =
@@ -213,7 +236,7 @@ proc hasView*(engine: Tim, key: string): bool =
   result = engine.views.hasKey(engine.getPath(key, ttView))
 
 proc getView*(engine: Tim, key: string): TimTemplate =
-  ## Returns a `TimTemplate` view with `key`
+  ## Get a `TimTemplate` from `views` by `key`
   result = engine.views[engine.getPath(key, ttView)]
 
 proc newTim*(src, output, basepath: string,
@@ -255,6 +278,7 @@ proc newTim*(src, output, basepath: string,
         result.views[fpath] = id.newTemplate(ttView, sources)
       of ttPartial:
         result.partials[fpath] = id.newTemplate(ttPartial, sources)
+      else: discard
 
   discard existsOrCreateDir(result.output / "ast")
   discard existsOrCreateDir(result.output / "html")
@@ -277,3 +301,21 @@ proc flush*(engine: Tim) =
 
 proc getSourcePath*(engine: Tim): string =
   result = engine.src
+
+proc getTemplateType*(engine: Tim, path: string): TimTemplateType =
+  ## Returns `TimTemplateType` by `path`
+  let basepath = engine.getSourcePath()
+  for xdir in ["layouts", "views", "partials"]:
+    if path.startsWith(basepath / xdir):
+      return parseEnum[TimTemplateType](xdir)
+
+proc clearTemplateByPath*(engine: Tim, path: string) =
+  ## Clear a template from `TemplateTable` by `path`
+  case engine.getTemplateType(path):
+  of ttLayout:
+    engine.layouts.del(path)
+  of ttView:
+    engine.views.del(path)
+  of ttPartial:
+    engine.partials.del(path)
+  else: discard

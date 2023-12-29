@@ -4,6 +4,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import std/json except `%*`
+import std/times
+
 import tim/engine/[meta, parser, compiler, logging]
 import pkg/[watchout, kapsis/cli]
 
@@ -24,9 +26,12 @@ proc displayErrors(l: Logger) =
     display(err)
   display(l.filePath)
 
-proc compileCode*(engine: Tim, tpl: TimTemplate) =
+proc compileCode*(engine: Tim, tpl: TimTemplate, refreshAst = false) =
   # Compiles `tpl` TimTemplate to either `.html` or binary `.ast`
-  var p: Parser = engine.newParser(tpl)
+  var tplView: TimTemplate 
+  if tpl.getType == ttView: 
+    tplView = tpl
+  var p: Parser = engine.newParser(tpl, tplView, refreshAst = refreshAst)
   if likely(not p.hasError):
     if tpl.jitEnabled():
       # when enabled, will save the generated binary ast
@@ -57,13 +62,15 @@ proc precompile*(engine: Tim, callback: TimCallback = nil,
   ## are include-only files that can be imported into layouts
   ## or views via `@import` statement.
   ## 
-  ## By enabling flushing ensures outdated files are deleted. 
+  ## Note: Enable `flush` option to delete outdated files
   if flush: engine.flush()
   when not defined release:
     when defined timHotCode:
       var watchable: seq[string]
+      # Define callback procs for pkg/watchout
+      # Callback `onFound`
       proc onFound(file: watchout.File) =
-        # echo indent(file.getName(), 3)
+        # Runs when detecting a new template.
         let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
         case tpl.getType
         of ttView, ttLayout:
@@ -73,10 +80,12 @@ proc precompile*(engine: Tim, callback: TimCallback = nil,
               echo err
             # setLen(engine.errors, 0)
         else: discard
-
+      # Callback `onChange`
       proc onChange(file: watchout.File) =
+        # Runs when detecting changes
         echo "✨ Changes detected"
         echo indent(file.getName() & "\n", 3)
+        # echo toUnix(getTime())
         let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
         case tpl.getType()
         of ttView, ttLayout:
@@ -84,16 +93,21 @@ proc precompile*(engine: Tim, callback: TimCallback = nil,
           if engine.errors.len > 0:
             for err in engine.errors:
               echo err
-            # setLen(engine.errors, 0)
         else:
-          discard
-          # echo "getting dependencies"
-
+          for path in tpl.getDeps:
+            let deptpl = engine.getTemplateByPath(path)
+            # echo indent($(ttView) / deptpl.getName(), 4)
+            engine.compileCode(deptpl, refreshAst = true)
+            if engine.errors.len > 0:
+              for err in engine.errors:
+                echo err
+      # Callback `onDelete`
       proc onDelete(file: watchout.File) =
-        discard
-        # echo "✨ Deleted\n", file.getName()
-      # echo "✨ Tim Engine - Syncing Templates"
-      var w = newWatchout(@[engine.getSourcePath() / "*"], onChange, onFound)
+        # Runs when deleting a file
+        echo "✨ Deleted\n", file.getName()
+        engine.clearTemplateByPath(file.getPath())
+
+      var w = newWatchout(@[engine.getSourcePath() / "*"], onChange, onFound, onDelete)
       w.start(waitThread)
     else:
       for tpl in engine.getViews():
