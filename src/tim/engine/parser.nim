@@ -5,28 +5,33 @@
 #          https://github.com/openpeeps/tim
 
 {.warning[ImplicitDefaultValue]:off.}
-import std/[macros, streams, lexbase, strutils, re, tables]
+import std/[macros, streams, lexbase, strutils, sequtils, re, tables]
 from std/os import `/`
 
-import ./tokens, ./ast, ./logging
-from meta import Tim, TimTemplate, TimTemplateType, getType,
-  getTemplateByPath, getSourcePath, setViewIndent, jitEnable
+import ./meta, ./tokens, ./ast, ./logging
+import pkg/kapsis/cli
+
+# from ./meta import TimEngine, TimTemplate, TimTemplateType, getType,
+#   getTemplateByPath, getSourcePath, setViewIndent, jitEnable,
+#   addDep, hasDep, getDeps
 
 import pkg/importer
 
 type
   Parser* = object
     lex: Lexer
+    lvl: int
     prev, curr, next: TokenTuple
-    engine: Tim
+    engine: TimEngine
     tpl: TimTemplate
     logger*: Logger
     hasErrors*, nilNotError, hasLoadedView: bool
-    tree: Ast
     parentNode: seq[Node]
-    lvl: int
-    includes: seq[string] # a seq of `ntInclude` nodes
+    includes: Table[string, Meta]
     isMain: bool
+    refreshAst: bool
+    tplView: TimTemplate
+    tree: Ast
 
   PrefixFunction = proc(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
   InfixFunction = proc(p: var Parser, lhs: Node): Node {.gcsafe.}
@@ -139,9 +144,9 @@ macro prefixHandle(name: untyped, body: untyped) =
   )
 
 proc includePartial(p: var Parser, node: Node, s: string) =
-  node.includes.add("/" & s & ".timl")
   node.meta = [p.curr.line, p.curr.pos, p.curr.col]
-  p.includes.add(s & ".timl")
+  add node.includes, "/" & s & ".timl"
+  p.includes[p.engine.getPath(s & ".timl", ttPartial)] = node.meta
 
 proc getStorageType(p: var Parser): StorageType =
   if p.curr.value in ["this", "app"]:
@@ -229,7 +234,7 @@ prefixHandle pIdent:
     return # result
   else: discard
 
-proc pIdentOrAssignment(p: var Parser): Node {.gcsafe.} =
+prefixHandle pIdentOrAssignment:
   let ident = p.curr
   if p.next is tkAssign:
     walk p, 2 # tkAssign
@@ -551,7 +556,7 @@ prefixHandle pViewLoader:
 
 prefixHandle pInclude:
   # parse `@include` magic call.
-  # Tim parse included files in separate threads
+  # TimEngine parse included files in separate threads
   # using pkg/importer
   if likely p.next is tkString:
     let tk = p.curr
@@ -565,7 +570,6 @@ prefixHandle pInclude:
         p.includePartial(result, p.curr.value)
         walk p
       else: return nil
-    # add p.includes, result
 
 prefixHandle pSnippet:
   case p.curr.kind
@@ -675,7 +679,7 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkIF: pCondition
     of tkFor: pFor
     of tkIdentifier: pElement
-    of tkIdentVar: pIdent
+    of tkIdentVar: pIdentOrAssignment
     of tkViewLoader: pViewLoader
     of tkSnippetJS: pSnippet
     of tkInclude: pInclude
@@ -722,19 +726,23 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev
     errorWithArgs(unexpectedToken, tk, [tk.value])
 
-proc newParser*(engine: Tim, tpl: TimTemplate, isMainParser = true): Parser {.gcsafe.}
+proc newParser*(engine: TimEngine, tpl, tplView: TimTemplate, isMainParser = true, refreshAst = false): Parser {.gcsafe.}
 proc getAst*(p: Parser): Ast {.gcsafe.}
+let partials = TimPartialsTable()
+var jitMainParser: bool # force main parser enable JIT
 
-let partials = PartialTable()
 proc parseHandle[T](i: Import[T], importFile: ImportFile,
     ticket: ptr TicketLock): seq[string] {.gcsafe, nimcall.} =
   withLock ticket[]:
     let fpath = importFile.getImportPath
     let path = fpath.replace(i.handle.engine.getSourcePath() / $(ttPartial) / "", "")
-    if likely(not partials.hasKey(path)):
-      var tpl: TimTemplate = i.handle.engine.getTemplateByPath(fpath)
-      var childParser: Parser = i.handle.engine.newParser(tpl, false)
-      partials[path] = childParser.getAst()
+    var tpl: TimTemplate = i.handle.engine.getTemplateByPath(fpath)
+    if likely(not partials.hasKey(path) or i.handle.refreshAst):
+      var childParser: Parser = i.handle.engine.newParser(tpl, i.handle.tplView, false)
+      if childParser.tpl.jitEnabled():
+        jitMainParser = true
+      partials[path] = (childParser.getAst(), childParser.logger.errors.toSeq)
+    tpl.addDep(i.handle.tplView.getSourcePath())
 
 template startParse(path: string): untyped =
   p.handle.curr = p.handle.lex.getToken()
@@ -745,30 +753,44 @@ template startParse(path: string): untyped =
       p.handle.logger.newError(internalError, p.handle.curr.line,
         p.handle.curr.col, false, p.handle.lex.getError)
     if unlikely(p.handle.hasErrors):
-      echo "error"
+      reset(p.handle.tree) # reset incomplete tree
       break
     let node = p.handle.parseRoot()
     if likely(node != nil):
       add p.handle.tree.nodes, node
   lexbase.close(p.handle.lex)
-  if p.handle.includes.len > 0:
-    # continue parse other included templates
-    p.imports(p.handle.includes, parseHandle[Parser])
+  if p.handle.includes.len > 0 and not p.handle.hasErrors:
+    # continue parse other partials
+    p.imports(p.handle.includes.keys.toSeq, parseHandle[Parser])
 
 #
 # Public API
 #
-proc newParser*(engine: Tim, tpl: TimTemplate, isMainParser = true): Parser {.gcsafe.} =
+proc newParser*(engine: TimEngine, tpl, tplView: TimTemplate,
+    isMainParser = true, refreshAst = false): Parser {.gcsafe.} =
   ## Parse `tpl` TimTemplate
-  var p = newImport[Parser](tpl.sources.src, engine.getSourcePath() / $(ttPartial), baseIsMain=true)
+  let partialSrcPath = engine.getSourcePath() / $(ttPartial)
+  var p = newImport[Parser](tpl.sources.src, partialSrcPath, baseIsMain=true)
   p.handle.lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
   p.handle.engine = engine
   p.handle.tpl = tpl
   p.handle.isMain = isMainParser
+  p.handle.refreshAst = refreshAst
+  p.handle.tplView = tplView
   startParse(tpl.sources.src)
   if isMainParser:
     {.gcsafe.}:
-      p.handle.tree.partials = partials
+      if partials.len > 0:
+        p.handle.tree.partials = partials
+      if jitMainParser:
+        p.handle.tpl.jitEnable
+    for err in p.importErrors:
+      case err.reason
+      of ImportErrorMessage.importNotFound:
+        let meta: Meta = p.handle.includes[err.fpath]
+        p.handle.logger.newError(Message.importNotFound, meta[0], meta[2], true, [err.fpath.replace(engine.getSourcePath(), "")])
+        p.handle.hasErrors = true
+      else: discard
   result = p.handle
 
 proc getAst*(p: Parser): Ast {.gcsafe.} =

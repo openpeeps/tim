@@ -6,6 +6,8 @@
 import ./tokens
 import std/[tables, json, macros]
 
+import kapsis/cli
+
 from std/htmlparser import tagToStr, htmlTag, HtmlTag
 export tagToStr, htmlTag, HtmlTag
 
@@ -157,11 +159,15 @@ type
 
   Meta* = array[3, int]
   ScopeTable* = TableRef[string, Node]
-  # PartialsTable* = TableRef[string, Ast]
-  PartialTable* = TableRef[string, Ast]
+  TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
   Ast* = object
+    src*: string
+      ## trace the source path
     nodes*: seq[Node]
-    partials*: PartialTable
+      ## a seq containing tree nodes 
+    partials*: TimPartialsTable
+      ## other trees resulted from imports
+    jit*: bool
 
 const ntAssignableSet* = {ntLitString, ntLitInt, ntLitFloat, ntLitBool}
 

@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "George Lemon"
-description   = "A new awesome nimble package"
+description   = "A super fast template engine for cool kids!"
 license       = "MIT"
 srcDir        = "src"
 installExt    = @["nim"]

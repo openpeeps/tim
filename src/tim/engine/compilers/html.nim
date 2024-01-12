@@ -7,32 +7,15 @@
 import std/[tables, strutils,
   json, options, terminal]
 
-import ./ast, ./logging
+import ../ast, ../logging
 
-from ./meta import Tim, TimTemplate, TimTemplateType,
+from ../meta import TimEngine, TimTemplate, TimTemplateType,
   getType, getSourcePath
 
+include ./tim
+
 type
-  HtmlCompiler* = object
-    ast: Ast
-    tpl: TimTemplate
-    nl: string = "\n"
-    output: string
-    jsOutput: string
-    jsCodeExists: bool
-    start: bool
-    case tplType: TimTemplateType
-    of ttLayout:
-      head: string
-    else: discard
-    logger*: Logger
-    indent: int = 2
-    minify, hasErrors: bool
-    stickytail: bool
-      # when `false` inserts a `\n` char
-      # before closing the HTML element tag.
-      # Does not apply to `textarea`, `button` and other
-      # self closing tags (such as `submit`, `img` and so on)
+  HtmlCompiler* = object of TimCompiler
     when not defined timStandalone:
       globalScope: ScopeTable = ScopeTable()
       data: JsonNode
@@ -160,7 +143,6 @@ proc toString(value: Value): string =
       value.nVal.toString()
 
 proc print(val: Node) =
-  echo val
   let meta = " ($1:$2) " % [$val.meta[0], $val.meta[2]]
   stdout.styledWriteLine(
     fgGreen, "Debug",
@@ -297,10 +279,11 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
       else: discard
     of ntIdent:
       var lhs = c.fromScope(lhs.identName, scopetables)
+      if lhs == nil or rhs == nil: return # false
       case rhs.nt
       of ntIdent:
         var rhs = c.fromScope(rhs.identName, scopetables)
-        if lhs != nil and rhs != nil:
+        if rhs != nil:
           result = c.infixEvaluator(lhs.varValue, rhs.varValue, infixOp, scopetables)
       else:
         result = c.infixEvaluator(lhs.varValue, rhs, infixOp, scopetables)
@@ -425,17 +408,23 @@ template evalBranch(branch: Node, body: untyped) =
   of ntInfixExpr, ntMathInfixExpr:
     if c.infixEvaluator(branch.infixLeft, branch.infixRight,
         branch.infixOp, scopetables):
+      newScope(scopetables)
       body
+      clearScope(scopetables)
       return # condition is thruty
   of ntIdent:
     if c.infixEvaluator(branch, boolDefault, EQ, scopetables):
+      newScope(scopetables)
       body
+      clearScope(scopetables)
       return # condition is thruty
   of ntDotExpr:
     let x = c.dotEvaluator(branch, scopetables)
     if likely(x != nil):
       if c.infixEvaluator(x, boolDefault, EQ, scopetables):
+        newScope(scopetables)
         body
+        clearScope(scopetables)
         return
   else: discard
 
@@ -610,7 +599,7 @@ proc htmlElement(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTabl
 proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: var seq[ScopeTable]) =
   for x in includes:
     if likely(c.ast.partials.hasKey(x)):
-      c.evaluateNodes(c.ast.partials[x].nodes, scopetables)
+      c.evaluateNodes(c.ast.partials[x][0].nodes, scopetables)
 
 proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable]) =
   for i in 0..nodes.high:
@@ -634,6 +623,7 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[S
     of ntAssignExpr:
       c.assignExpr(nodes[i], scopetables)
     of ntConditionStmt:
+      # echo nodes[i]
       c.evalCondition(nodes[i], scopetables)
     of ntLoopStmt:
       c.evalLoop(nodes[i], scopetables)

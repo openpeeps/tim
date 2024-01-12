@@ -27,6 +27,7 @@ type
     duplicateAttribute = "Duplicate HTML attribute $"
     duplicateField = "Duplicate field $"
     undeclaredField = "Undeclared field $"
+    importNotFound = "Cannot open file: $"
     internalError = "$"
 
   Level* = enum
@@ -139,6 +140,12 @@ template error*(msg: Message, tk: TokenTuple, strFmt: bool,
             extraLines: seq[string], extraLabel: string, args: varargs[string]) =
   if not p.hasErrors:
     newErrorMultiLines(p.logger, msg, tk.line, tk.pos, strFmt, extraLines, extraLabel, args)
+    p.hasErrors = true
+  return # block code execution
+
+template error*(msg: Message, meta: Meta, args: varargs[string]) =
+  if not p.hasErrors:
+    p.logger.newError(msg, meta[0], meta[2], true, args)
     p.hasErrors = true
   return # block code execution
 

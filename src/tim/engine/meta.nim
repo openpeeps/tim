@@ -23,7 +23,7 @@ type
 
   TemplateSourcePaths = tuple[src, ast, html: string]
   TimTemplate* = ref object
-    jit: bool
+    jit, inUse: bool
     templateId: string
     templateName: string
     case templateType: TimTemplateType
@@ -38,27 +38,21 @@ type
   TemplateTable = TableRef[string, TimTemplate]
 
   TimCallback* = proc() {.nimcall, gcsafe.}
-  Tim* = ref object
+  TimEngine* = ref object
     base, src, output: string
     minify: bool
     indentSize: int
     layouts, views, partials: TemplateTable = TemplateTable()
     errors*: seq[string]
-    # sources: tuple[
-    #   layoutsPath = "layouts",
-    #   viewsPath = "views",
-    #   partialsPath = "partials"
-    # ]
     when defined timStandalone:
       globals: Globals
     else:
       globals: JsonNode = newJObject()
-      # imports: TableRef[string, ImportFunction]
 
   TimError* = object of CatchableError
 
-proc getPath(engine: Tim, key: string, templateType: TimTemplateType): string =
-  ## Retrieve path key for either a partial, view or layout
+proc getPath*(engine: TimEngine, key: string, templateType: TimTemplateType): string =
+  ## Get absolute path of `key` view, partial or layout
   var k: string
   var tree: seq[string]
   result = engine.src & "/" & $templateType & "/$1"
@@ -78,18 +72,18 @@ proc hashid(path: string): string =
   # Creates an MD5 hashed version of `path`
   result = getMD5(path)
 
-proc getHtmlPath(engine: Tim, path: string): string =
+proc getHtmlPath(engine: TimEngine, path: string): string =
   engine.output / "html" / hashid(path) & ".html"
 
-proc getAstPath(engine: Tim, path: string): string =
+proc getAstPath(engine: TimEngine, path: string): string =
   engine.output / "ast" / hashid(path) & ".ast"
 
-proc getHtmlStoragePath*(engine: Tim): string =
+proc getHtmlStoragePath*(engine: TimEngine): string =
   ## Returns the `html` directory path used for
   ## storing static HTML files
   result = engine.output / "html"
 
-proc getAstStoragePath*(engine: Tim): string =
+proc getAstStoragePath*(engine: TimEngine): string =
   ## Returns the `ast` directory path used for
   ## storing binary AST files.
   result = engine.output / "ast"
@@ -140,19 +134,19 @@ proc addDep*(t: TimTemplate, path: string) =
 proc getDeps*(t: TimTemplate): seq[string] =
   t.dependents.keys.toSeq()
 
-proc writeHtml*(engine: Tim, tpl: TimTemplate, htmlCode: string) =
+proc writeHtml*(engine: TimEngine, tpl: TimTemplate, htmlCode: string) =
   ## Writes `htmlCode` on disk using `tpl` info
   writeFile(tpl.sources.html, htmlCode)
 
-proc writeHtmlTail*(engine: Tim, tpl: TimTemplate, htmlCode: string) =
+proc writeHtmlTail*(engine: TimEngine, tpl: TimTemplate, htmlCode: string) =
   ## Writes `htmlCode` tails on disk using `tpl` info
   writeFile(tpl.sources.html.changeFileExt("tail"), htmlCode)
 
-proc writeAst*(engine: Tim, tpl: TimTemplate, astCode: Ast) =
+proc writeAst*(engine: TimEngine, tpl: TimTemplate, astCode: Ast) =
   ## Writes `astCode` on disk using `tpl` info
   writeFile(tpl.sources.ast, supersnappy.compress(flatty.toFlatty(astCode)))
 
-proc readAst*(engine: Tim, tpl: TimTemplate): Ast = 
+proc readAst*(engine: TimEngine, tpl: TimTemplate): Ast = 
   ## Get `AST` of `tpl` TimTemplate from storage
   try:
     let binAst = readFile(tpl.sources.ast)
@@ -188,19 +182,19 @@ proc getTail*(t: TimTemplate): string =
   ## Returns the tail of a split layout
   result = readFile(t.getHtmlPath.changeFileExt("tail"))
 
-iterator getViews*(engine: Tim): TimTemplate =
+iterator getViews*(engine: TimEngine): TimTemplate =
   for id, tpl in engine.views:
     yield tpl
 
-iterator getLayouts*(engine: Tim): TimTemplate =
+iterator getLayouts*(engine: TimEngine): TimTemplate =
   for id, tpl in engine.layouts:
     yield tpl
 
 #
-# Tim Engine API
+# TimEngine Engine API
 #
 
-proc getTemplateByPath*(engine: Tim, path: string): TimTemplate =
+proc getTemplateByPath*(engine: TimEngine, path: string): TimTemplate =
   ## Search for `path` in `layouts` or `views` table
   let id = hashid(path) # todo extract parent dir from path?
   if engine.views.hasKey(path):
@@ -223,25 +217,29 @@ proc getTemplateByPath*(engine: Tim, path: string): TimTemplate =
     engine.partials[path] = newTemplate(id, ttPartial, sources)
     return engine.partials[path]
 
-proc hasLayout*(engine: Tim, key: string): bool =
+proc hasLayout*(engine: TimEngine, key: string): bool =
   ## Determine if `key` exists in `layouts` table
   result = engine.layouts.hasKey(engine.getPath(key, ttLayout))
 
-proc getLayout*(engine: Tim, key: string): TimTemplate =
+proc getLayout*(engine: TimEngine, key: string): TimTemplate =
   ## Get a `TimTemplate` from `layouts` by `key`
   result = engine.layouts[engine.getPath(key, ttLayout)]
+  result.inUse = true
 
-proc hasView*(engine: Tim, key: string): bool =
+proc hasView*(engine: TimEngine, key: string): bool =
   ## Determine if `key` exists in `views` table
   result = engine.views.hasKey(engine.getPath(key, ttView))
 
-proc getView*(engine: Tim, key: string): TimTemplate =
+proc getView*(engine: TimEngine, key: string): TimTemplate =
   ## Get a `TimTemplate` from `views` by `key`
   result = engine.views[engine.getPath(key, ttView)]
+  result.inUse = true
+
+proc isUsed*(t: TimTemplate): bool = t.inUse
 
 proc newTim*(src, output, basepath: string,
-    minify = true, indent = 2): Tim =
-  ## Initializes `Tim` engine
+    minify = true, indent = 2): TimEngine =
+  ## Initializes `TimEngine` engine
   var basepath =
     if basepath.fileExists:
       basepath.parentDir # if comes from `currentSourcePath()`
@@ -254,7 +252,7 @@ proc newTim*(src, output, basepath: string,
     raise newException(TimError,
       "Expecting a relative path for `src` and `output`")
   result =
-    Tim(
+    TimEngine(
       src: normalizedPath(basepath / src),
       output: normalizedPath(basepath / output),
       base: basepath,
@@ -283,13 +281,13 @@ proc newTim*(src, output, basepath: string,
   discard existsOrCreateDir(result.output / "ast")
   discard existsOrCreateDir(result.output / "html")
 
-proc isMinified*(engine: Tim): bool =
+proc isMinified*(engine: TimEngine): bool =
   result = engine.minify
 
-proc getIndentSize*(engine: Tim): int =
+proc getIndentSize*(engine: TimEngine): int =
   result = engine.indentSize
 
-proc flush*(engine: Tim) =
+proc flush*(engine: TimEngine) =
   ## Flush precompiled files
   for f in walkDir(engine.getAstStoragePath):
     if f.path.endsWith(".ast"):
@@ -299,17 +297,17 @@ proc flush*(engine: Tim) =
     if f.path.endsWith(".html"):
       f.path.removeFile()
 
-proc getSourcePath*(engine: Tim): string =
+proc getSourcePath*(engine: TimEngine): string =
   result = engine.src
 
-proc getTemplateType*(engine: Tim, path: string): TimTemplateType =
+proc getTemplateType*(engine: TimEngine, path: string): TimTemplateType =
   ## Returns `TimTemplateType` by `path`
   let basepath = engine.getSourcePath()
   for xdir in ["layouts", "views", "partials"]:
     if path.startsWith(basepath / xdir):
       return parseEnum[TimTemplateType](xdir)
 
-proc clearTemplateByPath*(engine: Tim, path: string) =
+proc clearTemplateByPath*(engine: TimEngine, path: string) =
   ## Clear a template from `TemplateTable` by `path`
   case engine.getTemplateType(path):
   of ttLayout:
