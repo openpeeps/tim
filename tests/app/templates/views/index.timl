@@ -1,2 +1,3 @@
 div.container > div.row > div.col-12
   h1: "Hello!"
+  @include "btn"
