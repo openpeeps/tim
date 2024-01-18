@@ -14,7 +14,7 @@ bin           = @["tim"]
 requires "nim >= 2.0.0"
 requires "toktok"
 requires "jsony"
-requires "importer"
+requires "https://github.com/openpeeps/importer"
 requires "watchout#head"
 requires "kapsis#head"
 requires "denim#head"
