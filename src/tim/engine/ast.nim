@@ -18,7 +18,7 @@ else:
 
 type
   NodeType* = enum
-    ntInvalid
+    ntUnknown
 
     ntLitInt = "int"
     ntLitString = "string"
@@ -26,17 +26,16 @@ type
     ntLitBool = "bool"
     ntLitArray = "array"
     ntLitObject = "object"
-    ntArrayStorage = "Array"
-    ntObjectStorage = "Object"
+    ntLitFunction = "function"
 
     ntVariableDef = "Variable"
-    ntFunctionDef = "Function"
     ntAssignExpr = "Assignment"
     ntHtmlElement = "HtmlElement"
     ntInfixExpr = "InfixExpression"
     ntMathInfixExpr = "MathExpression"
     ntCommandStmt = "CommandStatement"
     ntIdent = "Identifier"
+    ntCall = "FunctionCall"
     ntDotExpr
     ntBracketExpr
     ntConditionStmt = "ConditionStatement"
@@ -45,6 +44,8 @@ type
     ntInclude = "Include"
 
     ntJavaScriptSnippet = "JavaScriptSnippet"
+    ntYamlSnippet = "YAMLSnippet"
+    ntJsonSnippet = "JsonSnippet"
 
   CommandType* = enum
     cmdEcho = "echo"
@@ -90,7 +91,7 @@ type
 
   HtmlAttributes* = TableRef[string, seq[Node]]
   ConditionBranch* = tuple[expr: Node, body: seq[Node]]
-
+  FnParam* = tuple[pName: string, pType: NodeType, pImplVal: Node, meta: Meta]
   Node* {.acyclic.} = ref object
     case nt*: NodeType
     of ntHtmlElement:
@@ -128,20 +129,29 @@ type
       fVal*: float
     of ntLitBool:
       bVal*: bool
-    of ntArrayStorage:
+    of ntLitArray:
       arrayItems*: seq[Node]
-    of ntObjectStorage:
+    of ntLitObject:
       objectItems*: OrderedTableRef[string, Node]
     of ntCommandStmt:
       cmdType*: CommandType
       cmdValue*: Node
     of ntIdent:
       identName*: string
+    of ntCall:
+      callIdent*: string
+      callArgs*: seq[Node]
     of ntDotExpr:
       storageType*: StorageType
       lhs*, rhs*: Node
-    of ntJavaScriptSnippet:
-      jsCode*: string
+    of ntLitFunction:
+      fnIdent*: string
+      fnParams*: OrderedTable[string, FnParam]
+      fnBody*: seq[Node]
+      fnReturnType*: NodeType
+    of ntJavaScriptSnippet, ntYamlSnippet,
+      ntJsonSnippet:
+        snippetCode*: string
     of ntInclude:
       includes*: seq[string]
     else: discard
@@ -363,6 +373,7 @@ proc newNode*(nt: static NodeType): Node =
   Node(nt: nt)
 
 proc newString*(tk: TokenTuple): Node =
+  ## Create a new string value node
   result = newNode(ntLitString, tk)
   result.sVal = tk.value
 
@@ -371,22 +382,43 @@ proc newInteger*(v: int, tk: TokenTuple): Node =
   result.iVal = v
 
 proc newFloat*(v: float, tk: TokenTuple): Node =
+  ## Create a new float value node
   result = newNode(ntLitFloat, tk)
   result.fVal = v
 
 proc newBool*(v: bool, tk: TokenTuple): Node =
+  ## Create a new bool value Node
   result = newNode(ntLitBool, tk)
   result.bVal = v
 
+proc newVariable*(varName: string, varValue: Node, meta: Meta): Node =
+  ## Create a new variable definition Node
+  result = newNode(ntVariableDef)
+  result.varName = varName
+  result.varValue = varvalue
+  result.meta = meta
+
 proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
+  ## Create a new variable definition Node
   result = newNode(ntVariableDef, tk)
   result.varName = varName
   result.varValue = varvalue
 
 proc newAssignment*(tk: TokenTuple, varValue: Node): Node =
+  ## Create a new assignment Node
   result = newNode(ntAssignExpr, tk)
   result.asgnIdent = tk.value
   result.asgnVal = varValue
+
+proc newFunction*(tk: TokenTuple, ident: string): Node =
+  ## Create a new Function definition Node
+  result = newNode(ntLitFunction, tk)
+  result.fnIdent = ident
+
+proc newCall*(tk: TokenTuple): Node =
+  ## Create a new function call Node
+  result = newNode(ntCall)
+  result.callIdent = tk.value
 
 proc newInfix*(lhs, rhs: Node, infixOp: InfixOp, tk: TokenTuple): Node =
   result = newNode(ntInfixExpr, tk)
@@ -418,7 +450,7 @@ proc newCondition*(condIfBranch: ConditionBranch, tk: TokenTuple): Node =
 
 proc newArray*(items: seq[Node] = @[]): Node =
   ## Creates a new `Array` node
-  result = newNode(ntArrayStorage)
+  result = newNode(ntLitArray)
   result.arrayItems = items
 
 proc toTimNode*(x: JsonNode): Node =
@@ -436,12 +468,12 @@ proc toTimNode*(x: JsonNode): Node =
     result = newNode(ntLitBool)
     result.bVal = x.bval
   of JObject:
-    result = newNode(ntObjectStorage)
+    result = newNode(ntLitObject)
     result.objectItems = newOrderedTable[string, Node]()
     for k, v in x:
       result.objectItems[k] = toTimNode(v)
   of JArray:
-    result = newNode(ntArrayStorage)
+    result = newNode(ntLitArray)
     for v in x:
       result.arrayItems.add(toTimNode(v))
   else: discard

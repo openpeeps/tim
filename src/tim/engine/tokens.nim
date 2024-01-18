@@ -81,13 +81,49 @@ handlers:
     if lex.next("js"):
       let pos = lex.getColNumber(lex.bufpos)
       inc lex.bufpos, 3
-      collectSnippet(tkSnippetJS)
+      collectSnippet(tkSnippetJs)
+    elif lex.next("yaml"):
+      let pos = lex.getColNumber(lex.bufpos)
+      inc lex.bufpos, 5
+      collectSnippet(tkSnippetYaml)
+    elif lex.next("json"):
+      let pos = lex.getColNumber(lex.bufpos)
+      inc lex.bufpos, 5
+      collectSnippet(tkSnippetJson)
     elif lex.next("include"):
       lex.setToken tkInclude, 8
     elif lex.next("view"):
       lex.setToken tkViewLoader, 5
     else: discard
 
+  proc handleBackticks(lex: var Lexer, kind: TokenKind) =
+    lex.startPos = lex.getColNumber(lex.bufpos)
+    setLen(lex.token, 0)
+    let lineno = lex.lineNumber
+    inc lex.bufpos
+    while true:
+      case lex.buf[lex.bufpos]
+      of '\\':
+        lex.handleSpecial()
+        if lex.hasError(): return
+      of '`':
+        lex.kind = kind
+        inc lex.bufpos
+        break
+      of NewLines:
+        if lex.multiLineStr:
+          inc lex.bufpos
+        else:
+          lex.setError("EOL reached before end of string")
+          return
+      of EndOfFile:
+        lex.setError("EOF reached before end of string")
+        return
+      else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
+    if lex.multiLineStr:
+      lex.lineNumber = lineno
 
 const toktokSettings =
   toktok.Settings(
@@ -131,6 +167,7 @@ registerTokens toktokSettings:
     andAnd = '&'
   pipe = '|':
     orOr = '|'
+  backtick = tokenize(handleBackticks, '`')
   `if`   = "if"
   `elif` = "elif"
   `else` = "else"
@@ -147,10 +184,14 @@ registerTokens toktokSettings:
   litFloat = "float"
   litObject = "object"
   litArray = "array"
-
+  litFunction = "function"
+  litVoid = "void"
+  
   # magics
   at = tokenize(handleMagics, '@')
-  snippetjs
+  snippetJs
+  snippetYaml
+  snippetJson
   viewLoader
   `include`
 

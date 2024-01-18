@@ -3,9 +3,8 @@ type
     ast: Ast
     tpl: TimTemplate
     nl: string = "\n"
-    output: string
-    jsOutput: string
-    jsCodeExists: bool
+    output, jsOutput, jsonOutput,
+      yamlOutput, cssOutput: string
     start: bool
     case tplType: TimTemplateType
     of ttLayout:

@@ -40,10 +40,14 @@ const
   tkCompSet = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE, tkAmp, tkAndAnd}
   tkMathSet = {tkPlus, tkMinus, tkMultiply, tkDivide}
   tkAssignableSet = {
-    tkString, tkBool, tkFloat, tkInteger,
-    tkIdentVar, tkLC, tkLB
+    tkString, tkBacktick, tkBool, tkFloat,
+    tkInteger, tkIdentVar, tkLC, tkLB
   }
   tkComparable = tkAssignableSet
+  tkTypedLiterals = {
+    tkLitArray, tkLitBool, tkLitFloat, tkLitFunction,
+    tkLitInt, tkLitObject, tkLitString
+  }
 
 #
 # Forward Declaration
@@ -103,6 +107,11 @@ template expect(kind: TokenKind, body) =
     body
   else: return nil
 
+template expect(kind: set[TokenKInd], body) =
+  if likely(p.curr in kind):
+    body
+  else: return nil
+
 proc isIdent(tk: TokenTuple, anyIdent, anyStringKey = false): bool =
   result = tk is tkIdentifier
   if result or (anyIdent and tk.kind != tkString):
@@ -155,11 +164,29 @@ proc getStorageType(p: var Parser): StorageType =
       return localStorage
     result = globalStorage
 
+proc getType(p: var Parser): NodeType =
+  result =
+    case p.curr.kind:
+    of tkLitArray: ntLitArray
+    of tkLitBool: ntLitBool
+    of tkLitFloat: ntLitFloat
+    of tkLitFunction: ntLitFunction
+    of tkLitInt: ntLitInt
+    of tkLitObject: ntLitObject
+    of tkLitString: ntLitString
+    else: ntUnknown
+
 #
 # Parse Handlers
 #
 prefixHandle pString:
-  # parse a string
+  # parse a single/double quote string
+  result = ast.newString(p.curr)
+  walk p
+
+prefixHandle pBacktick:
+  # parse template literals enclosed by backticks
+  # todo
   result = ast.newString(p.curr)
   walk p
 
@@ -276,7 +303,7 @@ prefixHandle pEchoCommand:
     else:
       varNode = p.getPrefixOrInfix()
     return ast.newCommand(cmdEcho, varNode, tk)
-  else: discard
+  else: errorWithArgs(unexpectedToken, p.curr, [p.curr.value])
 
 prefixHandle pReturnCommand:
   # parse `return` command
@@ -324,8 +351,12 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
             let attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
             walk p
+          of tkBacktick:
+            let attrValue = ast.newString(p.curr)
+            attrs[attrKey.value] = @[attrValue]
+            walk p            
           else:
-            attrs[attrKey.value] = @[]
+            attrs[attrKey.value] = @[ast.newIdent(p.curr)]
         else: errorWithArgs(duplicateAttribute, attrKey, [attrKey.value])
       else: break
       # errorWithArgs(invalidAttribute, p.prev, [p.prev.value])
@@ -484,7 +515,7 @@ prefixHandle pFor:
 
 prefixHandle pAnoObject:
   # parse an anonymous object
-  let anno = ast.newNode(ntObjectStorage, p.curr)
+  let anno = ast.newNode(ntLitObject, p.curr)
   anno.objectItems = newOrderedTable[string, Node]()
   walk p # {
   while p.curr.isIdent(anyIdent = true, anyStringKey = true) and p.next.kind == tkColon:
@@ -534,7 +565,7 @@ prefixHandle pAnoArray:
     if p.curr is tkComma:
       walk p
   expectWalk tkRB
-  result = ast.newNode(ntArrayStorage, tk)
+  result = ast.newNode(ntLitArray, tk)
   result.arrayItems = items
 
 proc pAssignable(p: var Parser): Node {.gcsafe.} =
@@ -575,7 +606,10 @@ prefixHandle pSnippet:
   case p.curr.kind
   of tkSnippetJS:
     result = ast.newNode(ntJavaScriptSnippet, p.curr)
-    result.jsCode = p.curr.value
+    result.snippetCode = p.curr.value
+  of tkSnippetYaml:
+    result = ast.newNode(ntYamlSnippet, p.curr)
+    result.snippetCode = p.curr.value
   else: discard
   # elif p.curr.kind == tkSass:
     # result = ast.newSnippet(p.curr)
@@ -592,6 +626,70 @@ prefixHandle pSnippet:
   #     result = newSnippet(p.curr, ident)
   #     # result.jsonCode = yaml(p.curr.value).toJsonStr
   walk p
+
+template handleImplicitDefaultValue {.dirty.} =
+  # handle implicit default value
+  walk p
+  let implNode = p.getPrefixOrInfix(includes = tkAssignableSet)
+  if likely(implNode != nil):
+    result.fnParams[pName.value].pImplVal = implNode
+
+prefixHandle pFunction:
+  # parse a function declaration
+  let this = p.curr; walk p # tkFN
+  expect tkIdentifier: # function identifier
+    result = ast.newFunction(this, p.curr.value)
+    walk p
+    expectWalk tkLP
+    while p.curr isnot tkRP:
+      case p.curr.kind
+      of tkIdentifier:
+        let pName = p.curr
+        walk p
+        if p.curr is tkColon:
+          if likely(result.fnParams.hasKey(pName.value) == false):
+            walk p # tkColon
+            case p.curr.kind
+            of tkTypedLiterals:
+              let pType = p.getType
+              result.fnParams[pName.value] =
+                (pName.value, pType, nil, [p.curr.line, p.curr.pos, p.curr.col]) # todo parse implicit value
+              walk p
+              if p.curr is tkAssign:
+                handleImplicitDefaultValue()
+            else: break
+        elif p.curr is tkAssign:
+          result.fnParams[pName.value] =
+            (pName.value, ntUnknown, nil, [0, 0, 0])
+          handleImplicitDefaultValue()
+          result.fnParams[pName.value].meta = implNode.meta
+      else: return nil
+    walk p # tkRP
+    if p.curr is tkColon:
+      walk p
+      expect tkTypedLiterals:
+        # set return type
+        result.fnReturnType = p.getType
+        walk p
+    expectWalk tkAssign
+    while p.curr.isChild(this):
+      # todo disallow use of html inside a function 
+      let node = p.getPrefixOrInfix()
+      if likely(node != nil):
+        add result.fnBody, node
+    if unlikely(result.fnBody.len == 0):
+      error(badIndentation, p.curr)
+
+prefixHandle pFunctionCall:
+  # parse a function call
+  result = ast.newCall(p.curr)
+  walk p, 2 # we know tkLP is next so we'll skip it
+  while p.curr isnot tkRP:
+    let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
+    if likely(argNode != nil):
+      add result.callArgs, argNode
+    else: return nil
+  walk p # tkRP
 
 #
 # Infix Main Handlers
@@ -672,19 +770,23 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     case p.curr.kind
     of tkVar, tkConst: pAssignment
     of tkString: pString
+    of tkBacktick: pBacktick
     of tkInteger: pInt
     of tkFloat: pFloat
     of tkBool: pBool
     of tkEchoCmd: pEchoCommand
     of tkIF: pCondition
     of tkFor: pFor
-    of tkIdentifier: pElement
+    of tkIdentifier:
+      if p.next is tkLP and p.next.wsno == 0: pFunctionCall
+      else: pElement
     of tkIdentVar: pIdentOrAssignment
     of tkViewLoader: pViewLoader
     of tkSnippetJS: pSnippet
     of tkInclude: pInclude
     of tkLB: pAnoArray
     of tkLC: pAnoObject
+    of tkFN: pFunction
     else: nil
 
 proc parsePrefix(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
@@ -716,11 +818,16 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkIF:          p.pCondition()
     of tkFor:         p.pFor()
     of tkViewLoader:  p.pViewLoader()
-    of tkIdentifier:  p.pElement()
+    of tkIdentifier:
+      if p.next is tkLP and p.next.wsno == 0:
+        p.pFunctionCall()
+      else:
+        p.pElement()
     of tkSnippetJS:   p.pSnippet()
     of tkInclude:     p.pInclude()
     of tkLB: p.pAnoArray()
     of tkLC: p.pAnoObject()
+    of tkFN: p.pFunction()
     else: nil
   if unlikely(result == nil):
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev

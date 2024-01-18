@@ -12,10 +12,11 @@ import ../ast, ../logging
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
   getType, getSourcePath
 
-include ./tim
+include ./tim # TimCompiler object
 
 type
   HtmlCompiler* = object of TimCompiler
+    ## Create a TimCompiler to output to `HTML`
     when not defined timStandalone:
       globalScope: ScopeTable = ScopeTable()
       data: JsonNode
@@ -45,9 +46,7 @@ proc getIndent(c: HtmlCompiler, meta: Meta, skipbr = false): string =
       add result, indent("", c.baseIndent(meta[1]))
 
 when not defined timStandalone:
-  #
-  # Scope API
-  #
+  # Scope API, available for library version of TimEngine 
   proc globalScope(c: var HtmlCompiler, key: string, node: Node) =
     # Add `node` to global scope
     c.globalScope[key] = node
@@ -59,9 +58,16 @@ when not defined timStandalone:
   proc stack(c: var HtmlCompiler, key: string, node: Node,
       scopetables: var seq[ScopeTable]) =
     # Add `node` to either local or global scope
-    if scopetables.len > 0:
-      scopetables[^1][node.varName] = node
-      return
+    case node.nt
+    of ntVariableDef:
+      if scopetables.len > 0:
+        scopetables[^1][node.varName] = node
+        return
+    of ntLitFunction:
+      if scopetables.len > 0:
+        scopetables[^1][node.fnIdent] = node
+        return
+    else: discard
     c.globalScope[key] = node
 
   proc getCurrentScope(c: var HtmlCompiler,
@@ -99,11 +105,11 @@ when not defined timStandalone:
     if some.scopeTable != nil:
       return some.scopeTable[key]
   
-  proc newScope(scopetables: var seq[ScopeTable]) =
+  proc newScope(scopetables: var seq[ScopeTable]) {.inline.} =
     ## Create a new Scope
     scopetables.add(ScopeTable())
 
-  proc clearScope(scopetables: var seq[ScopeTable]) =
+  proc clearScope(scopetables: var seq[ScopeTable]) {.inline.} =
     ## Clears the current (latest) ScopeTable
     scopetables.delete(scopetables.high)
 
@@ -187,7 +193,7 @@ proc evalStorage(c: var HtmlCompiler, node: Node): JsonNode =
 proc walkAccessorStorage(c: var HtmlCompiler,
     lhs, rhs: Node, scopetables: var seq[ScopeTable]): Node =
   case lhs.nt
-  of ntObjectStorage:
+  of ntLitObject:
     try:
       result = lhs.objectItems[rhs.identName]
     except KeyError:
@@ -200,11 +206,12 @@ proc walkAccessorStorage(c: var HtmlCompiler,
     let x = c.fromScope(lhs.identName, scopetables)
     if likely(x != nil):
       result = c.walkAccessorStorage(x.varValue, rhs, scopetables)
-  of ntArrayStorage:
+  of ntLitArray:
     discard # todo handle accessor storage for arrays
   else: discard
 
 proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
+  # Evaluate dot expressions
   case node.storageType
   of localStorage, globalStorage:
     let x = c.evalStorage(node)
@@ -214,12 +221,14 @@ proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTab
     return c.walkAccessorStorage(node.lhs, node.rhs, scopetables)
 
 proc writeDotExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+  # Handle dot expressions
   let someValue: Node = c.dotEvaluator(node, scopetables)
   if likely(someValue != nil):
     add c.output, someValue.toString()
     c.stickytail = true
 
 proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+  # Evaluate a command
   var val: Node
   case node.cmdValue.nt
   of ntIdent:
@@ -241,11 +250,10 @@ proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) 
       else: discard
     return
   else: discard
-
-  case node.cmdType
-  of cmdEcho:
-    print(val)
-  else: discard
+  if val != nil:
+    case node.cmdType
+    of cmdEcho: print(val)
+    else: discard
 
 proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
@@ -358,11 +366,6 @@ proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
     return some.scopeTable[node.identName].varValue
   compileErrorWithArgs(undeclaredVariable, [node.identName])
 
-# proc calc(c: var HtmlCompiler, lhs, rhs: Node, op: MathOp, var seq[ScopeTable]): Node =
-#   case infixOp:
-#   of mPlus:
-
-#   else: discard
 
 proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
   ## Evaluates a math expression and returns
@@ -397,11 +400,10 @@ proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[Sc
   else: discard
 
 let
+  intDefault = ast.newNode(ntLitInt)
+  strDefault = ast.newNode(ntLitString)
   boolDefault = ast.newNode(ntLitBool)
 boolDefault.bVal = true
-let
-  strDefault = ast.newNode(ntLitString)
-  intDefault = ast.newNode(ntLitInt)
 
 template evalBranch(branch: Node, body: untyped) =
   case branch.nt
@@ -477,14 +479,14 @@ proc evalLoop(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
           c.varExpr(node.loopItem, scopetables)
           c.evaluateNodes(node.loopBody, scopetables)
           clearScope(scopetables)
-      of ntArrayStorage:
+      of ntLitArray:
         for x in items.varValue.arrayItems:
           newScope(scopetables)
           node.loopItem.varValue = x
           c.varExpr(node.loopItem, scopetables)
           c.evaluateNodes(node.loopBody, scopetables)
           clearScope(scopetables)
-      of ntObjectStorage:
+      of ntLitObject:
         for x, y in items.varValue.objectItems:
           newScope(scopetables)
           node.loopItem.varValue = y
@@ -502,6 +504,11 @@ proc typeCheck(c: var HtmlCompiler, x, node: Node): bool =
     compileErrorWithArgs(typeMismatch, [$(node.nt), $(x.nt)])
   result = true
 
+proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool =
+  if unlikely(node.nt != expect):
+    compileErrorWithArgs(typeMismatch, [$(node.nt), $(expect)])
+  result = true
+
 #
 # Compile Handlers
 #
@@ -512,6 +519,7 @@ proc varExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) 
   else: compileErrorWithArgs(varRedefine, [node.varName])
 
 proc assignExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+  # Handle assignment expressions
   let some = c.getScope(node.asgnIdent, scopetables)
   if likely(some.scopeTable != nil):
     let varNode = some.scopeTable[node.asgnIdent]
@@ -521,10 +529,77 @@ proc assignExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable
       else:
         compileErrorWithArgs(varImmutable, [varNode.varName])
 
+proc fnDef(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+  # Handle function definitions
+  if likely(not c.inScope(node.fnIdent, scopetables)):
+    if node.fnParams.len > 0:
+      for k, p in node.fnParams:
+        if p.pImplVal != nil:
+          if p.pImplVal.nt != p.pType:
+            compileErrorWithArgs(typeMismatch, [$(p.pImplVal.nt), $p.pType], p.meta)
+    # if node.fnReturnType != ntUnknown:
+      # check if function has a return type
+      # where tkUnknown acts like a void
+      
+    c.stack(node.fnIdent, node, scopetables)
+  else: compileErrorWithArgs(fnRedefine, [node.fnIdent])
+
+proc fnCall(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+  # Handle function calls
+  let some = c.getScope(node.callIdent, scopetables)
+  if likely(some.scopeTable != nil):
+    newScope(scopetables)
+    let fnNode = some.scopeTable[node.callIdent]
+    if fnNode.fnParams.len > 0:
+      # add available param definition
+      # to current stack
+      for k, p in fnNode.fnParams:
+        var x = ast.newVariable(k, p.pImplVal, p.meta)
+        c.stack(k, x, scopetables)
+    if node.callArgs.len == fnNode.fnParams.len:
+      # checking if the number of given args
+      # is matching the number of parameters
+      if node.callArgs.len > 0:
+        var i = 0
+        for k, p in fnNode.fnParams:
+          case node.callArgs[i].nt
+          of ntIdent:
+            var valNode = c.getValue(node.callArgs[i], scopetables)
+            if not c.typeCheck(valNode, p.pType):
+              return # error > type mismatch
+            let someParam = c.getScope(k, scopetables)
+            if likely(someParam.scopeTable != nil):
+              someParam.scopeTable[k].varValue = valNode
+          else:
+            if c.typeCheck(node.callArgs[i], p.pType):
+              let someParam = c.getScope(k, scopetables)
+              echo node.callArgs[i]
+              someParam.scopeTable[k].varValue = node.callArgs[i]
+            else: return
+          inc i
+    elif node.callArgs.len > fnNode.fnParams.len:
+      compileErrorWithArgs(fnExtraArg, [$(node.callArgs.len), $(fnNode.fnParams.len)])
+    elif node.callArgs.len < fnNode.fnParams.len:
+      # check if function parameters has any implicit values
+      var i = 0
+      for k, p in fnNode.fnParams:
+        if p.pImplVal != nil:
+          let someParam = c.getScope(k, scopetables)
+          someParam.scopeTable[k].varValue = p.pImplVal
+        else:
+          compileErrorWithArgs(typeMismatch, ["none", $p.pType], p.meta)
+        inc i
+    # todo find a way to cache the results of
+    # this function call
+    c.evaluateNodes(fnNode.fnBody, scopetables)
+    clearScope(scopetables)
+  else: compileErrorWithArgs(fnUndeclared, [node.callIdent])
+
 #
 # Html Handler
 #
 proc getId(c: HtmlCompiler, node: Node): string =
+  # Get ID html attribute
   add result, indent("id=", 1) & "\""
   let attrNode = node.attrs["id"][0]
   case attrNode.nt
@@ -534,6 +609,7 @@ proc getId(c: HtmlCompiler, node: Node): string =
   add result, "\""
 
 proc getAttrs(c: HtmlCompiler, attrs: HtmlAttributes): string =
+  # Write HTMLAttributes
   var i = 0
   var skipQuote: bool
   let len = attrs.len
@@ -593,15 +669,18 @@ template htmlblock(x: Node, body) =
       c.stickytail = false
 
 proc htmlElement(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+  # Handle HTML element
   htmlblock node:
     c.evaluateNodes(node.nodes, scopetables)
 
 proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: var seq[ScopeTable]) =
+  # Evaluate included partials
   for x in includes:
     if likely(c.ast.partials.hasKey(x)):
       c.evaluateNodes(c.ast.partials[x][0].nodes, scopetables)
 
 proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable]) =
+  # Evaluate a seq[Node] nodes
   for i in 0..nodes.high:
     case nodes[i].nt
     of ntHtmlElement:
@@ -630,6 +709,8 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[S
     of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
       add c.output, nodes[i].toString
       c.stickytail = true
+    of ntLitFunction:
+      c.fnDef(nodes[i], scopetables)
     of ntInfixExpr:
       case nodes[i].infixOp
       of AMP:
@@ -639,12 +720,14 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[S
       # add c.output, c.getIndent(nodes[i].meta)
       c.head = c.output
       reset(c.output)
+    of ntCall:
+      c.fnCall(nodes[i], scopetables)
     of ntInclude:
       c.evaluatePartials(nodes[i].includes, scopetables)
     of ntJavaScriptSnippet:
-      add c.jsOutput, nodes[i].jsCode
-      if not c.jsCodeExists:
-        c.jsCodeExists = true
+      add c.jsOutput, nodes[i].snippetCode
+    of ntJsonSnippet:
+      add c.jsonOutput, nodes[i].snippetCode
     else: discard
 
 #
@@ -705,13 +788,10 @@ proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =
 proc getHtml*(c: HtmlCompiler): string =
   ## Get the compiled HTML
   result = c.output
-  if c.tplType == ttView:
-    case c.jsCodeExists
-    of true:
-      add result, "\n" & "<script type=\"text/javascript\">"
-      add result, c.jsOutput
-      add result, "\n" & "</script>"
-    else: discard
+  if c.tplType == ttView and c.jsOutput.len > 0:
+    add result, "\n" & "<script type=\"text/javascript\">"
+    add result, c.jsOutput
+    add result, "\n" & "</script>"
 
 proc getHead*(c: HtmlCompiler): string =
   ## Returns the top of a split layout
@@ -721,8 +801,7 @@ proc getHead*(c: HtmlCompiler): string =
 proc getTail*(c: HtmlCompiler): string =
   ## Retruns the tail of a layout
   assert c.tplType == ttLayout
-  case c.jsCodeExists
-  of true:
+  if c.jsOutput.len > 0:
     result = "\n" & "<script type=\"text/javascript\">"
     add result, c.jsOutput
     add result, "\n" & "</script>"

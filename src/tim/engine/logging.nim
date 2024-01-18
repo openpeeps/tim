@@ -19,6 +19,9 @@ type
     undeclaredVariable = "Undeclared variable $"
     varRedefine = "Attempt to redefine variable $"
     varImmutable = "Attempt to reassign value to immutable constant $"
+    fnRedefine = "Attempt to redefine function $"
+    fnUndeclared = "Undeclared function $"
+    fnExtraArg = "Extra arguments given. Got $ expected $"
     badIndentation = "Nestable statement requires indentation"    
     invalidContext = "Invalid $ in this context"
     invalidViewLoader = "Invalid use of `@view` in this context. Use a layout instead"
@@ -157,6 +160,11 @@ template errorWithArgs*(msg: Message, tk: TokenTuple, args: openarray[string]) =
 
 template compileErrorWithArgs*(msg: Message, args: openarray[string]) =
   c.logger.newError(msg, node.meta[0], node.meta[1], true, args)
+  c.hasErrors = true
+  return
+
+template compileErrorWithArgs*(msg: Message, args: openarray[string], meta: Meta) =
+  c.logger.newError(msg, meta[0], meta[1], true, args)
   c.hasErrors = true
   return
 

@@ -201,8 +201,5 @@ when defined napibuild:
       return %*(x)
 
 elif not isMainModule:
-  import tim/engine/[meta, parser, logging]
-  import tim/engine/compilers/html
-
   export parser, html, json
   export meta except TimEngine
