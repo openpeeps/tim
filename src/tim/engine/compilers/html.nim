@@ -466,38 +466,48 @@ proc evalConcat(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable
       add c.output, someValue.toString()
   else: discard
 
+template loopEvaluator(items: Node) =
+  case items.nt:
+    of ntLitString:
+      for x in items.sVal:
+        newScope(scopetables)
+        node.loopItem.varValue = ast.Node(nt: ntLitString, sVal: $(x))
+        c.varExpr(node.loopItem, scopetables)
+        c.evaluateNodes(node.loopBody, scopetables)
+        clearScope(scopetables)
+    of ntLitArray:
+      for x in items.arrayItems:
+        newScope(scopetables)
+        node.loopItem.varValue = x
+        c.varExpr(node.loopItem, scopetables)
+        c.evaluateNodes(node.loopBody, scopetables)
+        clearScope(scopetables)
+    of ntLitObject:
+      for x, y in items.objectItems:
+        newScope(scopetables)
+        node.loopItem.varValue = y
+        c.varExpr(node.loopItem, scopetables)
+        c.evaluateNodes(node.loopBody, scopetables)
+        clearScope(scopetables)
+    else:
+      let x = @[ntLitString, ntLitArray, ntLitObject]
+      compileErrorWithArgs(typeMismatch, [$(items.nt), x.join(" ")])
+
 proc evalLoop(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   # Evaluates a `for` loop
-  let some = c.getScope(node.loopItems.identName, scopetables)
-  if likely(some.scopeTable != nil):
-    let items = some.scopeTable[node.loopItems.identName]
-    case items.varValue.nt:
-      of ntLitString:
-        for x in items.varValue.sVal:
-          newScope(scopetables)
-          node.loopItem.varValue = ast.Node(nt: ntLitString, sVal: $(x))
-          c.varExpr(node.loopItem, scopetables)
-          c.evaluateNodes(node.loopBody, scopetables)
-          clearScope(scopetables)
-      of ntLitArray:
-        for x in items.varValue.arrayItems:
-          newScope(scopetables)
-          node.loopItem.varValue = x
-          c.varExpr(node.loopItem, scopetables)
-          c.evaluateNodes(node.loopBody, scopetables)
-          clearScope(scopetables)
-      of ntLitObject:
-        for x, y in items.varValue.objectItems:
-          newScope(scopetables)
-          node.loopItem.varValue = y
-          c.varExpr(node.loopItem, scopetables)
-          c.evaluateNodes(node.loopBody, scopetables)
-          clearScope(scopetables)
-      else:
-        let x = @[ntLitString, ntLitArray, ntLitObject]
-        compileErrorWithArgs(typeMismatch, [$(items.varValue.nt), x.join(" ")])
-  else:
-    compileErrorWithArgs(undeclaredVariable, [node.loopItems.identName])
+  case node.loopItems.nt
+  of ntIdent:
+    let some = c.getScope(node.loopItems.identName, scopetables)
+    if likely(some.scopeTable != nil):
+      let items = some.scopeTable[node.loopItems.identName]
+      loopEvaluator(items.varValue)
+    else: compileErrorWithArgs(undeclaredVariable, [node.loopItems.identName])
+  of ntDotExpr:
+    let items = c.dotEvaluator(node.loopItems, scopetables)
+    if likely(items != nil):
+      loopEvaluator(items)
+    else: compileErrorWithArgs(undeclaredVariable, [node.loopItems.identName])
+  else: return
 
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool =
   if unlikely(x.nt != node.nt):
@@ -622,6 +632,11 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes, scopetables: var seq[S
         add attrStr, attrNode.toString()
       of ntIdent:
         let x = c.getValue(attrNode, scopetables)
+        if likely(x != nil):
+          add attrStr, x.toString()
+        else: return # undeclaredVariable
+      of ntDotExpr:
+        let x = c.dotEvaluator(attrNode, scopetables)
         if likely(x != nil):
           add attrStr, x.toString()
         else: return # undeclaredVariable

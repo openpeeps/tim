@@ -356,8 +356,9 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
             attrs[attrKey.value] = @[attrValue]
             walk p            
           else:
-            attrs[attrKey.value] = @[ast.newIdent(p.curr)]
-            walk p
+            let x = p.pIdent()
+            if likely(x != nil):
+              attrs[attrKey.value] = @[x]
         else: errorWithArgs(duplicateAttribute, attrKey, [attrKey.value])
       else: break
       # errorWithArgs(invalidAttribute, p.prev, [p.prev.value])

@@ -21,7 +21,6 @@ requires "denim#head"
 requires "checksums"
 requires "flatty"
 requires "supersnappy"
-requires "stashtable"
 # requires "httpx"
 # requires "websocketx"
 
