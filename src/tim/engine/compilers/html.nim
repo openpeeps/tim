@@ -608,7 +608,7 @@ proc getId(c: HtmlCompiler, node: Node): string =
   else: discard # todo
   add result, "\""
 
-proc getAttrs(c: HtmlCompiler, attrs: HtmlAttributes): string =
+proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes, scopetables: var seq[ScopeTable]): string =
   # Write HTMLAttributes
   var i = 0
   var skipQuote: bool
@@ -620,8 +620,12 @@ proc getAttrs(c: HtmlCompiler, attrs: HtmlAttributes): string =
       case attrNode.nt
       of ntAssignableSet:
         add attrStr, attrNode.toString()
-      else:
-        discard
+      of ntIdent:
+        let x = c.getValue(attrNode, scopetables)
+        if likely(x != nil):
+          add attrStr, x.toString()
+        else: return # undeclaredVariable
+      else: discard
     add result, attrStr.join(" ")
     if not skipQuote and i != len:
       add result, "\""
@@ -652,7 +656,7 @@ template htmlblock(x: Node, body) =
         add c.output, c.getId(x)
         x.attrs.del("id") # not needed anymore
       if x.attrs.len > 0:
-        add c.output, c.getAttrs(x.attrs)
+        add c.output, c.getAttrs(x.attrs, scopetables)
     add c.output, ">"
     body
     case x.tag
