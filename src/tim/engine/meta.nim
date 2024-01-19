@@ -245,8 +245,7 @@ proc newTim*(src, output, basepath: string,
       basepath.parentDir # if comes from `currentSourcePath()`
     else:
       if not basepath.dirExists:
-        raise newException(TimError,
-          "Invalid basepath directory")
+        raise newException(TimError, "Invalid basepath directory")
       basepath
   if src.isAbsolute or output.isAbsolute:
     raise newException(TimError,
