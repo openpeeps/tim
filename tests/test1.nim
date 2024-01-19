@@ -8,4 +8,4 @@ test "precompile":
   t.precompile(flush = true, waitThread = false)
 
 test "render index":
-  let html = t.render("index")
+  echo t.render("index")
