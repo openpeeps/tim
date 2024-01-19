@@ -5,8 +5,9 @@
 #          https://github.com/openpeeps/tim
 
 import std/[tables, strutils,
-  json, options, terminal]
+  json, jsonutils, options, terminal]
 
+import pkg/jsony
 import ../ast, ../logging
 
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
@@ -25,6 +26,7 @@ type
 proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable])
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool
 proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
+proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 
 proc hasError*(c: HtmlCompiler): bool = c.hasErrors
 
@@ -121,6 +123,43 @@ proc varExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
 #
 # AST Evaluators
 #
+proc dumpHook*(s: var string, v: seq[Node])
+proc dumpHook*(s: var string, v: OrderedTableRef[string, Node])
+# proc dumpHook*(s: var string, v: Color)
+
+proc dumpHook*(s: var string, v: Node) =
+  ## Dumps `v` node to stringified JSON using `pkg/jsony`
+  case v.nt
+  of ntLitString: s.add("\"" & $v.sVal & "\"")
+  of ntLitFloat:  s.add($v.fVal)
+  of ntLitInt:    s.add($v.iVal)
+  of ntLitBool:   s.add($v.bVal)
+  of ntLitObject: s.dumpHook(v.objectItems)
+  of ntLitArray:  s.dumpHook(v.arrayItems)
+  else: discard
+
+proc dumpHook*(s: var string, v: seq[Node]) =
+  s.add("[")
+  if v.len > 0:
+    s.dumpHook(v[0])
+    for i in 1 .. v.high:
+      s.add(",")
+      s.dumpHook(v[i])
+  s.add("]")
+
+proc dumpHook*(s: var string, v: OrderedTableRef[string, Node]) =
+  var i = 0
+  let len = v.len - 1
+  s.add("{")
+  for k, node in v:
+    s.add("\"" & k & "\":")
+    s.dumpHook(node)
+    if i < len:
+      s.add(",")
+    inc i
+  s.add("}")
+
+
 proc toString(node: Node): string =
   result =
     case node.nt
@@ -128,6 +167,10 @@ proc toString(node: Node): string =
     of ntLitInt:    $node.iVal
     of ntLitFloat:  $node.fVal
     of ntLitBool:   $node.bVal
+    of ntLitObject:
+      fromJson(jsony.toJson(node.objectItems)).pretty
+    of ntLitArray:
+      fromJson(jsony.toJson(node.arrayItems)).pretty
     else: ""
 
 proc toString(node: JsonNode): string =
@@ -427,7 +470,7 @@ template evalBranch(branch: Node, body: untyped) =
         newScope(scopetables)
         body
         clearScope(scopetables)
-        return
+        return # condition is thruty
   else: discard
 
 proc evalCondition(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
@@ -522,10 +565,42 @@ proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool =
 #
 # Compile Handlers
 #
+proc checkObjectStorage(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): bool =
+  # Check object storage
+  for k, v in node.objectItems.mpairs:
+    case v.nt
+    of ntIdent:
+      var valNode = c.getValue(v, scopetables)
+      if likely(valNode != nil):
+        v = valNode
+      else: return
+    else: discard
+  result = true
+
+proc checkArrayStorage(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): bool =
+  # Check array storage
+  for v in node.arrayItems.mitems:
+    case v.nt
+    of ntIdent:
+      var valNode = c.getValue(v, scopetables)
+      if likely(valNode != nil):
+        v = valNode
+      else: return
+    else: discard
+  result = true
+
 proc varExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   # Evaluates a variable
   if likely(not c.inScope(node.varName, scopetables)):
-    c.stack(node.varName, node, scopetables)
+    case node.varValue.nt
+    of ntLitObject:
+      if c.checkObjectStorage(node.varValue, scopetables):
+        c.stack(node.varName, node, scopetables)
+    of ntLitArray:
+      if c.checkArrayStorage(node.varValue, scopetables):
+        c.stack(node.varName, node, scopetables)
+    else:
+      c.stack(node.varName, node, scopetables)
   else: compileErrorWithArgs(varRedefine, [node.varName])
 
 proc assignExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
