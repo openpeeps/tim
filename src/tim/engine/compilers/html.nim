@@ -4,12 +4,13 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[tables, strutils,
-  json, jsonutils, options, terminal]
+import std/[tables, strutils, json,
+  jsonutils, options, terminal]
 
 import pkg/jsony
 import ../ast, ../logging
 
+from std/xmltree import escape
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
   getType, getSourcePath
 
@@ -17,17 +18,20 @@ include ./tim # TimCompiler object
 
 type
   HtmlCompiler* = object of TimCompiler
-    ## Create a TimCompiler to output to `HTML`
+    ## Object of a TimCompiler to output `HTML`
     when not defined timStandalone:
       globalScope: ScopeTable = ScopeTable()
       data: JsonNode
 
 # Forward Declaration
-proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable])
+proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
+    scopetables: var seq[ScopeTable], parentNode: Node = nil): Node {.discardable.}
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool
+proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool
 proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
-
+proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
+proc fnCall(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc hasError*(c: HtmlCompiler): bool = c.hasErrors
 
 proc baseIndent(c: HtmlCompiler, isize: int): int =
@@ -160,7 +164,7 @@ proc dumpHook*(s: var string, v: OrderedTableRef[string, Node]) =
   s.add("}")
 
 
-proc toString(node: Node): string =
+proc toString(node: Node, escape = false): string =
   result =
     case node.nt
     of ntLitString: node.sVal
@@ -172,8 +176,34 @@ proc toString(node: Node): string =
     of ntLitArray:
       fromJson(jsony.toJson(node.arrayItems)).pretty
     else: ""
+  if escape:
+    result = xmltree.escape(result)
 
-proc toString(node: JsonNode): string =
+proc toString(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable], escape = false): string =
+  result =
+    case node.nt
+    of ntLitString:
+      if node.sVals.len == 0:
+        node.sVal
+      else:
+        var concat: string
+        for concatNode in node.sVals:
+          let x = c.getValue(concatNode, scopetables)
+          if likely(x != nil):
+            add concat, x.sVal
+        node.sVal & concat
+    of ntLitInt:    $node.iVal
+    of ntLitFloat:  $node.fVal
+    of ntLitBool:   $node.bVal
+    of ntLitObject:
+      fromJson(jsony.toJson(node.objectItems)).pretty
+    of ntLitArray:
+      fromJson(jsony.toJson(node.arrayItems)).pretty
+    else: ""
+  if escape:
+    result = xmltree.escape(result)
+
+proc toString(node: JsonNode, escape = false): string =
   result =
     case node.kind
     of JString: node.str
@@ -183,13 +213,13 @@ proc toString(node: JsonNode): string =
     of JObject, JArray: $(node)
     else: "null"
 
-proc toString(value: Value): string =
+proc toString(value: Value, escape = false): string =
   result =
     case value.kind
     of jsonValue:
-      value.jVal.toString()
+      value.jVal.toString(escape)
     of nimValue:
-      value.nVal.toString()
+      value.nVal.toString(escape)
 
 proc print(val: Node) =
   let meta = " ($1:$2) " % [$val.meta[0], $val.meta[2]]
@@ -270,7 +300,7 @@ proc writeDotExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTab
     add c.output, someValue.toString()
     c.stickytail = true
 
-proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
   # Evaluate a command
   var val: Node
   case node.cmdValue.nt
@@ -284,6 +314,8 @@ proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) 
     val = node.cmdValue
   of ntMathInfixExpr:
     val = c.mathInfixEvaluator(node.cmdValue, scopetables)
+  of ntCall:
+    val = c.fnCall(node.cmdValue, scopetables)
   of ntDotExpr:
     let someValue: Node = c.dotEvaluator(node.cmdValue, scopetables)
     if likely(someValue != nil):
@@ -295,7 +327,11 @@ proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) 
   else: discard
   if val != nil:
     case node.cmdType
-    of cmdEcho: print(val)
+    of cmdEcho:
+      val.meta = node.cmdValue.meta
+      print(val)
+    of cmdReturn:
+      return val
     else: discard
 
 proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
@@ -402,13 +438,47 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     else: discard # todo
   else: discard # todo
 
-proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
-  # Evaluates an identifier node
-  let some = c.getScope(node.identName, scopetables)
-  if likely(some.scopeTable != nil):
-    return some.scopeTable[node.identName].varValue
-  compileErrorWithArgs(undeclaredVariable, [node.identName])
+proc getValues(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): seq[Node] =
+  # lhs
+  case node.infixLeft.nt
+  of ntDotExpr:
+    add result, c.dotEvaluator(node.infixLeft, scopetables)
+  of ntAssignableSet:
+    add result, node.infixLeft
+  of ntInfixExpr:
+    add result, c.getValue(node.infixLeft, scopetables)
+  else: discard
+  # rhs
+  case node.infixRight.nt
+  of ntDotExpr:
+    add result, c.dotEvaluator(node.infixRight, scopetables)
+  of ntAssignableSet:
+    add result, node.infixRight
+  of ntInfixExpr:
+    add result, c.getValue(node.infixRight, scopetables)
+  of ntMathInfixExpr:
+    let someValue = c.mathInfixEvaluator(node.infixRight, scopetables)
+    if likely(someValue != nil):
+      add result, someValue
+  else: discard
 
+proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
+  # Get a literal node from ntIdent, ntDotExpr, ntCall, ntInfixExpr
+  case node.nt
+  of ntIdent:
+    let some = c.getScope(node.identName, scopetables)
+    if likely(some.scopeTable != nil):
+      return some.scopeTable[node.identName].varValue
+    compileErrorWithArgs(undeclaredVariable, [node.identName])
+  of ntInfixExpr:
+    case node.infixOp
+    of AMP:
+      result = ast.newNode(ntLitString)
+      let vNodes: seq[Node] = c.getValues(node, scopetables)
+      for vNode in vNodes:
+        add result.sVal, vNode.sVal
+    else: discard # todo
+  else: discard
 
 proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
   ## Evaluates a math expression and returns
@@ -442,6 +512,7 @@ proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[Sc
     else: discard
   else: discard
 
+# define default value nodes
 let
   intDefault = ast.newNode(ntLitInt)
   strDefault = ast.newNode(ntLitString)
@@ -549,7 +620,8 @@ proc evalLoop(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
     let items = c.dotEvaluator(node.loopItems, scopetables)
     if likely(items != nil):
       loopEvaluator(items)
-    else: compileErrorWithArgs(undeclaredVariable, [node.loopItems.identName])
+    else:
+      compileErrorWithArgs(undeclaredVariable, [node.loopItems.lhs.identName])
   else: return
 
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool =
@@ -572,6 +644,14 @@ proc checkObjectStorage(c: var HtmlCompiler, node: Node, scopetables: var seq[Sc
     of ntIdent:
       var valNode = c.getValue(v, scopetables)
       if likely(valNode != nil):
+        # todo something with safe var
+        # if v.identSafe:
+        #   v = valNode
+        #   case v.nt
+        #   of ntLitString:
+        #     v.sVal = xmltree.escape(v.sVal)
+        #   else: discard
+        # else:
         v = valNode
       else: return
     else: discard
@@ -629,7 +709,8 @@ proc fnDef(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
     c.stack(node.fnIdent, node, scopetables)
   else: compileErrorWithArgs(fnRedefine, [node.fnIdent])
 
-proc fnCall(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+proc fnCall(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable]): Node =
   # Handle function calls
   let some = c.getScope(node.callIdent, scopetables)
   if likely(some.scopeTable != nil):
@@ -674,9 +755,11 @@ proc fnCall(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
         else:
           compileErrorWithArgs(typeMismatch, ["none", $p.pType], p.meta)
         inc i
-    # todo find a way to cache the results of
-    # this function call
-    c.evaluateNodes(fnNode.fnBody, scopetables)
+    result = c.evaluateNodes(fnNode.fnBody, scopetables)
+    if result != nil:
+      if unlikely(not c.typeCheck(result, fnNode.fnReturnType)):
+        clearScope(scopetables)
+        return nil
     clearScope(scopetables)
   else: compileErrorWithArgs(fnUndeclared, [node.callIdent])
 
@@ -704,7 +787,7 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes, scopetables: var seq[S
     for attrNode in attrNodes:
       case attrNode.nt
       of ntAssignableSet:
-        add attrStr, attrNode.toString()
+        add attrStr, c.toString(attrNode, scopetables)
       of ntIdent:
         let x = c.getValue(attrNode, scopetables)
         if likely(x != nil):
@@ -773,7 +856,8 @@ proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: v
     if likely(c.ast.partials.hasKey(x)):
       c.evaluateNodes(c.ast.partials[x][0].nodes, scopetables)
 
-proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable]) =
+proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
+    scopetables: var seq[ScopeTable], parentNode: Node = nil): Node {.discardable.} =
   # Evaluate a seq[Node] nodes
   for i in 0..nodes.high:
     case nodes[i].nt
@@ -782,7 +866,7 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[S
     of ntIdent:
       let x = c.getValue(nodes[i], scopetables)
       if likely(x != nil):
-        add c.output, x.toString
+        add c.output, x.toString(nodes[i].identSafe)
         c.stickytail = true
     of ntDotExpr:
       let someValue: Node = c.dotEvaluator(nodes[i], scopetables)
@@ -792,11 +876,14 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[S
     of ntVariableDef:
       c.varExpr(nodes[i], scopetables)
     of ntCommandStmt:
-      c.evalCmd(nodes[i], scopetables)
+      case nodes[i].cmdType
+      of cmdReturn:
+        return c.evalCmd(nodes[i], scopetables)
+      else:
+        discard c.evalCmd(nodes[i], scopetables)
     of ntAssignExpr:
       c.assignExpr(nodes[i], scopetables)
     of ntConditionStmt:
-      # echo nodes[i]
       c.evalCondition(nodes[i], scopetables)
     of ntLoopStmt:
       c.evalLoop(nodes[i], scopetables)
@@ -815,7 +902,7 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[S
       c.head = c.output
       reset(c.output)
     of ntCall:
-      c.fnCall(nodes[i], scopetables)
+      echo c.fnCall(nodes[i], scopetables)
     of ntInclude:
       c.evaluatePartials(nodes[i].includes, scopetables)
     of ntJavaScriptSnippet:

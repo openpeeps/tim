@@ -123,6 +123,7 @@ type
       loopBody*: seq[Node]
     of ntLitString:
       sVal*: string
+      sVals*: seq[Node]
     of ntLitInt:
       iVal*: int
     of ntLitFloat:
@@ -138,6 +139,7 @@ type
       cmdValue*: Node
     of ntIdent:
       identName*: string
+      identSafe*: bool
     of ntCall:
       callIdent*: string
       callArgs*: seq[Node]
@@ -417,7 +419,7 @@ proc newFunction*(tk: TokenTuple, ident: string): Node =
 
 proc newCall*(tk: TokenTuple): Node =
   ## Create a new function call Node
-  result = newNode(ntCall)
+  result = newNode(ntCall, tk)
   result.callIdent = tk.value
 
 proc newInfix*(lhs, rhs: Node, infixOp: InfixOp, tk: TokenTuple): Node =

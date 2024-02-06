@@ -11,10 +11,6 @@ from std/os import `/`
 import ./meta, ./tokens, ./ast, ./logging
 import pkg/kapsis/cli
 
-# from ./meta import TimEngine, TimTemplate, TimTemplateType, getType,
-#   getTemplateByPath, getSourcePath, setViewIndent, jitEnable,
-#   addDep, hasDep, getDeps
-
 import pkg/importer
 
 type
@@ -41,7 +37,7 @@ const
   tkMathSet = {tkPlus, tkMinus, tkMultiply, tkDivide}
   tkAssignableSet = {
     tkString, tkBacktick, tkBool, tkFloat,
-    tkInteger, tkIdentVar, tkLC, tkLB
+    tkInteger, tkIdentVar, tkIdentVarSafe, tkLC, tkLB
   }
   tkComparable = tkAssignableSet
   tkTypedLiterals = {
@@ -62,6 +58,8 @@ proc parsePrefix(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {
 proc pAnoArray(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
 proc pAnoObject(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
 proc pAssignable(p: var Parser): Node {.gcsafe.}
+
+proc pFunctionCall(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
 
 template caseNotNil*(x: Node, body): untyped =
   if likely(x != nil):
@@ -184,6 +182,10 @@ prefixHandle pString:
   result = ast.newString(p.curr)
   walk p
 
+prefixHandle pStringConcat:
+  walk p # tkAmp
+  return p.getPrefixOrInfix()
+
 prefixHandle pBacktick:
   # parse template literals enclosed by backticks
   # todo
@@ -268,7 +270,9 @@ prefixHandle pIdentOrAssignment:
     let varValue = p.getPrefixOrInfix()
     caseNotNil varValue:
       return ast.newAssignment(ident, varValue)
-  return p.pIdent()
+  result = p.pIdent()
+  if result.nt == ntIdent:
+    result.identSafe = ident.kind == tkIdentVarSafe
 
 prefixHandle pAssignment:
   # parse assignment
@@ -295,7 +299,7 @@ prefixHandle pEchoCommand:
   var varNode: Node
   case p.curr.kind
   of tkAssignableSet:
-    if p.curr is tkIdentVar:
+    if p.curr in {tkIdentVar, tkIdentVarSafe}:
       if p.next.isInfix:
         varNode = p.getPrefixOrInfix()
       else:
@@ -303,6 +307,12 @@ prefixHandle pEchoCommand:
     else:
       varNode = p.getPrefixOrInfix()
     return ast.newCommand(cmdEcho, varNode, tk)
+  of tkIdentifier:
+    if p.next is tkLP and p.next.wsno == 0:
+      varNode = p.pFunctionCall()
+      return ast.newCommand(cmdEcho, varNode, tk)
+    else:
+      return nil
   else: errorWithArgs(unexpectedToken, p.curr, [p.curr.value])
 
 prefixHandle pReturnCommand:
@@ -344,17 +354,24 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
       if anyAttrIdent():
         let attrKey = p.curr
         walk p
-        if p.curr is tkAssign: walk p
+        if p.curr is tkAssign:
+          walk p
+        # else: return
         if not attrs.hasKey(attrKey.value):
           case p.curr.kind
           of tkString:
             let attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
             walk p
+            if p.curr is tkAmp:
+              while p.curr is tkAmp:
+                let attrValue = p.pStringConcat()
+                if likely(attrValue != nil):
+                  attrs[attrKey.value][^1].sVals.add(attrValue)
           of tkBacktick:
             let attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
-            walk p            
+            walk p
           else:
             let x = p.pIdent()
             if likely(x != nil):
@@ -670,15 +687,17 @@ prefixHandle pFunction:
     if p.curr is tkColon:
       walk p
       expect tkTypedLiterals:
-        # set return type
+        # set a return type
         result.fnReturnType = p.getType
         walk p
-    expectWalk tkAssign
+    expectWalk tkAssign # begin function body
     while p.curr.isChild(this):
-      # todo disallow use of html inside a function 
+      # todo disallow use of html inside a function
+      # todo cleanup parser code and make use of includes/excludes
       let node = p.getPrefixOrInfix()
       if likely(node != nil):
         add result.fnBody, node
+      else: return nil
     if unlikely(result.fnBody.len == 0):
       error(badIndentation, p.curr)
 
@@ -780,15 +799,18 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkIF: pCondition
     of tkFor: pFor
     of tkIdentifier:
-      if p.next is tkLP and p.next.wsno == 0: pFunctionCall
-      else: pElement
-    of tkIdentVar: pIdentOrAssignment
+      if p.next is tkLP and p.next.wsno == 0:
+        pFunctionCall # function call by ident
+      else:
+        pElement # parse HTML element
+    of tkIdentVar, tkIdentVarSafe: pIdentOrAssignment
     of tkViewLoader: pViewLoader
     of tkSnippetJS: pSnippet
     of tkInclude: pInclude
     of tkLB: pAnoArray
     of tkLC: pAnoObject
     of tkFN: pFunction
+    of tkReturnCmd: pReturnCommand
     else: nil
 
 proc parsePrefix(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
@@ -815,8 +837,9 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     case p.curr.kind
     of tkVar,tkConst: p.pAssignment()
     of tkEchoCmd:     p.pEchoCommand()
-    of tkReturnCmd:   p.pReturnCommand()
-    of tkIdentVar:    p.pIdentOrAssignment()
+    # of tkReturnCmd:   p.pReturnCommand()
+    of tkIdentVar, tkIdentVarSafe:
+      p.pIdentOrAssignment()
     of tkIF:          p.pCondition()
     of tkFor:         p.pFor()
     of tkViewLoader:  p.pViewLoader()

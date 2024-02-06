@@ -37,6 +37,10 @@ handlers:
   proc handleVar(lex: var Lexer, kind: TokenKind) =
     lexReady lex
     inc lex.bufpos
+    var isSafe: bool
+    if lex.current == '$':
+      isSafe = true
+      inc lex.bufpos
     case lex.buf[lex.bufpos]
     of IdentStartChars:
       add lex
@@ -50,7 +54,10 @@ handlers:
         else:
           break
     else: discard
-    lex.kind = kind
+    if not isSafe:
+      lex.kind = kind
+    else:
+      lex.kind = tkIdentVarSafe
     if lex.token.len > 255:
       lex.setError("Identifier name is longer than 255 characters")
 
@@ -201,3 +208,4 @@ registerTokens toktokSettings:
   returnCmd = "return"
   echoCmd = "echo"
   identVar = tokenize(handleVar, '$')
+  identVarSafe
