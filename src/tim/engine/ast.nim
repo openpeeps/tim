@@ -18,7 +18,7 @@ else:
 
 type
   NodeType* = enum
-    ntUnknown
+    ntUnknown = "void"
 
     ntLitInt = "int"
     ntLitString = "string"
@@ -46,6 +46,7 @@ type
     ntJavaScriptSnippet = "JavaScriptSnippet"
     ntYamlSnippet = "YAMLSnippet"
     ntJsonSnippet = "JsonSnippet"
+    ntClientBlock = "ClientSideStatement"
 
   CommandType* = enum
     cmdEcho = "echo"
@@ -156,6 +157,9 @@ type
         snippetCode*: string
     of ntInclude:
       includes*: seq[string]
+    of ntClientBlock:
+      clientTargetElement*: string
+      clientStmt*: seq[Node]
     else: discard
     meta*: Meta
 

@@ -101,6 +101,10 @@ handlers:
       lex.setToken tkInclude, 8
     elif lex.next("view"):
       lex.setToken tkViewLoader, 5
+    elif lex.next("client"):
+      lex.setToken tkClient, 7 
+    elif lex.next("end"):
+      lex.setToken tkEnd, 4
     else: discard
 
   proc handleBackticks(lex: var Lexer, kind: TokenKind) =
@@ -200,6 +204,8 @@ registerTokens toktokSettings:
   snippetYaml
   snippetJson
   viewLoader
+  client
+  `end`
   `include`
 
   fn = "fn"

@@ -19,14 +19,12 @@ type
     lvl: int
     prev, curr, next: TokenTuple
     engine: TimEngine
-    tpl: TimTemplate
+    tpl, tplView: TimTemplate
     logger*: Logger
-    hasErrors*, nilNotError, hasLoadedView: bool
+    hasErrors*, nilNotError, hasLoadedView,
+      isMain, refreshAst: bool
     parentNode: seq[Node]
     includes: Table[string, Meta]
-    isMain: bool
-    refreshAst: bool
-    tplView: TimTemplate
     tree: Ast
 
   PrefixFunction = proc(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
@@ -356,7 +354,6 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
         walk p
         if p.curr is tkAssign:
           walk p
-        # else: return
         if not attrs.hasKey(attrKey.value):
           case p.curr.kind
           of tkString:
@@ -373,7 +370,11 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
             attrs[attrKey.value] = @[attrValue]
             walk p
           else:
-            let x = p.pIdent()
+            var x: Node
+            if p.next is tkLP and p.next.wsno == 0:
+              x = p.pFunctionCall()
+            else:
+              x = p.pIdent()
             if likely(x != nil):
               attrs[attrKey.value] = @[x]
         else: errorWithArgs(duplicateAttribute, attrKey, [attrKey.value])
@@ -646,6 +647,28 @@ prefixHandle pSnippet:
   #     # result.jsonCode = yaml(p.curr.value).toJsonStr
   walk p
 
+prefixHandle pClientSide:
+  # parse tim template inside a `@client` block
+  # statement in order to be transpiled to JavaScript
+  # via engine/compilers/JSCompiler.nim
+  let this = p.curr
+  walk p # tkCLient
+  expect tkIdentifier:
+    if unlikely(p.curr.value != "target"):
+      return nil
+    walk p
+    result = ast.newNode(ntClientBlock, this)
+    expectWalk tkAssign
+    expect tkString:
+      result.clientTargetElement = p.curr.value
+      walk p
+      while p.curr isnot tkEnd and p.curr.isChild(this):
+        let n: Node = p.getPrefixOrInfix()
+        if likely(n != nil):
+          add result.clientStmt, n
+        else: return nil
+      expectWalk tkEnd
+
 template handleImplicitDefaultValue {.dirty.} =
   # handle implicit default value
   walk p
@@ -807,6 +830,7 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkViewLoader: pViewLoader
     of tkSnippetJS: pSnippet
     of tkInclude: pInclude
+    of tkClient: pClientSide
     of tkLB: pAnoArray
     of tkLC: pAnoObject
     of tkFN: pFunction
@@ -853,6 +877,7 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkLB: p.pAnoArray()
     of tkLC: p.pAnoObject()
     of tkFN: p.pFunction()
+    of tkClient: p.pClientSide()
     else: nil
   if unlikely(result == nil):
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev

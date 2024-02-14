@@ -8,13 +8,13 @@ import std/[tables, strutils, json,
   jsonutils, options, terminal]
 
 import pkg/jsony
-import ../ast, ../logging
+import ../ast, ../logging, ./js
 
 from std/xmltree import escape
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
   getType, getSourcePath
 
-include ./tim # TimCompiler object
+import ./tim # TimCompiler object
 
 type
   HtmlCompiler* = object of TimCompiler
@@ -22,10 +22,11 @@ type
     when not defined timStandalone:
       globalScope: ScopeTable = ScopeTable()
       data: JsonNode
+    jsComp: seq[JSCompiler]
 
 # Forward Declaration
 proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
-    scopetables: var seq[ScopeTable], parentNode: Node = nil): Node {.discardable.}
+    scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown): Node {.discardable.}
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool
 proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool
 proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
@@ -544,18 +545,18 @@ template evalBranch(branch: Node, body: untyped) =
         return # condition is thruty
   else: discard
 
-proc evalCondition(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+proc evalCondition(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node {.discardable.} =
   # Evaluates condition branches
   evalBranch node.condIfBranch.expr:
-    c.evaluateNodes(node.condIfBranch.body, scopetables)
+    result = c.evaluateNodes(node.condIfBranch.body, scopetables)
   if node.condElifBranch.len > 0:
     # handle `elif` branches
     for elifbranch in node.condElifBranch:
       evalBranch elifBranch.expr:
-        c.evaluateNodes(elifbranch.body, scopetables)
+        result = c.evaluateNodes(elifbranch.body, scopetables)
   if node.condElseBranch.len > 0:
     # handle `else` branch
-    c.evaluateNodes(node.condElseBranch, scopetables)
+    result = c.evaluateNodes(node.condElseBranch, scopetables)
 
 proc evalConcat(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   case node.infixLeft.nt
@@ -789,14 +790,18 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes, scopetables: var seq[S
       of ntAssignableSet:
         add attrStr, c.toString(attrNode, scopetables)
       of ntIdent:
-        let x = c.getValue(attrNode, scopetables)
-        if likely(x != nil):
-          add attrStr, x.toString()
+        let xVal = c.getValue(attrNode, scopetables)
+        if likely(xVal != nil):
+          add attrStr, xVal.toString()
         else: return # undeclaredVariable
+      of ntCall:
+        let xVal = c.fnCall(attrNode, scopetables)
+        if likely(xVal != nil):
+          add attrStr, xVal.toString()
       of ntDotExpr:
-        let x = c.dotEvaluator(attrNode, scopetables)
-        if likely(x != nil):
-          add attrStr, x.toString()
+        let xVal = c.dotEvaluator(attrNode, scopetables)
+        if likely(xVal != nil):
+          add attrStr, xVal.toString()
         else: return # undeclaredVariable
       else: discard
     add result, attrStr.join(" ")
@@ -848,7 +853,7 @@ template htmlblock(x: Node, body) =
 proc htmlElement(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   # Handle HTML element
   htmlblock node:
-    c.evaluateNodes(node.nodes, scopetables)
+    c.evaluateNodes(node.nodes, scopetables, ntHtmlElement)
 
 proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: var seq[ScopeTable]) =
   # Evaluate included partials
@@ -857,7 +862,7 @@ proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: v
       c.evaluateNodes(c.ast.partials[x][0].nodes, scopetables)
 
 proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
-    scopetables: var seq[ScopeTable], parentNode: Node = nil): Node {.discardable.} =
+    scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown): Node {.discardable.} =
   # Evaluate a seq[Node] nodes
   for i in 0..nodes.high:
     case nodes[i].nt
@@ -884,7 +889,9 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntAssignExpr:
       c.assignExpr(nodes[i], scopetables)
     of ntConditionStmt:
-      c.evalCondition(nodes[i], scopetables)
+      result = c.evalCondition(nodes[i], scopetables)
+      if result != nil:
+        return # a resulted ntCommandStmt Node of type cmdReturn
     of ntLoopStmt:
       c.evalLoop(nodes[i], scopetables)
     of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
@@ -902,13 +909,23 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
       c.head = c.output
       reset(c.output)
     of ntCall:
-      echo c.fnCall(nodes[i], scopetables)
+      case parentNodeType
+      of ntHtmlElement:
+        return c.fnCall(nodes[i], scopetables)
+      else:
+        discard c.fnCall(nodes[i], scopetables)
     of ntInclude:
       c.evaluatePartials(nodes[i].includes, scopetables)
     of ntJavaScriptSnippet:
       add c.jsOutput, nodes[i].snippetCode
     of ntJsonSnippet:
       add c.jsonOutput, nodes[i].snippetCode
+    of ntClientBlock:
+      var jsCompiler = js.newCompiler(nodes[i].clientStmt, nodes[i].clientTargetElement)
+      # add c.jsComp, jsCompiler
+      add c.jsOutput, "document.addEventListener('DOMContentLoaded', function(){"
+      add c.jsOutput, jsCompiler.getOutput()
+      add c.jsOutput, "})"
     else: discard
 
 #
@@ -972,7 +989,7 @@ proc getHtml*(c: HtmlCompiler): string =
   if c.tplType == ttView and c.jsOutput.len > 0:
     add result, "\n" & "<script type=\"text/javascript\">"
     add result, c.jsOutput
-    add result, "\n" & "</script>"
+    add result, "</script>"
 
 proc getHead*(c: HtmlCompiler): string =
   ## Returns the top of a split layout
