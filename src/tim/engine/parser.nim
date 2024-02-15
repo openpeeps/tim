@@ -182,7 +182,7 @@ prefixHandle pString:
 
 prefixHandle pStringConcat:
   walk p # tkAmp
-  return p.getPrefixOrInfix()
+  result = p.getPrefixOrInfix()
 
 prefixHandle pBacktick:
   # parse template literals enclosed by backticks
@@ -357,12 +357,12 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
         if not attrs.hasKey(attrKey.value):
           case p.curr.kind
           of tkString:
-            let attrValue = ast.newString(p.curr)
+            var attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
             walk p
             if p.curr is tkAmp:
               while p.curr is tkAmp:
-                let attrValue = p.pStringConcat()
+                attrValue = p.pStringConcat()
                 if likely(attrValue != nil):
                   attrs[attrKey.value][^1].sVals.add(attrValue)
           of tkBacktick:
@@ -756,7 +756,7 @@ proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
     else:
       result.infixRight = rhs
     case p.curr.kind
-    of tkOr, tkOrOr, tkAnd, tkAndAnd:
+    of tkOr, tkOrOr, tkAnd, tkAndAnd, tkAmp:
       let infixNode = ast.newNode(ntInfixExpr, p.curr)
       infixNode.infixLeft = result
       infixNode.infixOp = getInfixOp(p.curr.kind, true)
