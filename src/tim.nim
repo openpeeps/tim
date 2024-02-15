@@ -207,14 +207,14 @@ elif not isMainModule:
   # Expose Tim Engine API for Nim development (as a Nimble librayr)
   export parser, html, json
   export meta except TimEngine
-else:
-  # Build Tim Engine as a standalone CLI application
-  import pkg/kapsis
-  import ./tim/app/[runCommand]
+# else:
+#   # Build Tim Engine as a standalone CLI application
+#   import pkg/kapsis
+#   import ./tim/app/[runCommand]
 
-  App:
-    about:
-      "Tim Engine CLI application"
-    commands:
-      --- "Main Commands"
-      $ run
+#   App:
+#     about:
+#       "Tim Engine CLI application"
+#     commands:
+#       --- "Main Commands"
+#       $ run
