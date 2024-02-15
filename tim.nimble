@@ -6,6 +6,7 @@ description   = "A super fast template engine for cool kids!"
 license       = "MIT"
 srcDir        = "src"
 installExt    = @["nim"]
+skipDirs      = @["example", "editors"]
 bin           = @["tim"]
 
 
@@ -21,14 +22,9 @@ requires "denim#head"
 requires "checksums"
 requires "flatty"
 requires "supersnappy"
-# requires "httpx"
-# requires "websocketx"
 
 task node, "Build a NODE addon":
   exec "denim build src/tim.nim --cmake --yes"
 
 task example, "Build example":
   exec "nim c -d:timHotCode --threads:on --mm:arc -o:./bin/app example/app.nim"
-
-task pexample, "Build example":
-  exec "nim c -d:timHotCode -d:danger --passC:-flto --threads:on --mm:arc -o:./bin/app example/app.nim"
