@@ -6,14 +6,14 @@
 import std/json except `%*`
 import std/times
 
-import pkg/[watchout, kapsis/cli]
+import pkg/[watchout]
+import pkg/kapsis/cli
 
 import tim/engine/[meta, parser, logging]
 import tim/engine/compilers/html
 
 from std/strutils import `%`, indent
 from std/os import `/`
-
 
 const
   DOCKTYPE = "<!DOCKTYPE html>"
@@ -127,6 +127,28 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
     for tpl in engine.getLayouts():
       engine.compileCode(tpl)
 
+template layoutWrapper(getViewBlock) {.dirty.} =
+  result = DOCKTYPE
+  var layoutTail: string
+  if not layout.jitEnabled:
+    # when requested layout is pre-rendered
+    # will use the static HTML version from disk
+    add result, layout.getHtml()
+    getViewBlock
+    layoutTail = layout.getTail()
+  else:
+    var data = newJObject()
+    data["global"] = global
+    data["local"] = local
+    var jitLayout = engine.jitCompiler(layout, data)
+    if likely(not jitLayout.hasError):
+      add result, jitLayout.getHead()
+      getViewBlock
+      layoutTail = jitLayout.getTail()
+    else:
+      jitLayout.logger.displayErrors()
+  add result, layoutTail
+
 proc render*(engine: TimEngine, viewName: string,
     layoutName = defaultLayout, global, local = newJObject()): string =
   ## Renders a view based on `viewName` and `layoutName`.
@@ -139,35 +161,16 @@ proc render*(engine: TimEngine, viewName: string,
       var layout: TimTemplate = engine.getLayout(layoutName)
       if not view.jitEnabled:
         # render a pre-compiled HTML
-        result = DOCKTYPE
-        add result, layout.getHtml()
-        add result, indent(view.getHtml(), layout.getViewIndent)
-        add result, layout.getTail()
+        layoutWrapper:
+          add result, indent(view.getHtml(), layout.getViewIndent)
       else:
         # compile and render template at runtime
-        var data = newJObject()
-        data["global"] = global
-        data["local"] = local
-        result = DOCKTYPE
-        var layoutTail: string
-        if not layout.jitEnabled:
-          # when requested layout is pre-rendered
-          # will use the static HTML version from disk
-          add result, layout.getHtml()
-          layoutTail = layout.getTail()
-        else:
-          var clayout = engine.jitCompiler(layout, data)
-          if likely(not clayout.hasError):
-            add result, clayout.getHtml()
-            layoutTail = clayout.getTail()
+        layoutWrapper:
+          var jitView = engine.jitCompiler(view, data)
+          if likely(not jitView.hasError):
+            add result, indent(jitView.getHtml(), layout.getViewIndent)
           else:
-            clayout.logger.displayErrors()
-        var cview = engine.jitCompiler(view, data)
-        if likely(not cview.hasError):
-          add result, indent(cview.getHtml(), layout.getViewIndent)
-        else:
-          cview.logger.displayErrors()
-        add result, layoutTail
+            jitView.logger.displayErrors()
     else:
       raise newException(TimError, "No layouts available")
   else:
@@ -201,5 +204,17 @@ when defined napibuild:
       return %*(x)
 
 elif not isMainModule:
+  # Expose Tim Engine API for Nim development (as a Nimble librayr)
   export parser, html, json
   export meta except TimEngine
+else:
+  # Build Tim Engine as a standalone CLI application
+  import pkg/kapsis
+  import ./tim/app/[runCommand]
+
+  App:
+    about:
+      "Tim Engine CLI application"
+    commands:
+      --- "Main Commands"
+      $ run

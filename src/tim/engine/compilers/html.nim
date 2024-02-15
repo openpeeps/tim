@@ -905,7 +905,6 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
         c.evalConcat(nodes[i], scopetables)
       else: discard # todo
     of ntViewLoader:
-      # add c.output, c.getIndent(nodes[i].meta)
       c.head = c.output
       reset(c.output)
     of ntCall:
@@ -925,7 +924,7 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
       # add c.jsComp, jsCompiler
       add c.jsOutput, "document.addEventListener('DOMContentLoaded', function(){"
       add c.jsOutput, jsCompiler.getOutput()
-      add c.jsOutput, "})"
+      add c.jsOutput, "});"
     else: discard
 
 #

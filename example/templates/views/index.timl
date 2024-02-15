@@ -1,0 +1,23 @@
+section > div.container > div.row.vh-100.align-items-center > div#content-zone.col-lg-7.mx-auto
+  div.text-center > img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png" alt="Tim Engine" width="200px"
+  h1.display-4.fw-bold:
+    "This is Tim 👋 A super fast template engine for cool kids!"
+  p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em":
+    "Build sleek, dynamic websites and apps in a breeze with Tim Engine's intuitive
+    syntax and powerful features. It's the template engine that keeps up with your creativity."
+  div.text-center
+    div.mb-3
+      @include "btn"
+    div 
+      p.mb-0: "Made by Humans from OpenPeeps"
+      p: "Open Source | LGPLv3 License"
+
+@client target="#content-zone"
+  // transpile to JavaScript for client-side rendering
+@end
+
+@js
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log(e)
+  })
+@end

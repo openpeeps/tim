@@ -60,7 +60,6 @@ proc getAttrs(c: var JSCompiler, attrs: HtmlAttributes, elx: string): string =
 
 proc createHtmlElement(c: var JSCompiler, x: Node, elp: string) =
   ## Create a new HtmlElement
-  # c.jsClientSideOutput
   let elx = "el" & $(c.jsCountEl)
   add c.jsOutputCode, domCreateElement % [elx, x.getTag()]
   if x.attrs != nil:
@@ -72,6 +71,12 @@ proc createHtmlElement(c: var JSCompiler, x: Node, elp: string) =
     add c.jsOutputCode, domInsertAdjacentElement % [elp, elx]
   else:
     add c.jsOutputCode, domInsertAdjacentElement % ["document.querySelector('" & c.targetElement & "')", elx]
+
+# proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: var seq[ScopeTable]) =
+#   # Evaluate included partials
+#   for x in includes:
+#     if likely(c.ast.partials.hasKey(x)):
+#       c.evaluateNodes(c.ast.partials[x][0].nodes, scopetables)
 
 proc evaluateNodes(c: var JSCompiler, nodes: seq[Node], elp: string = "") =
   for i in 0..nodes.high:
