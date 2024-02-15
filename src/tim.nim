@@ -137,9 +137,7 @@ template layoutWrapper(getViewBlock) {.dirty.} =
     getViewBlock
     layoutTail = layout.getTail()
   else:
-    var data = newJObject()
-    data["global"] = global
-    data["local"] = local
+
     var jitLayout = engine.jitCompiler(layout, data)
     if likely(not jitLayout.hasError):
       add result, jitLayout.getHead()
@@ -155,8 +153,11 @@ proc render*(engine: TimEngine, viewName: string,
   ## Exposing data to a template is possible using `global` or
   ## `local` objects.
   if engine.hasView(viewName):
-    var view: TimTemplate = engine.getView(viewName)
-    var data: JsonNode = newJObject()
+    var
+      view: TimTemplate = engine.getView(viewName)
+      data: JsonNode = newJObject()
+    data["global"] = global
+    data["local"] = local
     if likely(engine.hasLayout(layoutName)):
       var layout: TimTemplate = engine.getLayout(layoutName)
       if not view.jitEnabled:
