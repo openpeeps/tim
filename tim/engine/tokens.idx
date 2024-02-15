@@ -1,0 +1,17 @@
+nimTitle	tokens	tim/engine/tokens.html	module tim/engine/tokens		0
+nim	TokenKind	tim/engine/tokens.html#TokenKind	enum TokenKind		206
+nim	TokenTuple	tim/engine/tokens.html#TokenTuple	tuple TokenTuple		206
+nim	Lexer	tim/engine/tokens.html#Lexer	object Lexer		206
+nim	LexerException	tim/engine/tokens.html#LexerException	object LexerException		206
+nim	newLexer	tim/engine/tokens.html#newLexer,string,bool	proc newLexer(fileContent`gensym0: string; allowMultilineStrings`gensym0 = false): Lexer		563
+nim	lexReady	tim/engine/tokens.html#lexReady,Lexer	proc lexReady(lex`gensym0: var Lexer)		574
+nim	inc	tim/engine/tokens.html#inc,Lexer,int	proc inc(lex`gensym0: var Lexer; offset`gensym0 = 1)		578
+nim	current	tim/engine/tokens.html#current,Lexer	proc current(lex`gensym0: var Lexer): char		579
+nim	add	tim/engine/tokens.html#add,Lexer	proc add(lex`gensym0: var Lexer)		581
+nim	setError	tim/engine/tokens.html#setError,Lexer,string	proc setError(lex`gensym0: var Lexer; message`gensym0: string)		585
+nim	hasError	tim/engine/tokens.html#hasError,Lexer	proc hasError(lex`gensym0: Lexer): bool		590
+nim	getError	tim/engine/tokens.html#getError,Lexer	proc getError(lex`gensym0: Lexer): string		591
+nim	hasLetters	tim/engine/tokens.html#hasLetters,Lexer,int	proc hasLetters(lex`gensym0: var Lexer; pos`gensym0: int): bool		606
+nim	hasNumbers	tim/engine/tokens.html#hasNumbers,Lexer,int	proc hasNumbers(lex`gensym0: var Lexer; pos`gensym0: int): bool		609
+nim	skip	tim/engine/tokens.html#skip,Lexer	proc skip(lex`gensym0: var Lexer)		612
+nim	getToken	tim/engine/tokens.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		151
