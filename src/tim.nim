@@ -84,18 +84,18 @@ proc browserSync(x: (Port, int)) {.thread.} =
   httpx.run(onRequest, settings)
 
 proc precompile*(engine: TimEngine, callback: TimCallback = nil,
-    flush = true, waitThread = false, browserSyncPort = Port(6502), browserSyncDelay = 550) =
+    flush = true, waitThread = false, browserSyncPort = Port(6502),
+    browserSyncDelay = 550) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
   ## 
   ## Enable `flush` option to delete outdated generated
   ## files (enabled by default).
   ## 
-  ## Optionally, pass a custom `TimCallback` 
+  ## todo something with this `TimCallback` provided 
   ## 
-  ## Use filesystem monitor by compiling with `-d:timHotCode` flag.
-  ## In this case you can precompile templates in a separate thread.
-  ## Use `waitThread` to keep the thread alive.
+  ## Enable filesystem monitor by compiling with `-d:timHotCode` flag.
+  ## Create a separate thread for precompiling templates. Use `waitThread` to keep the thread alive.
   if flush: engine.flush()
   when not defined release:
     when defined timHotCode:
