@@ -146,7 +146,7 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
         engine.clearTemplateByPath(file.getPath())
 
       var w = newWatchout(@[engine.getSourcePath() / "*"], onChange,
-        onFound, onDelete, recursive = true, ext = @["timl"])
+        onFound, onDelete, recursive = true, ext = @["timl"], delay = 200)
       # start browser sync server in a separate thread
       createThread(sync, browserSync, (browserSyncPort, browserSyncDelay))
       # start filesystem monitor in a separate thread
