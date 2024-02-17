@@ -22,14 +22,14 @@ type
     when not defined timStandalone:
       globalScope: ScopeTable = ScopeTable()
       data: JsonNode
-    jsComp: seq[JSCompiler]
+    # jsComp: Table[string, JSCompiler] # todo
 
 # Forward Declaration
-proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
+proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown): Node {.discardable.}
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool
 proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool
-proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
+proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node, op: MathOp, scopetables: var seq[ScopeTable]): Node
 proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc fnCall(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
@@ -303,29 +303,7 @@ proc writeDotExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTab
 
 proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
   # Evaluate a command
-  var val: Node
-  case node.cmdValue.nt
-  of ntIdent:
-    let some = c.getScope(node.cmdValue.identName, scopetables)
-    if likely(some.scopeTable != nil):
-      val = some.scopeTable[node.cmdValue.identName].varValue
-    else:
-      compileErrorWithArgs(undeclaredVariable, [node.cmdValue.identName])
-  of ntAssignableSet:
-    val = node.cmdValue
-  of ntMathInfixExpr:
-    val = c.mathInfixEvaluator(node.cmdValue, scopetables)
-  of ntCall:
-    val = c.fnCall(node.cmdValue, scopetables)
-  of ntDotExpr:
-    let someValue: Node = c.dotEvaluator(node.cmdValue, scopetables)
-    if likely(someValue != nil):
-      case node.cmdType
-      of cmdEcho:
-        print(someValue)
-      else: discard
-    return
-  else: discard
+  var val = c.getValue(node.cmdValue, scopetables)
   if val != nil:
     case node.cmdType
     of cmdEcho:
@@ -337,7 +315,7 @@ proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]):
 
 proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
-  # Evaluates infix expressions
+  # Evaluates comparison expressions
   case infixOp:
   of EQ:
     case lhs.nt:
@@ -413,6 +391,40 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
         result = lhs.fVal >= toFloat(rhs.iVal)
       else: discard
     else: discard # handle float
+  of LT:
+    case lhs.nt:
+    of ntLitInt:
+      case rhs.nt
+      of ntLitInt:
+        result = lhs.iVal <= rhs.iVal
+      of ntLitFloat:
+        result = toFloat(lhs.iVal) <= rhs.fVal
+      else: discard
+    of ntLitFloat:
+      case rhs.nt
+      of ntLitFloat:
+        result = lhs.fVal <= rhs.fVal
+      of ntLitInt:
+        result = lhs.fVal <= toFloat(rhs.iVal)
+      else: discard
+    else: discard # handle float
+  of LTE:
+    case lhs.nt:
+    of ntLitInt:
+      case rhs.nt
+      of ntLitInt:
+        result = lhs.iVal <= rhs.iVal
+      of ntLitFloat:
+        result = toFloat(lhs.iVal) <= rhs.fVal
+      else: discard
+    of ntLitFloat:
+      case rhs.nt
+      of ntLitFloat:
+        result = lhs.fVal <= rhs.fVal
+      of ntLitInt:
+        result = lhs.fVal <= toFloat(rhs.iVal)
+      else: discard
+    else: discard # handle float
   of AND:
     case lhs.nt
     of ntInfixExpr:
@@ -439,77 +451,149 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     else: discard # todo
   else: discard # todo
 
-proc getValues(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): seq[Node] =
-  # lhs
-  case node.infixLeft.nt
-  of ntDotExpr:
-    add result, c.dotEvaluator(node.infixLeft, scopetables)
-  of ntAssignableSet:
-    add result, node.infixLeft
-  of ntInfixExpr:
-    add result, c.getValue(node.infixLeft, scopetables)
-  else: discard
-  # rhs
-  case node.infixRight.nt
-  of ntDotExpr:
-    add result, c.dotEvaluator(node.infixRight, scopetables)
-  of ntAssignableSet:
-    add result, node.infixRight
-  of ntInfixExpr:
-    add result, c.getValue(node.infixRight, scopetables)
-  of ntMathInfixExpr:
-    let someValue = c.mathInfixEvaluator(node.infixRight, scopetables)
-    if likely(someValue != nil):
-      add result, someValue
-  else: discard
+proc getValues(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable]): seq[Node] =
+  add result, c.getValue(node.infixLeft, scopetables)
+  add result, c.getValue(node.infixRight, scopetables)
 
-proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
-  # Get a literal node from ntIdent, ntDotExpr, ntCall, ntInfixExpr
+proc getValue(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable]): Node =
   case node.nt
   of ntIdent:
+    # evaluates an identifier
     let some = c.getScope(node.identName, scopetables)
     if likely(some.scopeTable != nil):
-      return some.scopeTable[node.identName].varValue
+      return c.getValue(some.scopeTable[node.identName].varValue, scopetables)
     compileErrorWithArgs(undeclaredVariable, [node.identName])
+  of ntAssignableSet:
+    # return literal nodes
+    result = node
   of ntInfixExpr:
+    # evaluate infix expressions
     case node.infixOp
     of AMP:
       result = ast.newNode(ntLitString)
       let vNodes: seq[Node] = c.getValues(node, scopetables)
       for vNode in vNodes:
         add result.sVal, vNode.sVal
-    else: discard # todo
+    else:
+      result = ast.newNode(ntLitBool)
+      result.bVal = c.infixEvaluator(node.infixLeft, node.infixRight, node.infixOp, scopetables)
+  of ntDotExpr:
+    # evaluate dot expressions
+    result = c.dotEvaluator(node, scopetables)
+  of ntMathInfixExpr:
+    # evaluate a math expression and returns its value
+    result = c.mathInfixEvaluator(node.infixMathLeft,
+        node.infixMathRight, node.infixMathOp, scopetables)
+  of ntCall:
+    # evaluate a function call and return the result
+    # if the retun type is not void, otherwise nil
+    result = c.fnCall(node, scopetables)
   else: discard
 
-proc mathInfixEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
-  ## Evaluates a math expression and returns
-  ## the total as a Node value
-  case node.infixMathOp
+proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
+    op: MathOp, scopetables: var seq[ScopeTable]): Node =
+  ## Evaluates a math expression and returns a new Node
+  case op
   of mPlus:
-    case node.infixMathLeft.nt
+    case lhs.nt
     of ntLitFloat:
       result = newNode(ntLitFloat)
-      case node.infixMathRight.nt
+      case rhs.nt
       of ntLitFloat:
-        result.fVal = node.infixMathLeft.fVal + node.infixMathRight.fVal
+        result.fVal = lhs.fVal + rhs.fVal
       of ntLitInt:
-        result.fVal = node.infixMathLeft.fVal + toFloat(node.infixMathRight.iVal)
+        result.fVal = lhs.fVal + toFloat(rhs.iVal)
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
       else: discard
     of ntLitInt:
-      case node.infixMathRight.nt
+      case rhs.nt
       of ntLitFloat:
         result = newNode(ntLitFloat)
-        result.fVal = toFloat(node.infixMathLeft.iVal) + node.infixMathRight.fVal
+        result.fVal = toFloat(lhs.iVal) + rhs.fVal
       of ntLitInt:
         result = newNode(ntLitInt)
-        result.iVal = node.infixMathLeft.iVal + node.infixMathRight.iVal
+        result.iVal = lhs.iVal + rhs.iVal
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables)     
       else: discard
     of ntIdent:
-      let x = c.getValue(node.infixMathLeft, scopetables)
-      # if likely(x != nil):
-        # case x.nt
-        # of ntLitInt:
-        # else: discard # error
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
+    else: discard
+  of mMinus:
+    case lhs.nt
+    of ntLitFloat:
+      result = newNode(ntLitFloat)
+      case rhs.nt
+      of ntLitFloat:
+        result.fVal = lhs.fVal - rhs.fVal
+      of ntLitInt:
+        result.fVal = lhs.fVal - toFloat(rhs.iVal)
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      else: discard
+    of ntLitInt:
+      case rhs.nt
+      of ntLitFloat:
+        result = newNode(ntLitFloat)
+        result.fVal = toFloat(lhs.iVal) - rhs.fVal
+      of ntLitInt:
+        result = newNode(ntLitInt)
+        result.iVal = lhs.iVal - rhs.iVal
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      else: discard
+    of ntIdent:
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
+    else: discard
+  of mMulti:
+    case lhs.nt
+    of ntLitFloat:
+      result = newNode(ntLitFloat)
+      case rhs.nt
+      of ntLitFloat:
+        result.fVal = lhs.fVal * rhs.fVal
+      of ntLitInt:
+        result.fVal = lhs.fVal * toFloat(rhs.iVal)
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      else: discard
+    of ntLitInt:
+      case rhs.nt
+      of ntLitFloat:
+        result = newNode(ntLitFloat)
+        result.fVal = toFloat(lhs.iVal) * rhs.fVal
+      of ntLitInt:
+        result = newNode(ntLitInt)
+        result.iVal = lhs.iVal * rhs.iVal
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntDotExpr:
+        let rhs = c.dotEvaluator(rhs, scopetables)
+        return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
+      else: discard
+    of ntIdent:
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
     else: discard
   else: discard
 
@@ -548,15 +632,15 @@ template evalBranch(branch: Node, body: untyped) =
 proc evalCondition(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node {.discardable.} =
   # Evaluates condition branches
   evalBranch node.condIfBranch.expr:
-    result = c.evaluateNodes(node.condIfBranch.body, scopetables)
+    result = c.walkNodes(node.condIfBranch.body, scopetables)
   if node.condElifBranch.len > 0:
     # handle `elif` branches
     for elifbranch in node.condElifBranch:
       evalBranch elifBranch.expr:
-        result = c.evaluateNodes(elifbranch.body, scopetables)
+        result = c.walkNodes(elifbranch.body, scopetables)
   if node.condElseBranch.len > 0:
     # handle `else` branch
-    result = c.evaluateNodes(node.condElseBranch, scopetables)
+    result = c.walkNodes(node.condElseBranch, scopetables)
 
 proc evalConcat(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   case node.infixLeft.nt
@@ -576,7 +660,9 @@ proc evalConcat(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable
   of ntInfixExpr:
     c.evalConcat(node.infixRight, scopetables)
   of ntMathInfixExpr:
-    let someValue = c.mathInfixEvaluator(node.infixRight, scopetables)
+    let math = node.infixRight
+    let someValue = c.mathInfixEvaluator(math.infixMathLeft,
+        math.infixMathRight, math.infixMathOp, scopetables)
     if likely(someValue != nil):
       add c.output, someValue.toString()
   else: discard
@@ -588,21 +674,21 @@ template loopEvaluator(items: Node) =
         newScope(scopetables)
         node.loopItem.varValue = ast.Node(nt: ntLitString, sVal: $(x))
         c.varExpr(node.loopItem, scopetables)
-        c.evaluateNodes(node.loopBody, scopetables)
+        c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
     of ntLitArray:
       for x in items.arrayItems:
         newScope(scopetables)
         node.loopItem.varValue = x
         c.varExpr(node.loopItem, scopetables)
-        c.evaluateNodes(node.loopBody, scopetables)
+        c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
     of ntLitObject:
       for x, y in items.objectItems:
         newScope(scopetables)
         node.loopItem.varValue = y
         c.varExpr(node.loopItem, scopetables)
-        c.evaluateNodes(node.loopBody, scopetables)
+        c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
     else:
       let x = @[ntLitString, ntLitArray, ntLitObject]
@@ -627,6 +713,10 @@ proc evalLoop(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
 
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool =
   if unlikely(x.nt != node.nt):
+    case x.nt
+    of ntMathInfixExpr, ntLitInt, ntLitFloat:
+      return node.nt in {ntLitInt, ntLitFloat, ntMathInfixExpr} 
+    else: discard
     compileErrorWithArgs(typeMismatch, [$(node.nt), $(x.nt)])
   result = true
 
@@ -691,7 +781,7 @@ proc assignExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable
     let varNode = some.scopeTable[node.asgnIdent]
     if likely(c.typeCheck(varNode.varValue, node.asgnVal)):
       if likely(not varNode.varImmutable):
-        varNode.varValue = node.asgnVal
+        varNode.varValue = c.getValue(node.asgnVal, scopetables)
       else:
         compileErrorWithArgs(varImmutable, [varNode.varName])
 
@@ -756,7 +846,7 @@ proc fnCall(c: var HtmlCompiler, node: Node,
         else:
           compileErrorWithArgs(typeMismatch, ["none", $p.pType], p.meta)
         inc i
-    result = c.evaluateNodes(fnNode.fnBody, scopetables)
+    result = c.walkNodes(fnNode.fnBody, scopetables)
     if result != nil:
       if unlikely(not c.typeCheck(result, fnNode.fnReturnType)):
         clearScope(scopetables)
@@ -853,15 +943,20 @@ template htmlblock(x: Node, body) =
 proc htmlElement(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   # Handle HTML element
   htmlblock node:
-    c.evaluateNodes(node.nodes, scopetables, ntHtmlElement)
+    c.walkNodes(node.nodes, scopetables, ntHtmlElement)
 
 proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: var seq[ScopeTable]) =
   # Evaluate included partials
   for x in includes:
     if likely(c.ast.partials.hasKey(x)):
-      c.evaluateNodes(c.ast.partials[x][0].nodes, scopetables)
+      c.walkNodes(c.ast.partials[x][0].nodes, scopetables)
 
-proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
+template write(x: Node, fixtail, escape: bool) =
+  if likely(x != nil):
+    add c.output, x.toString(escape)
+    c.stickytail = fixtail
+
+proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown): Node {.discardable.} =
   # Evaluate a seq[Node] nodes
   for i in 0..nodes.high:
@@ -869,15 +964,11 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntHtmlElement:
       c.htmlElement(nodes[i], scopetables)
     of ntIdent:
-      let x = c.getValue(nodes[i], scopetables)
-      if likely(x != nil):
-        add c.output, x.toString(nodes[i].identSafe)
-        c.stickytail = true
+      let x: Node = c.getValue(nodes[i], scopetables)
+      write x, true, nodes[i].identSafe
     of ntDotExpr:
-      let someValue: Node = c.dotEvaluator(nodes[i], scopetables)
-      if likely(someValue != nil):
-        add c.output, someValue.toString()
-        c.stickytail = true
+      let x: Node = c.dotEvaluator(nodes[i], scopetables)
+      write x, true, false
     of ntVariableDef:
       c.varExpr(nodes[i], scopetables)
     of ntCommandStmt:
@@ -895,8 +986,13 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntLoopStmt:
       c.evalLoop(nodes[i], scopetables)
     of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
-      add c.output, nodes[i].toString
-      c.stickytail = true
+      # add c.output, nodes[i].toString
+      # c.stickytail = true
+      write nodes[i], true, false
+    of ntMathInfixExpr:
+      let x: Node = c.mathInfixEvaluator(nodes[i].infixMathLeft,
+                      nodes[i].infixMathRight, nodes[i].infixMathOp, scopetables)
+      write x, true, false
     of ntLitFunction:
       c.fnDef(nodes[i], scopetables)
     of ntInfixExpr:
@@ -910,9 +1006,11 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntCall:
       case parentNodeType
       of ntHtmlElement:
-        return c.fnCall(nodes[i], scopetables)
+        let returnNode = c.fnCall(nodes[i], scopetables)
+        if likely(returnNode != nil):
+          write returnNode, true, false
       else:
-        discard c.fnCall(nodes[i], scopetables)
+        return c.fnCall(nodes[i], scopetables)
     of ntInclude:
       c.evaluatePartials(nodes[i].includes, scopetables)
     of ntJavaScriptSnippet:
@@ -921,10 +1019,10 @@ proc evaluateNodes(c: var HtmlCompiler, nodes: seq[Node],
       add c.jsonOutput, nodes[i].snippetCode
     of ntClientBlock:
       var jsCompiler = js.newCompiler(nodes[i].clientStmt, nodes[i].clientTargetElement)
-      # add c.jsComp, jsCompiler
       add c.jsOutput, "document.addEventListener('DOMContentLoaded', function(){"
       add c.jsOutput, jsCompiler.getOutput()
       add c.jsOutput, "});"
+      reset(jsCompiler)
     else: discard
 
 #
@@ -948,7 +1046,7 @@ when not defined timStandalone:
       )
     if minify: setLen(result.nl, 0)
     var scopetables = newSeq[ScopeTable]()
-    result.evaluateNodes(result.ast.nodes, scopetables)
+    result.walkNodes(result.ast.nodes, scopetables)
 else:
   proc newCompiler*(ast: Ast, tpl: TimTemplate,
       minify = true, indent = 2): HtmlCompiler =
@@ -965,7 +1063,7 @@ else:
       )
     if minify: setLen(result.nl, 0)
     var scopetables = newSeq[ScopeTable]()
-    result.evaluateNodes(result.ast.nodes, scopetables)
+    result.walkNodes(result.ast.nodes, scopetables)
 
 proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =
   ## Create a new instance of `HtmlCompiler
@@ -979,7 +1077,7 @@ proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =
   )
   if minify: setLen(result.nl, 0)
   var scopetables = newSeq[ScopeTable]()
-  c.evaluateNodes(c.ast.nodes, scopetables)
+  c.walkNodes(c.ast.nodes, scopetables)
   return c
 
 proc getHtml*(c: HtmlCompiler): string =
