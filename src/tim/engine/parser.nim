@@ -34,7 +34,7 @@ const
   tkCompSet = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE, tkAmp, tkAndAnd}
   tkMathSet = {tkPlus, tkMinus, tkMultiply, tkDivide}
   tkAssignableSet = {
-    tkString, tkBacktick, tkBool, tkFloat,
+    tkString, tkBacktick, tkBool, tkFloat, tkIdentifier,
     tkInteger, tkIdentVar, tkIdentVarSafe, tkLC, tkLB
   }
   tkComparable = tkAssignableSet
@@ -92,6 +92,9 @@ proc `in`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
 
 proc `notin`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
   tk.kind notin kind
+
+proc isFnCall*(p: var Parser): bool {.inline.} =
+  p.curr is tkIdentifier and p.next is tkLP and p.next.wsno == 0
 
 template expectWalk(kind: TokenKind) =
   if likely(p.curr is kind):
@@ -287,8 +290,7 @@ prefixHandle pAssignment:
         caseNotNil varValue:
           varDef.varValue = varvalue
           varDef
-    else:
-      nil
+    else: nil
 
 prefixHandle pEchoCommand:
   # parse `echo` command
@@ -305,12 +307,6 @@ prefixHandle pEchoCommand:
     else:
       varNode = p.getPrefixOrInfix()
     return ast.newCommand(cmdEcho, varNode, tk)
-  of tkIdentifier:
-    if p.next is tkLP and p.next.wsno == 0:
-      varNode = p.pFunctionCall()
-      return ast.newCommand(cmdEcho, varNode, tk)
-    else:
-      return nil
   else: errorWithArgs(unexpectedToken, p.curr, [p.curr.value])
 
 prefixHandle pReturnCommand:
@@ -422,9 +418,10 @@ prefixHandle pElement:
         p.curr.value = replacef(p.curr.value, re"(,|:|;|\{|}|\*\/|>) ", "$1")
         p.curr.value = p.curr.value.replacef(re" (,|;|\{|}|>)", "$1")
       else: discard
-      let valNode = p.getPrefixOrInfix()
-      if likely(valNode != nil):
-        result.nodes.add(valNode)
+      if p.curr isnot tkIdentifier or p.isFnCall():
+        let valNode = p.getPrefixOrInfix()
+        if likely(valNode != nil):
+          result.nodes.add(valNode)
   of tkGT:
     # parse inline HTML tags
     var node: Node
