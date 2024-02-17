@@ -6,18 +6,17 @@ section > div.container > div.row.vh-100.align-items-center > div#content-zone.c
     "Build sleek, dynamic websites and apps in a breeze with Tim Engine's intuitive
     syntax and powerful features. It's the template engine that keeps up with your creativity."
   div.text-center
-    div.mb-3
+    div.my-3
       @include "btn"
     div 
       p.mb-0: "Made by Humans from OpenPeeps"
-      p: "Open Source | LGPLv3 License"
+      p: "&copy; " & $app.year & " Open Source | LGPLv3 License"
 
 @client target="#content-zone"
-  // transpile to JavaScript for client-side rendering
 @end
 
 @js
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log(e)
-  })
+  const watchout = new WebSocket('ws://127.0.0.1:6502/ws');
+  var lastTimeModified = localStorage.getItem('watchout') || 0
+  watchout.addEventListener('message', () => location.reload())
 @end
