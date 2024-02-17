@@ -4,16 +4,16 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import std/json except `%*`
-import std/times
+import std/[times, options, asyncdispatch]
 
-import pkg/[watchout]
+import pkg/[watchout, httpx, websocketx]
 import pkg/kapsis/cli
 
 import tim/engine/[meta, parser, logging]
 import tim/engine/compilers/html
 
 from std/strutils import `%`, indent
-from std/os import `/`
+from std/os import `/`, sleep
 
 const
   DOCKTYPE = "<!DOCKTYPE html>"
@@ -55,22 +55,51 @@ proc compileCode*(engine: TimEngine, tpl: TimTemplate, refreshAst = false) =
   else:
     p.logger.displayErrors()
 
+var sync: Thread[(Port, int)]
+var lastModified, prevModified: Time
+proc browserSync(x: (Port, int)) {.thread.} =
+  proc onRequest(req: Request) {.async.} =
+    if req.httpMethod == some(HttpGet):
+      case req.path.get()
+      of "/":
+        req.send("OK")
+      of "/ws":
+        try:
+          var ws = await newWebSocket(req)
+          while ws.readyState == Open:
+            if lastModified > prevModified:
+              await ws.send("true")
+              ws.close()
+              prevModified = lastModified
+            sleep(x[1])
+        except WebSocketClosedError:
+          echo "Socket closed"
+        except WebSocketProtocolMismatchError:
+          echo "Socket tried to use an unknown protocol: ", getCurrentExceptionMsg()
+        except WebSocketError:
+          req.send(Http404)
+      else: req.send(Http404)
+    else: req.send(Http503)
+  let settings = initSettings(x[0], numThreads = 1)
+  httpx.run(onRequest, settings)
+
 proc precompile*(engine: TimEngine, callback: TimCallback = nil,
-    flush = true, waitThread = false) =
+    flush = true, waitThread = false, browserSyncPort = Port(6502), browserSyncDelay = 550) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
   ## 
-  ## Partials are not part of the precompilation processs. These
-  ## are include-only files that can be imported into layouts
-  ## or views via `@import` statement.
+  ## Enable `flush` option to delete outdated generated
+  ## files (enabled by default).
   ## 
-  ## Note: Enable `flush` option to delete outdated files
+  ## Optionally, pass a custom `TimCallback` 
+  ## 
+  ## Use filesystem monitor by compiling with `-d:timHotCode` flag.
+  ## In this case you can precompile templates in a separate thread.
+  ## Use `waitThread` to keep the thread alive.
   if flush: engine.flush()
   when not defined release:
     when defined timHotCode:
-      var watchable: seq[string]
       # Define callback procs for pkg/watchout
-
       # Callback `onFound`
       proc onFound(file: watchout.File) =
         # Runs when detecting a new template.
@@ -92,13 +121,14 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
         # if not tpl.isUsed(): return # prevent compiling tpl if not in use
         echo "✨ Changes detected"
         echo indent(file.getName() & "\n", 3)
-        # echo toUnix(getTime())
         case tpl.getType()
         of ttView, ttLayout:
           engine.compileCode(tpl)
           if engine.errors.len > 0:
             for err in engine.errors:
               echo err
+          else:
+            lastModified = getTime()
         else:
           for path in tpl.getDeps:
             let deptpl = engine.getTemplateByPath(path)
@@ -106,6 +136,8 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
             if engine.errors.len > 0:
               for err in engine.errors:
                 echo err
+            else:
+              lastModified = getTime()
 
       # Callback `onDelete`
       proc onDelete(file: watchout.File) =
@@ -115,6 +147,9 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
 
       var w = newWatchout(@[engine.getSourcePath() / "*"], onChange,
         onFound, onDelete, recursive = true, ext = @["timl"])
+      # start browser sync server in a separate thread
+      createThread(sync, browserSync, (browserSyncPort, browserSyncDelay))
+      # start filesystem monitor in a separate thread
       w.start(waitThread)
     else:
       for tpl in engine.getViews():

@@ -22,6 +22,7 @@ requires "denim#head"
 requires "checksums"
 requires "flatty"
 requires "supersnappy"
+requires "httpx", "websocketx"
 
 task node, "Build a NODE addon":
   exec "denim build src/tim.nim --cmake --yes"
