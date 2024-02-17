@@ -4,6 +4,7 @@ nim	caseNotNil	tim/engine/parser.html#caseNotNil.t,Node,	template caseNotNil(x: 
 nim	hasError	tim/engine/parser.html#hasError,Parser	proc hasError(p: Parser): bool		70
 nim	isInfix	tim/engine/parser.html#isInfix,Parser	proc isInfix(p: var Parser): bool		78
 nim	isInfix	tim/engine/parser.html#isInfix,TokenTuple	proc isInfix(tk: TokenTuple): bool		81
-nim	newParser	tim/engine/parser.html#newParser,TimEngine,TimTemplate,TimTemplate	proc newParser(engine: TimEngine; tpl, tplView: TimTemplate; isMainParser = true;\n          refreshAst = false): Parser		886
-nim	getAst	tim/engine/parser.html#getAst,Parser	proc getAst(p: Parser): Ast		887
+nim	isFnCall	tim/engine/parser.html#isFnCall,Parser	proc isFnCall(p: var Parser): bool		96
+nim	newParser	tim/engine/parser.html#newParser,TimEngine,TimTemplate,TimTemplate	proc newParser(engine: TimEngine; tpl, tplView: TimTemplate; isMainParser = true;\n          refreshAst = false): Parser		883
+nim	getAst	tim/engine/parser.html#getAst,Parser	proc getAst(p: Parser): Ast		884
 nimgrp	isinfix	tim/engine/parser.html#isInfix-procs-all	proc		78
