@@ -1,5 +1,3 @@
 nimTitle	tim	tim.html	module tim		0
-nim	jitCompiler	tim.html#jitCompiler,TimEngine,TimTemplate,JsonNode	proc jitCompiler(engine: TimEngine; tpl: TimTemplate; data: JsonNode): HtmlCompiler		22
-nim	compileCode	tim.html#compileCode,TimEngine,TimTemplate	proc compileCode(engine: TimEngine; tpl: TimTemplate; refreshAst = false)		31
 nim	precompile	tim.html#precompile,TimEngine,TimCallback,int	proc precompile(engine: TimEngine; callback: TimCallback = nil; flush = true;\n           waitThread = false; browserSyncPort = Port(6502);\n           browserSyncDelay = 550)		86
 nim	render	tim.html#render,TimEngine,string	proc render(engine: TimEngine; viewName: string; layoutName = defaultLayout;\n       global, local = newJObject()): string		185
