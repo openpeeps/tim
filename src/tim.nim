@@ -19,7 +19,7 @@ const
   DOCKTYPE = "<!DOCKTYPE html>"
   defaultLayout = "base"
 
-proc jitCompiler*(engine: TimEngine, tpl: TimTemplate, data: JsonNode): HtmlCompiler =
+proc jitCompiler(engine: TimEngine, tpl: TimTemplate, data: JsonNode): HtmlCompiler =
   ## Compiles `tpl` AST at runtime
   newCompiler(engine.readAst(tpl), tpl, engine.isMinified(), engine.getIndentSize(), data)
 
@@ -28,7 +28,7 @@ proc displayErrors(l: Logger) =
     display(err)
   display(l.filePath)
 
-proc compileCode*(engine: TimEngine, tpl: TimTemplate, refreshAst = false) =
+proc compileCode(engine: TimEngine, tpl: TimTemplate, refreshAst = false) =
   # Compiles `tpl` TimTemplate to either `.html` or binary `.ast`
   var tplView: TimTemplate 
   if tpl.getType == ttView: 
@@ -95,7 +95,7 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
   ## todo something with this `TimCallback` provided 
   ## 
   ## Enable filesystem monitor by compiling with `-d:timHotCode` flag.
-  ## Create a separate thread for precompiling templates. Use `waitThread` to keep the thread alive.
+  ## You can create a separate thread for precompiling templates (use `waitThread` to keep the thread alive)
   if flush: engine.flush()
   when not defined release:
     when defined timHotCode:
