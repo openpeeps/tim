@@ -4,10 +4,10 @@ nim	hasError	tim/engine/compilers/html.html#hasError,HtmlCompiler	proc hasError(
 nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,seq[Node]	proc dumpHook(s: var string; v: seq[Node])		131
 nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,OrderedTableRef[string,Node]	proc dumpHook(s: var string; v: OrderedTableRef[string, Node])		132
 nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,Node	proc dumpHook(s: var string; v: Node)		135
-nim	newCompiler	tim/engine/compilers/html.html#newCompiler,Ast,TimTemplate,int,JsonNode	proc newCompiler(ast: Ast; tpl: TimTemplate; minify = true; indent = 2;\n            data: JsonNode = newJObject()): HtmlCompiler		1033
-nim	newCompiler	tim/engine/compilers/html.html#newCompiler,Ast,int	proc newCompiler(ast: Ast; minify = true; indent = 2): HtmlCompiler		1068
-nim	getHtml	tim/engine/compilers/html.html#getHtml,HtmlCompiler	proc getHtml(c: HtmlCompiler): string		1083
-nim	getHead	tim/engine/compilers/html.html#getHead,HtmlCompiler	proc getHead(c: HtmlCompiler): string		1091
-nim	getTail	tim/engine/compilers/html.html#getTail,HtmlCompiler	proc getTail(c: HtmlCompiler): string		1096
+nim	newCompiler	tim/engine/compilers/html.html#newCompiler,Ast,TimTemplate,int,JsonNode	proc newCompiler(ast: Ast; tpl: TimTemplate; minify = true; indent = 2;\n            data: JsonNode = newJObject()): HtmlCompiler		1038
+nim	newCompiler	tim/engine/compilers/html.html#newCompiler,Ast,int	proc newCompiler(ast: Ast; minify = true; indent = 2): HtmlCompiler		1073
+nim	getHtml	tim/engine/compilers/html.html#getHtml,HtmlCompiler	proc getHtml(c: HtmlCompiler): string		1088
+nim	getHead	tim/engine/compilers/html.html#getHead,HtmlCompiler	proc getHead(c: HtmlCompiler): string		1096
+nim	getTail	tim/engine/compilers/html.html#getTail,HtmlCompiler	proc getTail(c: HtmlCompiler): string		1101
 nimgrp	dumphook	tim/engine/compilers/html.html#dumpHook-procs-all	proc		131
-nimgrp	newcompiler	tim/engine/compilers/html.html#newCompiler-procs-all	proc		1033
+nimgrp	newcompiler	tim/engine/compilers/html.html#newCompiler-procs-all	proc		1038
