@@ -15,7 +15,7 @@ contexts:
     - include: yaml
     - include: sass
 
-    - match: '@include'
+    - match: '\b(echo)\b|@\b(include|runtime|end|client)\b'
       scope: keyword.control.import.timl
 
     - match: '@view'
@@ -23,24 +23,39 @@ contexts:
 
     - match: '(@mixin)\s([\w+-]*)(\((.*)?\))'
       captures:
+        1: keyword.control.function.tim
+        2: entity.name.function.tim
+
+    - match: '(@[\w+-]*)(\((.*)?\))'
+      captures:
         1: entity.name.function.tim
-        2: entity.name.namespace.tim
 
     - match: '\b(true|false)\b'
       scope: constant.language.timl
 
-    - match: '\b(if|elif|else|for|in)\b'
+    - match: '\$(app|this)\b'
+      scope: constant.language.timl
+
+    - match: '\b(if|elif|else|for|in|and|or|fn|return|string|int|float|bool|array|object)\b'
       scope: keyword.control.timl
+
+    - match: '\b(var|const)\b'
+      captures:
+        1: keyword.control.bro
+      push: varIdent
 
     - match: (\$)([a-zA-Z_][a-zA-Z0-9_]*)\b
       scope: variable.member.timl
 
+    - match: '([\w-]*)(=)'
+      captures:
+        1: entity.other.attribute-name
+
     - match: (\.)({{html_id}})\b
       captures:
-        2: keyword.control
+        1: markup.bold
+        # 2: entity.name.function
 
-    # Strings begin and end with quotes, and use backslashes as an escape
-    # character
     - match: '"'
       scope: punctuation.definition.string.begin.timl
       push: double_quoted_string
@@ -53,8 +68,8 @@ contexts:
     - match: '>'
       scope: markup.bold
 
-    - match: '\|'
-      scope: markup.bold keyword.operator.logical
+    - match: '(\?|\||\*|/|&|\-|\+)'
+      scope: keyword.operator.logical
 
     - match: '(:|\.)'
       scope: markup.bold
@@ -62,8 +77,8 @@ contexts:
     - match: '='
       scope: markup.bold keyword.operator.assignment.timl
 
-    - match: '\*'
-      scope: entity.name.tag
+    # - match: '\*'
+    #   scope: entity.name.tag
 
     - match: '\b(html|head|meta|script|body|title)\b'
       scope: entity.name.tag.timl
@@ -71,8 +86,8 @@ contexts:
     - match: '\b(main|section|article|aside|div|footer|header)\b'
       scope: entity.name.tag.timl
 
-    - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span|u)\b'
-      scope: entity.name.type.text.timl
+    - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span|small|u|pre|code)\b'
+      scope: entity.name.tag.text.timl
 
     - match: '\b(table|tbody|td|tfoot|th|thead|tr)\b'
       scope: entity.name.tag.table.timl
@@ -80,15 +95,19 @@ contexts:
     - match: '\b(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b'
       scope: entity.name.tag.selfclosing.timl
 
-    - match: '\b(button|label|select|textarea|legend|datalist|output|option|optgroup)\b'
+    - match: '\b(button|form|label|select|textarea|legend|datalist|output|option|optgroup)\b'
       scope: entity.name.tag.form.timl
 
     - match: '\b(ul|ol|dl|dt|dd|li)\b'
       scope: entity.name.tag.list.timl
 
-    # Numbers
     - match: '\b(-)?[0-9.]+\b'
       scope: constant.numeric.tim
+
+  varIdent:
+    - match: '[A-Za-z_][A-Za-z_0-9]*'
+      scope: entity.name
+      pop: true
 
   double_quoted_string:
     - meta_scope: string.quoted.double.tim
@@ -104,16 +123,13 @@ contexts:
       pop: true
 
   javascript:
-    - match: (```)(javascript)
-      scope: meta.tag.tim
-      captures:
-        1: punctuation.definition.tag.begin.tim
-        2: markup.bold.tim
+    - match: '@\b(js)\b'
+      scope: keyword.control.import.tim
       embed: scope:source.js
       embed_scope: meta.tag.tim
-      escape: (^(\s*)?(```))
+      escape: '^(\s*?)@\b(end)\b'
       escape_captures:
-        0: meta.tag.tim punctuation.definition.tag.end.tim
+        0: keyword.control.import.tim punctuation.definition.tag.end.tim
 
   json:
     - match: (```)(json)
