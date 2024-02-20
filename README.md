@@ -110,11 +110,8 @@ else:
   a href="/login": "Please login to view this page"
 ```
 
-Template variables can be declared inside templates using `var` or `const`. The only difference between a
-`var` and a `const` is that constants are immutable and requires initialization.
-
-Template variables can be declared inside templates using `var` or `const`. The only difference between these two is
-is that constants are immutable and require initialization.
+Template variables can be declared inside templates using `var` or `const`. The only difference
+between these two is that constants are immutable and requires initialization.
 
 The scope of a declared variable is limited to the branch in which it was declared.
 
