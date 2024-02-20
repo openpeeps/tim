@@ -30,6 +30,7 @@ type
     duplicateAttribute = "Duplicate HTML attribute $"
     duplicateField = "Duplicate field $"
     undeclaredField = "Undeclared field $"
+    indexDefect = "Index $ not in $"
     importNotFound = "Cannot open file: $"
     internalError = "$"
 
@@ -173,7 +174,12 @@ template compileErrorWithArgs*(msg: Message) =
   c.hasErrors = true
   return
 
-proc error*(logger: Logger, msg: Message, line, col: int, args: varargs[string]) =
+template compileErrorWithArgs*(msg: Message, meta: Meta, args: openarray[string]) =
+  c.logger.newError(msg, meta[0], meta[1], true, args)
+  c.hasErrors = true
+  return
+
+proc error*(logger: Logger, msg: Message, line, col: int, args: openarray[string]) =
   logger.add(lvlError, msg, line, col, false, args)
 
 when defined napiOrWasm:

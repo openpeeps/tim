@@ -147,6 +147,9 @@ type
     of ntDotExpr:
       storageType*: StorageType
       lhs*, rhs*: Node
+    of ntBracketExpr:
+      bracketStorageType*: StorageType
+      bracketLHS*, bracketIndex*: Node
     of ntLitFunction:
       fnIdent*: string
       fnParams*: OrderedTable[string, FnParam]
@@ -185,7 +188,7 @@ type
       ## other trees resulted from imports
     jit*: bool
 
-const ntAssignableSet* = {ntLitString, ntLitInt, ntLitFloat, ntLitBool}
+const ntAssignableSet* = {ntLitString, ntLitInt, ntLitFloat, ntLitBool, ntLitObject, ntLitArray}
 
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
   result =

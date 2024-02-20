@@ -34,6 +34,8 @@ proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTab
 proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc fnCall(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc hasError*(c: HtmlCompiler): bool = c.hasErrors
+proc bracketEvaluator(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable]): Node
 
 proc baseIndent(c: HtmlCompiler, isize: int): int =
   if c.indent == 2:
@@ -69,13 +71,14 @@ when not defined timStandalone:
     of ntVariableDef:
       if scopetables.len > 0:
         scopetables[^1][node.varName] = node
-        return
+      else:
+        c.globalScope[node.varName] = node
     of ntLitFunction:
       if scopetables.len > 0:
         scopetables[^1][node.fnIdent] = node
-        return
+      else:
+        c.globalScope[node.fnIdent] = node
     else: discard
-    c.globalScope[key] = node
 
   proc getCurrentScope(c: var HtmlCompiler,
       scopetables: var seq[ScopeTable]): ScopeTable =
@@ -276,7 +279,7 @@ proc walkAccessorStorage(c: var HtmlCompiler,
     try:
       result = lhs.objectItems[rhs.identName]
     except KeyError:
-      c.logger.error(undeclaredField, rhs.meta[0], rhs.meta[1], [rhs.identName])
+      compileErrorWithArgs(undeclaredField, rhs.meta, [rhs.identName])
   of ntDotExpr:
     let x = c.walkAccessorStorage(lhs.lhs, lhs.rhs, scopetables)
     if likely(x != nil):
@@ -285,19 +288,38 @@ proc walkAccessorStorage(c: var HtmlCompiler,
     let x = c.fromScope(lhs.identName, scopetables)
     if likely(x != nil):
       result = c.walkAccessorStorage(x.varValue, rhs, scopetables)
+  of ntBracketExpr:
+    let lhs = c.bracketEvaluator(lhs, scopetables)
+    if likely(lhs != nil):
+      return c.walkAccessorStorage(lhs, rhs, scopetables)
   of ntLitArray:
-    discard # todo handle accessor storage for arrays
+    try:
+      result = lhs.arrayItems[rhs.iVal]
+    except Defect:
+      compileErrorWithArgs(indexDefect, lhs.meta, [$(rhs.iVal), "0.." & $(lhs.arrayItems.high)])
   else: discard
 
-proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
+proc dotEvaluator(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable]): Node =
   # Evaluate dot expressions
   case node.storageType
   of localStorage, globalStorage:
     let x = c.evalStorage(node)
     if likely(x != nil):
-      result = toTimNode(x)
+      result = x.toTimNode
   of scopeStorage:
     return c.walkAccessorStorage(node.lhs, node.rhs, scopetables)
+
+proc bracketEvaluator(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable]): Node =
+  case node.bracketStorageType
+  of localStorage, globalStorage:
+    let x = c.evalStorage(node)
+    if likely(x != nil):
+      result = x.toTimNode
+  of scopeStorage:
+    let index = c.getValue(node.bracketIndex, scopetables)
+    return c.walkAccessorStorage(node.bracketLHS, index, scopetables)
 
 proc writeDotExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   # Handle dot expressions
@@ -506,6 +528,8 @@ proc getValue(c: var HtmlCompiler, node: Node,
   of ntDotExpr:
     # evaluate dot expressions
     result = c.dotEvaluator(node, scopetables)
+  of ntBracketExpr:
+    result = c.bracketEvaluator(node, scopetables)
   of ntMathInfixExpr:
     # evaluate a math expression and returns its value
     result = c.mathInfixEvaluator(node.infixMathLeft,

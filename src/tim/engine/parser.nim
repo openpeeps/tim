@@ -57,6 +57,9 @@ proc pAnoArray(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
 proc pAnoObject(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
 proc pAssignable(p: var Parser): Node {.gcsafe.}
 
+proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
+proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
+
 proc pFunctionCall(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
 
 template caseNotNil*(x: Node, body): untyped =
@@ -229,22 +232,51 @@ proc parseVarDef(p: var Parser, ident: TokenTuple, varType: TokenKind): Node {.g
   result.varName = ident.value
   result.varImmutable = varType == tkConst
 
-proc parseDotExpr(p: var Parser, lhs: Node): Node =
+proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse dot expression
   result = ast.newNode(ntDotExpr, p.prev)
   result.lhs = lhs
   walk p # tkDot
-  if likely(p.curr is tkIdentifier):
+  if p.isFnCall():
+    result.rhs = p.pFunctionCall()
+  elif p.curr is tkIdentifier:
     result.rhs = ast.newIdent(p.curr)
     walk p
-    while p.curr is tkDot:
-      result = p.parseDotExpr(result)
-  else:
-    return nil
+  else: return nil
+  while true:
+    case p.curr.kind
+    of tkDot:
+      if p.curr.line == result.meta[0]:
+        result = p.parseDotExpr(result)
+      else: break
+    of tkLB:
+      if p.curr.line == result.meta[0]:
+        result = p.parseBracketExpr(result)
+      else: break
+    else:
+      break # todo handle infix expressions
 
-proc parseBracketExpr(p: var Parser, lhs: Node): Node =
+proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse bracket expression
   result = ast.newNode(ntBracketExpr, p.prev)
+  walk p # tkLB
+  let index = p.getPrefixOrInfix()
+  caseNotNil index:
+    result.bracketIndex = index
+    result.bracketLHS = lhs
+  expectWalk tkRB
+  while true:
+    case p.curr.kind
+    of tkDot:
+      if p.curr.line == result.meta[0]:
+        result = p.parseDotExpr(result)
+      else: break
+    of tkLB:
+      if p.curr.line == result.meta[0]:
+        result = p.parseBracketExpr(result)
+      else: break
+    else:
+      break # todo handle infix expressions
 
 prefixHandle pIdent:
   # parse an identifier
@@ -255,13 +287,25 @@ prefixHandle pIdent:
   of tkDot:
     # handle dot expressions
     result = p.parseDotExpr(result)
-    result.storageType = storageType
-    return # result
+    caseNotNil result:
+      case result.nt
+      of ntDotExpr:
+        result.storageType = storageType
+      of ntBracketExpr:
+        result.bracketStorageType = storageType
+      else: discard
   of tkLB:
     # handle bracket expressions
     result = p.parseBracketExpr(result)
-    result.storageType = storageType
-    return # result
+    caseNotNil result:
+      case result.nt
+      of ntDotExpr:
+        result.storageType = storageType
+      of ntBracketExpr:
+        result.bracketStorageType = storageType
+      else: discard
+    if p.curr is tkDot and p.curr.line == result.meta[0]:
+      result = p.parseDotExpr(result)
   else: discard
 
 prefixHandle pIdentOrAssignment:
@@ -702,6 +746,10 @@ prefixHandle pFunction:
             (pName.value, ntUnknown, nil, [0, 0, 0])
           handleImplicitDefaultValue()
           result.fnParams[pName.value].meta = implNode.meta
+        if p.curr is tkComma and p.next isnot tkRP:
+          walk p
+        elif p.curr isnot tkRP:
+          return nil
       else: return nil
     walk p # tkRP
     if p.curr is tkColon:
