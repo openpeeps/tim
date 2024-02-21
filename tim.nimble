@@ -5,9 +5,9 @@ author        = "George Lemon"
 description   = "A super fast template engine for cool kids!"
 license       = "MIT"
 srcDir        = "src"
-installExt    = @["nim"]
 skipDirs      = @["example", "editors"]
-bin           = @["tim"]
+# installExt    = @["nim"]
+# bin           = @["tim"]
 
 
 # Dependencies
