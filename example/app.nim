@@ -7,7 +7,6 @@ from std/httpcore import HttpCode, Http200
 from std/net import Port
 
 const projectPath = getProjectPath()
-let currentYear = now().format("yyyy")
 
 template getStaticAsset(path: string) {.dirty.} =
   let assetsPath = projectPath / "storage" / path
@@ -33,20 +32,21 @@ var
     indent = 2
   )
 
+let currentYear = now().format("yyyy")
+let globalData = %*{
+    "year": parseInt(currentYear)
+  }
+
 proc precompileEngine() {.thread.} =
-  # use a thread precompile Tim Engine in watch mode
-  # todo browser reload and sync
   {.gcsafe.}:
-    timl.precompile(waitThread = true)
+    timl.precompile(waitThread = true, global = globalData)
 
 var thr: Thread[void]
 createThread(thr, precompileEngine)
 
 proc resp(req: Request, view: string, code = Http200,
-    headers = "Content-Type: text/html", global, local: JsonNode = nil) =
-  let htmlOutput = timl.render(view, global = %*{
-    "year": $(currentYear)
-  })
+    headers = "Content-Type: text/html", local = newJObject()) =
+  let htmlOutput = timl.render(view, local = local)
   req.send(code, htmlOutput, headers)
 
 proc onRequest(req: Request): Future[void] =
@@ -57,6 +57,8 @@ proc onRequest(req: Request): Future[void] =
       case path
       of "/":
         req.resp("index")
+      of "/about":
+        req.resp("about")
       else:
         if path.startsWith("/assets"):
           getStaticAsset(path)
