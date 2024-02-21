@@ -12,7 +12,7 @@ import ../ast, ../logging, ./js
 
 from std/xmltree import escape
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
-  getType, getSourcePath
+  getType, getSourcePath, getGlobalData
 
 import ./tim # TimCompiler object
 
@@ -1059,10 +1059,11 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
 #
 
 when not defined timStandalone:
-  proc newCompiler*(ast: Ast, tpl: TimTemplate, minify = true,
+  proc newCompiler*(engine: TimEngine, ast: Ast, tpl: TimTemplate, minify = true,
       indent = 2, data: JsonNode = newJObject()): HtmlCompiler =
     ## Create a new instance of `HtmlCompiler`
     assert indent in [2, 4]
+    data["global"] = engine.getGlobalData()
     result =
       HtmlCompiler(
         ast: ast,

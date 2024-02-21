@@ -68,6 +68,12 @@ proc getPath*(engine: TimEngine, key: string, templateType: TimTemplateType): st
   result &= ".timl"
   result = normalizedPath(result) # normalize path for Windows
 
+proc setGlobalData*(engine: TimEngine, data: JsonNode) =
+  engine.globals = data
+
+proc getGlobalData*(engine: TimEngine): JsonNode =
+  engine.globals
+
 proc hashid(path: string): string =
   # Creates an MD5 hashed version of `path`
   result = getMD5(path)

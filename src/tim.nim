@@ -21,14 +21,15 @@ const
 
 proc jitCompiler(engine: TimEngine, tpl: TimTemplate, data: JsonNode): HtmlCompiler =
   ## Compiles `tpl` AST at runtime
-  newCompiler(engine.readAst(tpl), tpl, engine.isMinified(), engine.getIndentSize(), data)
+  engine.newCompiler(engine.readAst(tpl), tpl, engine.isMinified, engine.getIndentSize, data)
 
 proc displayErrors(l: Logger) =
   for err in l.errors:
     display(err)
   display(l.filePath)
 
-proc compileCode(engine: TimEngine, tpl: TimTemplate, refreshAst = false) =
+proc compileCode(engine: TimEngine, tpl: TimTemplate,
+    refreshAst = false) =
   # Compiles `tpl` TimTemplate to either `.html` or binary `.ast`
   var tplView: TimTemplate 
   if tpl.getType == ttView: 
@@ -42,7 +43,8 @@ proc compileCode(engine: TimEngine, tpl: TimTemplate, refreshAst = false) =
     else:
       # otherwise, compiles the generated AST and save
       # a pre-compiled HTML version on disk
-      var c = newCompiler(p.getAst, tpl, engine.isMinified, engine.getIndentSize)
+      var c = engine.newCompiler(p.getAst, tpl, engine.isMinified,
+          engine.getIndentSize)
       if likely(not c.hasError):
         case tpl.getType:
         of ttView:
@@ -57,6 +59,7 @@ proc compileCode(engine: TimEngine, tpl: TimTemplate, refreshAst = false) =
 
 var sync: Thread[(Port, int)]
 var lastModified, prevModified: Time
+
 proc browserSync(x: (Port, int)) {.thread.} =
   proc onRequest(req: Request) {.async.} =
     if req.httpMethod == some(HttpGet):
@@ -85,7 +88,7 @@ proc browserSync(x: (Port, int)) {.thread.} =
 
 proc precompile*(engine: TimEngine, callback: TimCallback = nil,
     flush = true, waitThread = false, browserSyncPort = Port(6502),
-    browserSyncDelay = 550) =
+    browserSyncDelay = 550, global: JsonNode = newJObject()) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
   ## 
@@ -97,6 +100,7 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
   ## Enable filesystem monitor by compiling with `-d:timHotCode` flag.
   ## You can create a separate thread for precompiling templates (use `waitThread` to keep the thread alive)
   if flush: engine.flush()
+  engine.setGlobalData(global)
   when not defined release:
     when defined timHotCode:
       # Define callback procs for pkg/watchout
@@ -172,7 +176,6 @@ template layoutWrapper(getViewBlock) {.dirty.} =
     getViewBlock
     layoutTail = layout.getTail()
   else:
-
     var jitLayout = engine.jitCompiler(layout, data)
     if likely(not jitLayout.hasError):
       add result, jitLayout.getHead()
@@ -191,7 +194,7 @@ proc render*(engine: TimEngine, viewName: string,
     var
       view: TimTemplate = engine.getView(viewName)
       data: JsonNode = newJObject()
-    data["global"] = global
+    # data["global"] = global # todo merge global data
     data["local"] = local
     if likely(engine.hasLayout(layoutName)):
       var layout: TimTemplate = engine.getLayout(layoutName)
