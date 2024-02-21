@@ -40,6 +40,30 @@ div.container > div.row > div.col-lg-7.mx-auto
 ## Tim in action
 Check [/example](https://github.com/openpeeps/tim/tree/main/example) folder to better understand Tim's structure. [Also check the generated HTML file](https://htmlpreview.github.io/?https://raw.githubusercontent.com/openpeeps/tim/main/example/preview.html) 
 
+#### Template structure
+Tim has its own little filesystem that continuously monitors `.timl` for changes/creation or deletion.
+Here is a basic filesystem structure:
+
+```
+storage/
+  ast/
+    # for storing pre-compiled binary .ast nodes
+  html/
+    # for storing html files from static templates
+templates/
+  layouts/ # main place for layouts. (create the directory manually)
+    base.timl
+    customer.timl
+  partials/ # main place for storing partials (create the directory manually)
+    product/
+      price.timl
+      cta.timl
+  views/ # main place for storing views (create the directory manually)
+    customer.timl
+    products.timl
+    product.timl
+```
+
 ### Client-Side Rendering
 Tim Engine seamlessly shifts rendering to the client side for dynamic interactions, using the intuitive `@client` block statement.
 
