@@ -47,8 +47,10 @@ Here is a basic filesystem structure:
 ```
 storage/
   ast/
+    # auto-generated
     # for storing pre-compiled binary .ast nodes
   html/
+    # auto-generated
     # for storing html files from static templates
 templates/
   layouts/ # main place for layouts. (create the directory manually)
