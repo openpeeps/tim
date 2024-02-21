@@ -27,6 +27,7 @@ or more like a _todo list_
 - Built-in **Browser Sync & Reload**
 - Built-in real-time Server-Side Rendering `SSR` via `ZeroMQ`
 - Source-to-Source translator (transpiles to `JavaScript`, `Ruby`, `Python` and more)
+- Template localization
 - Written in Nim language 👑
 
 ## Quick Example
