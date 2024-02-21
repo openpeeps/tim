@@ -57,8 +57,6 @@ proc onRequest(req: Request): Future[void] =
       case path
       of "/":
         req.resp("index")
-      of "/about":
-        req.resp("about")
       else:
         if path.startsWith("/assets"):
           getStaticAsset(path)
