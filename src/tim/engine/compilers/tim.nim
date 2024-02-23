@@ -1,4 +1,5 @@
 import ../meta, ../ast, ../logging
+export meta, ast, logging
 
 type
   TimCompiler* = object of RootObj
