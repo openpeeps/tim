@@ -8,13 +8,11 @@ import std/[tables, strutils, json,
   jsonutils, options, terminal]
 
 import pkg/jsony
-import ../ast, ../logging, ./js
+import ./tim, ./js
 
 from std/xmltree import escape
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
   getType, getSourcePath, getGlobalData
-
-import ./tim # TimCompiler object
 
 type
   HtmlCompiler* = object of TimCompiler
@@ -540,9 +538,14 @@ proc getValue(c: var HtmlCompiler, node: Node,
     result = c.fnCall(node, scopetables)
   else: discard
 
-template calcInfixEval {.dirty.} =
+template calcInfixEval() {.dirty.} =
   let lhs = c.mathInfixEvaluator(lhs.infixMathLeft, lhs.infixMathRight, lhs.infixMathOp, scopetables)
   if likely(lhs != nil):
+    return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
+
+template calcInfixNest() {.dirty.} =
+  let rhs = c.mathInfixEvaluator(rhs.infixMathLeft, rhs.infixMathRight, rhs.infixMathOp, scopetables)
+  if likely(rhs != nil):
     return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
 
 template calcIdent {.dirty.} =
@@ -567,6 +570,7 @@ proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
         let rhs = c.getValue(rhs, scopetables)
         if likely(rhs != nil):
           return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntMathInfixExpr: calcInfixNest()
       else: discard
     of ntLitInt:
       case rhs.nt
@@ -579,7 +583,8 @@ proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
       of ntIdent:
         let rhs = c.getValue(rhs, scopetables)
         if likely(rhs != nil):
-          return c.mathInfixEvaluator(lhs, rhs, op, scopetables)     
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables)    
+      of ntMathInfixExpr: calcInfixNest()
       else: discard
     of ntIdent: calcIdent()
     of ntMathInfixExpr: calcInfixEval()
@@ -597,6 +602,7 @@ proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
         let rhs = c.getValue(rhs, scopetables)
         if likely(rhs != nil):
           return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntMathInfixExpr: calcInfixNest()
       else: discard
     of ntLitInt:
       case rhs.nt
@@ -610,6 +616,7 @@ proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
         let rhs = c.getValue(rhs, scopetables)
         if likely(rhs != nil):
           return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntMathInfixExpr: calcInfixNest()
       else: discard
     of ntIdent: calcIdent()
     of ntMathInfixExpr: calcInfixEval()
@@ -627,6 +634,7 @@ proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
         let rhs = c.getValue(rhs, scopetables)
         if likely(rhs != nil):
           return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntMathInfixExpr: calcInfixNest()
       else: discard
     of ntLitInt:
       case rhs.nt
@@ -640,6 +648,43 @@ proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
         let rhs = c.getValue(rhs, scopetables)
         if likely(rhs != nil):
           return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntMathInfixExpr: calcInfixNest()
+      of ntDotExpr:
+        let rhs = c.dotEvaluator(rhs, scopetables)
+        return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
+      else: discard
+    of ntIdent: calcIdent()
+    of ntMathInfixExpr: calcInfixEval()
+    else: discard
+  of mDiv:
+    # todo fix div
+    case lhs.nt
+    of ntLitFloat:
+      result = newNode(ntLitFloat)
+      case rhs.nt
+      of ntLitFloat:
+        result.fVal = lhs.fVal / rhs.fVal
+      of ntLitInt:
+        result.fVal = lhs.fVal / toFloat(rhs.iVal)
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntMathInfixExpr: calcInfixNest()
+      else: discard
+    of ntLitInt:
+      case rhs.nt
+      of ntLitFloat:
+        result = newNode(ntLitFloat)
+        result.fVal = toFloat(lhs.iVal) / rhs.fVal
+      of ntLitInt:
+        result = newNode(ntLitInt)
+        result.iVal = lhs.iVal div rhs.iVal
+      of ntIdent:
+        let rhs = c.getValue(rhs, scopetables)
+        if likely(rhs != nil):
+          return c.mathInfixEvaluator(lhs, rhs, op, scopetables) 
+      of ntMathInfixExpr: calcInfixNest()
       of ntDotExpr:
         let rhs = c.dotEvaluator(rhs, scopetables)
         return c.mathInfixEvaluator(lhs, rhs, op, scopetables)
