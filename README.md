@@ -103,7 +103,8 @@ Note that this feature is not available when compiling with `-d:release`.
 Tim provides 3 types of data storages. **Global** and **Local** as JsonNode objects for handling immutable data from the app to your `timl` templates,
 and **Template** based data at template level using Tim's built-in AST-based interpreter.
 
-Global data can be passed at precompile-time and is made available globally for all layouts, views and partials. 
+1. **Global data** can be passed at precompile-time and is made available globally for all layouts, views and partials.<br>
+Note: Using `$app` in a template will mark it as JIT.
 ```nim
 timl.precompile(
   global = %*{
@@ -118,18 +119,19 @@ footer > div.container > div.row > div.col-12
   small: "&copy; " & $app.year & " &mdash; Made by Humans from OpenPeeps"
 ```
 
-Local data can be passed to a template from route's callback (controller).
-`$this` constant can be used to access data from the local storage.
+2. **Local data** can be passed to a template from route's callback (controller).
+`$this` constant can be used to access data from the local storage.<br>
+Note: Using `$this` in a template will mark it as JIT.
 
 ```nim
 timl.render("index", local = %*{
-  isLoggedin: true,
+  loggedin: true,
   username: "Johnny Boy"
 })
 ```
 
 ```timl
-if $this.isLoggeding:
+if $this.loggedin:
   h1.fw-bold: "Hello, " & $this.username
   a href="/logout": "Log out"
 else:
@@ -137,7 +139,7 @@ else:
   a href="/login": "Please login to view this page"
 ```
 
-Template variables can be declared inside templates using `var` or `const`. The only difference
+3. **Template variables** can be declared inside templates using `var` or `const`. The only difference
 between these two is that constants are immutable and requires initialization.
 
 The scope of a declared variable is limited to the branch in which it was declared.
