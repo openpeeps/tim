@@ -118,8 +118,8 @@ footer > div.container > div.row > div.col-12
   small: "&copy; " & $app.year & " &mdash; Made by Humans from OpenPeeps"
 ```
 
-Local data can be passed to a template from using the route callback (controller).
-`$this` constant can be used to access data from local storage.
+Local data can be passed to a template from route's callback (controller).
+`$this` constant can be used to access data from the local storage.
 
 ```nim
 timl.render("index", local = %*{
