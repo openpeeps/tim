@@ -75,18 +75,18 @@ body
     div.row > div.col-12 > h3.fw-bold: "Leave a message"
     div#commentForm
 
-@client target="#commentForm"
-  form method="POST" action="/submitComment"
-    div.form-floating
-      input.form-control type="text" name="username"
-        placeholder="Your name" autocomplete="off" required=""
-      label: "Your name"
-
-    div.form-floating.my-3
-      textarea.form-control name="message" style="height: 140px" required="": "Your message"
-      label: "Your message"
-    div.text-center > button.btn.btn-dark.px-4.rounded-pill type="submit": "Submit your message"
-@end
+  @client target="#commentForm"
+    form method="POST" action="/submitComment"
+      div.form-floating
+        input.form-control type="text" name="username"
+          placeholder="Your name" autocomplete="off" required=""
+        label: "Your name"
+  
+      div.form-floating.my-3
+        textarea.form-control name="message" style="height: 140px" required="": "Your message"
+        label: "Your message"
+      div.text-center > button.btn.btn-dark.px-4.rounded-pill type="submit": "Submit your message"
+  @end
 ```
 
 ## Browser Sync & Reload
