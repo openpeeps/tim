@@ -167,19 +167,20 @@ proc dumpHook*(s: var string, v: OrderedTableRef[string, Node]) =
 
 
 proc toString(node: Node, escape = false): string =
-  result =
-    case node.nt
-    of ntLitString: node.sVal
-    of ntLitInt:    $node.iVal
-    of ntLitFloat:  $node.fVal
-    of ntLitBool:   $node.bVal
-    of ntLitObject:
-      fromJson(jsony.toJson(node.objectItems)).pretty
-    of ntLitArray:
-      fromJson(jsony.toJson(node.arrayItems)).pretty
-    else: ""
-  if escape:
-    result = xmltree.escape(result)
+  if likely(node != nil):
+    result =
+      case node.nt
+      of ntLitString: node.sVal
+      of ntLitInt:    $node.iVal
+      of ntLitFloat:  $node.fVal
+      of ntLitBool:   $node.bVal
+      of ntLitObject:
+        fromJson(jsony.toJson(node.objectItems)).pretty
+      of ntLitArray:
+        fromJson(jsony.toJson(node.arrayItems)).pretty
+      else: ""
+    if escape:
+      result = xmltree.escape(result)
 
 proc toString(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable], escape = false): string =
   result =
@@ -252,13 +253,14 @@ proc print(val: JsonNode, line, col: int) =
     fgDefault, "\n" & toString(val)
   )
 
-proc evalJson(c: var HtmlCompiler, storage: JsonNode, lhs, rhs: Node): JsonNode =
+proc evalJson(c: var HtmlCompiler,
+    storage: JsonNode, lhs, rhs: Node): JsonNode =
   # Evaluate a JSON node
   if lhs == nil:
     if likely(storage.hasKey(rhs.identName)):
       return storage[rhs.identName]
     else:
-      c.logger.error(undeclaredField, rhs.meta[0], rhs.meta[1], [rhs.identName])
+      c.logger.newError(undeclaredField, rhs.meta[0], rhs.meta[1], true, [rhs.identName])
       c.hasErrors = true
 
 proc evalStorage(c: var HtmlCompiler, node: Node): JsonNode =
@@ -268,6 +270,10 @@ proc evalStorage(c: var HtmlCompiler, node: Node): JsonNode =
       return c.evalJson(c.data["local"], nil, node.rhs)
     if node.lhs.identName == "app":
       return c.evalJson(c.data["global"], nil, node.rhs)
+  of ntDotExpr:
+    let lhs = c.evalStorage(node.lhs)
+    if likely(lhs != nil):
+      return c.evalJson(lhs, nil, node.rhs)
   else: discard
 
 proc walkAccessorStorage(c: var HtmlCompiler,
@@ -336,7 +342,6 @@ proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]):
       print(val)
     of cmdReturn:
       return val
-    else: discard
 
 proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
