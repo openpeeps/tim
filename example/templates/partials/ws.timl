@@ -1,0 +1,6 @@
+@js
+  {
+    const watchout = new WebSocket('ws://127.0.0.1:6502/ws');
+    watchout.addEventListener('message', () => location.reload());
+  }
+@end

@@ -3,26 +3,7 @@ section.pt-5 > div.container > div.row > div#content-zone.col-lg-7.mx-auto
   h1.display-4.fw-bold:
     "This is Tim 👋 A super fast template engine for cool kids!"
   p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em":
-    "Build sleek, dynamic websites and apps in a breeze with Tim Engine's intuitive syntax and powerful features. It's the template engine that keeps up with your creativity."
-  div.row > div.col-12.text-center
-    div.my-3#clickable
-      @include "btn"
-  div.text-center 
-    p.mb-0: "&copy; " & $app.year & " &mdash; Made by Humans from OpenPeeps"
-    p: "Open Source | LGPL-3.0 license"
-
-@client target="#clickable"
-  // transpile tim code to javascript for client-side rendering
-  div.mt-3 > a.text-secondary.text-decoration-none href="https://hetzner.cloud/?ref=Hm0mYGM9NxZ4"
-    small
-      span: "👉 Create a VPS using our link and 👇 "
-      br
-      span: "Get €20 in cloud credits from Hetzner"
-@end
-
-@js
-  {
-    const watchout = new WebSocket('ws://127.0.0.1:6502/ws');
-    watchout.addEventListener('message', () => location.reload());
-  }
-@end
+    "Build sleek, dynamic websites and apps in a breeze with
+    Tim Engine's intuitive syntax and powerful features.
+    It's the template engine that keeps up with your creativity."
+  @include "foot"

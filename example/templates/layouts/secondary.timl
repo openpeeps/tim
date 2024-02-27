@@ -3,8 +3,11 @@ html
     @include "meta/head"
     style: "
   body {
-    background-color: #212121;
-    color: whitesmoke
+    background-color: #1b0f5b;
+  }
+
+  body, .text-light {
+    color: #eeeedc !important
   }
 
   body, h1, h2, h3, h4, h5, h6,
