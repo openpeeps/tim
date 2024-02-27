@@ -976,6 +976,9 @@ proc parseHandle[T](i: Import[T], importFile: ImportFile,
         i.handle.logger.errorLogs = i.handle.logger.errorLogs.concat(cp.logger.errorLogs)
         i.handle.hasErrors = true
         i.cancel()
+    else:
+      if not tpl.hasDep(i.handle.tpl.getSourcePath()):
+        tpl.addDep(i.handle.tpl.getSourcePath())
 
 template startParse(path: string): untyped =
   p.handle.curr = p.handle.lex.getToken()
