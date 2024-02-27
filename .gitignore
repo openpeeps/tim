@@ -4,6 +4,6 @@ nimcache/
 nimblecache/
 htmldocs/
 /pkginfo.json
-/npm_modules
-/package-lock.json
 /tests/app/storage/*
+/example/storage/ast/*
+/example/storage/html/*
