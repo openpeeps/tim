@@ -164,6 +164,7 @@ registerTokens toktokSettings:
   rb   = ']'
   dot  = '.'
   id   = '#'
+  ternary = '?'
   exc = '!':
     ne = '=' 
   assign = '=':

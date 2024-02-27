@@ -30,8 +30,10 @@ type
     duplicateAttribute = "Duplicate HTML attribute $"
     duplicateField = "Duplicate field $"
     undeclaredField = "Undeclared field $"
+    invalidIterator = "Invalid iterator"
     indexDefect = "Index $ not in $"
     importNotFound = "Cannot open file: $"
+    importCircularError = "Circular import detected: $"
     internalError = "$"
 
   Level* = enum

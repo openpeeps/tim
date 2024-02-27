@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import std/json except `%*`
-import std/[times, options, asyncdispatch]
+import std/[times, options, asyncdispatch, sequtils]
 
 import pkg/[watchout, httpx, websocketx]
 import pkg/kapsis/cli
@@ -19,9 +19,13 @@ const
   DOCKTYPE = "<!DOCKTYPE html>"
   defaultLayout = "base"
 
-proc jitCompiler(engine: TimEngine, tpl: TimTemplate, data: JsonNode): HtmlCompiler =
+proc jitCompiler(engine: TimEngine,
+    tpl: TimTemplate, data: JsonNode): HtmlCompiler =
   ## Compiles `tpl` AST at runtime
-  engine.newCompiler(engine.readAst(tpl), tpl, engine.isMinified, engine.getIndentSize, data)
+  engine.newCompiler(
+    engine.readAst(tpl), tpl, engine.isMinified,
+    engine.getIndentSize, data
+  )
 
 proc displayErrors(l: Logger) =
   for err in l.errors:
@@ -31,13 +35,10 @@ proc displayErrors(l: Logger) =
 proc compileCode(engine: TimEngine, tpl: TimTemplate,
     refreshAst = false) =
   # Compiles `tpl` TimTemplate to either `.html` or binary `.ast`
-  var tplView: TimTemplate 
-  if tpl.getType == ttView: 
-    tplView = tpl
-  var p: Parser = engine.newParser(tpl, tplView, refreshAst = refreshAst)
+  var p: Parser = engine.newParser(tpl, refreshAst = refreshAst)
   if likely(not p.hasError):
     if tpl.jitEnabled():
-      # when enabled, will save the generated binary ast
+      # when enabled, will save a cached ast
       # to disk for runtime computation. 
       engine.writeAst(tpl, p.getAst)
     else:
@@ -65,13 +66,18 @@ proc browserSync(x: (Port, int)) {.thread.} =
     if req.httpMethod == some(HttpGet):
       case req.path.get()
       of "/":
-        req.send("OK")
+        req.send("Hello, Hello!") # todo a cool page here?
       of "/ws":
         try:
           var ws = await newWebSocket(req)
           while ws.readyState == Open:
             if lastModified > prevModified:
-              await ws.send("true")
+              # our JS snippet listens on `message`, so once
+              # we have an update we can just send an empty string.
+              # connecting to Tim's WebSocket via JS:
+              #   const watchout = new WebSocket('ws://127.0.0.1:6502/ws');
+              #   watchout.addEventListener('message', () => location.reload());
+              await ws.send("")
               ws.close()
               prevModified = lastModified
             sleep(x[1])
@@ -86,24 +92,44 @@ proc browserSync(x: (Port, int)) {.thread.} =
   let settings = initSettings(x[0], numThreads = 1)
   httpx.run(onRequest, settings)
 
+proc resolveDependants(engine: TimEngine, x: seq[string]) =
+  for path in x:
+    let tpl = engine.getTemplateByPath(path)
+    case tpl.getType
+    of ttPartial:
+      # echo tpl.getDeps.toSeq
+      # echo tpl.getSourcePath
+      engine.resolveDependants(tpl.getDeps.toSeq)
+    else:
+      engine.compileCode(tpl, refreshAst = true)
+      # if engine.errors.len > 0:
+      #   for err in engine.errors:
+      #     echo err
+      # else:
+      lastModified = getTime()
+
 proc precompile*(engine: TimEngine, callback: TimCallback = nil,
     flush = true, waitThread = false, browserSyncPort = Port(6502),
-    browserSyncDelay = 550, global: JsonNode = newJObject()) =
+    browserSyncDelay = 550, global: JsonNode = newJObject(), watchoutNotify = true) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
   ## 
   ## Enable `flush` option to delete outdated generated
   ## files (enabled by default).
   ## 
-  ## todo something with this `TimCallback` provided 
-  ## 
   ## Enable filesystem monitor by compiling with `-d:timHotCode` flag.
-  ## You can create a separate thread for precompiling templates (use `waitThread` to keep the thread alive)
+  ## You can create a separate thread for precompiling templates
+  ## (use `waitThread` to keep the thread alive)
   if flush: engine.flush()
   engine.setGlobalData(global)
   when not defined release:
     when defined timHotCode:
       # Define callback procs for pkg/watchout
+      proc notify(label, fname: string) =
+        if watchoutNotify:
+          echo label
+          echo indent(fname & "\n", 3)
+
       # Callback `onFound`
       proc onFound(file: watchout.File) =
         # Runs when detecting a new template.
@@ -112,41 +138,31 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
         case tpl.getType
         of ttView, ttLayout:
           engine.compileCode(tpl)
-          if engine.errors.len > 0:
-            for err in engine.errors:
-              echo err
+          # if engine.errors.len > 0:
+          #   for err in engine.errors:
+          #     echo err
         else: discard
 
       # Callback `onChange`
       proc onChange(file: watchout.File) =
         # Runs when detecting changes
         let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-        # echo tpl.isUsed()
-        # if not tpl.isUsed(): return # prevent compiling tpl if not in use
-        echo "✨ Changes detected"
-        echo indent(file.getName() & "\n", 3)
+        notify("✨ Changes detected", file.getName())
         case tpl.getType()
         of ttView, ttLayout:
           engine.compileCode(tpl)
-          if engine.errors.len > 0:
-            for err in engine.errors:
-              echo err
-          else:
-            lastModified = getTime()
+          # if engine.errors.len > 0:
+          #   for err in engine.errors:
+          #     echo err
+          # else:
+          lastModified = getTime()
         else:
-          for path in tpl.getDeps:
-            let deptpl = engine.getTemplateByPath(path)
-            engine.compileCode(deptpl, refreshAst = true)
-            if engine.errors.len > 0:
-              for err in engine.errors:
-                echo err
-            else:
-              lastModified = getTime()
+          engine.resolveDependants(tpl.getDeps.toSeq)
 
       # Callback `onDelete`
       proc onDelete(file: watchout.File) =
         # Runs when deleting a file
-        echo "✨ Deleted\n", file.getName()
+        notify("✨ Deleted", file.getName())
         engine.clearTemplateByPath(file.getPath())
 
       var w = newWatchout(@[engine.getSourcePath() / "*"], onChange,

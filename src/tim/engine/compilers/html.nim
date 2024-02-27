@@ -260,7 +260,8 @@ proc evalJson(c: var HtmlCompiler,
     if likely(storage.hasKey(rhs.identName)):
       return storage[rhs.identName]
     else:
-      c.logger.newError(undeclaredField, rhs.meta[0], rhs.meta[1], true, [rhs.identName])
+      c.logger.newError(undeclaredField, rhs.meta[0],
+        rhs.meta[1], true, [rhs.identName])
       c.hasErrors = true
 
 proc evalStorage(c: var HtmlCompiler, node: Node): JsonNode =
@@ -779,7 +780,8 @@ template loopEvaluator(items: Node) =
       let x = @[ntLitString, ntLitArray, ntLitObject]
       compileErrorWithArgs(typeMismatch, [$(items.nt), x.join(" ")])
 
-proc evalLoop(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
+proc evalLoop(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable]) =
   # Evaluates a `for` loop
   case node.loopItems.nt
   of ntIdent:
@@ -794,7 +796,13 @@ proc evalLoop(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable])
       loopEvaluator(items)
     else:
       compileErrorWithArgs(undeclaredVariable, [node.loopItems.lhs.identName])
-  else: return
+  of ntLitArray:
+    loopEvaluator(node.loopItems)
+  of ntBracketExpr:
+    let items = c.bracketEvaluator(node.loopItems, scopetables)
+    loopEvaluator(items)
+  else:
+    compileErrorWithArgs(invalidIterator)
 
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool =
   if unlikely(x.nt != node.nt):

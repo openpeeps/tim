@@ -19,7 +19,7 @@ type
     lvl: int
     prev, curr, next: TokenTuple
     engine: TimEngine
-    tpl, tplView: TimTemplate
+    tpl: TimTemplate
     logger*: Logger
     hasErrors*, nilNotError, hasLoadedView,
       isMain, refreshAst: bool
@@ -61,6 +61,10 @@ proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 
 proc pFunctionCall(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
+
+proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.}
+proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.}
+proc parseTernaryExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 
 template caseNotNil*(x: Node, body): untyped =
   if likely(x != nil):
@@ -376,7 +380,7 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
     of tkDot:
       let attrKey = "class"
       if attrs.hasKey(attrKey):
-        attrs[attrKey].add(ast.newString(p.next))
+        add attrs[attrKey], ast.newString(p.next)
       else:
         attrs[attrKey] = @[ast.newString(p.next)]
       walk p, 2
@@ -404,7 +408,7 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
               while p.curr is tkAmp:
                 attrValue = p.pStringConcat()
                 if likely(attrValue != nil):
-                  attrs[attrKey.value][^1].sVals.add(attrValue)
+                  add attrs[attrKey.value][^1].sVals, attrValue
           of tkBacktick:
             let attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
@@ -421,6 +425,11 @@ proc parseAttributes(p: var Parser, attrs: var HtmlAttributes, el: TokenTuple) {
       else: break
       # errorWithArgs(invalidAttribute, p.prev, [p.prev.value])
 
+prefixHandle pGroupExpr:
+  walk p # tkLP
+  result = p.getPrefixOrInfix(includes = tkAssignableSet)
+  expectWalk tkRP
+
 prefixHandle pElement:
   # parse HTML Element
   let this = p.curr
@@ -431,10 +440,10 @@ prefixHandle pElement:
     # set real indentation size
     result.meta[1] = p.lvl * 4
   if p.parentNode.len == 0:
-    p.parentNode.add(result)
+    add p.parentNode, result
   else:
     if result.meta[0] > p.parentNode[^1].meta[0]:
-      p.parentNode.add(result)
+      add p.parentNode, result
   # parse HTML attributes
   case p.curr.kind
   of tkDot, tkID:
@@ -443,6 +452,11 @@ prefixHandle pElement:
   of tkIdentifier:
     result.attrs = HtmlAttributes()
     p.parseAttributes(result.attrs, this)
+  of tkLP:
+    discard # todo
+    # let groupNode = p.pGroupExpr()
+    # caseNotNil groupNode:
+    #   add result.attr, groupNode
   else: discard
 
   case p.curr.kind
@@ -465,7 +479,7 @@ prefixHandle pElement:
       if p.curr isnot tkIdentifier or p.isFnCall():
         let valNode = p.getPrefixOrInfix()
         if likely(valNode != nil):
-          result.nodes.add(valNode)
+          add result.nodes, valNode
   of tkGT:
     # parse inline HTML tags
     var node: Node
@@ -483,13 +497,13 @@ prefixHandle pElement:
                 if p.curr.kind == tkEOF: break
                 var subNode = p.parsePrefix()
                 caseNotNil subNode:
-                  node.nodes.add(subNode)
+                  add node.nodes, subNode
                 # if p.hasError(): break
                 if p.curr.pos < currentParent.meta[2]:
                   dec p.lvl, currentParent.meta[2] div p.curr.pos
                   delete(p.parentNode, p.parentNode.high)
                   break
-          result.nodes.add(node)
+          add result.nodes, node
           if p.lvl != 0:
             dec p.lvl
           return result
@@ -502,7 +516,7 @@ prefixHandle pElement:
     if p.curr is tkEOF: break
     var subNode = p.parsePrefix()
     caseNotNil subNode:
-      result.nodes.add(subNode)
+      add result.nodes, subNode
     if p.curr is tkEOF or p.curr.pos == 0: break # prevent division by zero
     if p.curr.pos < currentParent.meta[2]:
       dec p.lvl
@@ -546,7 +560,7 @@ prefixHandle pCondition:
       while p.curr.isChild(elsetk):
         let node = p.getPrefixOrInfix()
         caseNotNil node:
-          result.condElseBranch.add(node)
+          add result.condElseBranch, node
       if unlikely(result.condElseBranch.len == 0):
         return nil
 
@@ -563,13 +577,15 @@ prefixHandle pFor:
     result.loopItem.varImmutable = true
     walk p
     expectWalk(tkIN)
-    expect tkIdentVar:
-      result.loopItems = p.pIdentOrAssignment()
+    expect {tkIdentVar, tkLB}:
+      let items = p.parsePrefix()
+      caseNotNil items:
+        result.loopItems = items
     if p.curr is tkColon: walk p
     while p.curr.isChild(tk):
       let node = p.getPrefixOrInfix()
       caseNotNil node:
-        result.loopBody.add(node)
+        add result.loopBody, node
     if unlikely(result.loopBody.len == 0):
       error(badIndentation, p.curr)
   else: discard
@@ -783,9 +799,6 @@ prefixHandle pFunctionCall:
 #
 # Infix Main Handlers
 #
-proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.}
-proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.}
-
 proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse logical expressions with symbols (==, !=, >, >=, <, <=)
   let op = getInfixOp(p.curr.kind, false)
@@ -810,7 +823,13 @@ proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
       caseNotNil rhs:
         infixNode.infixRight = rhs
         return infixNode
+    of tkTernary:
+      discard p.parseTernaryExpr(result)
     else: discard
+
+proc parseTernaryExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
+  # parse an one line conditional using ternary operator
+  discard # todo
 
 proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse math expressions with symbols (+, -, *, /)
@@ -928,23 +947,35 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev
     errorWithArgs(unexpectedToken, tk, [tk.value])
 
-proc newParser*(engine: TimEngine, tpl, tplView: TimTemplate, isMainParser = true, refreshAst = false): Parser {.gcsafe.}
+# fwd
+proc newParser*(engine: TimEngine, tpl: TimTemplate,
+    isMainParser = true, refreshAst = false): Parser {.gcsafe.}
 proc getAst*(p: Parser): Ast {.gcsafe.}
+
 let partials = TimPartialsTable()
 var jitMainParser: bool # force main parser enable JIT
 
 proc parseHandle[T](i: Import[T], importFile: ImportFile,
     ticket: ptr TicketLock): seq[string] {.gcsafe, nimcall.} =
+  # invoke other instances of `Parser` for parsing included partials
   withLock ticket[]:
     let fpath = importFile.getImportPath
     let path = fpath.replace(i.handle.engine.getSourcePath() / $(ttPartial) / "", "")
     var tpl: TimTemplate = i.handle.engine.getTemplateByPath(fpath)
-    if likely(not partials.hasKey(path) or i.handle.refreshAst):
-      var childParser: Parser = i.handle.engine.newParser(tpl, i.handle.tplView, false)
-      if childParser.tpl.jitEnabled():
-        jitMainParser = true
-      partials[path] = (childParser.getAst(), childParser.logger.errors.toSeq)
-    tpl.addDep(i.handle.tplView.getSourcePath())
+    if likely(partials.hasKey(path) == false or i.handle.refreshAst):
+      var cp: Parser = i.handle.engine.newParser(tpl, false)
+      if likely(not cp.hasErrors):
+        if cp.tpl.jitEnabled():
+          jitMainParser = true
+        partials[path] = (cp.getAst(), cp.logger.errors.toSeq)
+        result = cp.includes.keys.toSeq
+        if not tpl.hasDep(i.handle.tpl.getSourcePath()):
+          tpl.addDep(i.handle.tpl.getSourcePath())
+      else:
+        # this is weird, gotta do something different here
+        i.handle.logger.errorLogs = i.handle.logger.errorLogs.concat(cp.logger.errorLogs)
+        i.handle.hasErrors = true
+        i.cancel()
 
 template startParse(path: string): untyped =
   p.handle.curr = p.handle.lex.getToken()
@@ -961,14 +992,29 @@ template startParse(path: string): untyped =
     if likely(node != nil):
       add p.handle.tree.nodes, node
   lexbase.close(p.handle.lex)
-  if p.handle.includes.len > 0 and not p.handle.hasErrors:
-    # continue parse other partials
-    p.imports(p.handle.includes.keys.toSeq, parseHandle[Parser])
+  if isMainParser:
+    if p.handle.includes.len > 0 and not p.handle.hasErrors:
+      # continue parse other partials
+      p.imports(p.handle.includes.keys.toSeq, parseHandle[Parser])
+
+template collectImporterErrors =
+  for err in p.importErrors:
+    var emsg: logging.Message
+    case err.reason
+    of ImportErrorMessage.importNotFound:
+      emsg = Message.importNotFound
+    of ImportErrorMessage.importCircularError:
+      emsg = Message.importCircularError
+    else: discard
+    let meta: Meta = p.handle.includes[err.fpath]
+    p.handle.logger.newError(emsg, meta[0],
+      meta[2], true, [err.fpath.replace(engine.getSourcePath(), "")])
+    p.handle.hasErrors = true
 
 #
 # Public API
 #
-proc newParser*(engine: TimEngine, tpl, tplView: TimTemplate,
+proc newParser*(engine: TimEngine, tpl: TimTemplate,
     isMainParser = true, refreshAst = false): Parser {.gcsafe.} =
   ## Parse `tpl` TimTemplate
   let partialSrcPath = engine.getSourcePath() / $(ttPartial)
@@ -978,7 +1024,6 @@ proc newParser*(engine: TimEngine, tpl, tplView: TimTemplate,
   p.handle.tpl = tpl
   p.handle.isMain = isMainParser
   p.handle.refreshAst = refreshAst
-  p.handle.tplView = tplView
   startParse(tpl.sources.src)
   if isMainParser:
     {.gcsafe.}:
@@ -986,13 +1031,7 @@ proc newParser*(engine: TimEngine, tpl, tplView: TimTemplate,
         p.handle.tree.partials = partials
       if jitMainParser:
         p.handle.tpl.jitEnable
-    for err in p.importErrors:
-      case err.reason
-      of ImportErrorMessage.importNotFound:
-        let meta: Meta = p.handle.includes[err.fpath]
-        p.handle.logger.newError(Message.importNotFound, meta[0], meta[2], true, [err.fpath.replace(engine.getSourcePath(), "")])
-        p.handle.hasErrors = true
-      else: discard
+  collectImporterErrors()
   result = p.handle
 
 proc getAst*(p: Parser): Ast {.gcsafe.} =
