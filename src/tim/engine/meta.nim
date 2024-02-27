@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/tim
 
 import std/[macros, os, json, strutils, sequtils, base64, tables]
-import pkg/[checksums/md5, supersnappy, flatty]
+import pkg/[checksums/md5, flatty]
 
 export getProjectPath
 
@@ -150,13 +150,13 @@ proc writeHtmlTail*(engine: TimEngine, tpl: TimTemplate, htmlCode: string) =
 
 proc writeAst*(engine: TimEngine, tpl: TimTemplate, astCode: Ast) =
   ## Writes `astCode` on disk using `tpl` info
-  writeFile(tpl.sources.ast, supersnappy.compress(flatty.toFlatty(astCode)))
+  writeFile(tpl.sources.ast, flatty.toFlatty(astCode))
 
 proc readAst*(engine: TimEngine, tpl: TimTemplate): Ast = 
   ## Get `AST` of `tpl` TimTemplate from storage
   try:
     let binAst = readFile(tpl.sources.ast)
-    result = flatty.fromFlatty(supersnappy.uncompress(binAst), Ast)
+    result = flatty.fromFlatty(binAst, Ast)
   except IOError:
     discard
 
