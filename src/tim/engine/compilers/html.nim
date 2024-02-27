@@ -347,6 +347,7 @@ proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]):
 proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
   # Evaluates comparison expressions
+  if unlikely(lhs == nil or rhs == nil): return
   case infixOp:
   of EQ:
     case lhs.nt:
