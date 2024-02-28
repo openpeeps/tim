@@ -106,6 +106,9 @@
       loopItems*: Node
       loopBody*: seq[Node]
 
+  of ntIdentPair:
+      identPairs*: tuple[a, b: Node]
+
   of ntLitString:
       sVal*: string
       sVals*: seq[Node]
@@ -171,9 +174,9 @@
   ntVariableDef = &quot;Variable&quot;, ntAssignExpr = &quot;Assignment&quot;,
   ntHtmlElement = &quot;HtmlElement&quot;, ntInfixExpr = &quot;InfixExpression&quot;,
   ntMathInfixExpr = &quot;MathExpression&quot;, ntCommandStmt = &quot;CommandStatement&quot;,
-  ntIdent = &quot;Identifier&quot;, ntCall = &quot;FunctionCall&quot;, ntDotExpr, ntBracketExpr,
-  ntConditionStmt = &quot;ConditionStatement&quot;, ntLoopStmt = &quot;LoopStmt&quot;,
-  ntViewLoader = &quot;ViewLoader&quot;, ntInclude = &quot;Include&quot;,
+  ntIdent = &quot;Identifier&quot;, ntCall = &quot;FunctionCall&quot;, ntIdentPair, ntDotExpr,
+  ntBracketExpr, ntConditionStmt = &quot;ConditionStatement&quot;,
+  ntLoopStmt = &quot;LoopStmt&quot;, ntViewLoader = &quot;ViewLoader&quot;, ntInclude = &quot;Include&quot;,
   ntJavaScriptSnippet = &quot;JavaScriptSnippet&quot;, ntYamlSnippet = &quot;YAMLSnippet&quot;,
   ntJsonSnippet = &quot;JsonSnippet&quot;, ntClientBlock = &quot;ClientSideStatement&quot;">NodeType</a></li>
 <li><a class="reference" href="#ScopeTable" title="ScopeTable = TableRef[string, Node]">ScopeTable</a></li>
@@ -435,6 +438,9 @@
       <span class="Identifier">loopItems</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
       <span class="Identifier">loopBody</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
 
+  <span class="Keyword">of</span> <span class="Identifier">ntIdentPair</span><span class="Other">:</span>
+      <span class="Identifier">identPairs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">tuple</span><span class="Other">[</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
+
   <span class="Keyword">of</span> <span class="Identifier">ntLitString</span><span class="Other">:</span>
       <span class="Identifier">sVal</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
       <span class="Identifier">sVals</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
@@ -508,9 +514,9 @@
   <span class="Identifier">ntVariableDef</span> <span class="Other">=</span> <span class="StringLit">&quot;Variable&quot;</span><span class="Other">,</span> <span class="Identifier">ntAssignExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;Assignment&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntHtmlElement</span> <span class="Other">=</span> <span class="StringLit">&quot;HtmlElement&quot;</span><span class="Other">,</span> <span class="Identifier">ntInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;InfixExpression&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntMathInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;MathExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntCommandStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CommandStatement&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span> <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntDotExpr</span><span class="Other">,</span> <span class="Identifier">ntBracketExpr</span><span class="Other">,</span>
-  <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span> <span class="Identifier">ntLoopStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;LoopStmt&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;ViewLoader&quot;</span><span class="Other">,</span> <span class="Identifier">ntInclude</span> <span class="Other">=</span> <span class="StringLit">&quot;Include&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span> <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdentPair</span><span class="Other">,</span> <span class="Identifier">ntDotExpr</span><span class="Other">,</span>
+  <span class="Identifier">ntBracketExpr</span><span class="Other">,</span> <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntLoopStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;LoopStmt&quot;</span><span class="Other">,</span> <span class="Identifier">ntViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;ViewLoader&quot;</span><span class="Other">,</span> <span class="Identifier">ntInclude</span> <span class="Other">=</span> <span class="StringLit">&quot;Include&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntJavaScriptSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JavaScriptSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntYamlSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;YAMLSnippet&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntJsonSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JsonSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntClientBlock</span> <span class="Other">=</span> <span class="StringLit">&quot;ClientSideStatement&quot;</span></pre></dt>
   <dd>
@@ -878,7 +884,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-28 04:06:46 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-28 13:26:12 UTC</small>
       </div>
     </div>
   </div>
