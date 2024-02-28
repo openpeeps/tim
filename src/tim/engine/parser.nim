@@ -352,9 +352,13 @@ prefixHandle pEchoCommand:
         varNode = p.getPrefixOrInfix()
       else:
         varNode = p.pIdent()
+        if p.curr.isInfix and p.curr.line == p.prev.line:
+          # todo move line checker to `isInfix`
+          varNode = p.parseInfix(varNode)
     else:
       varNode = p.getPrefixOrInfix()
-    return ast.newCommand(cmdEcho, varNode, tk)
+    caseNotNil varNode:
+      return ast.newCommand(cmdEcho, varNode, tk)
   else: errorWithArgs(unexpectedToken, p.curr, [p.curr.value])
 
 prefixHandle pReturnCommand:
