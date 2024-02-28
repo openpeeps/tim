@@ -580,6 +580,17 @@ prefixHandle pFor:
     result.loopItem.varName = p.curr.value
     result.loopItem.varImmutable = true
     walk p
+    if p.curr is tkComma and p.next in {tkIdentVar, tkIdentVarSafe}:
+      walk p
+      let pairNode = ast.newNode(ntIdentPair, p.curr)
+      pairNode.identPairs[0] = result.loopItem
+      var vNode: Node
+      vNode = ast.newNode(ntVariableDef, p.curr)
+      vNode.varName = p.curr.value
+      vNode.varImmutable = true
+      pairNode.identPairs[1] = vNode
+      result.loopItem = pairNode
+      walk p
     expectWalk(tkIN)
     expect {tkIdentVar, tkLB}:
       let items = p.parsePrefix()

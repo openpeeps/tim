@@ -17,6 +17,7 @@ type
     invalidIndentation = "Invalid indentation"
     unexpectedToken = "Unexpected token $"
     undeclaredVariable = "Undeclared variable $"
+    invalidAccessorStorage = "Invalid accessor storage $ for $"
     varRedefine = "Attempt to redefine variable $"
     varImmutable = "Attempt to reassign value to immutable constant $"
     fnRedefine = "Attempt to redefine function $"

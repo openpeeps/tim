@@ -178,6 +178,7 @@ proc toString(node: Node, escape = false): string =
         fromJson(jsony.toJson(node.objectItems)).pretty
       of ntLitArray:
         fromJson(jsony.toJson(node.arrayItems)).pretty
+      of ntIdent:     node.identName
       else: ""
     if escape:
       result = xmltree.escape(result)
@@ -281,27 +282,33 @@ proc walkAccessorStorage(c: var HtmlCompiler,
     lhs, rhs: Node, scopetables: var seq[ScopeTable]): Node =
   case lhs.nt
   of ntLitObject:
-    try:
-      result = lhs.objectItems[rhs.identName]
-    except KeyError:
-      compileErrorWithArgs(undeclaredField, rhs.meta, [rhs.identName])
+    case rhs.nt
+    of ntIdent:
+      try:
+        result = lhs.objectItems[rhs.identName]
+      except KeyError:
+        compileErrorWithArgs(undeclaredField, rhs.meta, [rhs.identName])
+    else: compileErrorWithArgs(invalidAccessorStorage, rhs.meta, [rhs.toString, $lhs.nt])
   of ntDotExpr:
     let x = c.walkAccessorStorage(lhs.lhs, lhs.rhs, scopetables)
     if likely(x != nil):
       return c.walkAccessorStorage(x, rhs, scopetables)
   of ntIdent:
-    let x = c.fromScope(lhs.identName, scopetables)
+    let x = c.getValue(lhs, scopetables)
     if likely(x != nil):
-      result = c.walkAccessorStorage(x.varValue, rhs, scopetables)
+      result = c.walkAccessorStorage(x, rhs, scopetables)
   of ntBracketExpr:
     let lhs = c.bracketEvaluator(lhs, scopetables)
     if likely(lhs != nil):
       return c.walkAccessorStorage(lhs, rhs, scopetables)
   of ntLitArray:
-    try:
-      result = lhs.arrayItems[rhs.iVal]
-    except Defect:
-      compileErrorWithArgs(indexDefect, lhs.meta, [$(rhs.iVal), "0.." & $(lhs.arrayItems.high)])
+    case rhs.nt
+    of ntLitInt:
+      try:
+        result = lhs.arrayItems[rhs.iVal]
+      except Defect:
+        compileErrorWithArgs(indexDefect, lhs.meta, [$(rhs.iVal), "0.." & $(lhs.arrayItems.high)])
+    else: compileErrorWithArgs(invalidAccessorStorage, rhs.meta, [rhs.toString, $lhs.nt])
   else: discard
 
 proc dotEvaluator(c: var HtmlCompiler, node: Node,
@@ -324,7 +331,8 @@ proc bracketEvaluator(c: var HtmlCompiler, node: Node,
       result = x.toTimNode
   of scopeStorage:
     let index = c.getValue(node.bracketIndex, scopetables)
-    return c.walkAccessorStorage(node.bracketLHS, index, scopetables)
+    if likely(index != nil):
+      return c.walkAccessorStorage(node.bracketLHS, index, scopetables)
 
 proc writeDotExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
   # Handle dot expressions
@@ -754,32 +762,57 @@ proc evalConcat(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable
     write x, true, false
     write y, true, false
 
-template loopEvaluator(items: Node) =
+template loopEvaluator(kv, items: Node) =
   case items.nt:
-    of ntLitString:
+  of ntLitString:
+    case kv.nt
+    of ntVariableDef:
       for x in items.sVal:
         newScope(scopetables)
         node.loopItem.varValue = ast.Node(nt: ntLitString, sVal: $(x))
         c.varExpr(node.loopItem, scopetables)
         c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
-    of ntLitArray:
+        node.loopItem.varValue = nil
+    else: discard # todo error
+  of ntLitArray:
+    case kv.nt
+    of ntVariableDef:
       for x in items.arrayItems:
         newScope(scopetables)
         node.loopItem.varValue = x
         c.varExpr(node.loopItem, scopetables)
         c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
-    of ntLitObject:
+        node.loopItem.varValue = nil
+    else: discard # todo error
+  of ntLitObject:
+    case kv.nt
+    of ntVariableDef:
       for x, y in items.objectItems:
         newScope(scopetables)
         node.loopItem.varValue = y
         c.varExpr(node.loopItem, scopetables)
         c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
-    else:
-      let x = @[ntLitString, ntLitArray, ntLitObject]
-      compileErrorWithArgs(typeMismatch, [$(items.nt), x.join(" ")])
+        node.loopItem.varValue = nil
+    of ntIdentPair:
+      for x, y in items.objectItems:
+        newScope(scopetables)
+        let kvar = ast.newNode(ntLitString)
+        kvar.sVal = x
+        node.loopItem.identPairs[0].varValue = kvar
+        node.loopItem.identPairs[1].varValue = y
+        c.varExpr(node.loopItem.identPairs[0], scopetables)
+        c.varExpr(node.loopItem.identPairs[1], scopetables)
+        c.walkNodes(node.loopBody, scopetables)
+        clearScope(scopetables)
+        node.loopItem.identPairs[0].varValue = nil
+        node.loopItem.identPairs[1].varValue = nil
+    else: discard
+  else:
+    let x = @[ntLitString, ntLitArray, ntLitObject]
+    compileErrorWithArgs(typeMismatch, [$(items.nt), x.join(" ")])
 
 proc evalLoop(c: var HtmlCompiler, node: Node,
     scopetables: var seq[ScopeTable]) =
@@ -789,19 +822,19 @@ proc evalLoop(c: var HtmlCompiler, node: Node,
     let some = c.getScope(node.loopItems.identName, scopetables)
     if likely(some.scopeTable != nil):
       let items = some.scopeTable[node.loopItems.identName]
-      loopEvaluator(items.varValue)
+      loopEvaluator(node.loopItem, items.varValue)
     else: compileErrorWithArgs(undeclaredVariable, [node.loopItems.identName])
   of ntDotExpr:
     let items = c.dotEvaluator(node.loopItems, scopetables)
     if likely(items != nil):
-      loopEvaluator(items)
+      loopEvaluator(node.loopItem, items)
     else:
       compileErrorWithArgs(undeclaredVariable, [node.loopItems.lhs.identName])
   of ntLitArray:
-    loopEvaluator(node.loopItems)
+    loopEvaluator(node.loopItem, node.loopItems)
   of ntBracketExpr:
     let items = c.bracketEvaluator(node.loopItems, scopetables)
-    loopEvaluator(items)
+    loopEvaluator(node.loopItem, items)
   else:
     compileErrorWithArgs(invalidIterator)
 
@@ -1044,8 +1077,8 @@ proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: v
     if likely(c.ast.partials.hasKey(x)):
       c.walkNodes(c.ast.partials[x][0].nodes, scopetables)
 
-proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
-    scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown): Node {.discardable.} =
+proc walkNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable],
+    parentNodeType: NodeType = ntUnknown): Node {.discardable.} =
   # Evaluate a seq[Node] nodes
   for i in 0..nodes.high:
     case nodes[i].nt

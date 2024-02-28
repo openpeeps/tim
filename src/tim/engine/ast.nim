@@ -36,6 +36,7 @@ type
     ntCommandStmt = "CommandStatement"
     ntIdent = "Identifier"
     ntCall = "FunctionCall"
+    ntIdentPair
     ntDotExpr
     ntBracketExpr
     ntConditionStmt = "ConditionStatement"
@@ -119,9 +120,11 @@ type
       condElifBranch*: seq[ConditionBranch]
       condElseBranch*: seq[Node]
     of ntLoopStmt:
-      loopItem*: Node
+      loopItem*: Node     # ntIdent or ntIdentPair
       loopItems*: Node
       loopBody*: seq[Node]
+    of ntIdentPair:
+      identPairs*: tuple[a, b: Node]
     of ntLitString:
       sVal*: string
       sVals*: seq[Node]
