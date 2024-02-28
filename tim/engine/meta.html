@@ -105,6 +105,10 @@
   <li><a class="reference" href="#getDeps%2CTimTemplate" title="getDeps(t: TimTemplate): seq[string]">getDeps(t: TimTemplate): seq[string]</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">getGlobalData
+  <li><a class="reference" href="#getGlobalData%2CTimEngine" title="getGlobalData(engine: TimEngine): JsonNode">getGlobalData(engine: TimEngine): JsonNode</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">getHash
   <li><a class="reference" href="#getHash%2CTimTemplate" title="getHash(t: TimTemplate): string">getHash(t: TimTemplate): string</a></li>
 
@@ -204,6 +208,10 @@
 </ul>
 <ul class="simple nested-toc-section">readAst
   <li><a class="reference" href="#readAst%2CTimEngine%2CTimTemplate" title="readAst(engine: TimEngine; tpl: TimTemplate): Ast">readAst(engine: TimEngine; tpl: TimTemplate): Ast</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">setGlobalData
+  <li><a class="reference" href="#setGlobalData%2CTimEngine%2CJsonNode" title="setGlobalData(engine: TimEngine; data: JsonNode)">setGlobalData(engine: TimEngine; data: JsonNode)</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">setViewIndent
@@ -385,6 +393,18 @@
 <div id="getDeps-procs-all">
   <div id="getDeps,TimTemplate">
   <dt><pre><span class="Keyword">proc</span> <a href="#getDeps%2CTimTemplate"><span class="Identifier">getDeps</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <a href="meta.html#TimTemplate"><span class="Identifier">TimTemplate</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="getGlobalData-procs-all">
+  <div id="getGlobalData,TimEngine">
+  <dt><pre><span class="Keyword">proc</span> <a href="#getGlobalData%2CTimEngine"><span class="Identifier">getGlobalData</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">JsonNode</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -682,12 +702,23 @@
 </div>
 <div id="readAst-procs-all">
   <div id="readAst,TimEngine,TimTemplate">
-  <dt><pre><span class="Keyword">proc</span> <a href="#readAst%2CTimEngine%2CTimTemplate"><span class="Identifier">readAst</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">tpl</span><span class="Other">:</span> <a href="meta.html#TimTemplate"><span class="Identifier">TimTemplate</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Ast"><span class="Identifier">Ast</span></a> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">SnappyError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dt><pre><span class="Keyword">proc</span> <a href="#readAst%2CTimEngine%2CTimTemplate"><span class="Identifier">readAst</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">tpl</span><span class="Other">:</span> <a href="meta.html#TimTemplate"><span class="Identifier">TimTemplate</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Ast"><span class="Identifier">Ast</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">Exception</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     Get <tt class="docutils literal"><span class="pre"><span class="Identifier">AST</span></span></tt> of <tt class="docutils literal"><span class="pre"><span class="Identifier">tpl</span></span></tt> TimTemplate from storage
+    
+  </dd>
+</div>
+
+</div>
+<div id="setGlobalData-procs-all">
+  <div id="setGlobalData,TimEngine,JsonNode">
+  <dt><pre><span class="Keyword">proc</span> <a href="#setGlobalData%2CTimEngine%2CJsonNode"><span class="Identifier">setGlobalData</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">JsonNode</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
     
   </dd>
 </div>
@@ -707,8 +738,7 @@
 <div id="writeAst-procs-all">
   <div id="writeAst,TimEngine,TimTemplate,Ast">
   <dt><pre><span class="Keyword">proc</span> <a href="#writeAst%2CTimEngine%2CTimTemplate%2CAst"><span class="Identifier">writeAst</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">tpl</span><span class="Other">:</span> <a href="meta.html#TimTemplate"><span class="Identifier">TimTemplate</span></a><span class="Other">;</span> <span class="Identifier">astCode</span><span class="Other">:</span> <a href="ast.html#Ast"><span class="Identifier">Ast</span></a><span class="Other">)</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">SnappyError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">WriteIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">WriteIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     Writes <tt class="docutils literal"><span class="pre"><span class="Identifier">astCode</span></span></tt> on disk using <tt class="docutils literal"><span class="pre"><span class="Identifier">tpl</span></span></tt> info
@@ -781,7 +811,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-21 21:59:35 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-28 01:28:30 UTC</small>
       </div>
     </div>
   </div>

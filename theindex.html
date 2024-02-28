@@ -46,10 +46,6 @@
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.badIndentation" href="tim/engine/logging.html#badIndentation">logging: Message.badIndentation</a></li>
           </ul></dd>
-<dt><a name="caseNotNil" href="#caseNotNil"><span>caseNotNil:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="parser: template caseNotNil(x: Node; body): untyped" href="tim/engine/parser.html#caseNotNil.t%2CNode%2C">parser: template caseNotNil(x: Node; body): untyped</a></li>
-          </ul></dd>
 <dt><a name="clearTemplateByPath" href="#clearTemplateByPath"><span>clearTemplateByPath:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="meta: proc clearTemplateByPath(engine: TimEngine; path: string)" href="tim/engine/meta.html#clearTemplateByPath%2CTimEngine%2Cstring">meta: proc clearTemplateByPath(engine: TimEngine; path: string)</a></li>
@@ -165,6 +161,10 @@
 <dt><a name="getError" href="#getError"><span>getError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tokens: proc getError(lex`gensym0: Lexer): string" href="tim/engine/tokens.html#getError%2CLexer">tokens: proc getError(lex`gensym0: Lexer): string</a></li>
+          </ul></dd>
+<dt><a name="getGlobalData" href="#getGlobalData"><span>getGlobalData:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="meta: proc getGlobalData(engine: TimEngine): JsonNode" href="tim/engine/meta.html#getGlobalData%2CTimEngine">meta: proc getGlobalData(engine: TimEngine): JsonNode</a></li>
           </ul></dd>
 <dt><a name="getHash" href="#getHash"><span>getHash:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -312,6 +312,10 @@
 <li><a class="reference external"
           data-doc-search-tag="html: object HtmlCompiler" href="tim/engine/compilers/html.html#HtmlCompiler">html: object HtmlCompiler</a></li>
           </ul></dd>
+<dt><a name="importCircularError" href="#importCircularError"><span>importCircularError:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="logging: Message.importCircularError" href="tim/engine/logging.html#importCircularError">logging: Message.importCircularError</a></li>
+          </ul></dd>
 <dt><a name="importNotFound" href="#importNotFound"><span>importNotFound:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.importNotFound" href="tim/engine/logging.html#importNotFound">logging: Message.importNotFound</a></li>
@@ -340,19 +344,13 @@
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.invalidIndentation" href="tim/engine/logging.html#invalidIndentation">logging: Message.invalidIndentation</a></li>
           </ul></dd>
+<dt><a name="invalidIterator" href="#invalidIterator"><span>invalidIterator:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="logging: Message.invalidIterator" href="tim/engine/logging.html#invalidIterator">logging: Message.invalidIterator</a></li>
+          </ul></dd>
 <dt><a name="invalidViewLoader" href="#invalidViewLoader"><span>invalidViewLoader:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.invalidViewLoader" href="tim/engine/logging.html#invalidViewLoader">logging: Message.invalidViewLoader</a></li>
-          </ul></dd>
-<dt><a name="isFnCall" href="#isFnCall"><span>isFnCall:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="parser: proc isFnCall(p: var Parser): bool" href="tim/engine/parser.html#isFnCall%2CParser">parser: proc isFnCall(p: var Parser): bool</a></li>
-          </ul></dd>
-<dt><a name="isInfix" href="#isInfix"><span>isInfix:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="parser: proc isInfix(p: var Parser): bool" href="tim/engine/parser.html#isInfix%2CParser">parser: proc isInfix(p: var Parser): bool</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="parser: proc isInfix(tk: TokenTuple): bool" href="tim/engine/parser.html#isInfix%2CTokenTuple">parser: proc isInfix(tk: TokenTuple): bool</a></li>
           </ul></dd>
 <dt><a name="isMinified" href="#isMinified"><span>isMinified:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -458,9 +456,9 @@
 <li><a class="reference external"
           data-doc-search-tag="html: proc newCompiler(ast: Ast; minify = true; indent = 2): HtmlCompiler" href="tim/engine/compilers/html.html#newCompiler%2CAst%2Cint">html: proc newCompiler(ast: Ast; minify = true; indent = 2): HtmlCompiler</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="html: proc newCompiler(ast: Ast; tpl: TimTemplate; minify = true; indent = 2;
-            data: JsonNode = newJObject()): HtmlCompiler" href="tim/engine/compilers/html.html#newCompiler%2CAst%2CTimTemplate%2Cint%2CJsonNode">html: proc newCompiler(ast: Ast; tpl: TimTemplate; minify = true; indent = 2;
-            data: JsonNode = newJObject()): HtmlCompiler</a></li>
+          data-doc-search-tag="html: proc newCompiler(engine: TimEngine; ast: Ast; tpl: TimTemplate; minify = true;
+            indent = 2; data: JsonNode = newJObject()): HtmlCompiler" href="tim/engine/compilers/html.html#newCompiler%2CTimEngine%2CAst%2CTimTemplate%2Cint%2CJsonNode">html: proc newCompiler(engine: TimEngine; ast: Ast; tpl: TimTemplate; minify = true;
+            indent = 2; data: JsonNode = newJObject()): HtmlCompiler</a></li>
           <li><a class="reference external"
           data-doc-search-tag="js: proc newCompiler(nodes: seq[Node]; clientTargetElement: string): JSCompiler" href="tim/engine/compilers/js.html#newCompiler%2Cseq%5BNode%5D%2Cstring">js: proc newCompiler(nodes: seq[Node]; clientTargetElement: string): JSCompiler</a></li>
           </ul></dd>
@@ -530,8 +528,8 @@
           </ul></dd>
 <dt><a name="newParser" href="#newParser"><span>newParser:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="parser: proc newParser(engine: TimEngine; tpl, tplView: TimTemplate; isMainParser = true;
-          refreshAst = false): Parser" href="tim/engine/parser.html#newParser%2CTimEngine%2CTimTemplate%2CTimTemplate">parser: proc newParser(engine: TimEngine; tpl, tplView: TimTemplate; isMainParser = true;
+          data-doc-search-tag="parser: proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
+          refreshAst = false): Parser" href="tim/engine/parser.html#newParser%2CTimEngine%2CTimTemplate">parser: proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser</a></li>
           </ul></dd>
 <dt><a name="newString" href="#newString"><span>newString:</span></a></dt><dd><ul class="simple">
@@ -690,9 +688,11 @@
 <li><a class="reference external"
           data-doc-search-tag="tim: proc precompile(engine: TimEngine; callback: TimCallback = nil; flush = true;
            waitThread = false; browserSyncPort = Port(6502);
-           browserSyncDelay = 550)" href="index.html#precompile%2CTimEngine%2CTimCallback%2Cint">tim: proc precompile(engine: TimEngine; callback: TimCallback = nil; flush = true;
+           browserSyncDelay = 550; global: JsonNode = newJObject();
+           watchoutNotify = true)" href="index.html#precompile%2CTimEngine%2CTimCallback%2Cint%2CJsonNode">tim: proc precompile(engine: TimEngine; callback: TimCallback = nil; flush = true;
            waitThread = false; browserSyncPort = Port(6502);
-           browserSyncDelay = 550)</a></li>
+           browserSyncDelay = 550; global: JsonNode = newJObject();
+           watchoutNotify = true)</a></li>
           </ul></dd>
 <dt><a name="readAst" href="#readAst"><span>readAst:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -715,6 +715,10 @@
 <dt><a name="setError" href="#setError"><span>setError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tokens: proc setError(lex`gensym0: var Lexer; message`gensym0: string)" href="tim/engine/tokens.html#setError%2CLexer%2Cstring">tokens: proc setError(lex`gensym0: var Lexer; message`gensym0: string)</a></li>
+          </ul></dd>
+<dt><a name="setGlobalData" href="#setGlobalData"><span>setGlobalData:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="meta: proc setGlobalData(engine: TimEngine; data: JsonNode)" href="tim/engine/meta.html#setGlobalData%2CTimEngine%2CJsonNode">meta: proc setGlobalData(engine: TimEngine; data: JsonNode)</a></li>
           </ul></dd>
 <dt><a name="setViewIndent" href="#setViewIndent"><span>setViewIndent:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -852,7 +856,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-21 21:59:35 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-28 01:28:30 UTC</small>
       </div>
     </div>
   </div>

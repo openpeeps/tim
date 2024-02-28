@@ -73,31 +73,10 @@
   <li><a class="reference" href="#hasError%2CParser" title="hasError(p: Parser): bool">hasError(p: Parser): bool</a></li>
 
 </ul>
-<ul class="simple nested-toc-section">isFnCall
-  <li><a class="reference" href="#isFnCall%2CParser" title="isFnCall(p: var Parser): bool">isFnCall(p: var Parser): bool</a></li>
-
-</ul>
-<ul class="simple nested-toc-section">isInfix
-  <li><a class="reference" href="#isInfix%2CParser" title="isInfix(p: var Parser): bool">isInfix(p: var Parser): bool</a></li>
-<li><a class="reference" href="#isInfix%2CTokenTuple" title="isInfix(tk: TokenTuple): bool">isInfix(tk: TokenTuple): bool</a></li>
-
-</ul>
 <ul class="simple nested-toc-section">newParser
-  <li><a class="reference" href="#newParser%2CTimEngine%2CTimTemplate%2CTimTemplate" title="newParser(engine: TimEngine; tpl, tplView: TimTemplate; isMainParser = true;
-          refreshAst = false): Parser">newParser(engine: TimEngine; tpl, tplView: TimTemplate; isMainParser = true;
+  <li><a class="reference" href="#newParser%2CTimEngine%2CTimTemplate" title="newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
+          refreshAst = false): Parser">newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser</a></li>
-
-</ul>
-
-    </ul>
-  </details>
-</li>
-<li>
-  <details open>
-    <summary><a class="reference reference-toplevel" href="#18" id="68">Templates</a></summary>
-    <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">caseNotNil
-  <li><a class="reference" href="#caseNotNil.t%2CNode%2C" title="caseNotNil(x: Node; body): untyped">caseNotNil(x: Node; body): untyped</a></li>
 
 </ul>
 
@@ -161,60 +140,13 @@
 </div>
 
 </div>
-<div id="isFnCall-procs-all">
-  <div id="isFnCall,Parser">
-  <dt><pre><span class="Keyword">proc</span> <a href="#isFnCall%2CParser"><span class="Identifier">isFnCall</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="parser.html#Parser"><span class="Identifier">Parser</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-
-</div>
-<div id="isInfix-procs-all">
-  <div id="isInfix,Parser">
-  <dt><pre><span class="Keyword">proc</span> <a href="#isInfix%2CParser"><span class="Identifier">isInfix</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="parser.html#Parser"><span class="Identifier">Parser</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-<div id="isInfix,TokenTuple">
-  <dt><pre><span class="Keyword">proc</span> <a href="#isInfix%2CTokenTuple"><span class="Identifier">isInfix</span></a><span class="Other">(</span><span class="Identifier">tk</span><span class="Other">:</span> <a href="tokens.html#TokenTuple"><span class="Identifier">TokenTuple</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-
-</div>
 <div id="newParser-procs-all">
-  <div id="newParser,TimEngine,TimTemplate,TimTemplate">
-  <dt><pre><span class="Keyword">proc</span> <a href="#newParser%2CTimEngine%2CTimTemplate%2CTimTemplate"><span class="Identifier">newParser</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">tpl</span><span class="Other">,</span> <span class="Identifier">tplView</span><span class="Other">:</span> <a href="meta.html#TimTemplate"><span class="Identifier">TimTemplate</span></a><span class="Other">;</span>
-               <span class="Identifier">isMainParser</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span> <span class="Identifier">refreshAst</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <a href="parser.html#Parser"><span class="Identifier">Parser</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span>
-    <span class="Identifier">ImportError</span><span class="Other">,</span> <span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">RegexError</span><span class="Other">]</span><span class="Other">,</span>
+  <div id="newParser,TimEngine,TimTemplate">
+  <dt><pre><span class="Keyword">proc</span> <a href="#newParser%2CTimEngine%2CTimTemplate"><span class="Identifier">newParser</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">tpl</span><span class="Other">:</span> <a href="meta.html#TimTemplate"><span class="Identifier">TimTemplate</span></a><span class="Other">;</span> <span class="Identifier">isMainParser</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span>
+               <span class="Identifier">refreshAst</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <a href="parser.html#Parser"><span class="Identifier">Parser</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ImportError</span><span class="Other">,</span>
+    <span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">RegexError</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadDirEffect</span><span class="Other">,</span> <span class="Identifier">TimeEffect</span><span class="Other">,</span> <span class="Identifier">ReadIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-
-</div>
-
-  </dl>
-</div>
-<div class="section" id="18">
-  <h1><a class="toc-backref" href="#18">Templates</a></h1>
-  <dl class="item">
-    <div id="caseNotNil-templates-all">
-  <div id="caseNotNil.t,Node,">
-  <dt><pre><span class="Keyword">template</span> <a href="#caseNotNil.t%2CNode%2C"><span class="Identifier">caseNotNil</span></a><span class="Other">(</span><span class="Identifier">x</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">;</span> <span class="Identifier">body</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">untyped</span></pre></dt>
   <dd>
     
     
@@ -233,7 +165,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-21 21:59:35 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-02-28 01:28:30 UTC</small>
       </div>
     </div>
   </div>
