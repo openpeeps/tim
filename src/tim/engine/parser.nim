@@ -66,7 +66,7 @@ proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseTernaryExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 
-template caseNotNil*(x: Node, body): untyped =
+template caseNotNil(x: Node, body): untyped =
   if likely(x != nil):
     body
   else: return nil
@@ -82,10 +82,10 @@ proc hasError*(p: Parser): bool = p.hasErrors
 proc isChild(tk, parent: TokenTuple): bool {.inline.} =
   tk.pos > parent.pos and (tk.line > parent.line and tk.kind != tkEOF)
 
-proc isInfix*(p: var Parser): bool {.inline.} =
+proc isInfix(p: var Parser): bool {.inline.} =
   p.curr.kind in tkCompSet + tkMathSet 
 
-proc isInfix*(tk: TokenTuple): bool {.inline.} =
+proc isInfix(tk: TokenTuple): bool {.inline.} =
   tk.kind in tkCompSet + tkMathSet 
 
 proc `isnot`(tk: TokenTuple, kind: TokenKind): bool {.inline.} =
@@ -100,7 +100,7 @@ proc `in`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
 proc `notin`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
   tk.kind notin kind
 
-proc isFnCall*(p: var Parser): bool {.inline.} =
+proc isFnCall(p: var Parser): bool {.inline.} =
   p.curr is tkIdentifier and p.next is tkLP and p.next.wsno == 0
 
 template expectWalk(kind: TokenKind) =
