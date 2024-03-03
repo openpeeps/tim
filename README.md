@@ -201,7 +201,7 @@ var boxes = [
 ]
 
 div.container > div.row.mb-3
-  div > col-12 > h3.fw-bold: "Forgotten Professions"
+  div.col-12 > h3.fw-bold: "Forgotten Professions"
   for $box in $boxes:
     div.col-lg-4 > div.card > div.card-body
       div.card-title.fw-bold.h4: $box.title
