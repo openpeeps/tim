@@ -165,7 +165,6 @@ proc dumpHook*(s: var string, v: OrderedTableRef[string, Node]) =
     inc i
   s.add("}")
 
-
 proc toString(node: Node, escape = false): string =
   if likely(node != nil):
     result =
@@ -387,15 +386,6 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
       let lhs = c.getValue(lhs, scopetables)
       if likely(lhs != nil):
         return c.infixEvaluator(lhs, rhs, infixOp, scopetables)
-      # var lhs = c.fromScope(lhs.identName, scopetables)
-      # if lhs == nil or rhs == nil: return # false
-      # case rhs.nt
-      # of ntIdent:
-      #   var rhs = c.fromScope(rhs.identName, scopetables)
-      #   if rhs != nil:
-      #     result = c.infixEvaluator(lhs.varValue, rhs.varValue, infixOp, scopetables)
-      # else:
-      #   result = c.infixEvaluator(lhs.varValue, rhs, infixOp, scopetables)
     of ntDotExpr:
       let x = c.dotEvaluator(lhs, scopetables)
       result = c.infixEvaluator(x, rhs, infixOp, scopetables)
@@ -447,22 +437,22 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     of ntLitInt:
       case rhs.nt
       of ntLitInt:
-        result = lhs.iVal <= rhs.iVal
+        result = lhs.iVal < rhs.iVal
       of ntLitFloat:
-        result = toFloat(lhs.iVal) <= rhs.fVal
+        result = toFloat(lhs.iVal) < rhs.fVal
       else: discard
     of ntLitFloat:
       case rhs.nt
       of ntLitFloat:
-        result = lhs.fVal <= rhs.fVal
+        result = lhs.fVal < rhs.fVal
       of ntLitInt:
-        result = lhs.fVal <= toFloat(rhs.iVal)
+        result = lhs.fVal < toFloat(rhs.iVal)
       else: discard
     of ntIdent:
       let lhs = c.getValue(lhs, scopetables)
       if likely(lhs != nil):
         return c.infixEvaluator(lhs, rhs, infixOp, scopetables)
-    else: discard # handle float
+    else: discard
   of LTE:
     case lhs.nt:
     of ntLitInt:
