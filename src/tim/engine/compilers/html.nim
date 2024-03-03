@@ -477,26 +477,22 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
   of AND:
     case lhs.nt
     of ntInfixExpr:
-      var lh: bool = c.infixEvaluator(lhs.infixLeft, lhs.infixRight, lhs.infixOp, scopetables)
-      var rh: bool
-      if lh:
+      result = c.infixEvaluator(lhs.infixLeft, lhs.infixRight, lhs.infixOp, scopetables)
+      if result:
         case rhs.nt
         of ntInfixExpr:
-          rh = c.infixEvaluator(rhs.infixLeft, rhs.infixRight, rhs.infixOp, scopetables)
+          return c.infixEvaluator(rhs.infixLeft, rhs.infixRight, rhs.infixOp, scopetables)
         else: discard # todo
-        if rh:
-          return lh and rh
     else: discard
   of OR:
     case lhs.nt
     of ntInfixExpr:
-      var lh: bool = c.infixEvaluator(lhs.infixLeft, lhs.infixRight, lhs.infixOp, scopetables)
-      var rh: bool
-      case rhs.nt
-      of ntInfixExpr:
-        rh = c.infixEvaluator(rhs.infixLeft, rhs.infixRight, rhs.infixOp, scopetables)
-      else: discard # todo
-      return lh or rh
+      result = c.infixEvaluator(lhs.infixLeft, lhs.infixRight, lhs.infixOp, scopetables)
+      if not result:
+        case rhs.nt
+        of ntInfixExpr:
+          return c.infixEvaluator(rhs.infixLeft, rhs.infixRight, rhs.infixOp, scopetables)
+        else: discard # todo
     else: discard # todo
   else: discard # todo
 
