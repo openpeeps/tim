@@ -287,30 +287,31 @@ prefixHandle pIdent:
   result = ast.newIdent(p.curr)
   let storageType = p.getStorageType()
   walk p
-  case p.curr.kind
-  of tkDot:
-    # handle dot expressions
-    result = p.parseDotExpr(result)
-    caseNotNil result:
-      case result.nt
-      of ntDotExpr:
-        result.storageType = storageType
-      of ntBracketExpr:
-        result.bracketStorageType = storageType
-      else: discard
-  of tkLB:
-    # handle bracket expressions
-    result = p.parseBracketExpr(result)
-    caseNotNil result:
-      case result.nt
-      of ntDotExpr:
-        result.storageType = storageType
-      of ntBracketExpr:
-        result.bracketStorageType = storageType
-      else: discard
-    if p.curr is tkDot and p.curr.line == result.meta[0]:
+  if p.curr.line == result.meta[0]:
+    case p.curr.kind
+    of tkDot:
+      # handle dot expressions
       result = p.parseDotExpr(result)
-  else: discard
+      caseNotNil result:
+        case result.nt
+        of ntDotExpr:
+          result.storageType = storageType
+        of ntBracketExpr:
+          result.bracketStorageType = storageType
+        else: discard
+    of tkLB:
+      # handle bracket expressions
+      result = p.parseBracketExpr(result)
+      caseNotNil result:
+        case result.nt
+        of ntDotExpr:
+          result.storageType = storageType
+        of ntBracketExpr:
+          result.bracketStorageType = storageType
+        else: discard
+      if p.curr is tkDot and p.curr.line == result.meta[0]:
+        result = p.parseDotExpr(result)
+    else: discard
 
 prefixHandle pIdentOrAssignment:
   let ident = p.curr
