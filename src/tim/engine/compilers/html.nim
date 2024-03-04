@@ -390,6 +390,40 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
       let x = c.dotEvaluator(lhs, scopetables)
       result = c.infixEvaluator(x, rhs, infixOp, scopetables)
     else: discard
+  of NE:
+    case lhs.nt:
+    of ntLitBool:
+      case rhs.nt
+      of ntLitBool:
+        result = lhs.bVal != rhs.bVal
+      else: discard
+    of ntLitString:
+      case rhs.nt
+      of ntLitString:
+        result = lhs.sVal != rhs.sVal
+      else: discard
+    of ntLitInt:
+      case rhs.nt
+      of ntLitInt:
+        result = lhs.iVal != rhs.iVal
+      of ntLitFloat:
+        result = toFloat(lhs.iVal) != rhs.fVal
+      else: discard
+    of ntLitFloat:
+      case rhs.nt
+      of ntLitFloat:
+        result = lhs.fVal != rhs.fVal
+      of ntLitInt:
+        result = lhs.fVal != toFloat(rhs.iVal)
+      else: discard
+    of ntIdent:
+      let lhs = c.getValue(lhs, scopetables)
+      if likely(lhs != nil):
+        return c.infixEvaluator(lhs, rhs, infixOp, scopetables)
+    of ntDotExpr:
+      let x = c.dotEvaluator(lhs, scopetables)
+      result = c.infixEvaluator(x, rhs, infixOp, scopetables)
+    else: discard
   of GT:
     case lhs.nt:
     of ntLitInt:
