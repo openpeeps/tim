@@ -148,6 +148,10 @@
       bracketStorageType*: StorageType
       bracketLHS*, bracketIndex*: Node
 
+  of ntIndexRange:
+      rangeNodes*: array[2, Node]
+      rangeLastIndex*: bool
+
   of ntLitFunction:
       fnIdent*: string
       fnParams*: OrderedTable[string, FnParam]
@@ -174,8 +178,9 @@
   ntVariableDef = &quot;Variable&quot;, ntAssignExpr = &quot;Assignment&quot;,
   ntHtmlElement = &quot;HtmlElement&quot;, ntInfixExpr = &quot;InfixExpression&quot;,
   ntMathInfixExpr = &quot;MathExpression&quot;, ntCommandStmt = &quot;CommandStatement&quot;,
-  ntIdent = &quot;Identifier&quot;, ntCall = &quot;FunctionCall&quot;, ntIdentPair, ntDotExpr,
-  ntBracketExpr, ntConditionStmt = &quot;ConditionStatement&quot;,
+  ntIdent = &quot;Identifier&quot;, ntCall = &quot;FunctionCall&quot;, ntIdentPair,
+  ntDotExpr = &quot;DotExpression&quot;, ntBracketExpr = &quot;BracketExpression&quot;,
+  ntIndexRange = &quot;IndexRange&quot;, ntConditionStmt = &quot;ConditionStatement&quot;,
   ntLoopStmt = &quot;LoopStmt&quot;, ntViewLoader = &quot;ViewLoader&quot;, ntInclude = &quot;Include&quot;,
   ntJavaScriptSnippet = &quot;JavaScriptSnippet&quot;, ntYamlSnippet = &quot;YAMLSnippet&quot;,
   ntJsonSnippet = &quot;JsonSnippet&quot;, ntClientBlock = &quot;ClientSideStatement&quot;">NodeType</a></li>
@@ -480,6 +485,10 @@
       <span class="Identifier">bracketStorageType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#StorageType"><span class="Identifier">StorageType</span></a>
       <span class="Identifier">bracketLHS</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">bracketIndex</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
 
+  <span class="Keyword">of</span> <span class="Identifier">ntIndexRange</span><span class="Other">:</span>
+      <span class="Identifier">rangeNodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">array</span><span class="Other">[</span><span class="DecNumber">2</span><span class="Other">,</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
+      <span class="Identifier">rangeLastIndex</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
+
   <span class="Keyword">of</span> <span class="Identifier">ntLitFunction</span><span class="Other">:</span>
       <span class="Identifier">fnIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
       <span class="Identifier">fnParams</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">OrderedTable</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <a href="ast.html#FnParam"><span class="Identifier">FnParam</span></a><span class="Other">]</span>
@@ -514,8 +523,9 @@
   <span class="Identifier">ntVariableDef</span> <span class="Other">=</span> <span class="StringLit">&quot;Variable&quot;</span><span class="Other">,</span> <span class="Identifier">ntAssignExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;Assignment&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntHtmlElement</span> <span class="Other">=</span> <span class="StringLit">&quot;HtmlElement&quot;</span><span class="Other">,</span> <span class="Identifier">ntInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;InfixExpression&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntMathInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;MathExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntCommandStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CommandStatement&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span> <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdentPair</span><span class="Other">,</span> <span class="Identifier">ntDotExpr</span><span class="Other">,</span>
-  <span class="Identifier">ntBracketExpr</span><span class="Other">,</span> <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span> <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdentPair</span><span class="Other">,</span>
+  <span class="Identifier">ntDotExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;DotExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntBracketExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;BracketExpression&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntIndexRange</span> <span class="Other">=</span> <span class="StringLit">&quot;IndexRange&quot;</span><span class="Other">,</span> <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntLoopStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;LoopStmt&quot;</span><span class="Other">,</span> <span class="Identifier">ntViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;ViewLoader&quot;</span><span class="Other">,</span> <span class="Identifier">ntInclude</span> <span class="Other">=</span> <span class="StringLit">&quot;Include&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntJavaScriptSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JavaScriptSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntYamlSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;YAMLSnippet&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntJsonSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JsonSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntClientBlock</span> <span class="Other">=</span> <span class="StringLit">&quot;ClientSideStatement&quot;</span></pre></dt>
@@ -884,7 +894,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-04 19:02:29 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-06 03:53:34 UTC</small>
       </div>
     </div>
   </div>

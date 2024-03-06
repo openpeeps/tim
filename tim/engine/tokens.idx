@@ -1,8 +1,8 @@
 nimTitle	tokens	tim/engine/tokens.html	module tim/engine/tokens		0
-nim	TokenKind	tim/engine/tokens.html#TokenKind	enum TokenKind		207
-nim	TokenTuple	tim/engine/tokens.html#TokenTuple	tuple TokenTuple		207
-nim	Lexer	tim/engine/tokens.html#Lexer	object Lexer		207
-nim	LexerException	tim/engine/tokens.html#LexerException	object LexerException		207
+nim	TokenKind	tim/engine/tokens.html#TokenKind	enum TokenKind		208
+nim	TokenTuple	tim/engine/tokens.html#TokenTuple	tuple TokenTuple		208
+nim	Lexer	tim/engine/tokens.html#Lexer	object Lexer		208
+nim	LexerException	tim/engine/tokens.html#LexerException	object LexerException		208
 nim	newLexer	tim/engine/tokens.html#newLexer,string,bool	proc newLexer(fileContent`gensym0: string; allowMultilineStrings`gensym0 = false): Lexer		562
 nim	lexReady	tim/engine/tokens.html#lexReady,Lexer	proc lexReady(lex`gensym0: var Lexer)		573
 nim	inc	tim/engine/tokens.html#inc,Lexer,int	proc inc(lex`gensym0: var Lexer; offset`gensym0 = 1)		577
