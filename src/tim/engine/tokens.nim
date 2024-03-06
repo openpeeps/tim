@@ -156,6 +156,7 @@ registerTokens toktokSettings:
     doc = tokenize(handleDocBlock, '*')
     comment = tokenize(handleInlineComment, '/')
   `mod` = '%'
+  caret = '^'
   lc = '{'
   rc = '}'
   lp = '('

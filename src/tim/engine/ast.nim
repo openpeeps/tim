@@ -37,8 +37,9 @@ type
     ntIdent = "Identifier"
     ntCall = "FunctionCall"
     ntIdentPair
-    ntDotExpr
-    ntBracketExpr
+    ntDotExpr = "DotExpression"
+    ntBracketExpr = "BracketExpression"
+    ntIndexRange = "IndexRange"
     ntConditionStmt = "ConditionStatement"
     ntLoopStmt = "LoopStmt"
     ntViewLoader = "ViewLoader"
@@ -153,6 +154,9 @@ type
     of ntBracketExpr:
       bracketStorageType*: StorageType
       bracketLHS*, bracketIndex*: Node
+    of ntIndexRange:
+      rangeNodes*: array[2, Node]
+      rangeLastIndex*: bool # from end to start using ^ circumflex accent
     of ntLitFunction:
       fnIdent*: string
       fnParams*: OrderedTable[string, FnParam]

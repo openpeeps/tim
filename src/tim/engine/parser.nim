@@ -103,6 +103,12 @@ proc `notin`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
 proc isFnCall(p: var Parser): bool {.inline.} =
   p.curr is tkIdentifier and p.next is tkLP and p.next.wsno == 0
 
+template isRange: untyped =
+  (
+    (p.curr is tkDot and p.next is tkDot) and
+      (p.curr.line == tk.line and p.next.line == tk.line)
+  )
+
 template expectWalk(kind: TokenKind) =
   if likely(p.curr is kind):
     walk p
@@ -262,25 +268,39 @@ proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
 
 proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse bracket expression
-  result = ast.newNode(ntBracketExpr, p.prev)
-  walk p # tkLB
+  let tk = p.curr; walk p # tkLB
   let index = p.getPrefixOrInfix()
+  result = ast.newNode(ntBracketExpr, p.curr)
+  result.bracketLHS = lhs
   caseNotNil index:
-    result.bracketIndex = index
-    result.bracketLHS = lhs
-  expectWalk tkRB
-  while true:
-    case p.curr.kind
-    of tkDot:
-      if p.curr.line == result.meta[0]:
-        result = p.parseDotExpr(result)
-      else: break
-    of tkLB:
-      if p.curr.line == result.meta[0]:
-        result = p.parseBracketExpr(result)
-      else: break
-    else:
-      break # todo handle infix expressions
+    if p.curr is tkRB:
+      result.bracketIndex = index
+      while true:
+        case p.curr.kind
+        of tkDot:
+          if p.curr.line == result.meta[0]:
+            result = p.parseDotExpr(result)
+          else: break
+        of tkLB:
+          if p.curr.line == result.meta[0]:
+            result = p.parseBracketExpr(result)
+          else: break
+        else:
+          break # todo handle infix expressions
+    elif isRange:
+      walk p, 2
+      let lastIndex =
+        if p.curr is tkCaret:
+          walk p; true
+        else: false
+      expect {tkInteger, tkIdentVar}:
+        let rhs = p.parsePrefix()
+        caseNotnil rhs:
+          let rangeNode = ast.newNode(ntIndexRange)
+          rangeNode.rangeNodes = [index, rhs]
+          rangeNode.rangeLastIndex = lastIndex
+          result.bracketIndex = rangeNode
+      expectWalk tkRB
 
 prefixHandle pIdent:
   # parse an identifier
@@ -592,7 +612,7 @@ prefixHandle pFor:
       pairNode.identPairs[1] = vNode
       result.loopItem = pairNode
       walk p
-    expectWalk(tkIN)
+    expectWalk tkIN
     expect {tkIdentVar, tkLB}:
       let items = p.parsePrefix()
       caseNotNil items:

@@ -307,6 +307,19 @@ proc walkAccessorStorage(c: var HtmlCompiler,
         result = lhs.arrayItems[rhs.iVal]
       except Defect:
         compileErrorWithArgs(indexDefect, lhs.meta, [$(rhs.iVal), "0.." & $(lhs.arrayItems.high)])
+    of ntIndexRange:
+      let l = rhs.rangeNodes[0].iVal
+      let r = rhs.rangeNodes[1].iVal
+      try:
+        result = ast.newNode(ntLitArray)
+        result.meta = lhs.meta
+        case rhs.rangeLastIndex
+        of false:
+          result.arrayItems = lhs.arrayItems[l..r]
+        of true:
+          result.arrayItems = lhs.arrayItems[l..^r]
+      except Defect:
+        compileErrorWithArgs(indexDefect, lhs.meta, ["", "0.." & $(lhs.arrayItems.high)])
     else: compileErrorWithArgs(invalidAccessorStorage, rhs.meta, [rhs.toString, $lhs.nt])
   else: discard
 
@@ -544,7 +557,7 @@ proc getValue(c: var HtmlCompiler, node: Node,
     if likely(some.scopeTable != nil):
       return c.getValue(some.scopeTable[node.identName].varValue, scopetables)
     compileErrorWithArgs(undeclaredVariable, [node.identName])
-  of ntAssignableSet:
+  of ntAssignableSet, ntIndexRange:
     # return literal nodes
     result = node
   of ntInfixExpr:
