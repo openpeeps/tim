@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import std/json except `%*`
-import std/[times, options, asyncdispatch, sequtils]
+import std/[times, options, asyncdispatch, sequtils, macros, macrocache]
 
 import pkg/[watchout, httpx, websocketx]
 import pkg/kapsis/cli
@@ -18,6 +18,35 @@ from std/os import `/`, sleep
 const
   DOCKTYPE = "<!DOCKTYPE html>"
   defaultLayout = "base"
+
+const localStorage* = CacheSeq"LocalStorage"
+
+macro initCommonStorage*(x: untyped) =
+  if x.kind == nnkStmtList:
+    add localStorage, x[0]
+  elif x.kind == nnkTableConstr:
+    add localStorage, x
+  else: error("Invalid common storage initializer. Use `{}`, or `do` block")
+
+template `&*`*(n: untyped): untyped =
+  macro toLocalStorage(x: untyped): untyped =
+    ## Compile-time localStorage initializer
+    ## that helps reusing shareable data.
+    ## 
+    ## Once merged it calls `%*` macro from `std/json`
+    ## for converting NimNode to JsonNode
+    if x.kind in {nnkTableConstr, nnkCurly}:
+      var shareLocalNode: NimNode
+      if localStorage.len > 0:
+        shareLocalNode = localStorage[0]
+      if x.len > 0:
+        shareLocalNode.copyChildrenTo(x)
+        return newCall(ident("%*"), x)
+      if shareLocalNode != nil:
+        return newCall(ident("%*"), shareLocalNode)
+      return newCall(ident("%*"), newNimNode(nnkCurly))
+    error("Local storage requires either `nnkTableConstr` or `nnkCurly`")
+  toLocalStorage(n)
 
 proc jitCompiler(engine: TimEngine,
     tpl: TimTemplate, data: JsonNode): HtmlCompiler =
@@ -40,11 +69,11 @@ proc compileCode(engine: TimEngine, tpl: TimTemplate,
     if tpl.jitEnabled():
       # when enabled, will save a cached ast
       # to disk for runtime computation. 
-      engine.writeAst(tpl, p.getAst)
+      engine.writeAst(tpl, parser.getAst(p))
     else:
       # otherwise, compiles the generated AST and save
       # a pre-compiled HTML version on disk
-      var c = engine.newCompiler(p.getAst, tpl, engine.isMinified,
+      var c = engine.newCompiler(parser.getAst(p), tpl, engine.isMinified,
           engine.getIndentSize)
       if likely(not c.hasError):
         case tpl.getType:
@@ -97,8 +126,7 @@ proc resolveDependants(engine: TimEngine, x: seq[string]) =
     let tpl = engine.getTemplateByPath(path)
     case tpl.getType
     of ttPartial:
-      # echo tpl.getDeps.toSeq
-      # echo tpl.getSourcePath
+      echo tpl.getDeps.toSeq
       engine.resolveDependants(tpl.getDeps.toSeq)
     else:
       engine.compileCode(tpl, refreshAst = true)
