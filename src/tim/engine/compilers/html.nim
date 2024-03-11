@@ -20,18 +20,24 @@ type
     when not defined timStandalone:
       globalScope: ScopeTable = ScopeTable()
       data: JsonNode
+      jsOutputCode: string = "{"
+      jsCountEl: uint
+      jsTargetElement: string
+      isClientSide: bool
     # jsComp: Table[string, JSCompiler] # todo
 
 # Forward Declaration
 proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
-    scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown): Node {.discardable.}
+    scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown,
+    xel = newStringOfCap(0)): Node {.discardable.}
+
 proc typeCheck(c: var HtmlCompiler, x, node: Node): bool
 proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool
 proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node, op: MathOp, scopetables: var seq[ScopeTable]): Node
 proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc getValue(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 proc fnCall(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
-proc hasError*(c: HtmlCompiler): bool = c.hasErrors
+proc hasError*(c: HtmlCompiler): bool = c.hasErrors # or c.logger.errorLogs.len > 0
 proc bracketEvaluator(c: var HtmlCompiler, node: Node,
     scopetables: var seq[ScopeTable]): Node
 
@@ -51,6 +57,12 @@ proc getIndent(c: HtmlCompiler, meta: Meta, skipbr = false): string =
     if not c.stickytail:
       add result, c.nl
       add result, indent("", c.baseIndent(meta[1]))
+
+const
+  domCreateElement = "let $1 = document.createElement('$2');"
+  domSetAttribute = "$1.setAttribute('$2','$3');"
+  domInsertAdjacentElement = "$1.insertAdjacentElement('beforeend',$2);"
+  domInnerText = "$1.innerText=\"$2\";"
 
 when not defined timStandalone:
   # Scope API, available for library version of TimEngine 
@@ -120,6 +132,13 @@ when not defined timStandalone:
   proc clearScope(scopetables: var seq[ScopeTable]) {.inline.} =
     ## Clears the current (latest) ScopeTable
     scopetables.delete(scopetables.high)
+
+# define default value nodes
+let
+  intDefault = ast.newNode(ntLitInt)
+  strDefault = ast.newNode(ntLitString)
+  boolDefault = ast.newNode(ntLitBool)
+boolDefault.bVal = true
 
 #
 # Forward Declaration
@@ -262,7 +281,9 @@ proc evalJson(c: var HtmlCompiler,
     else:
       c.logger.newError(undeclaredField, rhs.meta[0],
         rhs.meta[1], true, [rhs.identName])
-      c.hasErrors = true
+      # tim should print error and continue the transpilation
+      # process even if accessed field does not exist
+      # c.hasErrors = true
 
 proc evalStorage(c: var HtmlCompiler, node: Node): JsonNode =
   case node.lhs.nt
@@ -308,18 +329,25 @@ proc walkAccessorStorage(c: var HtmlCompiler,
       except Defect:
         compileErrorWithArgs(indexDefect, lhs.meta, [$(rhs.iVal), "0.." & $(lhs.arrayItems.high)])
     of ntIndexRange:
-      let l = rhs.rangeNodes[0].iVal
-      let r = rhs.rangeNodes[1].iVal
-      try:
-        result = ast.newNode(ntLitArray)
-        result.meta = lhs.meta
-        case rhs.rangeLastIndex
-        of false:
-          result.arrayItems = lhs.arrayItems[l..r]
-        of true:
-          result.arrayItems = lhs.arrayItems[l..^r]
-      except Defect:
-        compileErrorWithArgs(indexDefect, lhs.meta, ["", "0.." & $(lhs.arrayItems.high)])
+      let l = c.getValue(rhs.rangeNodes[0], scopetables)
+      let r = c.getValue(rhs.rangeNodes[1], scopetables)
+      if likely(l != nil and r != nil):
+        let l = l.iVal
+        let r = r.iVal
+        try:
+          result = ast.newNode(ntLitArray)
+          result.meta = lhs.meta
+          case rhs.rangeLastIndex
+          of false:
+            result.arrayItems = lhs.arrayItems[l..r]
+          of true:
+            result.arrayItems = lhs.arrayItems[l..^r]
+        except Defect:
+          let someRange =
+            if rhs.rangeLastIndex: $(l) & "..^" & $(r)
+            else: $(l) & ".." & $(r)
+          compileErrorWithArgs(indexDefect, lhs.meta, [someRange, "0.." & $(lhs.arrayItems.high)])
+      else: discard # todo error?
     else: compileErrorWithArgs(invalidAccessorStorage, rhs.meta, [rhs.toString, $lhs.nt])
   else: discard
 
@@ -330,7 +358,8 @@ proc dotEvaluator(c: var HtmlCompiler, node: Node,
   of localStorage, globalStorage:
     let x = c.evalStorage(node)
     if likely(x != nil):
-      result = x.toTimNode
+      return x.toTimNode
+    result = ast.newNode(ntLitBool)
   of scopeStorage:
     return c.walkAccessorStorage(node.lhs, node.rhs, scopetables)
 
@@ -742,13 +771,6 @@ proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     else: discard
   else: discard
 
-# define default value nodes
-let
-  intDefault = ast.newNode(ntLitInt)
-  strDefault = ast.newNode(ntLitString)
-  boolDefault = ast.newNode(ntLitBool)
-boolDefault.bVal = true
-
 template evalBranch(branch: Node, body: untyped) =
   case branch.nt
   of ntInfixExpr, ntMathInfixExpr:
@@ -1026,14 +1048,16 @@ proc getId(c: HtmlCompiler, node: Node): string =
   else: discard # todo
   add result, "\""
 
-proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes, scopetables: var seq[ScopeTable]): string =
+proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
+    scopetables: var seq[ScopeTable], xel = newStringOfCap(0)): string =
   # Write HTMLAttributes
   var i = 0
   var skipQuote: bool
   let len = attrs.len
   for k, attrNodes in attrs:
     var attrStr: seq[string]
-    add result, indent("$1=" % [k], 1) & "\""
+    if not c.isClientSide:
+      add result, indent("$1=" % [k], 1) & "\""
     for attrNode in attrNodes:
       case attrNode.nt
       of ntAssignableSet:
@@ -1053,12 +1077,15 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes, scopetables: var seq[S
           add attrStr, xVal.toString()
         else: return # undeclaredVariable
       else: discard
-    add result, attrStr.join(" ")
-    if not skipQuote and i != len:
-      add result, "\""
+    if not c.isClientSide:
+      add result, attrStr.join(" ")
+      if not skipQuote and i != len:
+        add result, "\""
+      else:
+        skipQuote = false
+      inc i
     else:
-      skipQuote = false
-    inc i
+      add result, domSetAttribute % [xel, k, attrStr.join(" ")]
 
 const voidElements = [tagArea, tagBase, tagBr, tagCol,
   tagEmbed, tagHr, tagImg, tagInput, tagLink, tagMeta,
@@ -1110,13 +1137,40 @@ proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: v
     if likely(c.ast.partials.hasKey(x)):
       c.walkNodes(c.ast.partials[x][0].nodes, scopetables)
 
-proc walkNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[ScopeTable],
-    parentNodeType: NodeType = ntUnknown): Node {.discardable.} =
+
+#
+# JS API
+#
+proc createHtmlElement(c: var HtmlCompiler, x: Node, scopetables: var seq[ScopeTable], pEl: string) =
+  ## Create a new HtmlElement
+  let xel = "el" & $(c.jsCountEl)
+  add c.jsOutputCode, domCreateElement % [xel, x.getTag()]
+  if x.attrs != nil:
+    add c.jsOutputCode, c.getAttrs(x.attrs, scopetables, xel)
+  inc c.jsCountEl
+  if x.nodes.len > 0:
+    c.walkNodes(x.nodes, scopetables, xel = xel)
+  if pEl.len > 0:
+    add c.jsOutputCode,
+      domInsertAdjacentElement % [pEl, xel]
+  else:
+    add c.jsOutputCode,
+      domInsertAdjacentElement % ["document.querySelector('" & c.jsTargetElement & "')", xel]
+
+#
+# Main nodes walker
+#
+proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
+    scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown,
+    xel = newStringOfCap(0)): Node {.discardable.} =
   # Evaluate a seq[Node] nodes
   for i in 0..nodes.high:
     case nodes[i].nt
     of ntHtmlElement:
-      c.htmlElement(nodes[i], scopetables)
+      if not c.isClientSide:
+        c.htmlElement(nodes[i], scopetables)
+      else:
+        c.createHtmlElement(nodes[i], scopetables, xel)
     of ntIdent:
       let x: Node = c.getValue(nodes[i], scopetables)
       write x, true, nodes[i].identSafe
@@ -1142,7 +1196,10 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[Scope
     of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
       # add c.output, nodes[i].toString
       # c.stickytail = true
-      write nodes[i], true, false
+      if not c.isClientSide:
+        write nodes[i], true, false
+      else:
+        add c.jsOutputCode, domInnerText % [xel, c.toString(nodes[i], scopetables)]
     of ntMathInfixExpr:
       let x: Node = c.mathInfixEvaluator(nodes[i].infixMathLeft,
                       nodes[i].infixMathRight, nodes[i].infixMathOp, scopetables)
@@ -1172,11 +1229,18 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node], scopetables: var seq[Scope
     of ntJsonSnippet:
       add c.jsonOutput, nodes[i].snippetCode
     of ntClientBlock:
-      var jsCompiler = js.newCompiler(nodes[i].clientStmt, nodes[i].clientTargetElement)
-      add c.jsOutput, "document.addEventListener('DOMContentLoaded', function(){"
-      add c.jsOutput, jsCompiler.getOutput()
+      c.jsTargetElement = nodes[i].clientTargetElement
+      c.isClientSide = true
+      c.walkNodes(nodes[i].clientStmt, scopetables)
+      add c.jsOutputCode, "}"
+      add c.jsOutput,
+        "document.addEventListener('DOMContentLoaded', function(){"
+      add c.jsOutput, c.jsOutputCode
       add c.jsOutput, "});"
-      reset(jsCompiler)
+      c.jsOutputCode = "{"
+      setLen(c.jsTargetElement, 0)
+      reset(c.jsCountEl)
+      c.isClientSide = false
     else: discard
 
 #
