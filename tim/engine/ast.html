@@ -164,6 +164,10 @@
   of ntInclude:
       includes*: seq[string]
 
+  of ntPlaceholder:
+      placeholderName*: string
+      placeholderNodes*: seq[Node]
+
   of ntClientBlock:
       clientTargetElement*: string
       clientStmt*: seq[Node]
@@ -182,8 +186,9 @@
   ntDotExpr = &quot;DotExpression&quot;, ntBracketExpr = &quot;BracketExpression&quot;,
   ntIndexRange = &quot;IndexRange&quot;, ntConditionStmt = &quot;ConditionStatement&quot;,
   ntLoopStmt = &quot;LoopStmt&quot;, ntViewLoader = &quot;ViewLoader&quot;, ntInclude = &quot;Include&quot;,
-  ntJavaScriptSnippet = &quot;JavaScriptSnippet&quot;, ntYamlSnippet = &quot;YAMLSnippet&quot;,
-  ntJsonSnippet = &quot;JsonSnippet&quot;, ntClientBlock = &quot;ClientSideStatement&quot;">NodeType</a></li>
+  ntPlaceholder = &quot;Placeholder&quot;, ntJavaScriptSnippet = &quot;JavaScriptSnippet&quot;,
+  ntYamlSnippet = &quot;YAMLSnippet&quot;, ntJsonSnippet = &quot;JsonSnippet&quot;,
+  ntClientBlock = &quot;ClientSideStatement&quot;">NodeType</a></li>
 <li><a class="reference" href="#ScopeTable" title="ScopeTable = TableRef[string, Node]">ScopeTable</a></li>
 <li><a class="reference" href="#StorageType" title="StorageType = enum
   scopeStorage,             ## Data created inside a `timl` template.
@@ -501,6 +506,10 @@
   <span class="Keyword">of</span> <span class="Identifier">ntInclude</span><span class="Other">:</span>
       <span class="Identifier">includes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
 
+  <span class="Keyword">of</span> <span class="Identifier">ntPlaceholder</span><span class="Other">:</span>
+      <span class="Identifier">placeholderName</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+      <span class="Identifier">placeholderNodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
+
   <span class="Keyword">of</span> <span class="Identifier">ntClientBlock</span><span class="Other">:</span>
       <span class="Identifier">clientTargetElement</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
       <span class="Identifier">clientStmt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
@@ -527,8 +536,9 @@
   <span class="Identifier">ntDotExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;DotExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntBracketExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;BracketExpression&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntIndexRange</span> <span class="Other">=</span> <span class="StringLit">&quot;IndexRange&quot;</span><span class="Other">,</span> <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntLoopStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;LoopStmt&quot;</span><span class="Other">,</span> <span class="Identifier">ntViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;ViewLoader&quot;</span><span class="Other">,</span> <span class="Identifier">ntInclude</span> <span class="Other">=</span> <span class="StringLit">&quot;Include&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntJavaScriptSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JavaScriptSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntYamlSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;YAMLSnippet&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntJsonSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JsonSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntClientBlock</span> <span class="Other">=</span> <span class="StringLit">&quot;ClientSideStatement&quot;</span></pre></dt>
+  <span class="Identifier">ntPlaceholder</span> <span class="Other">=</span> <span class="StringLit">&quot;Placeholder&quot;</span><span class="Other">,</span> <span class="Identifier">ntJavaScriptSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JavaScriptSnippet&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntYamlSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;YAMLSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntJsonSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JsonSnippet&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntClientBlock</span> <span class="Other">=</span> <span class="StringLit">&quot;ClientSideStatement&quot;</span></pre></dt>
   <dd>
     
     
@@ -894,7 +904,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-10 13:04:49 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 08:45:05 UTC</small>
       </div>
     </div>
   </div>

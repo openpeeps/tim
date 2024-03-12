@@ -21,7 +21,7 @@
   <div class="document" id="documentId">
     <div class="container">
       <h1 class="title">Index</h1>
-      Modules: <a href="index.html">tim</a>, <a href="tim/engine/ast.html">tim/engine/ast</a>, <a href="tim/engine/compilers/html.html">tim/engine/compilers/html</a>, <a href="tim/engine/compilers/js.html">tim/engine/compilers/js</a>, <a href="tim/engine/compilers/index.html">tim/engine/compilers/tim</a>, <a href="tim/engine/logging.html">tim/engine/logging</a>, <a href="tim/engine/meta.html">tim/engine/meta</a>, <a href="tim/engine/parser.html">tim/engine/parser</a>, <a href="tim/engine/tokens.html">tim/engine/tokens</a>.<br/><p /><h2>API symbols</h2>
+      Modules: <a href="index.html">tim</a>, <a href="tim/engine/ast.html">tim/engine/ast</a>, <a href="tim/engine/compilers/html.html">tim/engine/compilers/html</a>, <a href="tim/engine/compilers/index.html">tim/engine/compilers/tim</a>, <a href="tim/engine/logging.html">tim/engine/logging</a>, <a href="tim/engine/meta.html">tim/engine/meta</a>, <a href="tim/engine/parser.html">tim/engine/parser</a>, <a href="tim/engine/tokens.html">tim/engine/tokens</a>.<br/><p /><h2>API symbols</h2>
 <dl><dt><a name="%60%24%60" href="#%60%24%60"><span>`$`:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: proc `$`(x: Ast): string" href="tim/engine/ast.html#%24%2CAst">ast: proc `$`(x: Ast): string</a></li>
@@ -220,10 +220,6 @@
 <li><a class="reference external"
           data-doc-search-tag="meta: proc getName(t: TimTemplate): string" href="tim/engine/meta.html#getName%2CTimTemplate">meta: proc getName(t: TimTemplate): string</a></li>
           </ul></dd>
-<dt><a name="getOutput" href="#getOutput"><span>getOutput:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="js: proc getOutput(c: var JSCompiler): string" href="tim/engine/compilers/js.html#getOutput%2CJSCompiler">js: proc getOutput(c: var JSCompiler): string</a></li>
-          </ul></dd>
 <dt><a name="getPath" href="#getPath"><span>getPath:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="meta: proc getPath(engine: TimEngine; key: string; templateType: TimTemplateType): string" href="tim/engine/meta.html#getPath%2CTimEngine%2Cstring%2CTimTemplateType">meta: proc getPath(engine: TimEngine; key: string; templateType: TimTemplateType): string</a></li>
@@ -380,10 +376,6 @@
 <li><a class="reference external"
           data-doc-search-tag="meta: proc jitEnabled(t: TimTemplate): bool" href="tim/engine/meta.html#jitEnabled%2CTimTemplate">meta: proc jitEnabled(t: TimTemplate): bool</a></li>
           </ul></dd>
-<dt><a name="JSCompiler" href="#JSCompiler"><span>JSCompiler:</span></a></dt><dd><ul class="simple">
-<li><a class="reference external"
-          data-doc-search-tag="js: object JSCompiler" href="tim/engine/compilers/js.html#JSCompiler">js: object JSCompiler</a></li>
-          </ul></dd>
 <dt><a name="jsonValue" href="#jsonValue"><span>jsonValue:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: ValueKind.jsonValue" href="tim/engine/ast.html#jsonValue">ast: ValueKind.jsonValue</a></li>
@@ -473,8 +465,6 @@
           data-doc-search-tag="html: proc newCompiler(engine: TimEngine; ast: Ast; tpl: TimTemplate; minify = true;
             indent = 2; data: JsonNode = newJObject()): HtmlCompiler" href="tim/engine/compilers/html.html#newCompiler%2CTimEngine%2CAst%2CTimTemplate%2Cint%2CJsonNode">html: proc newCompiler(engine: TimEngine; ast: Ast; tpl: TimTemplate; minify = true;
             indent = 2; data: JsonNode = newJObject()): HtmlCompiler</a></li>
-          <li><a class="reference external"
-          data-doc-search-tag="js: proc newCompiler(nodes: seq[Node]; clientTargetElement: string): JSCompiler" href="tim/engine/compilers/js.html#newCompiler%2Cseq%5BNode%5D%2Cstring">js: proc newCompiler(nodes: seq[Node]; clientTargetElement: string): JSCompiler</a></li>
           </ul></dd>
 <dt><a name="newCondition" href="#newCondition"><span>newCondition:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -542,6 +532,8 @@
           </ul></dd>
 <dt><a name="newParser" href="#newParser"><span>newParser:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
+          data-doc-search-tag="parser: proc newParser(engine: TimEngine; id: string; code: string): Parser" href="tim/engine/parser.html#newParser%2CTimEngine%2Cstring%2Cstring">parser: proc newParser(engine: TimEngine; id: string; code: string): Parser</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="parser: proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser" href="tim/engine/parser.html#newParser%2CTimEngine%2CTimTemplate">parser: proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser</a></li>
@@ -685,6 +677,10 @@
 <dt><a name="ntMathInfixExpr" href="#ntMathInfixExpr"><span>ntMathInfixExpr:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: NodeType.ntMathInfixExpr" href="tim/engine/ast.html#ntMathInfixExpr">ast: NodeType.ntMathInfixExpr</a></li>
+          </ul></dd>
+<dt><a name="ntPlaceholder" href="#ntPlaceholder"><span>ntPlaceholder:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: NodeType.ntPlaceholder" href="tim/engine/ast.html#ntPlaceholder">ast: NodeType.ntPlaceholder</a></li>
           </ul></dd>
 <dt><a name="ntUnknown" href="#ntUnknown"><span>ntUnknown:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -878,7 +874,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-10 13:04:49 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 08:45:05 UTC</small>
       </div>
     </div>
   </div>

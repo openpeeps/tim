@@ -60,9 +60,9 @@
   tkElse, tkEnd, tkExc, tkNe, tkFn, tkFor, tkGt, tkGte, tkId, tkIdentVar,
   tkIdentVarSafe, tkIf, tkIn, tkInclude, tkLb, tkLc, tkLitArray, tkLitBool,
   tkLitFloat, tkLitFunction, tkLitInt, tkLitObject, tkLitString, tkLitVoid,
-  tkLp, tkLt, tkLte, tkMinus, tkMod, tkMultiply, tkOr, tkPipe, tkOrOr, tkPlus,
-  tkRb, tkRc, tkReturnCmd, tkRp, tkSnippetJs, tkSnippetJson, tkSnippetYaml,
-  tkTernary, tkVar, tkViewLoader">TokenKind</a></li>
+  tkLp, tkLt, tkLte, tkMinus, tkMod, tkMultiply, tkOr, tkPipe, tkOrOr,
+  tkPlaceholder, tkPlus, tkRb, tkRc, tkReturnCmd, tkRp, tkSnippetJs,
+  tkSnippetJson, tkSnippetYaml, tkTernary, tkVar, tkViewLoader">TokenKind</a></li>
 <li><a class="reference" href="#TokenTuple" title="TokenTuple = tuple[kind: TokenKind, value: string, wsno, line, col, pos: int,
                    attr: seq[string]]">TokenTuple</a></li>
 
@@ -162,9 +162,9 @@
   <span class="Identifier">tkElse</span><span class="Other">,</span> <span class="Identifier">tkEnd</span><span class="Other">,</span> <span class="Identifier">tkExc</span><span class="Other">,</span> <span class="Identifier">tkNe</span><span class="Other">,</span> <span class="Identifier">tkFn</span><span class="Other">,</span> <span class="Identifier">tkFor</span><span class="Other">,</span> <span class="Identifier">tkGt</span><span class="Other">,</span> <span class="Identifier">tkGte</span><span class="Other">,</span> <span class="Identifier">tkId</span><span class="Other">,</span> <span class="Identifier">tkIdentVar</span><span class="Other">,</span>
   <span class="Identifier">tkIdentVarSafe</span><span class="Other">,</span> <span class="Identifier">tkIf</span><span class="Other">,</span> <span class="Identifier">tkIn</span><span class="Other">,</span> <span class="Identifier">tkInclude</span><span class="Other">,</span> <span class="Identifier">tkLb</span><span class="Other">,</span> <span class="Identifier">tkLc</span><span class="Other">,</span> <span class="Identifier">tkLitArray</span><span class="Other">,</span> <span class="Identifier">tkLitBool</span><span class="Other">,</span>
   <span class="Identifier">tkLitFloat</span><span class="Other">,</span> <span class="Identifier">tkLitFunction</span><span class="Other">,</span> <span class="Identifier">tkLitInt</span><span class="Other">,</span> <span class="Identifier">tkLitObject</span><span class="Other">,</span> <span class="Identifier">tkLitString</span><span class="Other">,</span> <span class="Identifier">tkLitVoid</span><span class="Other">,</span>
-  <span class="Identifier">tkLp</span><span class="Other">,</span> <span class="Identifier">tkLt</span><span class="Other">,</span> <span class="Identifier">tkLte</span><span class="Other">,</span> <span class="Identifier">tkMinus</span><span class="Other">,</span> <span class="Identifier">tkMod</span><span class="Other">,</span> <span class="Identifier">tkMultiply</span><span class="Other">,</span> <span class="Identifier">tkOr</span><span class="Other">,</span> <span class="Identifier">tkPipe</span><span class="Other">,</span> <span class="Identifier">tkOrOr</span><span class="Other">,</span> <span class="Identifier">tkPlus</span><span class="Other">,</span>
-  <span class="Identifier">tkRb</span><span class="Other">,</span> <span class="Identifier">tkRc</span><span class="Other">,</span> <span class="Identifier">tkReturnCmd</span><span class="Other">,</span> <span class="Identifier">tkRp</span><span class="Other">,</span> <span class="Identifier">tkSnippetJs</span><span class="Other">,</span> <span class="Identifier">tkSnippetJson</span><span class="Other">,</span> <span class="Identifier">tkSnippetYaml</span><span class="Other">,</span>
-  <span class="Identifier">tkTernary</span><span class="Other">,</span> <span class="Identifier">tkVar</span><span class="Other">,</span> <span class="Identifier">tkViewLoader</span></pre></dt>
+  <span class="Identifier">tkLp</span><span class="Other">,</span> <span class="Identifier">tkLt</span><span class="Other">,</span> <span class="Identifier">tkLte</span><span class="Other">,</span> <span class="Identifier">tkMinus</span><span class="Other">,</span> <span class="Identifier">tkMod</span><span class="Other">,</span> <span class="Identifier">tkMultiply</span><span class="Other">,</span> <span class="Identifier">tkOr</span><span class="Other">,</span> <span class="Identifier">tkPipe</span><span class="Other">,</span> <span class="Identifier">tkOrOr</span><span class="Other">,</span>
+  <span class="Identifier">tkPlaceholder</span><span class="Other">,</span> <span class="Identifier">tkPlus</span><span class="Other">,</span> <span class="Identifier">tkRb</span><span class="Other">,</span> <span class="Identifier">tkRc</span><span class="Other">,</span> <span class="Identifier">tkReturnCmd</span><span class="Other">,</span> <span class="Identifier">tkRp</span><span class="Other">,</span> <span class="Identifier">tkSnippetJs</span><span class="Other">,</span>
+  <span class="Identifier">tkSnippetJson</span><span class="Other">,</span> <span class="Identifier">tkSnippetYaml</span><span class="Other">,</span> <span class="Identifier">tkTernary</span><span class="Other">,</span> <span class="Identifier">tkVar</span><span class="Other">,</span> <span class="Identifier">tkViewLoader</span></pre></dt>
   <dd>
     
     
@@ -336,7 +336,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-10 13:04:49 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 08:45:05 UTC</small>
       </div>
     </div>
   </div>

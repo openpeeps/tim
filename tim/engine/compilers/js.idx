@@ -1,4 +1,0 @@
-nimTitle	js	tim/engine/compilers/js.html	module tim/engine/compilers/js		0
-nim	JSCompiler	tim/engine/compilers/js.html#JSCompiler	object JSCompiler		20
-nim	newCompiler	tim/engine/compilers/js.html#newCompiler,seq[Node],string	proc newCompiler(nodes: seq[Node]; clientTargetElement: string): JSCompiler		90
-nim	getOutput	tim/engine/compilers/js.html#getOutput,JSCompiler	proc getOutput(c: var JSCompiler): string		95
