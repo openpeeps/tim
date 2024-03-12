@@ -1,6 +1,6 @@
 # A super fast template engine for cool kids
 #
-# (c) 2023 George Lemon | LGPL License
+# (c) 2024 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
@@ -15,17 +15,28 @@ import pkg/importer
 
 type
   Parser* = object
+    lvl: int # parser internals
     lex: Lexer
-    lvl: int
+      ## A pkg/toktok instance
     prev, curr, next: TokenTuple
+      ## Lexer internals
     engine: TimEngine
+      ## TimEngine instance
     tpl: TimTemplate
+      ## A `TimTemplate` instance that represents the
+      ## currently parsing template
     logger*: Logger
+      ## Store warning and errors while parsing
     hasErrors*, nilNotError, hasLoadedView,
       isMain, refreshAst: bool
     parentNode: seq[Node]
+      ## Parser internals
     includes: Table[string, Meta]
+      ## A table to store all `@include` statements
+    placeholders: Table[string, Node]
+      ## A table containing available placeholders
     tree: Ast
+      ## The generated Abstract Syntax Tree
 
   PrefixFunction = proc(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
   InfixFunction = proc(p: var Parser, lhs: Node): Node {.gcsafe.}
@@ -311,6 +322,8 @@ prefixHandle pIdent:
     case p.curr.kind
     of tkDot:
       # handle dot expressions
+      if unlikely(p.next is tkDot):
+        return # result
       result = p.parseDotExpr(result)
       caseNotNil result:
         case result.nt
@@ -723,6 +736,9 @@ prefixHandle pSnippet:
   of tkSnippetYaml:
     result = ast.newNode(ntYamlSnippet, p.curr)
     result.snippetCode = p.curr.value
+  of tkSnippetJSON:
+    result = ast.newNode(ntJsonSnippet, p.curr)
+    result.snippetCode = p.curr.value    
   else: discard
   # elif p.curr.kind == tkSass:
     # result = ast.newSnippet(p.curr)
@@ -744,23 +760,30 @@ prefixHandle pClientSide:
   # parse tim template inside a `@client` block
   # statement in order to be transpiled to JavaScript
   # via engine/compilers/JSCompiler.nim
-  let this = p.curr
-  walk p # tkCLient
+  let tk = p.curr; walk p # tkCLient
   expect tkIdentifier:
     if unlikely(p.curr.value != "target"):
       return nil
     walk p
-    result = ast.newNode(ntClientBlock, this)
+    result = ast.newNode(ntClientBlock, tk)
     expectWalk tkAssign
     expect tkString:
       result.clientTargetElement = p.curr.value
       walk p
-      while p.curr isnot tkEnd and p.curr.isChild(this):
+      while p.curr isnot tkEnd and p.curr.isChild(tk):
         let n: Node = p.getPrefixOrInfix()
         if likely(n != nil):
           add result.clientStmt, n
         else: return nil
       expectWalk tkEnd
+
+prefixHandle pPlaceholder:
+  # parse a placeholder
+  let tk = p.curr; walk p
+  expectWalk tkID
+  expect tkIdentifier:
+    result = ast.newNode(ntPlaceholder)
+    result.placeholderName = p.curr.value; walk p
 
 template handleImplicitDefaultValue {.dirty.} =
   # handle implicit default value
@@ -928,13 +951,14 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
         pElement # parse HTML element
     of tkIdentVar, tkIdentVarSafe: pIdentOrAssignment
     of tkViewLoader: pViewLoader
-    of tkSnippetJS: pSnippet
+    of tkSnippetJS, tkSnippetJSON, tkSnippetYaml: pSnippet
     of tkInclude: pInclude
     of tkClient: pClientSide
     of tkLB: pAnoArray
     of tkLC: pAnoObject
     of tkFN: pFunction
     of tkReturnCmd: pReturnCommand
+    of tkPlaceholder: pPlaceholder
     else: nil
 
 proc parsePrefix(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
@@ -974,10 +998,11 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
         p.pElement()
     of tkSnippetJS:   p.pSnippet()
     of tkInclude:     p.pInclude()
-    of tkLB: p.pAnoArray()
-    of tkLC: p.pAnoObject()
-    of tkFN: p.pFunction()
-    of tkClient: p.pClientSide()
+    of tkLB:          p.pAnoArray()
+    of tkLC:          p.pAnoObject()
+    of tkFN:          p.pFunction()
+    of tkClient:      p.pClientSide()
+    of tkPlaceholder: p.pPlaceholder()
     else: nil
   if unlikely(result == nil):
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev
@@ -1056,8 +1081,11 @@ template collectImporterErrors =
 proc newParser*(engine: TimEngine, tpl: TimTemplate,
     isMainParser = true, refreshAst = false): Parser {.gcsafe.} =
   ## Parse `tpl` TimTemplate
-  let partialSrcPath = engine.getSourcePath() / $(ttPartial)
-  var p = newImport[Parser](tpl.sources.src, partialSrcPath, baseIsMain=true)
+  var p = newImport[Parser](
+    tpl.sources.src,
+    engine.getSourcePath() / $(ttPartial),
+    baseIsMain = true
+  )
   p.handle.lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
   p.handle.engine = engine
   p.handle.tpl = tpl
@@ -1071,6 +1099,14 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
       if jitMainParser:
         p.handle.tpl.jitEnable
   collectImporterErrors()
+  result = p.handle
+
+proc newParser*(engine: TimEngine, id: string, code: string): Parser {.gcsafe.} =
+  ## A proc used to parse `timl` code on the fly
+  ## `id` is used to identify the current `code
+  var p = newImport[Parser](id, engine.getSourcePath() / $(ttPartial), baseIsMain = true)
+  p.handle.lex = newLexer(code, allowMultilineStrings = true)
+  # startParse(id)
   result = p.handle
 
 proc getAst*(p: Parser): Ast {.gcsafe.} =
