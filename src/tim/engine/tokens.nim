@@ -85,7 +85,11 @@ handlers:
         except:
           lex.bufpos = lex.handleRefillChar(lex.bufpos)
     lexReady lex
-    if lex.next("js"):
+    if lex.next("json"):
+      let pos = lex.getColNumber(lex.bufpos)
+      inc lex.bufpos, 5
+      collectSnippet(tkSnippetJson)
+    elif lex.next("js"):
       let pos = lex.getColNumber(lex.bufpos)
       inc lex.bufpos, 3
       collectSnippet(tkSnippetJs)
@@ -93,10 +97,11 @@ handlers:
       let pos = lex.getColNumber(lex.bufpos)
       inc lex.bufpos, 5
       collectSnippet(tkSnippetYaml)
-    elif lex.next("json"):
+    elif lex.next("placeholder"):
       let pos = lex.getColNumber(lex.bufpos)
-      inc lex.bufpos, 5
-      collectSnippet(tkSnippetJson)
+      inc lex.bufpos, 12
+      lex.kind = tkPlaceholder
+      lex.token = "@placeholder"
     elif lex.next("include"):
       lex.setToken tkInclude, 8
     elif lex.next("view"):
@@ -205,6 +210,7 @@ registerTokens toktokSettings:
   snippetJs
   snippetYaml
   snippetJson
+  placeholder
   viewLoader
   client
   `end`
