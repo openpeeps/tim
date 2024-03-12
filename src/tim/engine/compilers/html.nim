@@ -585,6 +585,10 @@ proc getValue(c: var HtmlCompiler, node: Node,
     let some = c.getScope(node.identName, scopetables)
     if likely(some.scopeTable != nil):
       return c.getValue(some.scopeTable[node.identName].varValue, scopetables)
+    if node.identName == "this":
+      return c.data["local"].toTimNode
+    if node.identName == "app":
+      return c.data["global"].toTimNode
     compileErrorWithArgs(undeclaredVariable, [node.identName])
   of ntAssignableSet, ntIndexRange:
     # return literal nodes
@@ -1301,7 +1305,11 @@ proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =
 
 proc getHtml*(c: HtmlCompiler): string =
   ## Get the compiled HTML
-  result = c.output
+  if c.tplType == ttView and c.jsonOutput.len > 0:
+    add result, "\n" & "<script type=\"application/json\">"
+    add result, c.jsonOutput
+    add result, "</script>"
+  add result, c.output
   if c.tplType == ttView and c.jsOutput.len > 0:
     add result, "\n" & "<script type=\"text/javascript\">"
     add result, c.jsOutput
