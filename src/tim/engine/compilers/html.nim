@@ -8,7 +8,7 @@ import std/[tables, strutils, json,
   jsonutils, options, terminal]
 
 import pkg/jsony
-import ./tim, ./js
+import ./tim
 
 from std/xmltree import escape
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
