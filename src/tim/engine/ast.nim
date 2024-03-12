@@ -44,6 +44,7 @@ type
     ntLoopStmt = "LoopStmt"
     ntViewLoader = "ViewLoader"
     ntInclude = "Include"
+    ntPlaceholder = "Placeholder"
 
     ntJavaScriptSnippet = "JavaScriptSnippet"
     ntYamlSnippet = "YAMLSnippet"
@@ -167,6 +168,9 @@ type
         snippetCode*: string
     of ntInclude:
       includes*: seq[string]
+    of ntPlaceholder:
+      placeholderName*: string
+      placeholderNodes*: seq[Node]
     of ntClientBlock:
       clientTargetElement*: string
       clientStmt*: seq[Node]
