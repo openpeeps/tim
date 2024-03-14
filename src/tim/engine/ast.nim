@@ -102,29 +102,48 @@ type
       tag*: HtmlTag
       stag*: string
       attrs*: HtmlAttributes
+        # used to store html attributes
+      attrNodes*: seq[Node]
       nodes*: seq[Node]
     of ntVariableDef:
       varName*: string
-      varValue*, varMod*: Node
+        ## variable identifier
+      varValue*: Node
+        ## the value of a variable
       varType*: NodeType
-      varUsed*, varImmutable*: bool
+        ## type of a variable, any of `string`, `int`, `float`, `array`, `object`
+      varUsed*: bool        # todo find a way to manage used/unused variables
+      varImmutable*: bool
+        ## enabled when a variable is defined as `const`
     of ntAssignExpr:
       asgnIdent*: string
+        ## identifier name
       asgnVal*: Node
+        ## a Node value assigned to `asgnIdent`
     of ntInfixExpr:
       infixOp*: InfixOp
+        ## the infix operator 
       infixLeft*, infixRight*: Node
+        ## lhs, rhs nodes
     of ntMathInfixExpr:
       infixMathOp*: MathOp
+        ## the infix operator for math operations
       infixMathLeft*, infixMathRight*: Node
+        ## lhs, rhs nodes for math operations
     of ntConditionStmt:
       condIfBranch*: ConditionBranch
+        ## the `if` branch of a conditional statement
       condElifBranch*: seq[ConditionBranch]
+        ## a sequence of `elif` branches
       condElseBranch*: seq[Node]
+        ## the body of an `else` branch
     of ntLoopStmt:
-      loopItem*: Node     # ntIdent or ntIdentPair
+      loopItem*: Node
+        ## a node type of `ntIdent` or `ntIdentPair`
       loopItems*: Node
+        ## a node type represeting an iterable storage
       loopBody*: seq[Node]
+        ## a sequence of Node elements in `for` body
     of ntIdentPair:
       identPairs*: tuple[a, b: Node]
     of ntLitString:
@@ -138,42 +157,76 @@ type
       bVal*: bool
     of ntLitArray:
       arrayItems*: seq[Node]
+        ## a sequence of nodes representing an array
     of ntLitObject:
       objectItems*: OrderedTableRef[string, Node]
+        ## Ordered table of Nodes for object storage
     of ntCommandStmt:
       cmdType*: CommandType
+        ## type of given command, either `echo` or `return`
       cmdValue*: Node
+        ## the node value of the command 
     of ntIdent:
       identName*: string
+        # identifier name
       identSafe*: bool
+        # whether to escape the stored value of `identName`
     of ntCall:
       callIdent*: string
+        ## identifier name of a callable function
       callArgs*: seq[Node]
+        ## a sequence of arguments to to pass
     of ntDotExpr:
       storageType*: StorageType
+        ## holds the storage type of a dot expression
       lhs*, rhs*: Node
+        ## lhs, rhs nodes of dot expression node
     of ntBracketExpr:
       bracketStorageType*: StorageType
+        ## holds the storage type of a bracket expression
       bracketLHS*, bracketIndex*: Node
+        ## lhs, rhs nodes of a bracket expression
     of ntIndexRange:
       rangeNodes*: array[2, Node]
       rangeLastIndex*: bool # from end to start using ^ circumflex accent
     of ntLitFunction:
       fnIdent*: string
+        ## function identifier name
       fnParams*: OrderedTable[string, FnParam]
+        ## an ordered table containing the function parameters
       fnBody*: seq[Node]
+        ## the function body
       fnReturnType*: NodeType
-    of ntJavaScriptSnippet, ntYamlSnippet,
-      ntJsonSnippet:
+        ## the return type of a function
+        ## if a function has no return type, then `ntUnknown`
+        ## is used as default (void)
+    of ntJavaScriptSnippet,
+      ntYamlSnippet, ntJsonSnippet:
         snippetCode*: string
+          ## string-based snipept code for either
+          ## `yaml`, `json` or `js`
+          # todo add support bass code (bro lang)
+          # find more about Bro on https://github.com/openpeeps/bro
     of ntInclude:
       includes*: seq[string]
+        ## a sequence of files to be included
     of ntPlaceholder:
       placeholderName*: string
+        ## the name of a placehodler
       placeholderNodes*: seq[Node]
+        ## nodes mapped to a placehodler
     of ntClientBlock:
       clientTargetElement*: string
+        ## an existing HTML selector to used
+        ## to insert generated JavaScript snippet
+        ## using `insertAdjacentElement()`
       clientStmt*: seq[Node]
+        ## nodes to interpret/transpile to JavaScript
+        ## for client-side rendering. Note that only HTML
+        ## elements will be transformed to JS code, while
+        ## other statements (such `if`, `for`, `var`) are getting
+        ## interpreted at compile-time (for static templates) or 
+        ## on the fly for templates marked as jit.
     else: discard
     meta*: Meta
 
