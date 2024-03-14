@@ -956,8 +956,11 @@ proc varExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) 
     of ntLitArray:
       if c.checkArrayStorage(node.varValue, scopetables):
         c.stack(node.varName, node, scopetables)
-    else:
-      c.stack(node.varName, node, scopetables)
+    of ntIdent:
+      if unlikely(not c.inScope(node.varValue.identName, scopetables)):
+        compileErrorWithArgs(undeclaredVariable, [node.varValue.identName])
+    else: discard
+    c.stack(node.varName, node, scopetables)
   else: compileErrorWithArgs(varRedefine, [node.varName])
 
 proc assignExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]) =
@@ -1141,7 +1144,6 @@ proc evaluatePartials(c: var HtmlCompiler, includes: seq[string], scopetables: v
     if likely(c.ast.partials.hasKey(x)):
       c.walkNodes(c.ast.partials[x][0].nodes, scopetables)
 
-
 #
 # JS API
 #
@@ -1177,10 +1179,16 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
         c.createHtmlElement(nodes[i], scopetables, xel)
     of ntIdent:
       let x: Node = c.getValue(nodes[i], scopetables)
-      write x, true, nodes[i].identSafe
+      if not c.isClientSide:
+        write x, true, nodes[i].identSafe
+      else:
+        add c.jsOutputCode, domInnerText % [xel, x.toString()]
     of ntDotExpr:
       let x: Node = c.dotEvaluator(nodes[i], scopetables)
-      write x, true, false
+      if not c.isClientSide:
+        write x, true, false
+      else:
+        add c.jsOutputCode, domInnerText % [xel, x.toString()]
     of ntVariableDef:
       c.varExpr(nodes[i], scopetables)
     of ntCommandStmt:
@@ -1198,12 +1206,10 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntLoopStmt:
       c.evalLoop(nodes[i], scopetables)
     of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
-      # add c.output, nodes[i].toString
-      # c.stickytail = true
       if not c.isClientSide:
         write nodes[i], true, false
       else:
-        add c.jsOutputCode, domInnerText % [xel, c.toString(nodes[i], scopetables)]
+        add c.jsOutputCode, domInnerText % [xel, nodes[i].toString()]
     of ntMathInfixExpr:
       let x: Node = c.mathInfixEvaluator(nodes[i].infixMathLeft,
                       nodes[i].infixMathRight, nodes[i].infixMathOp, scopetables)
@@ -1231,7 +1237,11 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntJavaScriptSnippet:
       add c.jsOutput, nodes[i].snippetCode
     of ntJsonSnippet:
-      add c.jsonOutput, nodes[i].snippetCode
+      try:
+        add c.jsonOutput,
+          jsony.toJson(jsony.fromJson(nodes[i].snippetCode))
+      except jsony.JsonError as e:
+        compileErrorWithArgs(internalError, nodes[i].meta, [e.msg])
     of ntClientBlock:
       c.jsTargetElement = nodes[i].clientTargetElement
       c.isClientSide = true
