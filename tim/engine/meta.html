@@ -57,6 +57,7 @@
       <li><a class="reference" href="#TimCallback" title="TimCallback = proc () {.nimcall, gcsafe.}">TimCallback</a></li>
 <li><a class="reference" href="#TimEngine" title="TimEngine = ref object
   errors*: seq[string]
+  ## A table containing available placeholders
   when defined timStandalone:
     
   else:">TimEngine</a></li>
@@ -85,8 +86,16 @@
   <li><a class="reference" href="#addDep%2CTimTemplate%2Cstring" title="addDep(t: TimTemplate; path: string)">addDep(t: TimTemplate; path: string)</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">addPlaceholder
+  <li><a class="reference" href="#addPlaceholder%2CTimEngine%2Cstring%2CAst" title="addPlaceholder(engine: TimEngine; k: string; snippetTree: Ast)">addPlaceholder(engine: TimEngine; k: string; snippetTree: Ast)</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">clearTemplateByPath
   <li><a class="reference" href="#clearTemplateByPath%2CTimEngine%2Cstring" title="clearTemplateByPath(engine: TimEngine; path: string)">clearTemplateByPath(engine: TimEngine; path: string)</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">deleteSnippet
+  <li><a class="reference" href="#deleteSnippet%2CTimEngine%2Cstring%2Cint" title="deleteSnippet(engine: TimEngine; k: string; i: int)">deleteSnippet(engine: TimEngine; k: string; i: int)</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">flush
@@ -158,6 +167,10 @@
   <li><a class="reference" href="#getTemplateId%2CTimTemplate" title="getTemplateId(t: TimTemplate): string">getTemplateId(t: TimTemplate): string</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">getTemplatePath
+  <li><a class="reference" href="#getTemplatePath%2CTimEngine%2Cstring" title="getTemplatePath(engine: TimEngine; path: string): string">getTemplatePath(engine: TimEngine; path: string): string</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">getTemplateType
   <li><a class="reference" href="#getTemplateType%2CTimEngine%2Cstring" title="getTemplateType(engine: TimEngine; path: string): TimTemplateType">getTemplateType(engine: TimEngine; path: string): TimTemplateType</a></li>
 
@@ -182,6 +195,10 @@
   <li><a class="reference" href="#hasLayout%2CTimEngine%2Cstring" title="hasLayout(engine: TimEngine; key: string): bool">hasLayout(engine: TimEngine; key: string): bool</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">hasPlaceholder
+  <li><a class="reference" href="#hasPlaceholder%2CTimEngine%2Cstring" title="hasPlaceholder(engine: TimEngine; k: string): bool">hasPlaceholder(engine: TimEngine; k: string): bool</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">hasView
   <li><a class="reference" href="#hasView%2CTimEngine%2Cstring" title="hasView(engine: TimEngine; key: string): bool">hasView(engine: TimEngine; key: string): bool</a></li>
 
@@ -203,7 +220,9 @@
 
 </ul>
 <ul class="simple nested-toc-section">newTim
-  <li><a class="reference" href="#newTim%2Cstring%2Cstring%2Cstring%2Cint" title="newTim(src, output, basepath: string; minify = true; indent = 2): TimEngine">newTim(src, output, basepath: string; minify = true; indent = 2): TimEngine</a></li>
+  <li><a class="reference" href="#newTim%2Cstring%2Cstring%2Cstring%2Cint" title="newTim(src, output, basepath: string; minify = true; indent = 2;
+       showHtmlError = false): TimEngine">newTim(src, output, basepath: string; minify = true; indent = 2;
+       showHtmlError = false): TimEngine</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">readAst
@@ -216,6 +235,10 @@
 </ul>
 <ul class="simple nested-toc-section">setViewIndent
   <li><a class="reference" href="#setViewIndent%2CTimTemplate%2Cuint" title="setViewIndent(t: TimTemplate; i: uint)">setViewIndent(t: TimTemplate; i: uint)</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">showHtmlErrors
+  <li><a class="reference" href="#showHtmlErrors%2CTimEngine" title="showHtmlErrors(engine: TimEngine): bool">showHtmlErrors(engine: TimEngine): bool</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">writeAst
@@ -244,6 +267,14 @@
 </ul>
 <ul class="simple nested-toc-section">getViews
   <li><a class="reference" href="#getViews.i%2CTimEngine" title="getViews(engine: TimEngine): TimTemplate">getViews(engine: TimEngine): TimTemplate</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">listPlaceholders
+  <li><a class="reference" href="#listPlaceholders.i%2CTimEngine" title="listPlaceholders(engine: TimEngine): (string, seq[Ast])">listPlaceholders(engine: TimEngine): (string, seq[Ast])</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">snippets
+  <li><a class="reference" href="#snippets.i%2CTimEngine%2Cstring" title="snippets(engine: TimEngine; k: string): Ast">snippets(engine: TimEngine; k: string): Ast</a></li>
 
 </ul>
 
@@ -279,6 +310,7 @@
 <div id="TimEngine">
   <dt><pre><a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">errors</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
+  <span class="Comment">## A table containing available placeholders</span>
   <span class="Keyword">when</span> <span class="Identifier">defined</span> <span class="Identifier">timStandalone</span><span class="Other">:</span>
     
   <span class="Keyword">else</span><span class="Other">:</span>
@@ -342,6 +374,18 @@
 </div>
 
 </div>
+<div id="addPlaceholder-procs-all">
+  <div id="addPlaceholder,TimEngine,string,Ast">
+  <dt><pre><span class="Keyword">proc</span> <a href="#addPlaceholder%2CTimEngine%2Cstring%2CAst"><span class="Identifier">addPlaceholder</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">k</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">snippetTree</span><span class="Other">:</span> <a href="ast.html#Ast"><span class="Identifier">Ast</span></a><span class="Other">)</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">KeyError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
 <div id="clearTemplateByPath-procs-all">
   <div id="clearTemplateByPath,TimEngine,string">
   <dt><pre><span class="Keyword">proc</span> <a href="#clearTemplateByPath%2CTimEngine%2Cstring"><span class="Identifier">clearTemplateByPath</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">path</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span> {.
@@ -349,6 +393,18 @@
   <dd>
     
     Clear a template from <tt class="docutils literal"><span class="pre"><span class="Identifier">TemplateTable</span></span></tt> by <tt class="docutils literal"><span class="pre"><span class="Identifier">path</span></span></tt>
+    
+  </dd>
+</div>
+
+</div>
+<div id="deleteSnippet-procs-all">
+  <div id="deleteSnippet,TimEngine,string,int">
+  <dt><pre><span class="Keyword">proc</span> <a href="#deleteSnippet%2CTimEngine%2Cstring%2Cint"><span class="Identifier">deleteSnippet</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">k</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">i</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">KeyError</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
     
   </dd>
 </div>
@@ -560,6 +616,18 @@
 </div>
 
 </div>
+<div id="getTemplatePath-procs-all">
+  <div id="getTemplatePath,TimEngine,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#getTemplatePath%2CTimEngine%2Cstring"><span class="Identifier">getTemplatePath</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">path</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
 <div id="getTemplateType-procs-all">
   <div id="getTemplateType,TimEngine,string">
   <dt><pre><span class="Keyword">proc</span> <a href="#getTemplateType%2CTimEngine%2Cstring"><span class="Identifier">getTemplateType</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">path</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="meta.html#TimTemplateType"><span class="Identifier">TimTemplateType</span></a> {.
@@ -631,6 +699,18 @@
 </div>
 
 </div>
+<div id="hasPlaceholder-procs-all">
+  <div id="hasPlaceholder,TimEngine,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#hasPlaceholder%2CTimEngine%2Cstring"><span class="Identifier">hasPlaceholder</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">k</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
 <div id="hasView-procs-all">
   <div id="hasView,TimEngine,string">
   <dt><pre><span class="Keyword">proc</span> <a href="#hasView%2CTimEngine%2Cstring"><span class="Identifier">hasView</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">key</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ValueError</span><span class="Other">]</span><span class="Other">,</span>
@@ -689,7 +769,8 @@
 </div>
 <div id="newTim-procs-all">
   <div id="newTim,string,string,string,int">
-  <dt><pre><span class="Keyword">proc</span> <a href="#newTim%2Cstring%2Cstring%2Cstring%2Cint"><span class="Identifier">newTim</span></a><span class="Other">(</span><span class="Identifier">src</span><span class="Other">,</span> <span class="Identifier">output</span><span class="Other">,</span> <span class="Identifier">basepath</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">minify</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span> <span class="Identifier">indent</span> <span class="Other">=</span> <span class="DecNumber">2</span><span class="Other">)</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a> {.
+  <dt><pre><span class="Keyword">proc</span> <a href="#newTim%2Cstring%2Cstring%2Cstring%2Cint"><span class="Identifier">newTim</span></a><span class="Other">(</span><span class="Identifier">src</span><span class="Other">,</span> <span class="Identifier">output</span><span class="Other">,</span> <span class="Identifier">basepath</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">minify</span> <span class="Other">=</span> <span class="Identifier">true</span><span class="Other">;</span> <span class="Identifier">indent</span> <span class="Other">=</span> <span class="DecNumber">2</span><span class="Other">;</span>
+            <span class="Identifier">showHtmlError</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TimError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">,</span> <span class="Identifier">IOError</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadDirEffect</span><span class="Other">,</span> <span class="Identifier">WriteDirEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
@@ -727,6 +808,17 @@
 <div id="setViewIndent-procs-all">
   <div id="setViewIndent,TimTemplate,uint">
   <dt><pre><span class="Keyword">proc</span> <a href="#setViewIndent%2CTimTemplate%2Cuint"><span class="Identifier">setViewIndent</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <a href="meta.html#TimTemplate"><span class="Identifier">TimTemplate</span></a><span class="Other">;</span> <span class="Identifier">i</span><span class="Other">:</span> <span class="Identifier">uint</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="showHtmlErrors-procs-all">
+  <div id="showHtmlErrors,TimEngine">
+  <dt><pre><span class="Keyword">proc</span> <a href="#showHtmlErrors%2CTimEngine"><span class="Identifier">showHtmlErrors</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -801,6 +893,30 @@
 </div>
 
 </div>
+<div id="listPlaceholders-iterators-all">
+  <div id="listPlaceholders.i,TimEngine">
+  <dt><pre><span class="Keyword">iterator</span> <a href="#listPlaceholders.i%2CTimEngine"><span class="Identifier">listPlaceholders</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Other">(</span><span class="Identifier">string</span><span class="Other">,</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Ast"><span class="Identifier">Ast</span></a><span class="Other">]</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="snippets-iterators-all">
+  <div id="snippets.i,TimEngine,string">
+  <dt><pre><span class="Keyword">iterator</span> <a href="#snippets.i%2CTimEngine%2Cstring"><span class="Identifier">snippets</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">k</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Ast"><span class="Identifier">Ast</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">KeyError</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
 
   </dl>
 </div>
@@ -811,7 +927,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 08:45:05 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-16 07:38:27 UTC</small>
       </div>
     </div>
   </div>

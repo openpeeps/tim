@@ -7,6 +7,7 @@ nim	varRedefine	tim/engine/logging.html#varRedefine	Message.varRedefine		16
 nim	varImmutable	tim/engine/logging.html#varImmutable	Message.varImmutable		16
 nim	fnRedefine	tim/engine/logging.html#fnRedefine	Message.fnRedefine		16
 nim	fnUndeclared	tim/engine/logging.html#fnUndeclared	Message.fnUndeclared		16
+nim	fnReturnMissingCommand	tim/engine/logging.html#fnReturnMissingCommand	Message.fnReturnMissingCommand		16
 nim	fnExtraArg	tim/engine/logging.html#fnExtraArg	Message.fnExtraArg		16
 nim	badIndentation	tim/engine/logging.html#badIndentation	Message.badIndentation		16
 nim	invalidContext	tim/engine/logging.html#invalidContext	Message.invalidContext		16
@@ -20,40 +21,41 @@ nim	invalidIterator	tim/engine/logging.html#invalidIterator	Message.invalidItera
 nim	indexDefect	tim/engine/logging.html#indexDefect	Message.indexDefect		16
 nim	importNotFound	tim/engine/logging.html#importNotFound	Message.importNotFound		16
 nim	importCircularError	tim/engine/logging.html#importCircularError	Message.importCircularError		16
+nim	eof	tim/engine/logging.html#eof	Message.eof		16
 nim	internalError	tim/engine/logging.html#internalError	Message.internalError		16
 nim	Message	tim/engine/logging.html#Message	enum Message		16
-nim	lvlInfo	tim/engine/logging.html#lvlInfo	Level.lvlInfo		40
-nim	lvlNotice	tim/engine/logging.html#lvlNotice	Level.lvlNotice		40
-nim	lvlWarn	tim/engine/logging.html#lvlWarn	Level.lvlWarn		40
-nim	lvlError	tim/engine/logging.html#lvlError	Level.lvlError		40
-nim	Level	tim/engine/logging.html#Level	enum Level		40
-nim	Log	tim/engine/logging.html#Log	type Log		46
-nim	Logger	tim/engine/logging.html#Logger	type Logger		53
-nim	getMessage	tim/engine/logging.html#getMessage,Log	proc getMessage(log: Log): Message		92
-nim	newInfo	tim/engine/logging.html#newInfo,Logger,Message,int,int,bool,varargs[string]	proc newInfo(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])		95
-nim	newNotice	tim/engine/logging.html#newNotice,Logger,Message,int,int,bool,varargs[string]	proc newNotice(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n          args: varargs[string])		99
-nim	newWarn	tim/engine/logging.html#newWarn,Logger,Message,int,int,bool,varargs[string]	proc newWarn(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])		103
-nim	newError	tim/engine/logging.html#newError,Logger,Message,int,int,bool,varargs[string]	proc newError(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n         args: varargs[string])		107
-nim	newErrorMultiLines	tim/engine/logging.html#newErrorMultiLines,Logger,Message,int,int,bool,seq[string],string,varargs[string]	proc newErrorMultiLines(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n                   extraLines: seq[string]; extraLabel: string;\n                   args: varargs[string])		110
-nim	newWarningMultiLines	tim/engine/logging.html#newWarningMultiLines,Logger,Message,int,int,bool,seq[string],string,varargs[string]	proc newWarningMultiLines(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n                     extraLines: seq[string]; extraLabel: string;\n                     args: varargs[string])		114
-nim	warn	tim/engine/logging.html#warn.t,Message,TokenTuple,varargs[string]	template warn(msg: Message; tk: TokenTuple; args: varargs[string])		118
-nim	warn	tim/engine/logging.html#warn.t,Message,TokenTuple,bool,varargs[string]	template warn(msg: Message; tk: TokenTuple; strFmt: bool; args: varargs[string])		121
-nim	warn	tim/engine/logging.html#warn,Logger,Message,int,int,varargs[string]	proc warn(logger: Logger; msg: Message; line, col: int; args: varargs[string])		124
-nim	warn	tim/engine/logging.html#warn,Logger,Message,int,int,bool,varargs[string]	proc warn(logger: Logger; msg: Message; line, col: int; strFmt: bool;\n     args: varargs[string])		127
-nim	warnWithArgs	tim/engine/logging.html#warnWithArgs.t,Message,TokenTuple,openArray[string]	template warnWithArgs(msg: Message; tk: TokenTuple; args: openArray[string])		130
-nim	error	tim/engine/logging.html#error.t,Message,TokenTuple	template error(msg: Message; tk: TokenTuple)		134
-nim	error	tim/engine/logging.html#error.t,Message,TokenTuple,openArray[string]	template error(msg: Message; tk: TokenTuple; args: openArray[string])		140
-nim	error	tim/engine/logging.html#error.t,Message,TokenTuple,bool,seq[string],string,varargs[string]	template error(msg: Message; tk: TokenTuple; strFmt: bool; extraLines: seq[string];\n      extraLabel: string; args: varargs[string])		146
-nim	error	tim/engine/logging.html#error.t,Message,Meta,varargs[string]	template error(msg: Message; meta: Meta; args: varargs[string])		153
-nim	errorWithArgs	tim/engine/logging.html#errorWithArgs.t,Message,TokenTuple,openArray[string]	template errorWithArgs(msg: Message; tk: TokenTuple; args: openArray[string])		159
-nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message,openArray[string]	template compileErrorWithArgs(msg: Message; args: openArray[string])		165
-nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message,openArray[string],Meta	template compileErrorWithArgs(msg: Message; args: openArray[string]; meta: Meta)		170
-nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message	template compileErrorWithArgs(msg: Message)		175
-nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message,Meta,openArray[string]	template compileErrorWithArgs(msg: Message; meta: Meta; args: openArray[string])		180
-nim	error	tim/engine/logging.html#error,Logger,Message,int,int,openArray[string]	proc error(logger: Logger; msg: Message; line, col: int; args: openArray[string])		185
-nim	warnings	tim/engine/logging.html#warnings.i,Logger	iterator warnings(logger: Logger): Row		245
-nim	errors	tim/engine/logging.html#errors.i,Logger	iterator errors(logger: Logger): Row		249
-nimgrp	warn	tim/engine/logging.html#warn-procs-all	proc		124
-nimgrp	warn	tim/engine/logging.html#warn-templates-all	template		118
-nimgrp	error	tim/engine/logging.html#error-templates-all	template		134
-nimgrp	compileerrorwithargs	tim/engine/logging.html#compileErrorWithArgs-templates-all	template		165
+nim	lvlInfo	tim/engine/logging.html#lvlInfo	Level.lvlInfo		42
+nim	lvlNotice	tim/engine/logging.html#lvlNotice	Level.lvlNotice		42
+nim	lvlWarn	tim/engine/logging.html#lvlWarn	Level.lvlWarn		42
+nim	lvlError	tim/engine/logging.html#lvlError	Level.lvlError		42
+nim	Level	tim/engine/logging.html#Level	enum Level		42
+nim	Log	tim/engine/logging.html#Log	type Log		48
+nim	Logger	tim/engine/logging.html#Logger	type Logger		55
+nim	getMessage	tim/engine/logging.html#getMessage,Log	proc getMessage(log: Log): Message		94
+nim	newInfo	tim/engine/logging.html#newInfo,Logger,Message,int,int,bool,varargs[string]	proc newInfo(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])		97
+nim	newNotice	tim/engine/logging.html#newNotice,Logger,Message,int,int,bool,varargs[string]	proc newNotice(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n          args: varargs[string])		101
+nim	newWarn	tim/engine/logging.html#newWarn,Logger,Message,int,int,bool,varargs[string]	proc newWarn(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n        args: varargs[string])		105
+nim	newError	tim/engine/logging.html#newError,Logger,Message,int,int,bool,varargs[string]	proc newError(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n         args: varargs[string])		109
+nim	newErrorMultiLines	tim/engine/logging.html#newErrorMultiLines,Logger,Message,int,int,bool,seq[string],string,varargs[string]	proc newErrorMultiLines(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n                   extraLines: seq[string]; extraLabel: string;\n                   args: varargs[string])		112
+nim	newWarningMultiLines	tim/engine/logging.html#newWarningMultiLines,Logger,Message,int,int,bool,seq[string],string,varargs[string]	proc newWarningMultiLines(logger: Logger; msg: Message; line, col: int; useFmt: bool;\n                     extraLines: seq[string]; extraLabel: string;\n                     args: varargs[string])		116
+nim	warn	tim/engine/logging.html#warn.t,Message,TokenTuple,varargs[string]	template warn(msg: Message; tk: TokenTuple; args: varargs[string])		120
+nim	warn	tim/engine/logging.html#warn.t,Message,TokenTuple,bool,varargs[string]	template warn(msg: Message; tk: TokenTuple; strFmt: bool; args: varargs[string])		123
+nim	warn	tim/engine/logging.html#warn,Logger,Message,int,int,varargs[string]	proc warn(logger: Logger; msg: Message; line, col: int; args: varargs[string])		126
+nim	warn	tim/engine/logging.html#warn,Logger,Message,int,int,bool,varargs[string]	proc warn(logger: Logger; msg: Message; line, col: int; strFmt: bool;\n     args: varargs[string])		129
+nim	warnWithArgs	tim/engine/logging.html#warnWithArgs.t,Message,TokenTuple,openArray[string]	template warnWithArgs(msg: Message; tk: TokenTuple; args: openArray[string])		132
+nim	error	tim/engine/logging.html#error.t,Message,TokenTuple	template error(msg: Message; tk: TokenTuple)		136
+nim	error	tim/engine/logging.html#error.t,Message,TokenTuple,openArray[string]	template error(msg: Message; tk: TokenTuple; args: openArray[string])		142
+nim	error	tim/engine/logging.html#error.t,Message,TokenTuple,bool,seq[string],string,varargs[string]	template error(msg: Message; tk: TokenTuple; strFmt: bool; extraLines: seq[string];\n      extraLabel: string; args: varargs[string])		148
+nim	error	tim/engine/logging.html#error.t,Message,Meta,varargs[string]	template error(msg: Message; meta: Meta; args: varargs[string])		155
+nim	errorWithArgs	tim/engine/logging.html#errorWithArgs.t,Message,TokenTuple,openArray[string]	template errorWithArgs(msg: Message; tk: TokenTuple; args: openArray[string])		161
+nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message,openArray[string]	template compileErrorWithArgs(msg: Message; args: openArray[string])		167
+nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message,openArray[string],Meta	template compileErrorWithArgs(msg: Message; args: openArray[string]; meta: Meta)		172
+nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message	template compileErrorWithArgs(msg: Message)		177
+nim	compileErrorWithArgs	tim/engine/logging.html#compileErrorWithArgs.t,Message,Meta,openArray[string]	template compileErrorWithArgs(msg: Message; meta: Meta; args: openArray[string])		182
+nim	error	tim/engine/logging.html#error,Logger,Message,int,int,openArray[string]	proc error(logger: Logger; msg: Message; line, col: int; args: openArray[string])		187
+nim	warnings	tim/engine/logging.html#warnings.i,Logger	iterator warnings(logger: Logger): Row		247
+nim	errors	tim/engine/logging.html#errors.i,Logger	iterator errors(logger: Logger): Row		251
+nimgrp	warn	tim/engine/logging.html#warn-procs-all	proc		126
+nimgrp	warn	tim/engine/logging.html#warn-templates-all	template		120
+nimgrp	error	tim/engine/logging.html#error-templates-all	template		136
+nimgrp	compileerrorwithargs	tim/engine/logging.html#compileErrorWithArgs-templates-all	template		167

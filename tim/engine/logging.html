@@ -61,24 +61,25 @@
   filePath*: string
   infoLogs*, noticeLogs*, warnLogs*, errorLogs*: seq[Log]">Logger</a></li>
 <li><a class="reference" href="#Message" title="Message = enum
-  invalidIndentation = &quot;Invalid indentation&quot;,
-  unexpectedToken = &quot;Unexpected token $&quot;,
-  undeclaredVariable = &quot;Undeclared variable $&quot;,
-  invalidAccessorStorage = &quot;Invalid accessor storage $ for $&quot;,
-  varRedefine = &quot;Attempt to redefine variable $&quot;,
-  varImmutable = &quot;Attempt to reassign value to immutable constant $&quot;,
-  fnRedefine = &quot;Attempt to redefine function $&quot;,
-  fnUndeclared = &quot;Undeclared function $&quot;,
-  fnExtraArg = &quot;Extra arguments given. Got $ expected $&quot;,
-  badIndentation = &quot;Nestable statement requires indentation&quot;,
-  invalidContext = &quot;Invalid $ in this context&quot;, invalidViewLoader = &quot;Invalid use of `@view` in this context. Use a layout instead&quot;,
-  duplicateViewLoader = &quot;Duplicate `@view` loader&quot;,
-  typeMismatch = &quot;Type mismatch. Got $ expected $&quot;,
-  duplicateAttribute = &quot;Duplicate HTML attribute $&quot;,
-  duplicateField = &quot;Duplicate field $&quot;, undeclaredField = &quot;Undeclared field $&quot;,
-  invalidIterator = &quot;Invalid iterator&quot;, indexDefect = &quot;Index $ not in $&quot;,
-  importNotFound = &quot;Cannot open file: $&quot;,
-  importCircularError = &quot;Circular import detected: $&quot;, internalError = &quot;$&quot;">Message</a></li>
+  invalidIndentation = &quot;Invalid indentation [InvalidIndentation]&quot;,
+  unexpectedToken = &quot;Unexpected token $ [UnexpectedToken]&quot;,
+  undeclaredVariable = &quot;Undeclared variable $ [UndeclaredVariable]&quot;, invalidAccessorStorage = &quot;Invalid accessor storage $ for $ [InvalidAccessorStorage]&quot;,
+  varRedefine = &quot;Attempt to redefine variable $ [VarRedefine]&quot;, varImmutable = &quot;Attempt to reassign value to immutable constant $ [VarImmutable]&quot;,
+  fnRedefine = &quot;Attempt to redefine function $ [RedefineFunction]&quot;,
+  fnUndeclared = &quot;Undeclared function $ [UndeclaredFunction]&quot;, fnReturnMissingCommand = &quot;Expression $ is of type $ and has to be used or discarded [UseOrDiscard]&quot;,
+  fnExtraArg = &quot;Extra arguments given. Got $ expected $ [ExtraArgs]&quot;,
+  badIndentation = &quot;Nestable statement requires indentation [BadIndentation]&quot;,
+  invalidContext = &quot;Invalid $ in this context [InvalidContext]&quot;, invalidViewLoader = &quot;Invalid use of `@view` in this context. Use a layout instead [InvalidViewLoader]&quot;,
+  duplicateViewLoader = &quot;Duplicate `@view` loader [DuplicateViewLoaded]&quot;,
+  typeMismatch = &quot;Type mismatch. Got $ expected $ [TypeMismatch]&quot;,
+  duplicateAttribute = &quot;Duplicate HTML attribute $ [DuplicateAttribute]&quot;,
+  duplicateField = &quot;Duplicate field $ [DuplicateField]&quot;,
+  undeclaredField = &quot;Undeclared field $ [UndeclaredField]&quot;,
+  invalidIterator = &quot;Invalid iterator [InvalidIterator]&quot;,
+  indexDefect = &quot;Index $ not in $ [IndexDefect]&quot;,
+  importNotFound = &quot;Cannot open file: $ [ImportNotFound]&quot;,
+  importCircularError = &quot;Circular import detected: $ [CircularImport]&quot;,
+  eof = &quot;EOF reached before closing $ [EOF]&quot;, internalError = &quot;$&quot;">Message</a></li>
 
     </ul>
   </details>
@@ -248,24 +249,25 @@
 </div>
 <div id="Message">
   <dt><pre><a href="logging.html#Message"><span class="Identifier">Message</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">invalidIndentation</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid indentation&quot;</span><span class="Other">,</span>
-  <span class="Identifier">unexpectedToken</span> <span class="Other">=</span> <span class="StringLit">&quot;Unexpected token $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">undeclaredVariable</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared variable $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">invalidAccessorStorage</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid accessor storage $ for $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">varRedefine</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to redefine variable $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">varImmutable</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to reassign value to immutable constant $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">fnRedefine</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to redefine function $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">fnUndeclared</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared function $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">fnExtraArg</span> <span class="Other">=</span> <span class="StringLit">&quot;Extra arguments given. Got $ expected $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">badIndentation</span> <span class="Other">=</span> <span class="StringLit">&quot;Nestable statement requires indentation&quot;</span><span class="Other">,</span>
-  <span class="Identifier">invalidContext</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid $ in this context&quot;</span><span class="Other">,</span> <span class="Identifier">invalidViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid use of `@view` in this context. Use a layout instead&quot;</span><span class="Other">,</span>
-  <span class="Identifier">duplicateViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicate `@view` loader&quot;</span><span class="Other">,</span>
-  <span class="Identifier">typeMismatch</span> <span class="Other">=</span> <span class="StringLit">&quot;Type mismatch. Got $ expected $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">duplicateAttribute</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicate HTML attribute $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">duplicateField</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicate field $&quot;</span><span class="Other">,</span> <span class="Identifier">undeclaredField</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared field $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">invalidIterator</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid iterator&quot;</span><span class="Other">,</span> <span class="Identifier">indexDefect</span> <span class="Other">=</span> <span class="StringLit">&quot;Index $ not in $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">importNotFound</span> <span class="Other">=</span> <span class="StringLit">&quot;Cannot open file: $&quot;</span><span class="Other">,</span>
-  <span class="Identifier">importCircularError</span> <span class="Other">=</span> <span class="StringLit">&quot;Circular import detected: $&quot;</span><span class="Other">,</span> <span class="Identifier">internalError</span> <span class="Other">=</span> <span class="StringLit">&quot;$&quot;</span></pre></dt>
+  <span class="Identifier">invalidIndentation</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid indentation [InvalidIndentation]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">unexpectedToken</span> <span class="Other">=</span> <span class="StringLit">&quot;Unexpected token $ [UnexpectedToken]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">undeclaredVariable</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared variable $ [UndeclaredVariable]&quot;</span><span class="Other">,</span> <span class="Identifier">invalidAccessorStorage</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid accessor storage $ for $ [InvalidAccessorStorage]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">varRedefine</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to redefine variable $ [VarRedefine]&quot;</span><span class="Other">,</span> <span class="Identifier">varImmutable</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to reassign value to immutable constant $ [VarImmutable]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">fnRedefine</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to redefine function $ [RedefineFunction]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">fnUndeclared</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared function $ [UndeclaredFunction]&quot;</span><span class="Other">,</span> <span class="Identifier">fnReturnMissingCommand</span> <span class="Other">=</span> <span class="StringLit">&quot;Expression $ is of type $ and has to be used or discarded [UseOrDiscard]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">fnExtraArg</span> <span class="Other">=</span> <span class="StringLit">&quot;Extra arguments given. Got $ expected $ [ExtraArgs]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">badIndentation</span> <span class="Other">=</span> <span class="StringLit">&quot;Nestable statement requires indentation [BadIndentation]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">invalidContext</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid $ in this context [InvalidContext]&quot;</span><span class="Other">,</span> <span class="Identifier">invalidViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid use of `@view` in this context. Use a layout instead [InvalidViewLoader]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">duplicateViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicate `@view` loader [DuplicateViewLoaded]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">typeMismatch</span> <span class="Other">=</span> <span class="StringLit">&quot;Type mismatch. Got $ expected $ [TypeMismatch]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">duplicateAttribute</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicate HTML attribute $ [DuplicateAttribute]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">duplicateField</span> <span class="Other">=</span> <span class="StringLit">&quot;Duplicate field $ [DuplicateField]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">undeclaredField</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared field $ [UndeclaredField]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">invalidIterator</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid iterator [InvalidIterator]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">indexDefect</span> <span class="Other">=</span> <span class="StringLit">&quot;Index $ not in $ [IndexDefect]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">importNotFound</span> <span class="Other">=</span> <span class="StringLit">&quot;Cannot open file: $ [ImportNotFound]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">importCircularError</span> <span class="Other">=</span> <span class="StringLit">&quot;Circular import detected: $ [CircularImport]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">eof</span> <span class="Other">=</span> <span class="StringLit">&quot;EOF reached before closing $ [EOF]&quot;</span><span class="Other">,</span> <span class="Identifier">internalError</span> <span class="Other">=</span> <span class="StringLit">&quot;$&quot;</span></pre></dt>
   <dd>
     
     
@@ -555,7 +557,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 08:45:05 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-16 07:38:27 UTC</small>
       </div>
     </div>
   </div>

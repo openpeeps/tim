@@ -7,45 +7,52 @@ nim	TimTemplateType	tim/engine/meta.html#TimTemplateType	enum TimTemplateType		1
 nim	TimTemplate	tim/engine/meta.html#TimTemplate	type TimTemplate		25
 nim	TimCallback	tim/engine/meta.html#TimCallback	type TimCallback		40
 nim	TimEngine	tim/engine/meta.html#TimEngine	type TimEngine		41
-nim	TimError	tim/engine/meta.html#TimError	object TimError		52
-nim	getPath	tim/engine/meta.html#getPath,TimEngine,string,TimTemplateType	proc getPath(engine: TimEngine; key: string; templateType: TimTemplateType): string		54
-nim	setGlobalData	tim/engine/meta.html#setGlobalData,TimEngine,JsonNode	proc setGlobalData(engine: TimEngine; data: JsonNode)		71
-nim	getGlobalData	tim/engine/meta.html#getGlobalData,TimEngine	proc getGlobalData(engine: TimEngine): JsonNode		74
-nim	getHtmlStoragePath	tim/engine/meta.html#getHtmlStoragePath,TimEngine	proc getHtmlStoragePath(engine: TimEngine): string		87
-nim	getAstStoragePath	tim/engine/meta.html#getAstStoragePath,TimEngine	proc getAstStoragePath(engine: TimEngine): string		92
-nim	getType	tim/engine/meta.html#getType,TimTemplate	proc getType(t: TimTemplate): TimTemplateType		109
-nim	getHash	tim/engine/meta.html#getHash,TimTemplate	proc getHash(t: TimTemplate): string		113
-nim	getName	tim/engine/meta.html#getName,TimTemplate	proc getName(t: TimTemplate): string		117
-nim	getTemplateId	tim/engine/meta.html#getTemplateId,TimTemplate	proc getTemplateId(t: TimTemplate): string		121
-nim	setViewIndent	tim/engine/meta.html#setViewIndent,TimTemplate,uint	proc setViewIndent(t: TimTemplate; i: uint)		125
-nim	getViewIndent	tim/engine/meta.html#getViewIndent,TimTemplate	proc getViewIndent(t: TimTemplate): uint		129
-nim	hasDep	tim/engine/meta.html#hasDep,TimTemplate,string	proc hasDep(t: TimTemplate; path: string): bool		133
-nim	addDep	tim/engine/meta.html#addDep,TimTemplate,string	proc addDep(t: TimTemplate; path: string)		136
-nim	getDeps	tim/engine/meta.html#getDeps,TimTemplate	proc getDeps(t: TimTemplate): seq[string]		140
-nim	writeHtml	tim/engine/meta.html#writeHtml,TimEngine,TimTemplate,string	proc writeHtml(engine: TimEngine; tpl: TimTemplate; htmlCode: string)		143
-nim	writeHtmlTail	tim/engine/meta.html#writeHtmlTail,TimEngine,TimTemplate,string	proc writeHtmlTail(engine: TimEngine; tpl: TimTemplate; htmlCode: string)		147
-nim	writeAst	tim/engine/meta.html#writeAst,TimEngine,TimTemplate,Ast	proc writeAst(engine: TimEngine; tpl: TimTemplate; astCode: Ast)		151
-nim	readAst	tim/engine/meta.html#readAst,TimEngine,TimTemplate	proc readAst(engine: TimEngine; tpl: TimTemplate): Ast		155
-nim	getSourcePath	tim/engine/meta.html#getSourcePath,TimTemplate	proc getSourcePath(t: TimTemplate): string		163
-nim	getAstPath	tim/engine/meta.html#getAstPath,TimTemplate	proc getAstPath(t: TimTemplate): string		167
-nim	getHtmlPath	tim/engine/meta.html#getHtmlPath,TimTemplate	proc getHtmlPath(t: TimTemplate): string		171
-nim	jitEnable	tim/engine/meta.html#jitEnable,TimTemplate	proc jitEnable(t: TimTemplate)		175
-nim	jitEnabled	tim/engine/meta.html#jitEnabled,TimTemplate	proc jitEnabled(t: TimTemplate): bool		178
-nim	getHtml	tim/engine/meta.html#getHtml,TimTemplate	proc getHtml(t: TimTemplate): string		180
-nim	getTail	tim/engine/meta.html#getTail,TimTemplate	proc getTail(t: TimTemplate): string		187
-nim	getViews	tim/engine/meta.html#getViews.i,TimEngine	iterator getViews(engine: TimEngine): TimTemplate		191
-nim	getLayouts	tim/engine/meta.html#getLayouts.i,TimEngine	iterator getLayouts(engine: TimEngine): TimTemplate		195
-nim	getTemplateByPath	tim/engine/meta.html#getTemplateByPath,TimEngine,string	proc getTemplateByPath(engine: TimEngine; path: string): TimTemplate		203
-nim	hasLayout	tim/engine/meta.html#hasLayout,TimEngine,string	proc hasLayout(engine: TimEngine; key: string): bool		226
-nim	getLayout	tim/engine/meta.html#getLayout,TimEngine,string	proc getLayout(engine: TimEngine; key: string): TimTemplate		230
-nim	hasView	tim/engine/meta.html#hasView,TimEngine,string	proc hasView(engine: TimEngine; key: string): bool		235
-nim	getView	tim/engine/meta.html#getView,TimEngine,string	proc getView(engine: TimEngine; key: string): TimTemplate		239
-nim	isUsed	tim/engine/meta.html#isUsed,TimTemplate	proc isUsed(t: TimTemplate): bool		244
-nim	newTim	tim/engine/meta.html#newTim,string,string,string,int	proc newTim(src, output, basepath: string; minify = true; indent = 2): TimEngine		246
-nim	isMinified	tim/engine/meta.html#isMinified,TimEngine	proc isMinified(engine: TimEngine): bool		289
-nim	getIndentSize	tim/engine/meta.html#getIndentSize,TimEngine	proc getIndentSize(engine: TimEngine): int		292
-nim	flush	tim/engine/meta.html#flush,TimEngine	proc flush(engine: TimEngine)		295
-nim	getSourcePath	tim/engine/meta.html#getSourcePath,TimEngine	proc getSourcePath(engine: TimEngine): string		305
-nim	getTemplateType	tim/engine/meta.html#getTemplateType,TimEngine,string	proc getTemplateType(engine: TimEngine; path: string): TimTemplateType		308
-nim	clearTemplateByPath	tim/engine/meta.html#clearTemplateByPath,TimEngine,string	proc clearTemplateByPath(engine: TimEngine; path: string)		315
-nimgrp	getsourcepath	tim/engine/meta.html#getSourcePath-procs-all	proc		163
+nim	TimError	tim/engine/meta.html#TimError	object TimError		54
+nim	addPlaceholder	tim/engine/meta.html#addPlaceholder,TimEngine,string,Ast	proc addPlaceholder(engine: TimEngine; k: string; snippetTree: Ast)		59
+nim	hasPlaceholder	tim/engine/meta.html#hasPlaceholder,TimEngine,string	proc hasPlaceholder(engine: TimEngine; k: string): bool		66
+nim	listPlaceholders	tim/engine/meta.html#listPlaceholders.i,TimEngine	iterator listPlaceholders(engine: TimEngine): (string, seq[Ast])		69
+nim	snippets	tim/engine/meta.html#snippets.i,TimEngine,string	iterator snippets(engine: TimEngine; k: string): Ast		73
+nim	deleteSnippet	tim/engine/meta.html#deleteSnippet,TimEngine,string,int	proc deleteSnippet(engine: TimEngine; k: string; i: int)		77
+nim	getPath	tim/engine/meta.html#getPath,TimEngine,string,TimTemplateType	proc getPath(engine: TimEngine; key: string; templateType: TimTemplateType): string		80
+nim	setGlobalData	tim/engine/meta.html#setGlobalData,TimEngine,JsonNode	proc setGlobalData(engine: TimEngine; data: JsonNode)		97
+nim	getGlobalData	tim/engine/meta.html#getGlobalData,TimEngine	proc getGlobalData(engine: TimEngine): JsonNode		100
+nim	getHtmlStoragePath	tim/engine/meta.html#getHtmlStoragePath,TimEngine	proc getHtmlStoragePath(engine: TimEngine): string		113
+nim	getAstStoragePath	tim/engine/meta.html#getAstStoragePath,TimEngine	proc getAstStoragePath(engine: TimEngine): string		118
+nim	getType	tim/engine/meta.html#getType,TimTemplate	proc getType(t: TimTemplate): TimTemplateType		135
+nim	getHash	tim/engine/meta.html#getHash,TimTemplate	proc getHash(t: TimTemplate): string		139
+nim	getName	tim/engine/meta.html#getName,TimTemplate	proc getName(t: TimTemplate): string		143
+nim	getTemplateId	tim/engine/meta.html#getTemplateId,TimTemplate	proc getTemplateId(t: TimTemplate): string		147
+nim	setViewIndent	tim/engine/meta.html#setViewIndent,TimTemplate,uint	proc setViewIndent(t: TimTemplate; i: uint)		151
+nim	getViewIndent	tim/engine/meta.html#getViewIndent,TimTemplate	proc getViewIndent(t: TimTemplate): uint		155
+nim	hasDep	tim/engine/meta.html#hasDep,TimTemplate,string	proc hasDep(t: TimTemplate; path: string): bool		159
+nim	addDep	tim/engine/meta.html#addDep,TimTemplate,string	proc addDep(t: TimTemplate; path: string)		162
+nim	getDeps	tim/engine/meta.html#getDeps,TimTemplate	proc getDeps(t: TimTemplate): seq[string]		166
+nim	writeHtml	tim/engine/meta.html#writeHtml,TimEngine,TimTemplate,string	proc writeHtml(engine: TimEngine; tpl: TimTemplate; htmlCode: string)		169
+nim	writeHtmlTail	tim/engine/meta.html#writeHtmlTail,TimEngine,TimTemplate,string	proc writeHtmlTail(engine: TimEngine; tpl: TimTemplate; htmlCode: string)		173
+nim	writeAst	tim/engine/meta.html#writeAst,TimEngine,TimTemplate,Ast	proc writeAst(engine: TimEngine; tpl: TimTemplate; astCode: Ast)		177
+nim	readAst	tim/engine/meta.html#readAst,TimEngine,TimTemplate	proc readAst(engine: TimEngine; tpl: TimTemplate): Ast		181
+nim	getSourcePath	tim/engine/meta.html#getSourcePath,TimTemplate	proc getSourcePath(t: TimTemplate): string		189
+nim	getAstPath	tim/engine/meta.html#getAstPath,TimTemplate	proc getAstPath(t: TimTemplate): string		193
+nim	getHtmlPath	tim/engine/meta.html#getHtmlPath,TimTemplate	proc getHtmlPath(t: TimTemplate): string		197
+nim	jitEnable	tim/engine/meta.html#jitEnable,TimTemplate	proc jitEnable(t: TimTemplate)		201
+nim	jitEnabled	tim/engine/meta.html#jitEnabled,TimTemplate	proc jitEnabled(t: TimTemplate): bool		204
+nim	getHtml	tim/engine/meta.html#getHtml,TimTemplate	proc getHtml(t: TimTemplate): string		206
+nim	getTail	tim/engine/meta.html#getTail,TimTemplate	proc getTail(t: TimTemplate): string		213
+nim	getViews	tim/engine/meta.html#getViews.i,TimEngine	iterator getViews(engine: TimEngine): TimTemplate		217
+nim	getLayouts	tim/engine/meta.html#getLayouts.i,TimEngine	iterator getLayouts(engine: TimEngine): TimTemplate		221
+nim	getTemplateByPath	tim/engine/meta.html#getTemplateByPath,TimEngine,string	proc getTemplateByPath(engine: TimEngine; path: string): TimTemplate		229
+nim	hasLayout	tim/engine/meta.html#hasLayout,TimEngine,string	proc hasLayout(engine: TimEngine; key: string): bool		252
+nim	getLayout	tim/engine/meta.html#getLayout,TimEngine,string	proc getLayout(engine: TimEngine; key: string): TimTemplate		256
+nim	hasView	tim/engine/meta.html#hasView,TimEngine,string	proc hasView(engine: TimEngine; key: string): bool		261
+nim	getView	tim/engine/meta.html#getView,TimEngine,string	proc getView(engine: TimEngine; key: string): TimTemplate		265
+nim	getTemplatePath	tim/engine/meta.html#getTemplatePath,TimEngine,string	proc getTemplatePath(engine: TimEngine; path: string): string		270
+nim	isUsed	tim/engine/meta.html#isUsed,TimTemplate	proc isUsed(t: TimTemplate): bool		273
+nim	showHtmlErrors	tim/engine/meta.html#showHtmlErrors,TimEngine	proc showHtmlErrors(engine: TimEngine): bool		274
+nim	newTim	tim/engine/meta.html#newTim,string,string,string,int	proc newTim(src, output, basepath: string; minify = true; indent = 2;\n       showHtmlError = false): TimEngine		276
+nim	isMinified	tim/engine/meta.html#isMinified,TimEngine	proc isMinified(engine: TimEngine): bool		320
+nim	getIndentSize	tim/engine/meta.html#getIndentSize,TimEngine	proc getIndentSize(engine: TimEngine): int		323
+nim	flush	tim/engine/meta.html#flush,TimEngine	proc flush(engine: TimEngine)		326
+nim	getSourcePath	tim/engine/meta.html#getSourcePath,TimEngine	proc getSourcePath(engine: TimEngine): string		336
+nim	getTemplateType	tim/engine/meta.html#getTemplateType,TimEngine,string	proc getTemplateType(engine: TimEngine; path: string): TimTemplateType		339
+nim	clearTemplateByPath	tim/engine/meta.html#clearTemplateByPath,TimEngine,string	proc clearTemplateByPath(engine: TimEngine; path: string)		346
+nimgrp	getsourcepath	tim/engine/meta.html#getSourcePath-procs-all	proc		189

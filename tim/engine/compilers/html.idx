@@ -1,13 +1,13 @@
 nimTitle	html	tim/engine/compilers/html.html	module tim/engine/compilers/html		0
 nim	HtmlCompiler	tim/engine/compilers/html.html#HtmlCompiler	object HtmlCompiler		18
-nim	hasError	tim/engine/compilers/html.html#hasError,HtmlCompiler	proc hasError(c: HtmlCompiler): bool		40
-nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,seq[Node]	proc dumpHook(s: var string; v: seq[Node])		151
-nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,OrderedTableRef[string,Node]	proc dumpHook(s: var string; v: OrderedTableRef[string, Node])		152
-nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,Node	proc dumpHook(s: var string; v: Node)		155
-nim	newCompiler	tim/engine/compilers/html.html#newCompiler,TimEngine,Ast,TimTemplate,int,JsonNode	proc newCompiler(engine: TimEngine; ast: Ast; tpl: TimTemplate; minify = true;\n            indent = 2; data: JsonNode = newJObject()): HtmlCompiler		1255
-nim	newCompiler	tim/engine/compilers/html.html#newCompiler,Ast,int	proc newCompiler(ast: Ast; minify = true; indent = 2): HtmlCompiler		1291
-nim	getHtml	tim/engine/compilers/html.html#getHtml,HtmlCompiler	proc getHtml(c: HtmlCompiler): string		1306
-nim	getHead	tim/engine/compilers/html.html#getHead,HtmlCompiler	proc getHead(c: HtmlCompiler): string		1318
-nim	getTail	tim/engine/compilers/html.html#getTail,HtmlCompiler	proc getTail(c: HtmlCompiler): string		1323
-nimgrp	dumphook	tim/engine/compilers/html.html#dumpHook-procs-all	proc		151
-nimgrp	newcompiler	tim/engine/compilers/html.html#newCompiler-procs-all	proc		1255
+nim	newCompiler	tim/engine/compilers/html.html#newCompiler,Ast,int	proc newCompiler(ast: Ast; minify = true; indent = 2): HtmlCompiler		30
+nim	getHtml	tim/engine/compilers/html.html#getHtml,HtmlCompiler	proc getHtml(c: HtmlCompiler): string		31
+nim	hasError	tim/engine/compilers/html.html#hasError,HtmlCompiler	proc hasError(c: HtmlCompiler): bool		51
+nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,seq[Node]	proc dumpHook(s: var string; v: seq[Node])		163
+nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,OrderedTableRef[string,Node]	proc dumpHook(s: var string; v: OrderedTableRef[string, Node])		164
+nim	dumpHook	tim/engine/compilers/html.html#dumpHook,string,Node	proc dumpHook(s: var string; v: Node)		167
+nim	newCompiler	tim/engine/compilers/html.html#newCompiler,TimEngine,Ast,TimTemplate,int,JsonNode	proc newCompiler(engine: TimEngine; ast: Ast; tpl: TimTemplate; minify = true;\n            indent = 2; data: JsonNode = newJObject()): HtmlCompiler		1297
+nim	getHead	tim/engine/compilers/html.html#getHead,HtmlCompiler	proc getHead(c: HtmlCompiler): string		1363
+nim	getTail	tim/engine/compilers/html.html#getTail,HtmlCompiler	proc getTail(c: HtmlCompiler): string		1368
+nimgrp	dumphook	tim/engine/compilers/html.html#dumpHook-procs-all	proc		163
+nimgrp	newcompiler	tim/engine/compilers/html.html#newCompiler-procs-all	proc		30

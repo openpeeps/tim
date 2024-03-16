@@ -54,13 +54,13 @@
   <details open>
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#Ast" title="Ast = object
+      <li><a class="reference" href="#Ast" title="Ast {.acyclic.} = ref object
   src*: string               ## trace the source path
   nodes*: seq[Node]          ## a seq containing tree nodes 
   partials*: TimPartialsTable ## other trees resulted from imports
   jit*: bool">Ast</a></li>
 <li><a class="reference" href="#CommandType" title="CommandType = enum
-  cmdEcho = &quot;echo&quot;, cmdReturn = &quot;return&quot;">CommandType</a></li>
+  cmdEcho = &quot;echo&quot;, cmdReturn = &quot;return&quot;, cmdDiscard = &quot;discard&quot;">CommandType</a></li>
 <li><a class="reference" href="#ConditionBranch" title="ConditionBranch = tuple[expr: Node, body: seq[Node]]">ConditionBranch</a></li>
 <li><a class="reference" href="#FnParam" title="FnParam = tuple[pName: string, pType: NodeType, pImplVal: Node, meta: Meta]">FnParam</a></li>
 <li><a class="reference" href="#HtmlAttributes" title="HtmlAttributes = TableRef[string, seq[Node]]">HtmlAttributes</a></li>
@@ -76,36 +76,43 @@
       tag*: HtmlTag
       stag*: string
       attrs*: HtmlAttributes
+      attrNodes*: seq[Node]
       nodes*: seq[Node]
 
   of ntVariableDef:
-      varName*: string
-      varValue*, varMod*: Node
-      varType*: NodeType
-      varUsed*, varImmutable*: bool
-
+      varName*: string       ## variable identifier
+      varValue*: Node        ## the value of a variable
+      varType*: NodeType     ## type of a variable, any of `string`, `int`, `float`, `array`, `object`
+      varUsed*: bool
+      varImmutable*: bool    ## enabled when a variable is defined as `const`
+    
   of ntAssignExpr:
-      asgnIdent*: string
-      asgnVal*: Node
-
+      asgnIdent*: string     ## identifier name
+      asgnVal*: Node         ## a Node value assigned to `asgnIdent`
+    
   of ntInfixExpr:
-      infixOp*: InfixOp
-      infixLeft*, infixRight*: Node
-
+      infixOp*: InfixOp      ## the infix operator 
+      infixLeft*, infixRight*: Node ## lhs, rhs nodes
+    
   of ntMathInfixExpr:
-      infixMathOp*: MathOp
-      infixMathLeft*, infixMathRight*: Node
-
+      infixMathOp*: MathOp   ## the infix operator for math operations
+      infixMathLeft*, infixMathRight*: Node ## lhs, rhs nodes for math operations
+    
   of ntConditionStmt:
-      condIfBranch*: ConditionBranch
-      condElifBranch*: seq[ConditionBranch]
-      condElseBranch*: seq[Node]
+      condIfBranch*: ConditionBranch ## the `if` branch of a conditional statement
+      condElifBranch*: seq[ConditionBranch] ## a sequence of `elif` branches
+      condElseBranch*: seq[Node] ## the body of an `else` branch
+    
+  of ntCaseStmt:
+      caseExpr*: Node
+      caseBranch*: seq[ConditionBranch]
+      caseElse*: seq[Node]
 
   of ntLoopStmt:
-      loopItem*: Node
-      loopItems*: Node
-      loopBody*: seq[Node]
-
+      loopItem*: Node        ## a node type of `ntIdent` or `ntIdentPair`
+      loopItems*: Node       ## a node type represeting an iterable storage
+      loopBody*: seq[Node]   ## a sequence of Node elements in `for` body
+    
   of ntIdentPair:
       identPairs*: tuple[a, b: Node]
 
@@ -123,54 +130,74 @@
       bVal*: bool
 
   of ntLitArray:
-      arrayItems*: seq[Node]
-
+      arrayType*: NodeType
+      arrayItems*: seq[Node] ## a sequence of nodes representing an array
+    
   of ntLitObject:
-      objectItems*: OrderedTableRef[string, Node]
-
+      objectItems*: OrderedTableRef[string, Node] ## Ordered table of Nodes for object storage
+    
   of ntCommandStmt:
-      cmdType*: CommandType
-      cmdValue*: Node
-
+      cmdType*: CommandType  ## type of given command, either `echo` or `return`
+      cmdValue*: Node        ## the node value of the command 
+    
   of ntIdent:
       identName*: string
       identSafe*: bool
 
   of ntCall:
-      callIdent*: string
-      callArgs*: seq[Node]
-
+      callIdent*: string     ## identifier name of a callable function
+      callArgs*: seq[Node]   ## a sequence of arguments to to pass
+    
   of ntDotExpr:
-      storageType*: StorageType
-      lhs*, rhs*: Node
-
+      storageType*: StorageType ## holds the storage type of a dot expression
+      lhs*, rhs*: Node       ## lhs, rhs nodes of dot expression node
+    
   of ntBracketExpr:
-      bracketStorageType*: StorageType
-      bracketLHS*, bracketIndex*: Node
-
+      bracketStorageType*: StorageType ## holds the storage type of a bracket expression
+      bracketLHS*, bracketIndex*: Node ## lhs, rhs nodes of a bracket expression
+    
   of ntIndexRange:
       rangeNodes*: array[2, Node]
       rangeLastIndex*: bool
 
-  of ntLitFunction:
-      fnIdent*: string
-      fnParams*: OrderedTable[string, FnParam]
-      fnBody*: seq[Node]
-      fnReturnType*: NodeType
+  of ntFunction:
+      fnIdent*: string       ## function identifier name
+      fnParams*: OrderedTable[string, FnParam] ## an ordered table containing the function parameters
+      fnBody*: seq[Node]     ## the function body
+      fnReturnType*: NodeType ## the return type of a function
+                              ## if a function has no return type, then `ntUnknown`
+                              ## is used as default (void)
+      fnFwdDecl*, fnExport*: bool
 
   of ntJavaScriptSnippet, ntYamlSnippet, ntJsonSnippet:
-      snippetCode*: string
-
+      snippetCode*: string   ## string-based snipept code for either
+                             ## `yaml`, `json` or `js`
+    
   of ntInclude:
-      includes*: seq[string]
-
+      includes*: seq[string] ## a sequence of files to be included
+    
+  of ntImport:
+      modules*: seq[string]  ## a sequence containing imported modules
+    
   of ntPlaceholder:
-      placeholderName*: string
-      placeholderNodes*: seq[Node]
+      placeholderName*: string ## placeholder target name
+    
+  of ntStream:
+      streamContent*: JsonNode
 
   of ntClientBlock:
-      clientTargetElement*: string
-      clientStmt*: seq[Node]
+      clientTargetElement*: string ## an existing HTML selector to used
+                                   ## to insert generated JavaScript snippet
+                                   ## using `insertAdjacentElement()`
+      clientStmt*: seq[Node] ## nodes to interpret/transpile to JavaScript
+                             ## for client-side rendering. Note that only HTML
+                             ## elements will be transformed to JS code, while
+                             ## other statements (such `if`, `for`, `var`) are getting
+                             ## interpreted at compile-time (for static templates) or 
+                             ## on the fly for templates marked as jit.
+    
+  of ntStmtList:
+      stmtList*: seq[Node]
 
   else:
     nil
@@ -178,17 +205,18 @@
 <li><a class="reference" href="#NodeType" title="NodeType = enum
   ntUnknown = &quot;void&quot;, ntLitInt = &quot;int&quot;, ntLitString = &quot;string&quot;,
   ntLitFloat = &quot;float&quot;, ntLitBool = &quot;bool&quot;, ntLitArray = &quot;array&quot;,
-  ntLitObject = &quot;object&quot;, ntLitFunction = &quot;function&quot;,
-  ntVariableDef = &quot;Variable&quot;, ntAssignExpr = &quot;Assignment&quot;,
-  ntHtmlElement = &quot;HtmlElement&quot;, ntInfixExpr = &quot;InfixExpression&quot;,
-  ntMathInfixExpr = &quot;MathExpression&quot;, ntCommandStmt = &quot;CommandStatement&quot;,
-  ntIdent = &quot;Identifier&quot;, ntCall = &quot;FunctionCall&quot;, ntIdentPair,
-  ntDotExpr = &quot;DotExpression&quot;, ntBracketExpr = &quot;BracketExpression&quot;,
-  ntIndexRange = &quot;IndexRange&quot;, ntConditionStmt = &quot;ConditionStatement&quot;,
+  ntLitObject = &quot;object&quot;, ntFunction = &quot;function&quot;, ntVariableDef = &quot;Variable&quot;,
+  ntAssignExpr = &quot;Assignment&quot;, ntHtmlElement = &quot;HtmlElement&quot;,
+  ntInfixExpr = &quot;InfixExpression&quot;, ntMathInfixExpr = &quot;MathExpression&quot;,
+  ntCommandStmt = &quot;CommandStatement&quot;, ntIdent = &quot;Identifier&quot;,
+  ntCall = &quot;FunctionCall&quot;, ntIdentPair, ntDotExpr = &quot;DotExpression&quot;,
+  ntBracketExpr = &quot;BracketExpression&quot;, ntIndexRange = &quot;IndexRange&quot;,
+  ntConditionStmt = &quot;ConditionStatement&quot;, ntCaseStmt = &quot;CaseExpression&quot;,
   ntLoopStmt = &quot;LoopStmt&quot;, ntViewLoader = &quot;ViewLoader&quot;, ntInclude = &quot;Include&quot;,
-  ntPlaceholder = &quot;Placeholder&quot;, ntJavaScriptSnippet = &quot;JavaScriptSnippet&quot;,
-  ntYamlSnippet = &quot;YAMLSnippet&quot;, ntJsonSnippet = &quot;JsonSnippet&quot;,
-  ntClientBlock = &quot;ClientSideStatement&quot;">NodeType</a></li>
+  ntImport = &quot;Import&quot;, ntPlaceholder = &quot;Placeholder&quot;, ntStream = &quot;Stream&quot;,
+  ntJavaScriptSnippet = &quot;JavaScriptSnippet&quot;, ntYamlSnippet = &quot;YAMLSnippet&quot;,
+  ntJsonSnippet = &quot;JsonSnippet&quot;, ntClientBlock = &quot;ClientSideStatement&quot;,
+  ntStmtList = &quot;StatementList&quot;">NodeType</a></li>
 <li><a class="reference" href="#ScopeTable" title="ScopeTable = TableRef[string, Node]">ScopeTable</a></li>
 <li><a class="reference" href="#StorageType" title="StorageType = enum
   scopeStorage,             ## Data created inside a `timl` template.
@@ -259,7 +287,8 @@
 
 </ul>
 <ul class="simple nested-toc-section">newBool
-  <li><a class="reference" href="#newBool%2Cbool%2CTokenTuple" title="newBool(v: bool; tk: TokenTuple): Node">newBool(v: bool; tk: TokenTuple): Node</a></li>
+  <li><a class="reference" href="#newBool%2Cbool" title="newBool(v: bool): Node">newBool(v: bool): Node</a></li>
+<li><a class="reference" href="#newBool%2Cbool%2CTokenTuple" title="newBool(v: bool; tk: TokenTuple): Node">newBool(v: bool; tk: TokenTuple): Node</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">newCall
@@ -275,7 +304,8 @@
 
 </ul>
 <ul class="simple nested-toc-section">newFloat
-  <li><a class="reference" href="#newFloat%2Cfloat%2CTokenTuple" title="newFloat(v: float; tk: TokenTuple): Node">newFloat(v: float; tk: TokenTuple): Node</a></li>
+  <li><a class="reference" href="#newFloat%2Cfloat" title="newFloat(v: float): Node">newFloat(v: float): Node</a></li>
+<li><a class="reference" href="#newFloat%2Cfloat%2CTokenTuple" title="newFloat(v: float; tk: TokenTuple): Node">newFloat(v: float; tk: TokenTuple): Node</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">newFunction
@@ -295,7 +325,8 @@
 
 </ul>
 <ul class="simple nested-toc-section">newInteger
-  <li><a class="reference" href="#newInteger%2Cint%2CTokenTuple" title="newInteger(v: int; tk: TokenTuple): Node">newInteger(v: int; tk: TokenTuple): Node</a></li>
+  <li><a class="reference" href="#newInteger%2Cint" title="newInteger(v: int): Node">newInteger(v: int): Node</a></li>
+<li><a class="reference" href="#newInteger%2Cint%2CTokenTuple" title="newInteger(v: int; tk: TokenTuple): Node">newInteger(v: int; tk: TokenTuple): Node</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">newNode
@@ -303,8 +334,13 @@
 <li><a class="reference" href="#newNode%2CstaticNodeType%2CTokenTuple" title="newNode(nt: static NodeType; tk: TokenTuple): Node">newNode(nt: static NodeType; tk: TokenTuple): Node</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">newStream
+  <li><a class="reference" href="#newStream%2CJsonNode" title="newStream(node: JsonNode): Node">newStream(node: JsonNode): Node</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">newString
   <li><a class="reference" href="#newString%2CTokenTuple" title="newString(tk: TokenTuple): Node">newString(tk: TokenTuple): Node</a></li>
+<li><a class="reference" href="#newString%2Cstring" title="newString(v: string): Node">newString(v: string): Node</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">newVariable
@@ -339,7 +375,7 @@
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="Ast">
-  <dt><pre><a href="ast.html#Ast"><span class="Identifier">Ast</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <dt><pre><a href="ast.html#Ast"><span class="Identifier">Ast</span></a> {.<span class="Identifier">acyclic</span>.} <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">src</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>               <span class="Comment">## trace the source path</span>
   <span class="Identifier">nodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>          <span class="Comment">## a seq containing tree nodes </span>
   <span class="Identifier">partials</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#TimPartialsTable"><span class="Identifier">TimPartialsTable</span></a> <span class="Comment">## other trees resulted from imports</span>
@@ -353,7 +389,7 @@
 </div>
 <div id="CommandType">
   <dt><pre><a href="ast.html#CommandType"><span class="Identifier">CommandType</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
-  <span class="Identifier">cmdEcho</span> <span class="Other">=</span> <span class="StringLit">&quot;echo&quot;</span><span class="Other">,</span> <span class="Identifier">cmdReturn</span> <span class="Other">=</span> <span class="StringLit">&quot;return&quot;</span></pre></dt>
+  <span class="Identifier">cmdEcho</span> <span class="Other">=</span> <span class="StringLit">&quot;echo&quot;</span><span class="Other">,</span> <span class="Identifier">cmdReturn</span> <span class="Other">=</span> <span class="StringLit">&quot;return&quot;</span><span class="Other">,</span> <span class="Identifier">cmdDiscard</span> <span class="Other">=</span> <span class="StringLit">&quot;discard&quot;</span></pre></dt>
   <dd>
     
     
@@ -418,36 +454,43 @@
       <span class="Identifier">tag</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">HtmlTag</span>
       <span class="Identifier">stag</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
       <span class="Identifier">attrs</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#HtmlAttributes"><span class="Identifier">HtmlAttributes</span></a>
+      <span class="Identifier">attrNodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
       <span class="Identifier">nodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
 
   <span class="Keyword">of</span> <span class="Identifier">ntVariableDef</span><span class="Other">:</span>
-      <span class="Identifier">varName</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-      <span class="Identifier">varValue</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">varMod</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-      <span class="Identifier">varType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a>
-      <span class="Identifier">varUsed</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">varImmutable</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
-
+      <span class="Identifier">varName</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>       <span class="Comment">## variable identifier</span>
+      <span class="Identifier">varValue</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>        <span class="Comment">## the value of a variable</span>
+      <span class="Identifier">varType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a>     <span class="Comment">## type of a variable, any of `string`, `int`, `float`, `array`, `object`</span>
+      <span class="Identifier">varUsed</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
+      <span class="Identifier">varImmutable</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>    <span class="Comment">## enabled when a variable is defined as `const`</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntAssignExpr</span><span class="Other">:</span>
-      <span class="Identifier">asgnIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-      <span class="Identifier">asgnVal</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-
+      <span class="Identifier">asgnIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>     <span class="Comment">## identifier name</span>
+      <span class="Identifier">asgnVal</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>         <span class="Comment">## a Node value assigned to `asgnIdent`</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntInfixExpr</span><span class="Other">:</span>
-      <span class="Identifier">infixOp</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#InfixOp"><span class="Identifier">InfixOp</span></a>
-      <span class="Identifier">infixLeft</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">infixRight</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-
+      <span class="Identifier">infixOp</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#InfixOp"><span class="Identifier">InfixOp</span></a>      <span class="Comment">## the infix operator </span>
+      <span class="Identifier">infixLeft</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">infixRight</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> <span class="Comment">## lhs, rhs nodes</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntMathInfixExpr</span><span class="Other">:</span>
-      <span class="Identifier">infixMathOp</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#MathOp"><span class="Identifier">MathOp</span></a>
-      <span class="Identifier">infixMathLeft</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">infixMathRight</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-
+      <span class="Identifier">infixMathOp</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#MathOp"><span class="Identifier">MathOp</span></a>   <span class="Comment">## the infix operator for math operations</span>
+      <span class="Identifier">infixMathLeft</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">infixMathRight</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> <span class="Comment">## lhs, rhs nodes for math operations</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntConditionStmt</span><span class="Other">:</span>
-      <span class="Identifier">condIfBranch</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#ConditionBranch"><span class="Identifier">ConditionBranch</span></a>
-      <span class="Identifier">condElifBranch</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#ConditionBranch"><span class="Identifier">ConditionBranch</span></a><span class="Other">]</span>
-      <span class="Identifier">condElseBranch</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
+      <span class="Identifier">condIfBranch</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#ConditionBranch"><span class="Identifier">ConditionBranch</span></a> <span class="Comment">## the `if` branch of a conditional statement</span>
+      <span class="Identifier">condElifBranch</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#ConditionBranch"><span class="Identifier">ConditionBranch</span></a><span class="Other">]</span> <span class="Comment">## a sequence of `elif` branches</span>
+      <span class="Identifier">condElseBranch</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span> <span class="Comment">## the body of an `else` branch</span>
+    
+  <span class="Keyword">of</span> <span class="Identifier">ntCaseStmt</span><span class="Other">:</span>
+      <span class="Identifier">caseExpr</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
+      <span class="Identifier">caseBranch</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#ConditionBranch"><span class="Identifier">ConditionBranch</span></a><span class="Other">]</span>
+      <span class="Identifier">caseElse</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
 
   <span class="Keyword">of</span> <span class="Identifier">ntLoopStmt</span><span class="Other">:</span>
-      <span class="Identifier">loopItem</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-      <span class="Identifier">loopItems</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-      <span class="Identifier">loopBody</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
-
+      <span class="Identifier">loopItem</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>        <span class="Comment">## a node type of `ntIdent` or `ntIdentPair`</span>
+      <span class="Identifier">loopItems</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>       <span class="Comment">## a node type represeting an iterable storage</span>
+      <span class="Identifier">loopBody</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>   <span class="Comment">## a sequence of Node elements in `for` body</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntIdentPair</span><span class="Other">:</span>
       <span class="Identifier">identPairs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Keyword">tuple</span><span class="Other">[</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
 
@@ -465,54 +508,74 @@
       <span class="Identifier">bVal</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
 
   <span class="Keyword">of</span> <span class="Identifier">ntLitArray</span><span class="Other">:</span>
-      <span class="Identifier">arrayItems</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
-
+      <span class="Identifier">arrayType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a>
+      <span class="Identifier">arrayItems</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span> <span class="Comment">## a sequence of nodes representing an array</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntLitObject</span><span class="Other">:</span>
-      <span class="Identifier">objectItems</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">OrderedTableRef</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
-
+      <span class="Identifier">objectItems</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">OrderedTableRef</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span> <span class="Comment">## Ordered table of Nodes for object storage</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntCommandStmt</span><span class="Other">:</span>
-      <span class="Identifier">cmdType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#CommandType"><span class="Identifier">CommandType</span></a>
-      <span class="Identifier">cmdValue</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-
+      <span class="Identifier">cmdType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#CommandType"><span class="Identifier">CommandType</span></a>  <span class="Comment">## type of given command, either `echo` or `return`</span>
+      <span class="Identifier">cmdValue</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>        <span class="Comment">## the node value of the command </span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntIdent</span><span class="Other">:</span>
       <span class="Identifier">identName</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
       <span class="Identifier">identSafe</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
 
   <span class="Keyword">of</span> <span class="Identifier">ntCall</span><span class="Other">:</span>
-      <span class="Identifier">callIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-      <span class="Identifier">callArgs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
-
+      <span class="Identifier">callIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>     <span class="Comment">## identifier name of a callable function</span>
+      <span class="Identifier">callArgs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>   <span class="Comment">## a sequence of arguments to to pass</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntDotExpr</span><span class="Other">:</span>
-      <span class="Identifier">storageType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#StorageType"><span class="Identifier">StorageType</span></a>
-      <span class="Identifier">lhs</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">rhs</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-
+      <span class="Identifier">storageType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#StorageType"><span class="Identifier">StorageType</span></a> <span class="Comment">## holds the storage type of a dot expression</span>
+      <span class="Identifier">lhs</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">rhs</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>       <span class="Comment">## lhs, rhs nodes of dot expression node</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntBracketExpr</span><span class="Other">:</span>
-      <span class="Identifier">bracketStorageType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#StorageType"><span class="Identifier">StorageType</span></a>
-      <span class="Identifier">bracketLHS</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">bracketIndex</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>
-
+      <span class="Identifier">bracketStorageType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#StorageType"><span class="Identifier">StorageType</span></a> <span class="Comment">## holds the storage type of a bracket expression</span>
+      <span class="Identifier">bracketLHS</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">bracketIndex</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> <span class="Comment">## lhs, rhs nodes of a bracket expression</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntIndexRange</span><span class="Other">:</span>
       <span class="Identifier">rangeNodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">array</span><span class="Other">[</span><span class="DecNumber">2</span><span class="Other">,</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
       <span class="Identifier">rangeLastIndex</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
 
-  <span class="Keyword">of</span> <span class="Identifier">ntLitFunction</span><span class="Other">:</span>
-      <span class="Identifier">fnIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-      <span class="Identifier">fnParams</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">OrderedTable</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <a href="ast.html#FnParam"><span class="Identifier">FnParam</span></a><span class="Other">]</span>
-      <span class="Identifier">fnBody</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
-      <span class="Identifier">fnReturnType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a>
+  <span class="Keyword">of</span> <span class="Identifier">ntFunction</span><span class="Other">:</span>
+      <span class="Identifier">fnIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>       <span class="Comment">## function identifier name</span>
+      <span class="Identifier">fnParams</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">OrderedTable</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <a href="ast.html#FnParam"><span class="Identifier">FnParam</span></a><span class="Other">]</span> <span class="Comment">## an ordered table containing the function parameters</span>
+      <span class="Identifier">fnBody</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>     <span class="Comment">## the function body</span>
+      <span class="Identifier">fnReturnType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a> <span class="Comment">## the return type of a function</span>
+                              <span class="Comment">## if a function has no return type, then `ntUnknown`</span>
+                              <span class="Comment">## is used as default (void)</span>
+      <span class="Identifier">fnFwdDecl</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">fnExport</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
 
   <span class="Keyword">of</span> <span class="Identifier">ntJavaScriptSnippet</span><span class="Other">,</span> <span class="Identifier">ntYamlSnippet</span><span class="Other">,</span> <span class="Identifier">ntJsonSnippet</span><span class="Other">:</span>
-      <span class="Identifier">snippetCode</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-
+      <span class="Identifier">snippetCode</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>   <span class="Comment">## string-based snipept code for either</span>
+                             <span class="Comment">## `yaml`, `json` or `js`</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntInclude</span><span class="Other">:</span>
-      <span class="Identifier">includes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>
-
+      <span class="Identifier">includes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span> <span class="Comment">## a sequence of files to be included</span>
+    
+  <span class="Keyword">of</span> <span class="Identifier">ntImport</span><span class="Other">:</span>
+      <span class="Identifier">modules</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">]</span>  <span class="Comment">## a sequence containing imported modules</span>
+    
   <span class="Keyword">of</span> <span class="Identifier">ntPlaceholder</span><span class="Other">:</span>
-      <span class="Identifier">placeholderName</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-      <span class="Identifier">placeholderNodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
+      <span class="Identifier">placeholderName</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Comment">## placeholder target name</span>
+    
+  <span class="Keyword">of</span> <span class="Identifier">ntStream</span><span class="Other">:</span>
+      <span class="Identifier">streamContent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">JsonNode</span>
 
   <span class="Keyword">of</span> <span class="Identifier">ntClientBlock</span><span class="Other">:</span>
-      <span class="Identifier">clientTargetElement</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-      <span class="Identifier">clientStmt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
+      <span class="Identifier">clientTargetElement</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Comment">## an existing HTML selector to used</span>
+                                   <span class="Comment">## to insert generated JavaScript snippet</span>
+                                   <span class="Comment">## using `insertAdjacentElement()`</span>
+      <span class="Identifier">clientStmt</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span> <span class="Comment">## nodes to interpret/transpile to JavaScript</span>
+                             <span class="Comment">## for client-side rendering. Note that only HTML</span>
+                             <span class="Comment">## elements will be transformed to JS code, while</span>
+                             <span class="Comment">## other statements (such `if`, `for`, `var`) are getting</span>
+                             <span class="Comment">## interpreted at compile-time (for static templates) or </span>
+                             <span class="Comment">## on the fly for templates marked as jit.</span>
+    
+  <span class="Keyword">of</span> <span class="Identifier">ntStmtList</span><span class="Other">:</span>
+      <span class="Identifier">stmtList</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
 
   <span class="Keyword">else</span><span class="Other">:</span>
     <span class="Keyword">nil</span>
@@ -528,17 +591,18 @@
   <dt><pre><a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">ntUnknown</span> <span class="Other">=</span> <span class="StringLit">&quot;void&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitInt</span> <span class="Other">=</span> <span class="StringLit">&quot;int&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitString</span> <span class="Other">=</span> <span class="StringLit">&quot;string&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntLitFloat</span> <span class="Other">=</span> <span class="StringLit">&quot;float&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitBool</span> <span class="Other">=</span> <span class="StringLit">&quot;bool&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitArray</span> <span class="Other">=</span> <span class="StringLit">&quot;array&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntLitObject</span> <span class="Other">=</span> <span class="StringLit">&quot;object&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitFunction</span> <span class="Other">=</span> <span class="StringLit">&quot;function&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntVariableDef</span> <span class="Other">=</span> <span class="StringLit">&quot;Variable&quot;</span><span class="Other">,</span> <span class="Identifier">ntAssignExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;Assignment&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntHtmlElement</span> <span class="Other">=</span> <span class="StringLit">&quot;HtmlElement&quot;</span><span class="Other">,</span> <span class="Identifier">ntInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;InfixExpression&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntMathInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;MathExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntCommandStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CommandStatement&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span> <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdentPair</span><span class="Other">,</span>
-  <span class="Identifier">ntDotExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;DotExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntBracketExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;BracketExpression&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntIndexRange</span> <span class="Other">=</span> <span class="StringLit">&quot;IndexRange&quot;</span><span class="Other">,</span> <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntLitObject</span> <span class="Other">=</span> <span class="StringLit">&quot;object&quot;</span><span class="Other">,</span> <span class="Identifier">ntFunction</span> <span class="Other">=</span> <span class="StringLit">&quot;function&quot;</span><span class="Other">,</span> <span class="Identifier">ntVariableDef</span> <span class="Other">=</span> <span class="StringLit">&quot;Variable&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntAssignExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;Assignment&quot;</span><span class="Other">,</span> <span class="Identifier">ntHtmlElement</span> <span class="Other">=</span> <span class="StringLit">&quot;HtmlElement&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;InfixExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntMathInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;MathExpression&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntCommandStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CommandStatement&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdentPair</span><span class="Other">,</span> <span class="Identifier">ntDotExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;DotExpression&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntBracketExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;BracketExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntIndexRange</span> <span class="Other">=</span> <span class="StringLit">&quot;IndexRange&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span> <span class="Identifier">ntCaseStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CaseExpression&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntLoopStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;LoopStmt&quot;</span><span class="Other">,</span> <span class="Identifier">ntViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;ViewLoader&quot;</span><span class="Other">,</span> <span class="Identifier">ntInclude</span> <span class="Other">=</span> <span class="StringLit">&quot;Include&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntPlaceholder</span> <span class="Other">=</span> <span class="StringLit">&quot;Placeholder&quot;</span><span class="Other">,</span> <span class="Identifier">ntJavaScriptSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JavaScriptSnippet&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntYamlSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;YAMLSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntJsonSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JsonSnippet&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntClientBlock</span> <span class="Other">=</span> <span class="StringLit">&quot;ClientSideStatement&quot;</span></pre></dt>
+  <span class="Identifier">ntImport</span> <span class="Other">=</span> <span class="StringLit">&quot;Import&quot;</span><span class="Other">,</span> <span class="Identifier">ntPlaceholder</span> <span class="Other">=</span> <span class="StringLit">&quot;Placeholder&quot;</span><span class="Other">,</span> <span class="Identifier">ntStream</span> <span class="Other">=</span> <span class="StringLit">&quot;Stream&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntJavaScriptSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JavaScriptSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntYamlSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;YAMLSnippet&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntJsonSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JsonSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntClientBlock</span> <span class="Other">=</span> <span class="StringLit">&quot;ClientSideStatement&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntStmtList</span> <span class="Other">=</span> <span class="StringLit">&quot;StatementList&quot;</span></pre></dt>
   <dd>
     
     
@@ -716,7 +780,15 @@
 
 </div>
 <div id="newBool-procs-all">
-  <div id="newBool,bool,TokenTuple">
+  <div id="newBool,bool">
+  <dt><pre><span class="Keyword">proc</span> <a href="#newBool%2Cbool"><span class="Identifier">newBool</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Create a new bool value Node
+    
+  </dd>
+</div>
+<div id="newBool,bool,TokenTuple">
   <dt><pre><span class="Keyword">proc</span> <a href="#newBool%2Cbool%2CTokenTuple"><span class="Identifier">newBool</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">;</span> <span class="Identifier">tk</span><span class="Other">:</span> <a href="tokens.html#TokenTuple"><span class="Identifier">TokenTuple</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
@@ -762,7 +834,15 @@
 
 </div>
 <div id="newFloat-procs-all">
-  <div id="newFloat,float,TokenTuple">
+  <div id="newFloat,float">
+  <dt><pre><span class="Keyword">proc</span> <a href="#newFloat%2Cfloat"><span class="Identifier">newFloat</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Identifier">float</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Create a new float value node
+    
+  </dd>
+</div>
+<div id="newFloat,float,TokenTuple">
   <dt><pre><span class="Keyword">proc</span> <a href="#newFloat%2Cfloat%2CTokenTuple"><span class="Identifier">newFloat</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Identifier">float</span><span class="Other">;</span> <span class="Identifier">tk</span><span class="Other">:</span> <a href="tokens.html#TokenTuple"><span class="Identifier">TokenTuple</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
@@ -821,7 +901,15 @@
 
 </div>
 <div id="newInteger-procs-all">
-  <div id="newInteger,int,TokenTuple">
+  <div id="newInteger,int">
+  <dt><pre><span class="Keyword">proc</span> <a href="#newInteger%2Cint"><span class="Identifier">newInteger</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+<div id="newInteger,int,TokenTuple">
   <dt><pre><span class="Keyword">proc</span> <a href="#newInteger%2Cint%2CTokenTuple"><span class="Identifier">newInteger</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">tk</span><span class="Other">:</span> <a href="tokens.html#TokenTuple"><span class="Identifier">TokenTuple</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
@@ -851,9 +939,28 @@
 </div>
 
 </div>
+<div id="newStream-procs-all">
+  <div id="newStream,JsonNode">
+  <dt><pre><span class="Keyword">proc</span> <a href="#newStream%2CJsonNode"><span class="Identifier">newStream</span></a><span class="Other">(</span><span class="Identifier">node</span><span class="Other">:</span> <span class="Identifier">JsonNode</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Create a new Stream from <tt class="docutils literal"><span class="pre"><span class="Identifier">node</span></span></tt>
+    
+  </dd>
+</div>
+
+</div>
 <div id="newString-procs-all">
   <div id="newString,TokenTuple">
   <dt><pre><span class="Keyword">proc</span> <a href="#newString%2CTokenTuple"><span class="Identifier">newString</span></a><span class="Other">(</span><span class="Identifier">tk</span><span class="Other">:</span> <a href="tokens.html#TokenTuple"><span class="Identifier">TokenTuple</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Create a new string value node
+    
+  </dd>
+</div>
+<div id="newString,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#newString%2Cstring"><span class="Identifier">newString</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     Create a new string value node
@@ -904,7 +1011,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-12 08:45:05 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-16 07:38:27 UTC</small>
       </div>
     </div>
   </div>
