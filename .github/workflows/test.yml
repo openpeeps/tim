@@ -6,11 +6,13 @@ on:
       - LICENSE
       - README.*
       - examples
+      - editors
   pull_request:
     paths-ignore:
       - LICENSE
       - README.*
       - examples
+      - editors
 
 jobs:
   test:
