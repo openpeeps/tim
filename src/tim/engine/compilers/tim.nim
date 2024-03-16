@@ -5,6 +5,7 @@ type
   TimCompiler* = object of RootObj
     ast*: Ast
     tpl*: TimTemplate
+    engine*: TimEngine
     nl*: string = "\n"
     output*, jsOutput*, jsonOutput*,
       yamlOutput*, cssOutput*: string

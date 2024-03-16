@@ -156,7 +156,7 @@ const toktokSettings =
 registerTokens toktokSettings:
   plus = '+'
   minus = '-'
-  multiply = '*'
+  asterisk = '*'
   divide = '/':
     doc = tokenize(handleDocBlock, '*')
     comment = tokenize(handleInlineComment, '/')
@@ -186,11 +186,14 @@ registerTokens toktokSettings:
   pipe = '|':
     orOr = '|'
   backtick = tokenize(handleBackticks, '`')
+  `case` = "case"
+  `of`   = "of"
   `if`   = "if"
   `elif` = "elif"
   `else` = "else"
   `and`  = "and"
   `for`  = "for"
+  `while` = "while"
   `in`   = "in"
   `or`   = "or"
   `bool` = ["true", "false"]
@@ -221,5 +224,6 @@ registerTokens toktokSettings:
   `const` = "const"
   returnCmd = "return"
   echoCmd = "echo"
+  discardCmd = "discard"
   identVar = tokenize(handleVar, '$')
   identVarSafe

@@ -13,7 +13,7 @@ skipDirs      = @["example", "editors"]
 # Dependencies
 
 requires "nim >= 2.0.0"
-requires "toktok >= 0.1.3"
+requires "toktok#head"
 requires "jsony"
 requires "https://github.com/openpeeps/importer"
 requires "watchout#head"
@@ -21,6 +21,8 @@ requires "kapsis#head"
 requires "denim#head"
 requires "checksums"
 requires "flatty#head"
+requires "nyml"
+# requires "bro"
 requires "httpx", "websocketx"
 
 task node, "Build a NODE addon":

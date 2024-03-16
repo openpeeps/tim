@@ -40,16 +40,42 @@ type
   TimCallback* = proc() {.nimcall, gcsafe.}
   TimEngine* = ref object
     base, src, output: string
-    minify: bool
+    minify, htmlErrors: bool
     indentSize: int
     layouts, views, partials: TemplateTable = TemplateTable()
     errors*: seq[string]
+    placeholders: Table[string, seq[Ast]]
+      ## A table containing available placeholders
     when defined timStandalone:
       globals: Globals
     else:
       globals: JsonNode = newJObject()
 
   TimError* = object of CatchableError
+
+#
+# Placeholders API
+#
+proc addPlaceholder*(engine: TimEngine,
+    k: string, snippetTree: Ast)  =
+  if engine.placeholders.hasKey(k):
+    engine.placeholders[k].add(snippetTree)
+  else:
+    engine.placeholders[k] = @[snippetTree]
+
+proc hasPlaceholder*(engine: TimEngine, k: string): bool =
+  result = engine.placeholders.hasKey(k)
+
+iterator listPlaceholders*(engine: TimEngine): (string, seq[Ast]) =
+  for k, v in engine.placeholders.mpairs:
+    yield (k, v)
+
+iterator snippets*(engine: TimEngine, k: string): Ast =
+  for x in engine.placeholders[k]:
+    yield x
+
+proc deleteSnippet*(engine: TimEngine, k: string, i: int) =
+    engine.placeholders[k].del(i)
 
 proc getPath*(engine: TimEngine, key: string, templateType: TimTemplateType): string =
   ## Get absolute path of `key` view, partial or layout
@@ -241,10 +267,14 @@ proc getView*(engine: TimEngine, key: string): TimTemplate =
   result = engine.views[engine.getPath(key, ttView)]
   result.inUse = true
 
-proc isUsed*(t: TimTemplate): bool = t.inUse
+proc getTemplatePath*(engine: TimEngine, path: string): string =
+  path.replace(engine.base, "")
 
-proc newTim*(src, output, basepath: string,
-    minify = true, indent = 2): TimEngine =
+proc isUsed*(t: TimTemplate): bool = t.inUse
+proc showHtmlErrors*(engine: TimEngine): bool = engine.htmlErrors
+
+proc newTim*(src, output, basepath: string, minify = true,
+    indent = 2, showHtmlError = false): TimEngine =
   ## Initializes `TimEngine` engine
   var basepath =
     if basepath.fileExists:
@@ -262,7 +292,8 @@ proc newTim*(src, output, basepath: string,
       output: normalizedPath(basepath / output),
       base: basepath,
       minify: minify,
-      indentSize: indent
+      indentSize: indent,
+      htmlErrors: showHtmlError
     )
 
   for sourceDir in [ttLayout, ttView, ttPartial]:

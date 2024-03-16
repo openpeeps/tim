@@ -26,7 +26,7 @@ type
     ntLitBool = "bool"
     ntLitArray = "array"
     ntLitObject = "object"
-    ntLitFunction = "function"
+    ntFunction = "function"
 
     ntVariableDef = "Variable"
     ntAssignExpr = "Assignment"
@@ -41,19 +41,23 @@ type
     ntBracketExpr = "BracketExpression"
     ntIndexRange = "IndexRange"
     ntConditionStmt = "ConditionStatement"
+    ntCaseStmt = "CaseExpression"
     ntLoopStmt = "LoopStmt"
     ntViewLoader = "ViewLoader"
     ntInclude = "Include"
+    ntImport = "Import"
     ntPlaceholder = "Placeholder"
-
+    ntStream = "Stream"
     ntJavaScriptSnippet = "JavaScriptSnippet"
     ntYamlSnippet = "YAMLSnippet"
     ntJsonSnippet = "JsonSnippet"
     ntClientBlock = "ClientSideStatement"
+    ntStmtList = "StatementList"
 
   CommandType* = enum
     cmdEcho = "echo"
     cmdReturn = "return"
+    cmdDiscard = "discard"
 
   StorageType* = enum
     scopeStorage
@@ -137,6 +141,10 @@ type
         ## a sequence of `elif` branches
       condElseBranch*: seq[Node]
         ## the body of an `else` branch
+    of ntCaseStmt:
+      caseExpr*: Node
+      caseBranch*: seq[ConditionBranch]
+      caseElse*: seq[Node]
     of ntLoopStmt:
       loopItem*: Node
         ## a node type of `ntIdent` or `ntIdentPair`
@@ -156,6 +164,7 @@ type
     of ntLitBool:
       bVal*: bool
     of ntLitArray:
+      arrayType*: NodeType
       arrayItems*: seq[Node]
         ## a sequence of nodes representing an array
     of ntLitObject:
@@ -189,7 +198,7 @@ type
     of ntIndexRange:
       rangeNodes*: array[2, Node]
       rangeLastIndex*: bool # from end to start using ^ circumflex accent
-    of ntLitFunction:
+    of ntFunction:
       fnIdent*: string
         ## function identifier name
       fnParams*: OrderedTable[string, FnParam]
@@ -200,6 +209,7 @@ type
         ## the return type of a function
         ## if a function has no return type, then `ntUnknown`
         ## is used as default (void)
+      fnFwdDecl*, fnExport*: bool
     of ntJavaScriptSnippet,
       ntYamlSnippet, ntJsonSnippet:
         snippetCode*: string
@@ -210,11 +220,14 @@ type
     of ntInclude:
       includes*: seq[string]
         ## a sequence of files to be included
+    of ntImport:
+      modules*: seq[string]
+        ## a sequence containing imported modules
     of ntPlaceholder:
       placeholderName*: string
-        ## the name of a placehodler
-      placeholderNodes*: seq[Node]
-        ## nodes mapped to a placehodler
+        ## placeholder target name
+    of ntStream:
+      streamContent*: JsonNode
     of ntClientBlock:
       clientTargetElement*: string
         ## an existing HTML selector to used
@@ -227,6 +240,8 @@ type
         ## other statements (such `if`, `for`, `var`) are getting
         ## interpreted at compile-time (for static templates) or 
         ## on the fly for templates marked as jit.
+    of ntStmtList:
+      stmtList*: seq[Node]
     else: discard
     meta*: Meta
 
@@ -243,7 +258,7 @@ type
   Meta* = array[3, int]
   ScopeTable* = TableRef[string, Node]
   TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
-  Ast* = object
+  Ast* {.acyclic.} = ref object
     src*: string
       ## trace the source path
     nodes*: seq[Node]
@@ -253,6 +268,13 @@ type
     jit*: bool
 
 const ntAssignableSet* = {ntLitString, ntLitInt, ntLitFloat, ntLitBool, ntLitObject, ntLitArray}
+
+# proc add*(x: Node, y: Node) =
+#   if likely y != nil:
+#     case x.nt
+#     of ntStmtList:
+#       x.stmtList.add(y)
+#     else: discard
 
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
   result =
@@ -278,7 +300,7 @@ proc getInfixMathOp*(kind: TokenKind, isInfixInfix: bool): MathOp =
     case kind:
     of tkPlus: mPlus
     of tkMinus: mMinus
-    of tkMultiply: mMulti
+    of tkAsterisk: mMulti
     of tkDivide: mDiv
     of tkMod: mMod
     else: invalidCalcOp
@@ -450,8 +472,17 @@ proc newString*(tk: TokenTuple): Node =
   result = newNode(ntLitString, tk)
   result.sVal = tk.value
 
+proc newString*(v: string): Node =
+  ## Create a new string value node
+  result = newNode(ntLitString)
+  result.sVal = v
+
 proc newInteger*(v: int, tk: TokenTuple): Node =
   result = newNode(ntLitInt, tk)
+  result.iVal = v
+
+proc newInteger*(v: int): Node =
+  result = newNode(ntLitInt)
   result.iVal = v
 
 proc newFloat*(v: float, tk: TokenTuple): Node =
@@ -459,9 +490,19 @@ proc newFloat*(v: float, tk: TokenTuple): Node =
   result = newNode(ntLitFloat, tk)
   result.fVal = v
 
+proc newFloat*(v: float): Node =
+  ## Create a new float value node
+  result = newNode(ntLitFloat)
+  result.fVal = v
+
 proc newBool*(v: bool, tk: TokenTuple): Node =
   ## Create a new bool value Node
   result = newNode(ntLitBool, tk)
+  result.bVal = v
+
+proc newBool*(v: bool): Node =
+  ## Create a new bool value Node
+  result = newNode(ntLitBool)
   result.bVal = v
 
 proc newVariable*(varName: string, varValue: Node, meta: Meta): Node =
@@ -485,7 +526,7 @@ proc newAssignment*(tk: TokenTuple, varValue: Node): Node =
 
 proc newFunction*(tk: TokenTuple, ident: string): Node =
   ## Create a new Function definition Node
-  result = newNode(ntLitFunction, tk)
+  result = newNode(ntFunction, tk)
   result.fnIdent = ident
 
 proc newCall*(tk: TokenTuple): Node =
@@ -550,6 +591,11 @@ proc toTimNode*(x: JsonNode): Node =
     for v in x:
       result.arrayItems.add(toTimNode(v))
   else: discard
+
+proc newStream*(node: JsonNode): Node =
+  ## Create a new Stream from `node`
+  Node(nt: ntStream, streamContent: node)
+
 # proc toTimNode(): NimNode =
 #   # https://github.com/nim-lang/Nim/blob/version-2-0/lib/pure/json.nim#L410
 #   case x.kind
