@@ -7,15 +7,16 @@ scope: source.tim
 variables:
   ident: '[A-Za-z_][A-Za-z_0-9]*'
   html_id: '[a-zA-Z_-][a-zA-Z0-9_-]*'
+  end_block: '^(\s*?)@\b(end)\b'
 contexts:
 
   main:
-    - include: javascript
+    - include: cssSnippet
+    - include: jsSnippet
     - include: json
     - include: yaml
-    - include: sass
 
-    - match: '\b(echo)\b|@\b(include|runtime|end|client)\b'
+    - match: '\b(echo)\b|@\b(include|end|client|placeholder)\b'
       scope: keyword.control.import.timl
 
     - match: '@view'
@@ -53,8 +54,16 @@ contexts:
 
     - match: (\.)({{html_id}})\b
       captures:
-        1: markup.bold
+        1: markup.bold entity.name.function
         # 2: entity.name.function
+
+    - match: "'"
+      scope: punctuation.definition.string.begin.timl
+      push: single_quoted_string
+
+    - match: '"""'
+      scope: punctuation.definition.string.begin.timl
+      push: triple_quoted_string
 
     - match: '"'
       scope: punctuation.definition.string.begin.timl
@@ -77,9 +86,6 @@ contexts:
     - match: '='
       scope: markup.bold keyword.operator.assignment.timl
 
-    # - match: '\*'
-    #   scope: entity.name.tag
-
     - match: '\b(html|head|meta|script|body|title)\b'
       scope: entity.name.tag.timl
 
@@ -101,12 +107,21 @@ contexts:
     - match: '\b(ul|ol|dl|dt|dd|li)\b'
       scope: entity.name.tag.list.timl
 
+    # Numbers
     - match: '\b(-)?[0-9.]+\b'
       scope: constant.numeric.tim
 
   varIdent:
     - match: '[A-Za-z_][A-Za-z_0-9]*'
       scope: entity.name
+      pop: true
+
+  single_quoted_string:
+    - meta_scope: string.quoted.single.tim
+    - match: '\\.'
+      scope: constant.character.escape.tim
+    - match: "'"
+      scope: punctuation.definition.string.end.tim
       pop: true
 
   double_quoted_string:
@@ -117,52 +132,51 @@ contexts:
       scope: punctuation.definition.string.end.tim
       pop: true
 
+  triple_quoted_string:
+    - meta_scope: string.quoted.double.tim
+    - match: '"""'
+      scope: punctuation.definition.string.end.tim
+      pop: true
+    - match: '"'
+      pop: false
+
   line_comment:
     - meta_scope: comment.line.tim
     - match: $
       pop: true
 
-  javascript:
+  jsSnippet:
     - match: '@\b(js)\b'
       scope: keyword.control.import.tim
       embed: scope:source.js
       embed_scope: meta.tag.tim
-      escape: '^(\s*?)@\b(end)\b'
+      escape: ({{end_block}})
       escape_captures:
         0: keyword.control.import.tim punctuation.definition.tag.end.tim
 
   json:
-    - match: (```)(json)
-      scope: meta.tag.tim
-      captures:
-        1: punctuation.definition.tag.begin.tim
-        2: markup.bold.tim
+    - match: '@\b(json)\b'
+      scope: keyword.control.import.tim
       embed: scope:source.json
       embed_scope: meta.tag.tim
-      escape: (^(\s*)?(```))
+      escape: ({{end_block}})
       escape_captures:
-        0: meta.tag.tim punctuation.definition.tag.end.tim
+        0: keyword.control.import.tim punctuation.definition.tag.end.tim
 
   yaml:
-    - match: (```)(yaml)(#({{html_id}}))
-      scope: meta.tag.tim
-      captures:
-        1: punctuation.definition.tag.begin.tim
-        3: markup.bold.tim 
+    - match: '@\b(yaml)\b'
+      scope: keyword.control.import.tim
       embed: scope:source.yaml
       embed_scope: meta.tag.tim
-      escape: (^(\s*)?(```))
+      escape: ({{end_block}})
       escape_captures:
-        0: meta.tag.tim punctuation.definition.tag.end.tim
+        0: keyword.control.import.tim punctuation.definition.tag.end.tim
 
-  sass:
-    - match: (```)(sass)
-      scope: meta.tag.tim
-      captures:
-        1: punctuation.definition.tag.begin.tim
-        2: keyword.declaration.tim
-      embed: scope:source.sass
+  cssSnippet:
+    - match: '@\b(css)\b'
+      scope: keyword.control.import.tim
+      embed: scope:source.css
       embed_scope: meta.tag.tim
-      escape: (^(\s*)?(```))
+      escape: ({{end_block}})
       escape_captures:
-        0: meta.tag.tim punctuation.definition.tag.end.tim
+        0: keyword.control.import.tim punctuation.definition.tag.end.tim
