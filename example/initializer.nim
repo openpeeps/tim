@@ -4,12 +4,14 @@ import ../src/tim
 # Setup Tim Engine
 #
 var
-  timl = newTim(
+  timl =
+    newTim(
       src = "templates",
       output = "storage",
       basepath = currentSourcePath(),
       minify = true,
-      indent = 2
+      indent = 2,
+      showHtmlError = true
     )
 
 # some read-only data to expose inside templates
@@ -48,6 +50,16 @@ let globalData = %*{
 var timThread: Thread[void]
 proc precompileEngine() {.thread.} =
   {.gcsafe.}:
+    # let's add some placeholders
+    const snippetCode2 = """
+div.alert.aler.dark.rounded-0.border-0.mb-0 > p.mb-0: "Alright, I'm the second snippet loaded by #topbar placeholder."
+    """
+    let snippetParser = parseSnippet("mysnippet", readFile("./mysnippet.timl"))
+    timl.addPlaceholder("topbar", snippetParser.getAst)
+    
+    let snippetParser2 = parseSnippet("mysnippet2", snippetCode2)
+    timl.addPlaceholder("topbar", snippetParser2.getAst)
+
     timl.precompile(
       waitThread = true,
       global = globalData,
