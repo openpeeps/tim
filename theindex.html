@@ -48,7 +48,7 @@
           </ul></dd>
 <dt><a name="Ast" href="#Ast"><span>Ast:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="ast: type Ast" href="tim/engine/ast.html#Ast">ast: type Ast</a></li>
+          data-doc-search-tag="ast: object Ast" href="tim/engine/ast.html#Ast">ast: object Ast</a></li>
           </ul></dd>
 <dt><a name="badIndentation" href="#badIndentation"><span>badIndentation:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -57,6 +57,10 @@
 <dt><a name="clearTemplateByPath" href="#clearTemplateByPath"><span>clearTemplateByPath:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="meta: proc clearTemplateByPath(engine: TimEngine; path: string)" href="tim/engine/meta.html#clearTemplateByPath%2CTimEngine%2Cstring">meta: proc clearTemplateByPath(engine: TimEngine; path: string)</a></li>
+          </ul></dd>
+<dt><a name="cmdBreak" href="#cmdBreak"><span>cmdBreak:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: CommandType.cmdBreak" href="tim/engine/ast.html#cmdBreak">ast: CommandType.cmdBreak</a></li>
           </ul></dd>
 <dt><a name="cmdDiscard" href="#cmdDiscard"><span>cmdDiscard:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -570,8 +574,6 @@
           </ul></dd>
 <dt><a name="newParser" href="#newParser"><span>newParser:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="parser: proc newParser(id: string; code: string): Parser" href="tim/engine/parser.html#newParser%2Cstring%2Cstring">parser: proc newParser(id: string; code: string): Parser</a></li>
-          <li><a class="reference external"
           data-doc-search-tag="parser: proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser" href="tim/engine/parser.html#newParser%2CTimEngine%2CTimTemplate">parser: proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser</a></li>
@@ -764,6 +766,12 @@
 <li><a class="reference external"
           data-doc-search-tag="parser: object Parser" href="tim/engine/parser.html#Parser">parser: object Parser</a></li>
           </ul></dd>
+<dt><a name="parseSnippet" href="#parseSnippet"><span>parseSnippet:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="parser: proc parseSnippet(snippetPath: string): Parser" href="tim/engine/parser.html#parseSnippet%2Cstring">parser: proc parseSnippet(snippetPath: string): Parser</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="parser: proc parseSnippet(id, code: string): Parser" href="tim/engine/parser.html#parseSnippet%2Cstring%2Cstring">parser: proc parseSnippet(id, code: string): Parser</a></li>
+          </ul></dd>
 <dt><a name="precompile" href="#precompile"><span>precompile:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tim: proc precompile(engine: TimEngine; callback: TimCallback = nil; flush = true;
@@ -847,6 +855,10 @@
 <dt><a name="TimTemplateType" href="#TimTemplateType"><span>TimTemplateType:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="meta: enum TimTemplateType" href="tim/engine/meta.html#TimTemplateType">meta: enum TimTemplateType</a></li>
+          </ul></dd>
+<dt><a name="toHtml" href="#toHtml"><span>toHtml:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="tim: proc toHtml(name, code: string): string" href="index.html#toHtml%2Cstring%2Cstring">tim: proc toHtml(name, code: string): string</a></li>
           </ul></dd>
 <dt><a name="TokenKind" href="#TokenKind"><span>TokenKind:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -944,7 +956,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-16 07:40:20 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 12:57:15 UTC</small>
       </div>
     </div>
   </div>

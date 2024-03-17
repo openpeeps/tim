@@ -85,7 +85,11 @@
   <li><a class="reference" href="#newParser%2CTimEngine%2CTimTemplate" title="newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser">newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;
           refreshAst = false): Parser</a></li>
-<li><a class="reference" href="#newParser%2Cstring%2Cstring" title="newParser(id: string; code: string): Parser">newParser(id: string; code: string): Parser</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">parseSnippet
+  <li><a class="reference" href="#parseSnippet%2Cstring%2Cstring" title="parseSnippet(id, code: string): Parser">parseSnippet(id, code: string): Parser</a></li>
+<li><a class="reference" href="#parseSnippet%2Cstring" title="parseSnippet(snippetPath: string): Parser">parseSnippet(snippetPath: string): Parser</a></li>
 
 </ul>
 
@@ -170,15 +174,26 @@
     
   </dd>
 </div>
-<div id="newParser,string,string">
-  <dt><pre><span class="Keyword">proc</span> <a href="#newParser%2Cstring%2Cstring"><span class="Identifier">newParser</span></a><span class="Other">(</span><span class="Identifier">id</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="parser.html#Parser"><span class="Identifier">Parser</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+
+</div>
+<div id="parseSnippet-procs-all">
+  <div id="parseSnippet,string,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#parseSnippet%2Cstring%2Cstring"><span class="Identifier">parseSnippet</span></a><span class="Other">(</span><span class="Identifier">id</span><span class="Other">,</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="parser.html#Parser"><span class="Identifier">Parser</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
     <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">RegexError</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
-    <pre>A proc used to parse `timl` code on the fly
-`id` is used to identify the current `code</pre>
-
+    Parse static snippet <tt class="docutils literal"><span class="pre"><span class="Identifier">code</span></span></tt> at runtime before calling the <tt class="docutils literal"><span class="pre"><span class="Identifier">precompile</span></span></tt> handle
+    
+  </dd>
+</div>
+<div id="parseSnippet,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#parseSnippet%2Cstring"><span class="Identifier">parseSnippet</span></a><span class="Other">(</span><span class="Identifier">snippetPath</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="parser.html#Parser"><span class="Identifier">Parser</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">RegexError</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Parse a snippet code from a <tt class="docutils literal"><span class="pre"><span class="Identifier">snippetPath</span></span></tt> file.
     
   </dd>
 </div>
@@ -194,7 +209,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-16 07:40:20 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 12:57:15 UTC</small>
       </div>
     </div>
   </div>

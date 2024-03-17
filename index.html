@@ -79,6 +79,10 @@
        global, local = newJObject()): string</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">toHtml
+  <li><a class="reference" href="#toHtml%2Cstring%2Cstring" title="toHtml(name, code: string): string">toHtml(name, code: string): string</a></li>
+
+</ul>
 
     </ul>
   </details>
@@ -161,12 +165,25 @@
 <div id="render-procs-all">
   <div id="render,TimEngine,string">
   <dt><pre><span class="Keyword">proc</span> <a href="#render%2CTimEngine%2Cstring"><span class="Identifier">render</span></a><span class="Other">(</span><span class="Identifier">engine</span><span class="Other">:</span> <a href="tim/engine/meta.html#TimEngine"><span class="Identifier">TimEngine</span></a><span class="Other">;</span> <span class="Identifier">viewName</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">layoutName</span> <span class="Other">=</span> <span class="Identifier">defaultLayout</span><span class="Other">;</span>
-            <span class="Identifier">global</span><span class="Other">,</span> <span class="Identifier">local</span> <span class="Other">=</span> <span class="Identifier">newJObject</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ValueError</span><span class="Other">,</span> <span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">JsonError</span><span class="Other">,</span> <span class="Identifier">TimError</span><span class="Other">]</span><span class="Other">,</span>
+            <span class="Identifier">global</span><span class="Other">,</span> <span class="Identifier">local</span> <span class="Other">=</span> <span class="Identifier">newJObject</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ValueError</span><span class="Other">,</span>
+    <span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">JsonError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">,</span> <span class="Identifier">RegexError</span><span class="Other">,</span> <span class="Identifier">TimError</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     Renders a view based on <tt class="docutils literal"><span class="pre"><span class="Identifier">viewName</span></span></tt> and <tt class="docutils literal"><span class="pre"><span class="Identifier">layoutName</span></span></tt>. Exposing data to a template is possible using <tt class="docutils literal"><span class="pre"><span class="Identifier">global</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">local</span></span></tt> objects.
+    
+  </dd>
+</div>
+
+</div>
+<div id="toHtml-procs-all">
+  <div id="toHtml,string,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#toHtml%2Cstring%2Cstring"><span class="Identifier">toHtml</span></a><span class="Other">(</span><span class="Identifier">name</span><span class="Other">,</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">IOError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">,</span>
+    <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">RegexError</span><span class="Other">,</span> <span class="Identifier">JsonError</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ReadIOEffect</span><span class="Other">,</span> <span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
     
   </dd>
 </div>
@@ -216,7 +233,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-16 07:40:20 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-17 12:57:15 UTC</small>
       </div>
     </div>
   </div>
