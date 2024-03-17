@@ -9,8 +9,12 @@ div.row > div.col-12.text-center
                 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"
       span.fw-bold.ms-2: "Check it on GitHub"
     if $this.path == "/about":
-      a href="/" .btn.btn-link.text-light.btn-lg.rounded-pill.px-4.py-2:
+      a.btn.text-light.btn-lg.rounded-pill.px-4.py-2 href="/":
         "Go back to Homepage"
+    else:
+      div.mt-2 > a.text-light.text-decoration-none href="/about":
+        span.me-2 "Curious about"
+        em: "\"Forgotten Professions & Historical Oddities\"?"
 div.text-center
   p.mb-0: "&copy; " & $app.year & " &mdash; Made by Humans from OpenPeeps"
   p: "Open Source | LGPL-3.0 license"

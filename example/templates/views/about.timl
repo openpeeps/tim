@@ -1,3 +1,4 @@
+@placeholder#topbar
 var boxes = [
   {
     title: "Chimney Sweep"
@@ -19,15 +20,18 @@ var boxes = [
   }
   {
     title: "Ancient Rome"
-    description: "In ancient Rome, gladiators sometimes fought wild animals while wearing costumes of mythological figures"
+    description: "In ancient Rome, gladiators sometimes
+      fought wild animals while wearing costumes of mythological figures"
   }
   {
     title: "The first traffic light"
-    description: "Was installed in London in 1868 and used gas lanterns to signal stop and go."
+    description: "Was installed in London in 1868 and used gas
+      lanterns to signal stop and go."
   }
   {
     title: "The Great Wall at once?"
-    description: "Nope. It wasn't built all at once, but over centuries by different dynasties."
+    description: "Nope. It wasn't built all at once, but over
+      centuries by different dynasties."
   }
 ]
 
@@ -35,10 +39,10 @@ section.pt-5 > div.container
   div.row > div#content-zone.col-lg-7.mx-auto
     div.text-center > img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png" alt="Tim Engine" width="200px"
     h1.display-4.fw-bold:
-      "Some pure random Forgotten Professions & Historical Oddities"
+      "Random Forgotten Professions & Historical Oddities 🤯"
   div.row.my-3.g-4
     for $box in $boxes:
       div.col-lg-4.d-flex.align-items-stretch > div.card.bg-transparent.text-light.border-0 style="border-radius: 18px" > div.card-body.p-4
-        div.card-title.fw-bold.h4: $box.title
-        p.card-text: $box.description
+        div.card-title.fw-bold.h3: $box.title
+        p.card-text.fw-normal.h5.lh-base: $box.description
   @include "foot"

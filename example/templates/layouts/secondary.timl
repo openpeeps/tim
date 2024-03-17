@@ -1,7 +1,7 @@
 html
   head
     @include "meta/head"
-    style: "
+    style: """
   body {
     background-color: #1b0f5b;
   }
@@ -31,7 +31,7 @@ html
     --bs-btn-disabled-bg: #0d6efd;
     --bs-btn-disabled-border-color: #0d6efd;
   }
-  "
+  """
   body
     @view
     @include "ws"

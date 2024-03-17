@@ -6,4 +6,4 @@ section.pt-5 > div.container > div.row > div#content-zone.col-lg-7.mx-auto
     "Build sleek, dynamic websites and apps in a breeze with
     Tim Engine's intuitive syntax and powerful features.
     It's the template engine that keeps up with your creativity."
-  @include "foot"
+  @include "foot" // include footer
