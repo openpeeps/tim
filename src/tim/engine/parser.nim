@@ -214,6 +214,8 @@ proc getType(p: var Parser): NodeType =
     of tkLitArray: ntLitArray
     of tkLitObject: ntLitObject
     of tkLitFunction: ntFunction
+    of tkIdentifier:
+      ntHtmlElement
     else: ntUnknown
 
 #
@@ -420,8 +422,19 @@ prefixHandle pReturnCommand:
   let tk = p.curr
   if p.next in tkAssignableSet:
     walk p
-    let varValue = p.getPrefixOrInfix()
-    return ast.newCommand(cmdReturn, varValue, tk)
+    let valNode = p.getPrefixOrInfix()
+    return ast.newCommand(cmdReturn, valNode, tk)
+
+prefixHandle pDiscardCommand:
+  # parse a `discard` command
+  let tk = p.curr; walk p
+  let valNode = p.getPrefixOrInfix()
+  result = ast.newCommand(cmdDiscard, valNode, tk)
+
+prefixHandle pBreakCommand:
+  # parse a `break` command
+  result = ast.newCommand(cmdBreak, nil, p.curr)
+  walk p
 
 template anyAttrIdent(): untyped =
   (
@@ -691,7 +704,7 @@ prefixHandle pFor:
       result.loopItem = pairNode
       walk p
     expectWalk tkIN
-    expect {tkIdentVar, tkLB}:
+    expect {tkIdentVar, tkString, tkLB}: # todo function call
       let items = p.parsePrefix()
       caseNotNil items:
         result.loopItems = items
@@ -903,10 +916,19 @@ prefixHandle pFunction:
     walk p # tkRP
     if p.curr is tkColon:
       walk p
-      expect tkTypedLiterals:
-        # set a return type
-        result.fnReturnType = p.getType
-        walk p
+      case p.curr.kind
+      of tkIdentifier:
+        if p.curr.value == "Html":
+          walk p; expectWalk(tkLB)
+          result.fnReturnType = p.getType
+          result.fnReturnHtmlElement = htmlTag(p.curr.value)
+          walk p; expectWalk(tkRB)
+        else: discard # todo error
+      else:
+        expect tkTypedLiterals:
+          # set a return type
+          result.fnReturnType = p.getType
+          walk p
     if p.curr is tkAssign:
       # begin function body
       walk p
@@ -1017,7 +1039,6 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkInteger: pInt
     of tkFloat: pFloat
     of tkBool: pBool
-    of tkEchoCmd: pEchoCommand
     of tkIF: pCondition
     of tkCase: pCase
     of tkFor: pFor
@@ -1033,7 +1054,10 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkClient: pClientSide
     of tkLB: pAnoArray
     of tkLC: pAnoObject
-    of tkFN: pFunction
+    of tkFN, tkFunc: pFunction
+    of tkEchoCmd: pEchoCommand
+    of tkDiscardCmd: pDiscardCommand
+    of tkBreakCmd: pBreakCommand
     of tkReturnCmd: pReturnCommand
     of tkPlaceholder: pPlaceholder
     else: nil
@@ -1061,10 +1085,10 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
   result =
     case p.curr.kind
     of tkVar,tkConst: p.pAssignment()
-    of tkEchoCmd:     p.pEchoCommand()
-    # of tkReturnCmd:   p.pReturnCommand()
     of tkIdentVar, tkIdentVarSafe:
-      p.pIdentOrAssignment()
+      if p.next is tkAssign:
+        p.pIdentOrAssignment()
+      else: nil
     of tkIF:          p.pCondition()
     of tkCase:        p.pCase()
     of tkFor:         p.pFor()
@@ -1078,8 +1102,10 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkInclude:     p.pInclude()
     of tkLB:          p.pAnoArray()
     of tkLC:          p.pAnoObject()
-    of tkFN:          p.pFunction()
+    of tkFN, tkFunc:  p.pFunction()
     of tkClient:      p.pClientSide()
+    of tkEchoCmd:     p.pEchoCommand()
+    of tkDiscardCmd:  p.pDiscardCommand()
     of tkPlaceholder: p.pPlaceholder()
     else: nil
   if unlikely(result == nil):
@@ -1128,7 +1154,7 @@ template startParse(path: string): untyped =
       p.handle.logger.newError(internalError, p.handle.curr.line,
         p.handle.curr.col, false, p.handle.lex.getError)
     if unlikely(p.handle.hasErrors):
-      reset(p.handle.tree) # reset incomplete tree
+      # reset(p.handle.tree) # reset incomplete tree
       break
     let node = p.handle.parseRoot()
     caseNotNil node:
@@ -1193,14 +1219,39 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
   collectImporterErrors()
   result = p.handle
 
-proc newParser*(id: string, code: string): Parser {.gcsafe.} =
-  ## A proc used to parse `timl` code on the fly
-  ## `id` is used to identify the current `code
-  # var p = newImport[Parser](id, engine.getSourcePath() / $(ttPartial), baseIsMain = true)
-  var p = Parser(tree: Ast(), lex: newLexer(code, allowMultilineStrings = true))
+proc parseSnippet*(id, code: string): Parser {.gcsafe.} =
+  ## Parse static snippet `code` at runtime before
+  ## calling the `precompile` handle
+  var p = Parser(
+    tree: Ast(),
+    lex: newLexer(code, allowMultilineStrings = true),
+    logger: Logger(filePath: id)
+  )
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
-  p.logger = Logger(filePath: id)
+  while p.curr isnot tkEOF:
+    if unlikely(p.lex.hasError):
+      p.logger.newError(internalError, p.curr.line,
+        p.curr.col, false, p.lex.getError)
+    if unlikely(p.hasErrors):
+      reset(p.tree) # reset incomplete tree
+      break
+    let node = p.parseRoot()
+    caseNotNil node:
+      add p.tree.nodes, node
+    do: discard
+  lexbase.close(p.lex)
+  result = p
+
+proc parseSnippet*(snippetPath: string): Parser {.gcsafe.} =
+  ## Parse a snippet code from a `snippetPath` file.
+  var p = Parser(
+    tree: Ast(),
+    lex: newLexer(readFile(snippetPath), allowMultilineStrings = true),
+    logger: Logger(filePath: snippetPath)
+  )
+  p.curr = p.lex.getToken()
+  p.next = p.lex.getToken()
   while p.curr isnot tkEOF:
     if unlikely(p.lex.hasError):
       p.logger.newError(internalError, p.curr.line,

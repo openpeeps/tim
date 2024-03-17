@@ -58,6 +58,7 @@ type
     cmdEcho = "echo"
     cmdReturn = "return"
     cmdDiscard = "discard"
+    cmdBreak = "break"
 
   StorageType* = enum
     scopeStorage
@@ -209,6 +210,7 @@ type
         ## the return type of a function
         ## if a function has no return type, then `ntUnknown`
         ## is used as default (void)
+      fnReturnHtmlElement*: HtmlTag
       fnFwdDecl*, fnExport*: bool
     of ntJavaScriptSnippet,
       ntYamlSnippet, ntJsonSnippet:
@@ -258,7 +260,7 @@ type
   Meta* = array[3, int]
   ScopeTable* = TableRef[string, Node]
   TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
-  Ast* {.acyclic.} = ref object
+  Ast* = object
     src*: string
       ## trace the source path
     nodes*: seq[Node]

@@ -34,8 +34,8 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown,
     xel = newStringOfCap(0)): Node {.discardable.}
 
-proc typeCheck(c: var HtmlCompiler, x, node: Node): bool
-proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool
+proc typeCheck(c: var HtmlCompiler, x, node: Node, parent: Node = nil): bool
+proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType, parent: Node = nil): bool
 proc mathInfixEvaluator(c: var HtmlCompiler, lhs, rhs: Node, op: MathOp, scopetables: var seq[ScopeTable]): Node
 proc dotEvaluator(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node
 
@@ -143,7 +143,9 @@ when not defined timStandalone:
 
   proc clearScope(scopetables: var seq[ScopeTable]) {.inline.} =
     ## Clears the current (latest) ScopeTable
-    scopetables.delete(scopetables.high)
+    try:
+      scopetables.delete(scopetables.high)
+    except RangeDefect: discard
 
 # define default value nodes
 let
@@ -394,17 +396,25 @@ proc writeDotExpr(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTab
     add c.output, someValue.toString()
     c.stickytail = true
 
-proc evalCmd(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable]): Node =
+proc evalCmd(c: var HtmlCompiler, node: Node,
+    scopetables: var seq[ScopeTable], parentNodeType: NodeType = ntUnknown): Node =
   # Evaluate a command
-  var val = c.getValue(node.cmdValue, scopetables)
-  if val != nil:
-    case node.cmdType
-    of cmdEcho:
-      val.meta = node.cmdValue.meta
-      print(val)
-    of cmdReturn:
-      return val
-    else: discard
+  case node.cmdType
+  of cmdBreak:
+    return node
+  else:
+    if parentNodeType == ntFunction:
+      return node.cmdValue
+    else:
+      var val = c.getValue(node.cmdValue, scopetables)
+      if val != nil:
+        case node.cmdType
+        of cmdEcho:
+          val.meta = node.cmdValue.meta
+          print(val)
+        of cmdReturn:
+          return val
+        else: discard
 
 proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
@@ -839,6 +849,14 @@ proc evalConcat(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable
     write x, true, false
     write y, true, false
 
+template handleBreakCommand(x: Node) {.dirty.} =
+  if x != nil:
+    case x.nt
+    of ntCommandStmt:
+      if x.cmdType == cmdBreak:
+        break
+    else: discard
+
 template loopEvaluator(kv, items: Node) =
   case items.nt:
   of ntLitString:
@@ -846,11 +864,12 @@ template loopEvaluator(kv, items: Node) =
     of ntVariableDef:
       for x in items.sVal:
         newScope(scopetables)
-        node.loopItem.varValue = ast.Node(nt: ntLitString, sVal: $(x))
+        node.loopItem.varValue = ast.Node(nt: ntLitString, sVal: $(x)) # todo implement `ntLitChar`
         c.varExpr(node.loopItem, scopetables)
-        c.walkNodes(node.loopBody, scopetables)
+        let x = c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
         node.loopItem.varValue = nil
+        handleBreakCommand(x)
     else: discard # todo error
   of ntLitArray:
     case kv.nt
@@ -859,9 +878,10 @@ template loopEvaluator(kv, items: Node) =
         newScope(scopetables)
         node.loopItem.varValue = x
         c.varExpr(node.loopItem, scopetables)
-        c.walkNodes(node.loopBody, scopetables)
+        let x = c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
         node.loopItem.varValue = nil
+        handleBreakCommand(x)
     else: discard # todo error
   of ntLitObject:
     case kv.nt
@@ -870,9 +890,10 @@ template loopEvaluator(kv, items: Node) =
         newScope(scopetables)
         node.loopItem.varValue = y
         c.varExpr(node.loopItem, scopetables)
-        c.walkNodes(node.loopBody, scopetables)
+        let x = c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
         node.loopItem.varValue = nil
+        handleBreakCommand(x)
     of ntIdentPair:
       for x, y in items.objectItems:
         newScope(scopetables)
@@ -882,10 +903,11 @@ template loopEvaluator(kv, items: Node) =
         node.loopItem.identPairs[1].varValue = y
         c.varExpr(node.loopItem.identPairs[0], scopetables)
         c.varExpr(node.loopItem.identPairs[1], scopetables)
-        c.walkNodes(node.loopBody, scopetables)
+        let x = c.walkNodes(node.loopBody, scopetables)
         clearScope(scopetables)
         node.loopItem.identPairs[0].varValue = nil
         node.loopItem.identPairs[1].varValue = nil
+        handleBreakCommand(x)
     else: discard
   else:
     let x = @[ntLitString, ntLitArray, ntLitObject]
@@ -912,10 +934,14 @@ proc evalLoop(c: var HtmlCompiler, node: Node,
   of ntBracketExpr:
     let items = c.bracketEvaluator(node.loopItems, scopetables)
     loopEvaluator(node.loopItem, items)
+  of ntLitString:
+    loopEvaluator(node.loopItem, node.loopItems)
   else:
     compileErrorWithArgs(invalidIterator)
 
-proc typeCheck(c: var HtmlCompiler, x, node: Node): bool =
+proc typeCheck(c: var HtmlCompiler, x, node: Node, parent: Node = nil): bool =
+  if unlikely(x == nil):
+    compileErrorWithArgs(typeMismatch, ["none", $(node.nt)])
   if unlikely(x.nt != node.nt):
     case x.nt
     of ntMathInfixExpr, ntLitInt, ntLitFloat:
@@ -924,9 +950,18 @@ proc typeCheck(c: var HtmlCompiler, x, node: Node): bool =
     compileErrorWithArgs(typeMismatch, [$(node.nt), $(x.nt)])
   result = true
 
-proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType): bool =
+proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType, parent: Node = nil): bool =
+  if unlikely(node == nil):
+    let node = parent
+    compileErrorWithArgs(typeMismatch, ["none", $(expect)])
   if unlikely(node.nt != expect):
     compileErrorWithArgs(typeMismatch, [$(node.nt), $(expect)])
+  result = true
+
+proc typeCheck(c: var HtmlCompiler, node: Node, expect: HtmlTag): bool =
+  if unlikely(node.tag != expect):
+    let x = $(expect)
+    compileErrorWithArgs(typeMismatch, [node.getTag, toLowerAscii(x[3..^1])])
   result = true
 
 #
@@ -1046,11 +1081,25 @@ proc fnCall(c: var HtmlCompiler, node: Node,
         else:
           compileErrorWithArgs(typeMismatch, ["none", $p.pType], p.meta)
         inc i
-    result = c.walkNodes(fnNode.fnBody, scopetables)
+    result = c.walkNodes(fnNode.fnBody, scopetables, ntFunction)
     if result != nil:
-      if unlikely(not c.typeCheck(result, fnNode.fnReturnType)):
-        clearScope(scopetables)
-        return nil
+      case result.nt
+      of ntHtmlElement:
+        if c.typeCheck(result, fnNode.fnReturnHtmlElement):
+          result = c.walkNodes(@[result], scopetables)
+        else:
+          result = nil
+      else:
+        let x = c.getValue(result, scopetables)
+        if likely(x != nil):
+          if unlikely(c.typeCheck(x, fnNode.fnReturnType, x)):
+            result = x
+          else:
+            result = nil
+    else: discard # ?
+      # if unlikely(not c.typeCheck(result, fnNode.fnReturnType, fnNode)):
+        # clearScope(scopetables)
+        # return nil
     clearScope(scopetables)
   else: compileErrorWithArgs(fnUndeclared, [node.callIdent])
 
@@ -1201,6 +1250,8 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     let node = nodes[i]
     case node.nt
     of ntHtmlElement:
+      if parentNodeType == ntFunction:
+        return node
       if not c.isClientSide:
         c.htmlElement(node, scopetables)
       else:
@@ -1222,6 +1273,8 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntCommandStmt:
       case node.cmdType
       of cmdReturn:
+        return c.evalCmd(node, scopetables, parentNodeType)
+      of cmdBreak:
         return c.evalCmd(node, scopetables)
       else:
         discard c.evalCmd(node, scopetables)
@@ -1261,7 +1314,8 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
       else:
         let x = c.fnCall(node, scopetables)
         if unlikely x != nil:
-          compileErrorWithArgs(fnReturnMissingCommand, [node.callIdent, $(x.nt)])
+          if parentNodeType != ntFunction and x.nt != ntHtmlElement:
+            compileErrorWithArgs(fnReturnMissingCommand, [node.callIdent, $(x.nt)])
     of ntInclude:
       c.evaluatePartials(node.includes, scopetables)
     of ntJavaScriptSnippet:

@@ -49,7 +49,7 @@ handlers:
         of IdentChars:
           add lex
         of Whitespace, EndOfFile:
-          lex.handleNewLine()
+          # lex.handleNewLine()
           break
         else:
           break
@@ -220,10 +220,12 @@ registerTokens toktokSettings:
   `include`
 
   fn = "fn"
+  `func` = "func"
   `var` = "var"
   `const` = "const"
   returnCmd = "return"
   echoCmd = "echo"
   discardCmd = "discard"
+  breakCmd = "break"
   identVar = tokenize(handleVar, '$')
   identVarSafe
