@@ -3,19 +3,19 @@ on:
   push:
     tags:
       - '*.*.*'
-    branches:
-      - main
+    # branches:
+    #   - main
     paths-ignore:
       - LICENSE
       - README.*
       - examples
       - editors
-  pull_request:
-    paths-ignore:
-      - LICENSE
-      - README.*
-      - examples
-      - editors
+  # pull_request:
+  #   paths-ignore:
+  #     - LICENSE
+  #     - README.*
+  #     - examples
+  #     - editors
 env:
   nim-version: 'stable'
   nim-src: src/${{ github.event.repository.name }}.nim
