@@ -373,7 +373,7 @@ proc render*(engine: TimEngine, viewName: string,
             add result, indent(jitView.getHtml(), layout.getViewIndent)
           else:
             jitView.logger.displayErrors()
-            displayError = true
+            hasError = true
     else:
       raise newException(TimError, "No layouts available")
   else:
