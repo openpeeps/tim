@@ -326,7 +326,7 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
 template layoutWrapper(getViewBlock) {.dirty.} =
   result = DOCKTYPE
   var layoutTail: string
-  var displayError: bool
+  var hasError: bool
   if not layout.jitEnabled:
     # when requested layout is pre-rendered
     # will use the static HTML version from disk
@@ -340,10 +340,10 @@ template layoutWrapper(getViewBlock) {.dirty.} =
       getViewBlock
       layoutTail = jitLayout.getTail()
     else:
-      displayError = true
+      hasError = true
       jitLayout.logger.displayErrors()
   when not defined release:
-    if displayError:
+    if engine.showHtmlErrors and hasError:
       add result, htmlerror
       htmlerror = ""
   add result, layoutTail
