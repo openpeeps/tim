@@ -1156,7 +1156,10 @@ proc parseHandle[T](i: Import[T], importFile: ImportFile,
       if likely(not cp.hasErrors):
         if cp.tpl.jitEnabled():
           jitMainParser = true
-        partials[path] = (cp.getAst(), cp.logger.errors.toSeq)
+        when defined napiOrWasm:
+          partials[path] = (cp.getAst(), @[])
+        else:
+          partials[path] = (cp.getAst(), cp.logger.errors.toSeq)
         result = cp.includes.keys.toSeq
         if not tpl.hasDep(i.handle.tpl.getSourcePath()):
           tpl.addDep(i.handle.tpl.getSourcePath())
