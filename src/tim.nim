@@ -354,7 +354,7 @@ template layoutWrapper(getViewBlock) {.dirty.} =
   add result, layoutTail
 
 proc render*(engine: TimEngine, viewName: string,
-    layoutName = defaultLayout, global, local = newJObject()): string =
+    layoutName = defaultLayout, local = newJObject()): string =
   ## Renders a view based on `viewName` and `layoutName`.
   ## Exposing data to a template is possible using `global` or
   ## `local` objects.
@@ -386,7 +386,7 @@ proc render*(engine: TimEngine, viewName: string,
 
 when defined napibuild:
   # Setup for building TimEngine as a node addon via NAPI
-  import pkg/denim
+  import pkg/[denim, jsony]
   from std/sequtils import toSeq
 
   var timjs: TimEngine
@@ -402,17 +402,18 @@ when defined napibuild:
         args.get("indent").getInt
       )
 
-    proc precompile() {.export_napi.} =
+    proc precompile(globals: object) {.export_napi.} =
       ## Precompile TimEngine templates
-      timjs.precompile(flush = true, waitThread = false)
+      var globals: JsonNode = jsony.fromJson($(args.get("globals")))
+      timjs.precompile(flush = true, global = globals, waitThread = false)
 
-    proc render(view: string, layout: string = "base") {.export_napi.} =
+    proc render(view: string, layout: string, local: object) {.export_napi.} =
       ## Render a `view` by name
-      var layoutName = args.get("layout").getStr
-      echo layoutName
+      var local: JsonNode = jsony.fromJson($(args.get("local")))
       let x = timjs.render(
           args.get("view").getStr,
-          args.get("layout").getStr
+          args.get("layout").getStr,
+          local
         )
       return %*(x)
 
