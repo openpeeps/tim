@@ -218,6 +218,7 @@ registerTokens toktokSettings:
   client
   `end`
   `include`
+  `import` = "import"
 
   fn = "fn"
   `func` = "func"
