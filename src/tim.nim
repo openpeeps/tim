@@ -25,6 +25,8 @@ const
 const localStorage* = CacheSeq"LocalStorage"
 
 macro initCommonStorage*(x: untyped) =
+  ## Initializes a common localStorage that can be
+  ## shared between controllers
   if x.kind == nnkStmtList:
     add localStorage, x[0]
   elif x.kind == nnkTableConstr:
@@ -32,12 +34,12 @@ macro initCommonStorage*(x: untyped) =
   else: error("Invalid common storage initializer. Use `{}`, or `do` block")
 
 template `&*`*(n: untyped): untyped =
+  ## Compile-time localStorage initializer
+  ## that helps reusing shareable data.
+  ## 
+  ## Once merged it calls `%*` macro from `std/json`
+  ## for converting NimNode to JsonNode
   macro toLocalStorage(x: untyped): untyped =
-    ## Compile-time localStorage initializer
-    ## that helps reusing shareable data.
-    ## 
-    ## Once merged it calls `%*` macro from `std/json`
-    ## for converting NimNode to JsonNode
     if x.kind in {nnkTableConstr, nnkCurly}:
       var shareLocalNode: NimNode
       if localStorage.len > 0:
