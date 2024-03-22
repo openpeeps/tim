@@ -909,6 +909,15 @@ template loopEvaluator(kv, items: Node) =
         node.loopItem.identPairs[1].varValue = nil
         handleBreakCommand(x)
     else: discard
+  of ntIndexRange:
+    for i in items.rangeNodes[0].iVal .. items.rangeNodes[1].iVal:
+      newScope(scopetables)
+      node.loopItem.varValue = ast.newInteger(i)
+      c.varExpr(node.loopItem, scopetables)
+      let x = c.walkNodes(node.loopBody, scopetables)
+      clearScope(scopetables)
+      node.loopItem.varValue = nil
+      handleBreakCommand(x)
   else:
     let x = @[ntLitString, ntLitArray, ntLitObject]
     compileErrorWithArgs(typeMismatch, [$(items.nt), x.join(" ")])
@@ -934,7 +943,7 @@ proc evalLoop(c: var HtmlCompiler, node: Node,
   of ntBracketExpr:
     let items = c.bracketEvaluator(node.loopItems, scopetables)
     loopEvaluator(node.loopItem, items)
-  of ntLitString:
+  of ntLitString, ntIndexRange:
     loopEvaluator(node.loopItem, node.loopItems)
   else:
     compileErrorWithArgs(invalidIterator)

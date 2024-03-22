@@ -18,24 +18,24 @@ type
   Parser* = object
     lvl: int # parser internals
     lex: Lexer
-      ## A pkg/toktok instance
+      # A pkg/toktok instance
     prev, curr, next: TokenTuple
-      ## Lexer internals
+      # Lexer internals
     engine: TimEngine
-      ## TimEngine instance
+      # TimEngine instance
     tpl: TimTemplate
-      ## A `TimTemplate` instance that represents the
-      ## currently parsing template
+      # A `TimTemplate` instance that represents the
+      # currently parsing template
     logger*: Logger
       ## Store warning and errors while parsing
     hasErrors*, nilNotError, hasLoadedView,
       isMain, refreshAst: bool
     parentNode: seq[Node]
-      ## Parser internals
+      # Parser internals
     includes: Table[string, Meta]
-      ## A table to store all `@include` statements
+      # A table to store all `@include` statements
     tree: Ast
-      ## The generated Abstract Syntax Tree
+      # The generated Abstract Syntax Tree
 
   PrefixFunction = proc(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
   InfixFunction = proc(p: var Parser, lhs: Node): Node {.gcsafe.}
@@ -703,11 +703,24 @@ prefixHandle pFor:
       pairNode.identPairs[1] = vNode
       result.loopItem = pairNode
       walk p
+    let inx = p.curr
     expectWalk tkIN
-    expect {tkIdentVar, tkString, tkLB}: # todo function call
+    if p.curr in {tkIdentVar, tkString, tkLB}:
+    # expect {tkIdentVar, tkString, tkLB, tkInteger}: # todo function call
       let items = p.parsePrefix()
       caseNotNil items:
         result.loopItems = items
+    elif p.curr is tkInteger and p.curr.line == inx.line:
+      let min = p.curr; walk p
+      if likely(isRange()):
+        walk p, 2
+        expect tkInteger:
+          result.loopItems = ast.newNode(ntIndexRange)
+          result.loopItems.rangeNodes = [
+            ast.newInteger(min.value.parseInt, min),
+            ast.newInteger(p.curr.value.parseInt, p.curr)
+          ]
+          walk p
     if p.curr is tkColon: walk p
     while p.curr.isChild(tk):
       let node = p.getPrefixOrInfix()
@@ -813,6 +826,15 @@ prefixHandle pInclude:
         p.includePartial(result, p.curr.value)
         walk p
       else: return nil
+
+prefixHandle pImport:
+  # parse `@import`
+  if likely p.next is tkString:
+    let tk = p.curr
+    walk p
+    result = ast.newNode(ntImport, tk)
+    add result.modules, p.curr.value
+    walk p
 
 prefixHandle pSnippet:
   case p.curr.kind
@@ -1051,6 +1073,7 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkViewLoader: pViewLoader
     of tkSnippetJS, tkSnippetJSON, tkSnippetYaml: pSnippet
     of tkInclude: pInclude
+    of tkImport: pImport
     of tkClient: pClientSide
     of tkLB: pAnoArray
     of tkLC: pAnoObject
@@ -1100,6 +1123,7 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
         p.pElement()
     of tkSnippetJS:   p.pSnippet()
     of tkInclude:     p.pInclude()
+    of tkImport:      p.pImport()
     of tkLB:          p.pAnoArray()
     of tkLC:          p.pAnoObject()
     of tkFN, tkFunc:  p.pFunction()
