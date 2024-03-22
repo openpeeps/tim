@@ -68,121 +68,123 @@ proc toHtml*(name, code: string): string =
     return c.getHtml()
 
 when not defined release:
-  proc showHtmlError(msg: var string, engine: TimEngine, l: Logger) =
-    var timErrorScreen = """
-  style: "
-  #timEngineErrorScreenWrapper {
-    font-family: system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue','Noto Sans','Liberation Sans',Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji';
-    background-color: #111;
-    color: #fff;
-    position: fixed;
-    top:0;
-    left:0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-  }
+  when not defined napibuild:
+    proc showHtmlError(msg: var string, engine: TimEngine, l: Logger) =
+      var timErrorScreen = """
+    style: "
+    #timEngineErrorScreenWrapper {
+      font-family: system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue','Noto Sans','Liberation Sans',Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji';
+      background-color: #111;
+      color: #fff;
+      position: fixed;
+      top:0;
+      left:0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+    }
 
-  #timEngineErrorScreenWrapper * {
-    box-sizing: border-box;
-  }
+    #timEngineErrorScreenWrapper * {
+      box-sizing: border-box;
+    }
 
-  header.timEngineErrorScreenHeader {
-    background: #111;
-    padding: 25px
-  }
+    header.timEngineErrorScreenHeader {
+      background: #111;
+      padding: 25px
+    }
 
-  header.timEngineErrorScreenHeader h1 {
-    font-size: 48px;
-    margin: 0;
-  }
+    header.timEngineErrorScreenHeader h1 {
+      font-size: 48px;
+      margin: 0;
+    }
 
-  .tim--error-container {
-    width: 100%;
-    padding:0 1.5rem;
-    margin: auto;
-    align-self: center;
-  }
+    .tim--error-container {
+      width: 100%;
+      padding:0 1.5rem;
+      margin: auto;
+      align-self: center;
+    }
 
-  .tim--error-row {
-    display: flex;
-    flex-wrap: wrap;
-    margin:0 -1.5rem
-  }
+    .tim--error-row {
+      display: flex;
+      flex-wrap: wrap;
+      margin:0 -1.5rem
+    }
 
-  .tim--error-row>* {
-    flex-shrink: 0;
-    width: 100%;
-    max-width: 100%;
-  }
+    .tim--error-row>* {
+      flex-shrink: 0;
+      width: 100%;
+      max-width: 100%;
+    }
 
-  .tim--error-col-8 {
-    flex: 0 0 auto;
-    width: 56.66666667%;
-  }
+    .tim--error-col-8 {
+      flex: 0 0 auto;
+      width: 56.66666667%;
+    }
 
-  .tim--error-col-4 {
-    flex: 0 0 auto;
-    width: 43.33333333%;
-  }
-  .tim-error-preview-code {
-    background: #212121;
-    overflow-x: auto;
-    font-size: 16px;
-    font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
-  }
-  .tim-error-preview-code li:before {
-    content: attr(data-lineno)
-  }
-  .tim-error-preview-code li {
-    list-style: none;
-    min-height: 29px;
-    line-height: 29px;
-    text-wrap: nowrap;
-  }
+    .tim--error-col-4 {
+      flex: 0 0 auto;
+      width: 43.33333333%;
+    }
+    .tim-error-preview-code {
+      background: #212121;
+      overflow-x: auto;
+      font-size: 16px;
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
+    }
+    .tim-error-preview-code li:before {
+      content: attr(data-lineno)
+    }
+    .tim-error-preview-code li {
+      list-style: none;
+      min-height: 29px;
+      line-height: 29px;
+      text-wrap: nowrap;
+    }
 
-  .tim--error-li-msg {
-    font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
-    font-size: 16px;
-    list-style: decimal;
-    background-color: #ea4444a1;
-    border-radius: 5px;
-    padding: 2px 10px;
-    margin-bottom: 10px;
-  }
+    .tim--error-li-msg {
+      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
+      font-size: 16px;
+      list-style: decimal;
+      background-color: #ea4444a1;
+      border-radius: 5px;
+      padding: 2px 10px;
+      margin-bottom: 10px;
+    }
 
-  .tim-error-preview-code li:last-child {
-    border-bottom: 0
-  }
-  "
-  section#timEngineErrorScreenWrapper > div.tim--error-container
-    div.tim--error-row style="align-items: center"
-"""
-    add timErrorScreen, """
-      div.tim--error-col-4
-        header.timEngineErrorScreenHeader:
-          h1 style="font-weight:bold;margin-bottom:20px": "Ugh! Something broke"
-"""
-    var rightSide: string
-    for e in l.errors:
-      let lc = e[1].text[1..^2].split(":")
-      var ln = parseInt(lc[0])
-      var txt = e[1].text
-      add txt, e[2].text.indent(1)
-      add txt, indent(e[3..^1].mapIt(it.text).join(" "), 1)
-      add rightSide, indent("li.tim--error-li-msg: \"$1\"", 10)
-      rightSide = rightSide % [txt]
-    add timErrorscreen, rightSide
-    msg = toHtml("tim-engine-error", timErrorScreen)
-  var htmlerror: string
+    .tim-error-preview-code li:last-child {
+      border-bottom: 0
+    }
+    "
+    section#timEngineErrorScreenWrapper > div.tim--error-container
+      div.tim--error-row style="align-items: center"
+  """
+      add timErrorScreen, """
+        div.tim--error-col-4
+          header.timEngineErrorScreenHeader:
+            h1 style="font-weight:bold;margin-bottom:20px": "Ugh! Something broke"
+  """
+      var rightSide: string
+      for e in l.errors:
+        let lc = e[1].text[1..^2].split(":")
+        var ln = parseInt(lc[0])
+        var txt = e[1].text
+        add txt, e[2].text.indent(1)
+        add txt, indent(e[3..^1].mapIt(it.text).join(" "), 1)
+        add rightSide, indent("li.tim--error-li-msg: \"$1\"", 10)
+        rightSide = rightSide % [txt]
+      add timErrorscreen, rightSide
+      msg = toHtml("tim-engine-error", timErrorScreen)
+    var htmlerror: string
 
 template displayErrors(l: Logger) =
   for err in l.errors:
     display(err)
   display(l.filePath)
   when not defined release:
-    if engine.showHtmlErrors:
-      htmlerror.showHtmlError(engine, l)
+    when not defined napibuild:
+      if engine.showHtmlErrors:
+        htmlerror.showHtmlError(engine, l)
 
 proc compileCode(engine: TimEngine, tpl: TimTemplate,
     refreshAst = false) =
@@ -346,8 +348,9 @@ template layoutWrapper(getViewBlock) {.dirty.} =
       jitLayout.logger.displayErrors()
   when not defined release:
     if engine.showHtmlErrors and hasError:
-      add result, htmlerror
-      htmlerror = ""
+      when not defined napibuild:
+        add result, htmlerror
+        htmlerror = ""
   add result, layoutTail
 
 proc render*(engine: TimEngine, viewName: string,
@@ -399,21 +402,28 @@ when defined napibuild:
         args.get("indent").getInt
       )
 
-    proc precompileSync() {.export_napi.} =
+    proc precompile() {.export_napi.} =
       ## Precompile TimEngine templates
       timjs.precompile(flush = true, waitThread = false)
 
-    proc renderSync(view: string) {.export_napi.} =
+    proc render(view: string, layout: string = "base") {.export_napi.} =
       ## Render a `view` by name
-      let x = timjs.render(args.get("view").getStr)
+      var layoutName = args.get("layout").getStr
+      echo layoutName
+      let x = timjs.render(
+          args.get("view").getStr,
+          args.get("layout").getStr
+        )
       return %*(x)
 
 elif not isMainModule:
   # Expose Tim Engine API for Nim development (as a Nimble librayr)
   export parser, html, json
   export meta except TimEngine
-# else:
-#   # Build Tim Engine as a standalone CLI application
+
+else:
+  # Build Tim Engine as a standalone CLI application
+  discard # todo
 #   import pkg/kapsis
 #   import ./tim/app/[runCommand]
 
