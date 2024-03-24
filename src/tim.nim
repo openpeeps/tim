@@ -117,15 +117,6 @@ when not defined release:
       max-width: 100%;
     }
 
-    .tim--error-col-8 {
-      flex: 0 0 auto;
-      width: 56.66666667%;
-    }
-
-    .tim--error-col-4 {
-      flex: 0 0 auto;
-      width: 43.33333333%;
-    }
     .tim-error-preview-code {
       background: #212121;
       overflow-x: auto;
@@ -150,6 +141,7 @@ when not defined release:
       border-radius: 5px;
       padding: 2px 10px;
       margin-bottom: 10px;
+      text-align: left;
     }
 
     .tim-error-preview-code li:last-child {
@@ -158,22 +150,23 @@ when not defined release:
     "
     section#timEngineErrorScreenWrapper > div.tim--error-container
       div.tim--error-row style="align-items: center"
+        div style="text-align:center; align-self:center; max-width:650px; margin:auto;"
+          img width="200" height="200"
+              alt="Tim Engine"
+              src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png"
+          header.timEngineErrorScreenHeader
+            h1 style="font-weight:bold;margin-bottom:20px": "Oups! Something broke"
   """
-      add timErrorScreen, """
-        div.tim--error-col-4
-          header.timEngineErrorScreenHeader:
-            h1 style="font-weight:bold;margin-bottom:20px": "Ugh! Something broke"
-  """
-      var rightSide: string
+      var errmsgs: string
       for e in l.errors:
         let lc = e[1].text[1..^2].split(":")
         var ln = parseInt(lc[0])
         var txt = e[1].text
         add txt, e[2].text.indent(1)
         add txt, indent(e[3..^1].mapIt(it.text).join(" "), 1)
-        add rightSide, indent("li.tim--error-li-msg: \"$1\"", 10)
-        rightSide = rightSide % [txt]
-      add timErrorscreen, rightSide
+        add errmsgs, indent("li.tim--error-li-msg: \"$1\"", 10)
+        errmsgs = errmsgs % [txt]
+      add timErrorscreen, errmsgs
       msg = toHtml("tim-engine-error", timErrorScreen)
     var htmlerror: string
 
