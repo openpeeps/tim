@@ -102,6 +102,8 @@ type
   ConditionBranch* = tuple[expr: Node, body: seq[Node]]
   FnParam* = tuple[pName: string, pType: NodeType, pImplVal: Node, meta: Meta]
   Node* {.acyclic.} = ref object
+    ## Part of the compiler's abstract syntax tree
+    ## **Important** do not initialize this object directly
     case nt*: NodeType
     of ntHtmlElement:
       tag*: HtmlTag
@@ -181,11 +183,12 @@ type
         # identifier name
       identSafe*: bool
         # whether to escape the stored value of `identName`
-    of ntCall:
-      callIdent*: string
-        ## identifier name of a callable function
-      callArgs*: seq[Node]
-        ## a sequence of arguments to to pass
+      identArgs*: seq[Node]
+    # of ntCall:
+    #   callIdent*: string
+    #     ## identifier name of a callable function
+    #   callArgs*: seq[Node]
+    #     ## a sequence of arguments to to pass
     of ntDotExpr:
       storageType*: StorageType
         ## holds the storage type of a dot expression
@@ -211,7 +214,8 @@ type
         ## if a function has no return type, then `ntUnknown`
         ## is used as default (void)
       fnReturnHtmlElement*: HtmlTag
-      fnFwdDecl*, fnExport*: bool
+      fnFwdDecl*, fnExport*, fnImportNim*: bool
+      fnSource*: string
     of ntJavaScriptSnippet,
       ntYamlSnippet, ntJsonSnippet:
         snippetCode*: string
@@ -260,23 +264,22 @@ type
   Meta* = array[3, int]
   ScopeTable* = TableRef[string, Node]
   TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
-  Ast* = object
+  TimModulesTable* = TableRef[string, Ast]
+  Ast* {.acyclic.} = ref object
     src*: string
-      ## trace the source path
+      ## the source path of the ast
     nodes*: seq[Node]
       ## a seq containing tree nodes 
     partials*: TimPartialsTable
-      ## other trees resulted from imports
+      ## AST trees from included partials 
+    modules*: TimModulesTable
+      ## AST trees from imported modules
     jit*: bool
+      ## whether the current AST requires JIT compliation or not
 
-const ntAssignableSet* = {ntLitString, ntLitInt, ntLitFloat, ntLitBool, ntLitObject, ntLitArray}
-
-# proc add*(x: Node, y: Node) =
-#   if likely y != nil:
-#     case x.nt
-#     of ntStmtList:
-#       x.stmtList.add(y)
-#     else: discard
+const ntAssignableSet* =
+  {ntLitString, ntLitInt, ntLitFloat,
+  ntLitBool, ntLitObject, ntLitArray}
 
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
   result =
@@ -533,8 +536,8 @@ proc newFunction*(tk: TokenTuple, ident: string): Node =
 
 proc newCall*(tk: TokenTuple): Node =
   ## Create a new function call Node
-  result = newNode(ntCall, tk)
-  result.callIdent = tk.value
+  result = newNode(ntIdent, tk)
+  result.identName = tk.value
 
 proc newInfix*(lhs, rhs: Node, infixOp: InfixOp, tk: TokenTuple): Node =
   result = newNode(ntInfixExpr, tk)

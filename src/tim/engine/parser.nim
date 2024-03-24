@@ -5,11 +5,11 @@
 #          https://github.com/openpeeps/tim
 
 {.warning[ImplicitDefaultValue]:off.}
-import std/[macros, streams, lexbase, strutils, sequtils, re, tables]
-from std/os import `/`
+import std/[macros, streams, lexbase,
+  strutils, sequtils, re, tables, os, with]
 
 import ./meta, ./tokens, ./ast, ./logging
-# import ./stdlib
+import ./stdlib
 
 import pkg/kapsis/cli
 import pkg/importer
@@ -159,6 +159,13 @@ proc isIdent(tk: TokenTuple, anyIdent, anyStringKey = false): bool =
   if result or anyStringKey:
     return tk.value.validIdentifier
 
+proc skipNextComment(p: var Parser) =
+  while true:
+    case p.next.kind
+    of tkComment:
+      p.next = p.lex.getToken() # skip inline comments
+    else: break
+
 proc walk(p: var Parser, offset = 1) {.gcsafe.} =
   var i = 0
   while offset > i:
@@ -166,10 +173,11 @@ proc walk(p: var Parser, offset = 1) {.gcsafe.} =
     p.prev = p.curr
     p.curr = p.next
     p.next = p.lex.getToken()
-    case p.next.kind
-    of tkComment:
-      p.next = p.lex.getToken() # skip inline comments
-    else: discard
+    p.skipNextComment()
+
+proc skipComments(p: var Parser) =
+  while p.curr is tkComment:
+    walk p
 
 macro prefixHandle(name: untyped, body: untyped) =
   # Create a new prefix procedure with `name` and `body`
@@ -193,7 +201,7 @@ macro prefixHandle(name: untyped, body: untyped) =
   )
 
 proc includePartial(p: var Parser, node: Node, s: string) =
-  node.meta = [p.curr.line, p.curr.pos, p.curr.col]
+  # node.meta = [p.curr.line, p.curr.pos, p.curr.col]
   add node.includes, "/" & s & ".timl"
   p.includes[p.engine.getPath(s & ".timl", ttPartial)] = node.meta
 
@@ -818,6 +826,10 @@ prefixHandle pInclude:
     let tk = p.curr
     walk p
     result = ast.newNode(ntInclude, tk)
+    # I guess this will fix indentation
+    # inside partials (when not minified)
+    result.meta[1] = p.lvl * 4
+    result.meta[2] = (p.lvl * 4) + 1
     p.includePartial(result, p.curr.value)
     walk p
     while p.curr is tkComma:
@@ -848,20 +860,6 @@ prefixHandle pSnippet:
     result = ast.newNode(ntJsonSnippet, p.curr)
     result.snippetCode = p.curr.value    
   else: discard
-  # elif p.curr.kind == tkSass:
-    # result = ast.newSnippet(p.curr)
-    # result.sassCode = p.curr.value
-  # elif p.curr.kind in {tkJson, tkYaml}:
-  #   let code = p.curr.value.split(Newlines, maxsplit = 1)
-  #   var ident = code[0]
-  #   p.curr.value = code[1]
-  #   if p.curr.kind == tkJson:
-  #     result = newSnippet(p.curr, ident)
-  #     result.jsonCode = p.curr.value
-  #   else:
-  #     p.curr.kind = tkJson
-  #     result = newSnippet(p.curr, ident)
-  #     # result.jsonCode = yaml(p.curr.value).toJsonStr
   walk p
 
 prefixHandle pClientSide:
@@ -907,6 +905,7 @@ prefixHandle pFunction:
     walk p
     if p.curr is tkAsterisk:
       result.fnExport = true
+      walk p
     expectWalk tkLP
     while p.curr isnot tkRP:
       case p.curr.kind
@@ -963,6 +962,9 @@ prefixHandle pFunction:
       if unlikely(result.fnBody.len == 0):
         error(badIndentation, p.curr)
     else:
+      result.fnImportNim = p.tree.src.startsWith("std/")
+      if result.fnImportNim:
+        result.fnSource = p.tree.src
       result.fnFwdDecl = true
 
 prefixHandle pFunctionCall:
@@ -972,7 +974,7 @@ prefixHandle pFunctionCall:
   while p.curr isnot tkRP:
     let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
     caseNotNil argNode:
-      add result.callArgs, argNode
+      add result.identArgs, argNode
   walk p # tkRP
 
 #
@@ -1173,9 +1175,11 @@ proc parseHandle[T](i: Import[T], importFile: ImportFile,
         tpl.addDep(i.handle.tpl.getSourcePath())
 
 template startParse(path: string): untyped =
-  p.handle.curr = p.handle.lex.getToken()
-  p.handle.next = p.handle.lex.getToken()
-  p.handle.logger = Logger(filePath: path)
+  with p.handle:
+    curr = p.handle.lex.getToken()
+    next = p.handle.lex.getToken()
+    logger = Logger(filePath: path)
+  p.handle.skipComments() # if any
   while p.handle.curr isnot tkEOF:
     if unlikely(p.handle.lex.hasError):
       p.handle.logger.newError(internalError, p.handle.curr.line,
@@ -1207,14 +1211,42 @@ template collectImporterErrors =
       meta[2], true, [err.fpath.replace(engine.getSourcePath(), "")])
     p.handle.hasErrors = true
 
+proc parseModule(engine: TimEngine, moduleName: string,
+    code: SourceCode = SourceCode("")): Ast =
+  var p = Parser(
+    tree: Ast(src: moduleName),
+    engine: engine,
+    lex: newLexer(code.string, allowMultilineStrings = true),
+    logger: Logger(filePath: "")
+  )  
+  p.curr = p.lex.getToken()
+  p.next = p.lex.getToken()
+  # p.skipComments() # if any
+  while p.curr isnot tkEOF:
+    if unlikely(p.lex.hasError):
+      p.logger.newError(internalError, p.curr.line,
+        p.curr.col, false, p.lex.getError)
+    if unlikely(p.hasErrors):
+      break
+    let node = p.parseRoot()
+    if node != nil:
+      add p.tree.nodes, node
+  p.lex.close()
+  result = p.tree
+
 proc initSystemModule(p: var Parser) =
   ## Make `std/system` available by default
-  let sysid = "std/system"
-  var sysNode = ast.newNode(ntImport)
-  sysNode.modules.add(sysid)
-  p.tree.nodes.add(sysNode)
+  {.gcsafe.}:
+    let stdsystem = "std/system"
+    var sysNode = ast.newNode(ntImport)
+    sysNode.modules.add(stdsystem)
+    p.tree.nodes.add(sysNode)
+    p.tree.modules = TimModulesTable()
+    p.tree.modules[stdsystem] =
+      p.engine.parseModule(stdsystem, std(stdsystem)[1])
+
   # var L = initTicketLock()
-  # importer(sysid, p.dirPath, addr(p.stylesheets),
+  # parseHandle[Parser](sysid, dirPath(p.tpl.sources), addr(p.imports),
   #           addr L, true, std(sysid)[1])
 
 #
@@ -1228,14 +1260,15 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
     engine.getSourcePath() / $(ttPartial),
     baseIsMain = true
   )
-  p.handle.tree = Ast()
-  p.handle.lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
-  p.handle.engine = engine
-  p.handle.tpl = tpl
-  p.handle.isMain = isMainParser
-  p.handle.refreshAst = refreshAst
-  # initstdlib()
-  # p.initSystemModule()
+  with p.handle:
+    tree = Ast()
+    lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
+    engine = engine
+    tpl = tpl
+    isMain = isMainParser
+    refreshAst = refreshAst
+  initstdlib()
+  p.handle.initSystemModule()
   startParse(tpl.sources.src)
   if isMainParser:
     {.gcsafe.}:
@@ -1256,6 +1289,7 @@ proc parseSnippet*(id, code: string): Parser {.gcsafe.} =
   )
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
+  # p.skipComments() # if any
   while p.curr isnot tkEOF:
     if unlikely(p.lex.hasError):
       p.logger.newError(internalError, p.curr.line,
@@ -1279,6 +1313,7 @@ proc parseSnippet*(snippetPath: string): Parser {.gcsafe.} =
   )
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
+  # p.skipComments() # if any
   while p.curr isnot tkEOF:
     if unlikely(p.lex.hasError):
       p.logger.newError(internalError, p.curr.line,

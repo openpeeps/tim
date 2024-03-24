@@ -1,9 +1,16 @@
-section.pt-5 > div.container > div.row > div#content-zone.col-lg-7.mx-auto
-  div.text-center > img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png" alt="Tim Engine" width="200px"
-  h1.display-4.fw-bold:
-    "This is Tim 👋 A super fast template engine for cool kids!"
-  p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em":
+// tips: variables declared at template level
+// with default value are known at compile-time
+
+var logo = "https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png"
+var heading = "This is Tim 👋 A super fast template engine for cool kids!"
+var lead = // double quote in multi-line strings
     "Build sleek, dynamic websites and apps in a breeze with
     Tim Engine's intuitive syntax and powerful features.
     It's the template engine that keeps up with your creativity."
+
+section.pt-5 > div.container > div.row > div#content-zone.col-lg-7.mx-auto
+  div.text-center
+    img src=$logo alt="Tim Engine" width="200px"
+  h1.display-4.fw-bold: $heading
+  p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em": $lead
   @include "foot" // include footer

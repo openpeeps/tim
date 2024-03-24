@@ -16,6 +16,7 @@ type
     else: discard
     logger*: Logger
     indent*: int = 2
+    partialIndent* : int = 0
     minify*, hasErrors*: bool
     stickytail*: bool
       # when `false` inserts a `\n` char

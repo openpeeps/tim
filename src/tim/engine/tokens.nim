@@ -26,10 +26,7 @@ handlers:
     inc lex.bufpos
     while true:
       case lex.buf[lex.bufpos]:
-        of NewLines:
-          lex.handleNewLine()
-          break
-        of EndOfFile: break
+        of NewLines, EndOfFile: break
         else:
           inc lex.bufpos
     lex.kind = kind
