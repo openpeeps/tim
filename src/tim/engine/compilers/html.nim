@@ -88,6 +88,7 @@ const
   domSetAttribute = "$1.setAttribute('$2','$3');"
   domInsertAdjacentElement = "$1.insertAdjacentElement('beforeend',$2);"
   domInnerText = "$1.innerText=\"$2\";"
+  stdlibPaths = ["std/system", "std/strings", "std/arrays", "std/os"]
 
 when not defined timStandalone:
   # Scope API, available for library version of TimEngine 
@@ -109,12 +110,12 @@ when not defined timStandalone:
       else:
         c.globalScope[node.varName] = node
     of ntFunction:
-      if c.ast.src != "std/system":
+      if c.ast.src notin stdlibPaths:
         if scopetables.len > 0:
           scopetables[^1][node.fnIdent] = node
-        else:
-          c.globalScope[node.fnIdent] = node
-      else: discard # todo
+        else: c.globalScope[node.fnIdent] = node
+      else:
+        c.globalScope[node.fnIdent] = node
     else: discard
 
   proc getCurrentScope(c: var HtmlCompiler,
@@ -380,6 +381,34 @@ proc walkAccessorStorage(c: var HtmlCompiler,
     let lhs = c.bracketEvaluator(lhs, scopetables)
     if likely(lhs != nil):
       return c.walkAccessorStorage(lhs, rhs, scopetables)
+  of ntLitString:
+    case rhs.nt
+    of ntLitInt:
+      try:
+        return ast.newString($(lhs.sVal[rhs.iVal]))
+      except Defect:
+        compileErrorWithArgs(indexDefect, lhs.meta,
+          [$(rhs.iVal), "0.." & $(lhs.arrayItems.high)])
+    of ntIndexRange:
+      let
+        l = c.getValue(rhs.rangeNodes[0], scopetables)
+        r = c.getValue(rhs.rangeNodes[1], scopetables)
+      if likely(l != nil and r != nil):
+        let l = l.iVal
+        let r = r.iVal
+        try:
+          case rhs.rangeLastIndex
+          of false:
+            result = ast.newString($(lhs.sVal[l..r]))
+          of true:
+            result = ast.newString($(lhs.sVal[l..^r]))
+        except Defect:
+          let someRange =
+            if rhs.rangeLastIndex: $(l) & "..^" & $(r)
+            else: $(l) & ".." & $(r)
+          compileErrorWithArgs(indexDefect, lhs.meta,
+            [someRange, "0.." & $(lhs.sVal.high)])
+    else: discard
   of ntLitArray:
     case rhs.nt
     of ntLitInt:
@@ -409,7 +438,19 @@ proc walkAccessorStorage(c: var HtmlCompiler,
           compileErrorWithArgs(indexDefect, lhs.meta,
             [someRange, "0.." & $(lhs.arrayItems.high)])
       else: discard # todo error?
-    else: compileErrorWithArgs(invalidAccessorStorage,
+    else:
+      case rhs.nt
+      of ntIdent:
+        let some = c.getScope(rhs.identName, scopetables)
+        if likely(some.scopeTable != nil):
+          case some.scopeTable[rhs.identName].nt
+          of ntFunction:
+            # evaluate a function call and return the result
+            # if the retun type is not void, otherwise nil
+            return c.unsafeCall(lhs, some.scopeTable[rhs.identName], scopetables)
+          else: discard
+      else: discard
+      compileErrorWithArgs(invalidAccessorStorage,
         rhs.meta, [rhs.toString, $lhs.nt])
   else: discard
 
@@ -469,6 +510,9 @@ proc evalCmd(c: var HtmlCompiler, node: Node,
 proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
   # Evaluates comparison expressions
+  if unlikely(lhs == nil or rhs == nil): return
+  let lhs = c.getValue(lhs, scopetables)
+  let rhs = c.getValue(rhs, scopetables)
   if unlikely(lhs == nil or rhs == nil): return
   case infixOp:
   of EQ:
@@ -662,7 +706,6 @@ proc getValue(c: var HtmlCompiler, node: Node,
     # evaluates an identifier
     let some = c.getScope(node.identName, scopetables)
     if likely(some.scopeTable != nil):
-      # echo some.scopeTable[node.identName].nt
       case some.scopeTable[node.identName].nt
       of ntFunction:
         # evaluate a function call and return the result
@@ -675,6 +718,8 @@ proc getValue(c: var HtmlCompiler, node: Node,
       return c.data["local"].toTimNode
     if node.identName == "app":
       return c.data["global"].toTimNode
+    if node.identArgs.len > 0:
+      compileErrorWithArgs(fnUndeclared, [node.identName])
     compileErrorWithArgs(undeclaredVariable, [node.identName])
   of ntAssignableSet, ntIndexRange:
     # return literal nodes
@@ -1380,10 +1425,12 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntIdent:
       # case parentNodeType
       # of ntHtmlElement:
-      #   let returnNode = c.fnCall(node, scopetables)
-      #   if likely(returnNode != nil):
-      #     write returnNode, true, false
+      #   echo node
+        # let returnNode = c.fnCall(node, scopetables)
+        # if likely(returnNode != nil):
+          # write returnNode, true, false
       # else:
+      #   discard
       #   let x = c.fnCall(node, scopetables)
       #   if unlikely x != nil:
       #     if parentNodeType != ntFunction and x.nt != ntHtmlElement:

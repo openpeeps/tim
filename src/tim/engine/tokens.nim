@@ -101,6 +101,8 @@ handlers:
       lex.token = "@placeholder"
     elif lex.next("include"):
       lex.setToken tkInclude, 8
+    elif lex.next("import"):
+      lex.setToken tkImport, 7
     elif lex.next("view"):
       lex.setToken tkViewLoader, 5
     elif lex.next("client"):
@@ -207,6 +209,7 @@ registerTokens toktokSettings:
   
   # magics
   at = tokenize(handleMagics, '@')
+  `import`
   snippetJs
   snippetYaml
   snippetJson
@@ -215,7 +218,6 @@ registerTokens toktokSettings:
   client
   `end`
   `include`
-  `import` = "import"
 
   fn = "fn"
   `func` = "func"

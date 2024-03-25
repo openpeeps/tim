@@ -89,6 +89,9 @@ proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseTernaryExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 
+proc parseModule(engine: TimEngine, moduleName: string,
+    code: SourceCode = SourceCode("")): Ast {.gcsafe.}
+
 template caseNotNil(x: Node, body): untyped =
   if likely(x != nil):
     body
@@ -286,7 +289,9 @@ proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   result.lhs = lhs
   walk p # tkDot
   if p.isFnCall():
-    result.rhs = p.pFunctionCall()
+    let fnCallNode = p.pFunctionCall()
+    caseNotNil fnCallNode:
+      result.rhs = fnCallNode
   elif p.curr is tkIdentifier:
     result.rhs = ast.newIdent(p.curr)
     walk p
@@ -841,12 +846,16 @@ prefixHandle pInclude:
 
 prefixHandle pImport:
   # parse `@import`
-  if likely p.next is tkString:
-    let tk = p.curr
-    walk p
-    result = ast.newNode(ntImport, tk)
-    add result.modules, p.curr.value
-    walk p
+  {.gcsafe.}:
+    if likely p.next is tkString:
+      let tk = p.curr
+      walk p
+      result = ast.newNode(ntImport, tk)
+      add result.modules, p.curr.value
+      p.tree.modules[p.curr.value] =
+        p.engine.parseModule(p.curr.value, std(p.curr.value)[1])
+      p.tree.modules[p.curr.value].src = p.curr.value
+      walk p
 
 prefixHandle pSnippet:
   case p.curr.kind
@@ -973,6 +982,10 @@ prefixHandle pFunctionCall:
   walk p, 2 # we know tkLP is next so we'll skip it
   while p.curr isnot tkRP:
     let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
+    if p.curr is tkComma and p.next in tkAssignableSet:
+      walk p
+    elif p.curr isnot tkRP:
+      return nil
     caseNotNil argNode:
       add result.identArgs, argNode
   walk p # tkRP
@@ -1212,27 +1225,28 @@ template collectImporterErrors =
     p.handle.hasErrors = true
 
 proc parseModule(engine: TimEngine, moduleName: string,
-    code: SourceCode = SourceCode("")): Ast =
-  var p = Parser(
-    tree: Ast(src: moduleName),
-    engine: engine,
-    lex: newLexer(code.string, allowMultilineStrings = true),
-    logger: Logger(filePath: "")
-  )  
-  p.curr = p.lex.getToken()
-  p.next = p.lex.getToken()
-  # p.skipComments() # if any
-  while p.curr isnot tkEOF:
-    if unlikely(p.lex.hasError):
-      p.logger.newError(internalError, p.curr.line,
-        p.curr.col, false, p.lex.getError)
-    if unlikely(p.hasErrors):
-      break
-    let node = p.parseRoot()
-    if node != nil:
-      add p.tree.nodes, node
-  p.lex.close()
-  result = p.tree
+    code: SourceCode = SourceCode("")): Ast {.gcsafe.} =
+  {.gcsafe.}:
+    var p = Parser(
+      tree: Ast(src: moduleName),
+      engine: engine,
+      lex: newLexer(code.string, allowMultilineStrings = true),
+      logger: Logger(filePath: "")
+    )  
+    p.curr = p.lex.getToken()
+    p.next = p.lex.getToken()
+    # p.skipComments() # if any
+    while p.curr isnot tkEOF:
+      if unlikely(p.lex.hasError):
+        p.logger.newError(internalError, p.curr.line,
+          p.curr.col, false, p.lex.getError)
+      if unlikely(p.hasErrors):
+        break
+      let node = p.parseRoot()
+      if node != nil:
+        add p.tree.nodes, node
+    p.lex.close()
+    result = p.tree
 
 proc initSystemModule(p: var Parser) =
   ## Make `std/system` available by default
