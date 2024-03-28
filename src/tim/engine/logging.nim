@@ -23,6 +23,7 @@ type
     fnRedefine = "Attempt to redefine function $ [RedefineFunction]"
     fnUndeclared = "Undeclared function $ [UndeclaredFunction]"
     fnReturnMissingCommand = "Expression $ is of type $ and has to be used or discarded [UseOrDiscard]"
+    fnReturnVoid = "Function $ has no return type [VoidFunction]"
     fnExtraArg = "Extra arguments given. Got $ expected $ [ExtraArgs]"
     badIndentation = "Nestable statement requires indentation [BadIndentation]"
     invalidContext = "Invalid $ in this context [InvalidContext]"

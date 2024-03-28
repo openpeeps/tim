@@ -1194,7 +1194,7 @@ proc unsafeCall(c: var HtmlCompiler, node, fnNode: Node,
                 add args, (param[0][1..^1], argValue)
               else: return # typeCheck returns `typeMismatch`
             do:
-              compileErrorWithArgs(fnReturnVoid, ["?"])
+              compileErrorWithArgs(fnReturnVoid, [node.identArgs[i].identName])
           except Defect:
             compileErrorWithArgs(fnExtraArg,
               [node.identName, $(params.len), $(node.identArgs.len)])
