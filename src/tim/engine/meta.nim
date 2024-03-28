@@ -4,7 +4,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[macros, os, json, strutils, sequtils, base64, tables]
+import std/[macros, os, json,
+  strutils, sequtils, base64, tables]
 import pkg/[checksums/md5, flatty]
 
 export getProjectPath
@@ -38,6 +39,10 @@ type
   TemplateTable = TableRef[string, TimTemplate]
 
   TimCallback* = proc() {.nimcall, gcsafe.}
+
+  TimPolicy* = ref object
+    # todo
+
   TimEngine* = ref object
     base, src, output: string
     minify, htmlErrors: bool
@@ -46,6 +51,7 @@ type
     errors*: seq[string]
     placeholders: Table[string, seq[Ast]]
       ## A table containing available placeholders
+    policy: TimPolicy
     when defined timStandalone:
       globals: Globals
     else:

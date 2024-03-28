@@ -5,11 +5,11 @@
 #          https://github.com/openpeeps/tim
 
 {.warning[ImplicitDefaultValue]:off.}
-import std/[macros, streams, lexbase,
+import std/[macros, macrocache, streams, lexbase,
   strutils, sequtils, re, tables, os, with]
 
 import ./meta, ./tokens, ./ast, ./logging
-import ./stdlib
+import ./std
 
 import pkg/kapsis/cli
 import pkg/importer
@@ -718,7 +718,7 @@ prefixHandle pFor:
       walk p
     let inx = p.curr
     expectWalk tkIN
-    if p.curr in {tkIdentVar, tkString, tkLB}:
+    if p.curr in {tkIdentVar, tkString, tkLB} or p.isFnCall:
     # expect {tkIdentVar, tkString, tkLB, tkInteger}: # todo function call
       let items = p.parsePrefix()
       caseNotNil items:
@@ -935,7 +935,7 @@ prefixHandle pFunction:
             else: break
         elif p.curr is tkAssign:
           result.fnParams[pName.value] =
-            (pName.value, ntUnknown, nil, [0, 0, 0])
+            (pName.value, ntLitVoid, nil, [0, 0, 0])
           handleImplicitDefaultValue()
           result.fnParams[pName.value].meta = implNode.meta
         if p.curr is tkComma and p.next isnot tkRP:
@@ -954,6 +954,9 @@ prefixHandle pFunction:
           result.fnReturnHtmlElement = htmlTag(p.curr.value)
           walk p; expectWalk(tkRB)
         else: discard # todo error
+      of tkLitVoid:
+        result.fnReturnType = ntLitVoid
+        walk p
       else:
         expect tkTypedLiterals:
           # set a return type
@@ -971,9 +974,11 @@ prefixHandle pFunction:
       if unlikely(result.fnBody.len == 0):
         error(badIndentation, p.curr)
     else:
-      result.fnImportNim = p.tree.src.startsWith("std/")
-      if result.fnImportNim:
-        result.fnSource = p.tree.src
+      if p.tree.src == "*":
+        result.fnType = FunctionType.fnImportModule
+      elif p.tree.src.startsWith("std"):
+        result.fnType = FunctionType.fnImportSystem
+      result.fnSource = p.tree.src
       result.fnFwdDecl = true
 
 prefixHandle pFunctionCall:
@@ -1126,6 +1131,8 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkIdentVar, tkIdentVarSafe:
       if p.next is tkAssign:
         p.pIdentOrAssignment()
+      elif p.next is tkDot:
+        p.pIdent()
       else: nil
     of tkIF:          p.pCondition()
     of tkCase:        p.pCase()
@@ -1241,6 +1248,8 @@ proc parseModule(engine: TimEngine, moduleName: string,
         p.logger.newError(internalError, p.curr.line,
           p.curr.col, false, p.lex.getError)
       if unlikely(p.hasErrors):
+        echo p.logger.errors.toSeq
+        echo moduleName
         break
       let node = p.parseRoot()
       if node != nil:
@@ -1251,13 +1260,13 @@ proc parseModule(engine: TimEngine, moduleName: string,
 proc initSystemModule(p: var Parser) =
   ## Make `std/system` available by default
   {.gcsafe.}:
-    let stdsystem = "std/system"
+    let x= "std/system"
     var sysNode = ast.newNode(ntImport)
-    sysNode.modules.add(stdsystem)
+    sysNode.modules.add(x)
     p.tree.nodes.add(sysNode)
     p.tree.modules = TimModulesTable()
-    p.tree.modules[stdsystem] =
-      p.engine.parseModule(stdsystem, std(stdsystem)[1])
+    p.tree.modules[x] =
+      p.engine.parseModule(x, std(x)[1])
 
   # var L = initTicketLock()
   # parseHandle[Parser](sysid, dirPath(p.tpl.sources), addr(p.imports),
@@ -1281,7 +1290,7 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
     tpl = tpl
     isMain = isMainParser
     refreshAst = refreshAst
-  initstdlib()
+  initModuleSystem()
   p.handle.initSystemModule()
   startParse(tpl.sources.src)
   if isMainParser:

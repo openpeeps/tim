@@ -8,7 +8,7 @@ import std/[tables, strutils, json,
   jsonutils, options, terminal, sequtils]
 
 import pkg/jsony
-import ./tim, ../stdlib
+import ./tim, ../std, ../parser
 
 from std/xmltree import escape
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
@@ -88,7 +88,7 @@ const
   domSetAttribute = "$1.setAttribute('$2','$3');"
   domInsertAdjacentElement = "$1.insertAdjacentElement('beforeend',$2);"
   domInnerText = "$1.innerText=\"$2\";"
-  stdlibPaths = ["std/system", "std/strings", "std/arrays", "std/os"]
+  stdlibPaths = ["std/system", "std/strings", "std/arrays", "std/os", "*"]
 
 when not defined timStandalone:
   # Scope API, available for library version of TimEngine 
@@ -110,7 +110,7 @@ when not defined timStandalone:
       else:
         c.globalScope[node.varName] = node
     of ntFunction:
-      if c.ast.src notin stdlibPaths:
+      if node.fnSource notin stdlibPaths:
         if scopetables.len > 0:
           scopetables[^1][node.fnIdent] = node
         else: c.globalScope[node.fnIdent] = node
@@ -470,12 +470,15 @@ proc bracketEvaluator(c: var HtmlCompiler, node: Node,
     scopetables: var seq[ScopeTable]): Node =
   case node.bracketStorageType
   of localStorage, globalStorage:
-    let x = c.evalStorage(node)
-    if likely(x != nil):
-      result = x.toTimNode
+    let index = c.getValue(node.bracketIndex, scopetables)
+    notnil index:
+      var x = c.evalStorage(node.bracketLHS)
+      notnil x:
+        result = x.toTimNode
+        return c.walkAccessorStorage(result, index, scopetables)
   of scopeStorage:
     let index = c.getValue(node.bracketIndex, scopetables)
-    if likely(index != nil):
+    notnil index:
       result = c.walkAccessorStorage(node.bracketLHS, index, scopetables)
 
 proc writeDotExpr(c: var HtmlCompiler,
@@ -498,7 +501,7 @@ proc evalCmd(c: var HtmlCompiler, node: Node,
       return node.cmdValue
     else:
       var val = c.getValue(node.cmdValue, scopetables)
-      if val != nil:
+      notnil val:
         case node.cmdType
         of cmdEcho:
           val.meta = node.cmdValue.meta
@@ -996,7 +999,7 @@ template loopEvaluator(kv, items: Node) =
   of ntLitObject:
     case kv.nt
     of ntVariableDef:
-      for x, y in items.objectItems:
+      for k, y in items.objectItems:
         newScope(scopetables)
         node.loopItem.varValue = y
         c.varExpr(node.loopItem, scopetables)
@@ -1039,8 +1042,15 @@ proc evalLoop(c: var HtmlCompiler, node: Node,
   of ntIdent:
     let some = c.getScope(node.loopItems.identName, scopetables)
     if likely(some.scopeTable != nil):
-      let items = some.scopeTable[node.loopItems.identName]
-      loopEvaluator(node.loopItem, items.varValue)
+      var items: Node
+      case some.scopeTable[node.loopItems.identName].nt
+      of ntFunction:
+        items = c.unsafeCall(node.loopItems,
+          some.scopeTable[node.loopItems.identName], scopetables)
+      of ntVariableDef:
+        items = some.scopeTable[node.loopItems.identName].varValue
+      else: discard # error ?
+      loopEvaluator(node.loopItem, items)
     else: compileErrorWithArgs(undeclaredVariable, [node.loopItems.identName])
   of ntDotExpr:
     let items = c.dotEvaluator(node.loopItems, scopetables)
@@ -1160,12 +1170,8 @@ proc fnDef(c: var HtmlCompiler, node: Node,
           if p.pImplVal.nt != p.pType:
             compileErrorWithArgs(typeMismatch,
               [$(p.pImplVal.nt), $p.pType], p.meta)
-    # if node.fnReturnType != ntUnknown:
-      # check if function has a return type
-      # where tkUnknown acts like a void
     c.stack(node.fnIdent, node, scopetables)
   else:
-    # if node.fnParams
     compileErrorWithArgs(fnRedefine, [node.fnIdent])
 
 proc unsafeCall(c: var HtmlCompiler, node, fnNode: Node,
@@ -1177,20 +1183,34 @@ proc unsafeCall(c: var HtmlCompiler, node, fnNode: Node,
     # is matching the total number of parameters
     if node.identArgs.len > 0:
       var i = 0
-      if fnNode.fnImportNim:
-        var args: seq[stdlib.Arg]
+      if fnNode.fnType in {fnImportSystem, fnImportModule}:
+        var args: seq[std.Arg]
         for i in 0..node.identArgs.high:
           try:
             let param = fnNode.fnParams[params[i]]
             let argValue = c.getValue(node.identArgs[i], scopetables)
-            if c.typeCheck(argValue, param[1]):
-              add args, (param[0][1..^1], argValue)
-            else: return # typeCheck returns `typeMismatch`
+            notnil argValue:
+              if c.typeCheck(argValue, param[1]):
+                add args, (param[0][1..^1], argValue)
+              else: return # typeCheck returns `typeMismatch`
+            do:
+              compileErrorWithArgs(fnReturnVoid, ["?"])
           except Defect:
             compileErrorWithArgs(fnExtraArg,
               [node.identName, $(params.len), $(node.identArgs.len)])
         try:
-          return stdlib.call(fnNode.fnSource, node.identName, args)
+          result = std.call(fnNode.fnSource, node.identName, args)
+          if result != nil:
+            case result.nt
+            of ntRuntimeCode:
+              {.gcsafe.}:
+                var p: Parser = parser.parseSnippet("", result.runtimeCode)
+                let phc = newCompiler(p.getAst)
+                if not phc.hasErrors:
+                  add c.output, phc.getHtml()
+                return nil
+            else: discard
+            return # result
         except SystemModule as e:
           compileErrorWithArgs(internalError,
             [e.msg, fnNode.fnSource, fnNode.fnIdent], node.meta)
@@ -1436,10 +1456,11 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
       #     if parentNodeType != ntFunction and x.nt != ntHtmlElement:
       #       compileErrorWithArgs(fnReturnMissingCommand, [node.identName, $(x.nt)])
       let x: Node = c.getValue(node, scopetables)
-      if not c.isClientSide:
-        write x, true, node.identSafe
-      else:
-        add c.jsOutputCode, domInnerText % [xel, x.toString()]
+      notnil x:
+        if not c.isClientSide:
+          write x, true, node.identSafe
+        else:
+          add c.jsOutputCode, domInnerText % [xel, x.toString()]
     of ntDotExpr:
       let x: Node = c.dotEvaluator(node, scopetables)
       if not c.isClientSide:
@@ -1565,7 +1586,6 @@ else:
       )
     if minify: setLen(result.nl, 0)
     var scopetables = newSeq[ScopeTable]()
-
     result.walkNodes(result.ast.nodes, scopetables)
 
 proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =

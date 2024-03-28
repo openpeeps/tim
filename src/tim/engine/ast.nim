@@ -27,6 +27,7 @@ type
     ntLitArray = "array"
     ntLitObject = "object"
     ntFunction = "function"
+    ntLitVoid = "void"
 
     ntVariableDef = "Variable"
     ntAssignExpr = "Assignment"
@@ -53,6 +54,12 @@ type
     ntJsonSnippet = "JsonSnippet"
     ntClientBlock = "ClientSideStatement"
     ntStmtList = "StatementList"
+    ntRuntimeCode = "Runtime"
+
+  FunctionType* = enum
+    fnImportLocal
+    fnImportSystem
+    fnImportModule
 
   CommandType* = enum
     cmdEcho = "echo"
@@ -214,7 +221,8 @@ type
         ## if a function has no return type, then `ntUnknown`
         ## is used as default (void)
       fnReturnHtmlElement*: HtmlTag
-      fnFwdDecl*, fnExport*, fnImportNim*: bool
+      fnFwdDecl*, fnExport*: bool
+      fnType*: FunctionType
       fnSource*: string
     of ntJavaScriptSnippet,
       ntYamlSnippet, ntJsonSnippet:
@@ -248,6 +256,8 @@ type
         ## on the fly for templates marked as jit.
     of ntStmtList:
       stmtList*: seq[Node]
+    of ntRuntimeCode:
+      runtimeCode*: string
     else: discard
     meta*: Meta
 
@@ -439,6 +449,21 @@ proc getTag*(x: Node): string =
     of tagWbr: "wbr"
     else: x.stag # tagUnknown
 
+proc getType*(x: NimNode): NodeType {.compileTime.} = 
+  if x.strVal == "string":
+    return ntLitString
+  if x.strVal == "int":
+    return ntLitInt
+  if x.strVal == "float":
+    return ntLitFloat
+  if x.strVal == "bool":
+    return ntLitBool
+  if x.strVal == "object":
+    return ntLitObject
+  if x.strVal == "array":
+    return ntLitArray
+  result = ntUnknown
+
 #
 # AST to JSON convertors
 #
@@ -509,6 +534,9 @@ proc newBool*(v: bool): Node =
   ## Create a new bool value Node
   result = newNode(ntLitBool)
   result.bVal = v
+
+var voidNode = newNode(ntLitVoid)
+proc getVoidNode*(): Node = voidNode
 
 proc newVariable*(varName: string, varValue: Node, meta: Meta): Node =
   ## Create a new variable definition Node

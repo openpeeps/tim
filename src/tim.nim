@@ -10,7 +10,7 @@ import std/[times, options, asyncdispatch,
 import pkg/[watchout, httpx, websocketx]
 import pkg/kapsis/cli
 
-import tim/engine/[meta, parser, logging]
+import tim/engine/[meta, parser, logging, std]
 import tim/engine/compilers/html
 
 from std/strutils import `%`, indent, split, parseInt, join
@@ -21,8 +21,8 @@ from std/xmltree import escape
 const
   DOCKTYPE = "<!DOCKTYPE html>"
   defaultLayout = "base"
-
-const localStorage* = CacheSeq"LocalStorage"
+  localStorage* = CacheSeq"LocalStorage"
+    # Compile-time Cache seq to handle local data
 
 macro initCommonStorage*(x: untyped) =
   ## Initializes a common localStorage that can be
@@ -412,8 +412,83 @@ when defined napibuild:
 
 elif not isMainModule:
   # Expose Tim Engine API for Nim development (as a Nimble librayr)
-  export parser, html, json
+  import std/enumutils
+  import tim/engine/ast
+  
+  export ast, parser, html, json, stdlib
   export meta except TimEngine
+  export localModule, SourceCode, Arg, NodeType
+
+  proc initModule(modules: NimNode): NimNode =
+    result = newStmtList()
+    var functions: seq[string]
+    modules.expectKind nnkArgList
+    for mblock in modules[0]:
+      mblock.expectKind nnkBlockStmt
+      for m in mblock[1]:
+        case m.kind
+        of nnkProcDef:
+          let id = m[0]
+          var fn = "fn " & $m[0] & "*("
+          var fnReturnType: NodeType
+          var params: seq[string]
+          if m[3][0].kind != nnkEmpty:
+            for p in m[3][1..^1]:
+              add params, $p[0] & ":" & $p[1]
+            add fn, params.join(",")
+            add fn, "): "
+            add fn, $m[3][0]
+            fnReturnType = ast.getType(m[3][0])
+          else:
+            add fn, ")"
+          add functions, fn
+          var lambda = nnkLambda.newTree(newEmptyNode(), newEmptyNode(), newEmptyNode())
+          var procParams = newNimNode(nnkFormalParams)
+          procParams.add(
+            ident("Node"),
+            nnkIdentDefs.newTree(
+              ident("args"),
+              nnkBracketExpr.newTree(
+                ident("openarray"),
+                ident("Arg")
+              ),
+              newEmptyNode()
+            ),
+            nnkIdentDefs.newTree(
+              ident("returnType"),
+              ident("NodeType"),
+              ident(symbolName(ntLitString))
+            )
+          )
+          add lambda, procParams
+          add lambda, newEmptyNode()
+          add lambda, newEmptyNode()
+          add lambda, m[6]
+          add result, 
+            newAssignment(
+              nnkBracketExpr.newTree(
+                ident"localModule", newLit($id)
+              ),
+              lambda
+            )
+        else:
+          add result, m
+    add result,
+      newAssignment(
+        nnkBracketExpr.newTree(
+          ident("stdlib"),
+          newLit("*")
+        ),
+        nnkTupleConstr.newTree(
+          ident("localModule"),
+          newCall(ident("SourceCode"), newLit(functions.join("\n")))
+        )
+      )
+    echo result.repr
+
+
+  macro initLocalModule*(x: varargs[untyped]): untyped =
+    initModule(x)
 
 else:
   # Build Tim Engine as a standalone CLI application

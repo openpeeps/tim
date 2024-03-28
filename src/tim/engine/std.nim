@@ -4,24 +4,24 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/bro
 
-import std/[macros, enumutils, critbits]
-import ./ast
-
-# std lib dependencies
+import std/[macros, macrocache, enumutils,
+  critbits, os, math, fenv, strutils,
+  sequtils, random, unicode, json, base64]
 import pkg/[jsony, nyml]
-import std/[os, math, fenv, strutils, sequtils,
-  random, unicode, json, base64]
 
-# import ./css
+import ./ast, ./meta
+
+# const
+  # localModules* = CacheSeq"LocalModules"
+    # Compile-time Cache seq to handle local modules
 
 type
   Arg* = tuple[name: string, value: Node]
-  NimCall* = proc(args: openarray[Arg], returnType: NodeType = ntUnknown): Node
+  NimCall* = proc(args: openarray[Arg], returnType: NodeType = ntLitVoid): Node
 
   Module = CritBitTree[NimCall]
   SourceCode* = distinct string
-
-  Stdlib* = CritBitTree[(Module, SourceCode)]
+  Stdlib = CritBitTree[(Module, SourceCode)]
 
   StringsModule* = object of CatchableError
   ArraysModule* = object of CatchableError
@@ -37,7 +37,7 @@ var
     critbitsModule {.threadvar.},
     systemModule {.threadvar.},
     mathModule {.threadvar.},
-    chromaModule {.threadvar.}: Module
+    localModule* {.threadvar.}: Module
 
 proc toNimSeq*(node: Node): seq[string] =
   for item in node.arrayItems:
@@ -66,19 +66,20 @@ macro initStandardLibrary() =
       wrapper: NimNode
         # wraps nim function
       hasWrapper: bool
-      loadFrom: string
+      src: string
 
-  proc addFunction(id: string, args: openarray[(NodeType, string)], nt: NodeType): string =
+  proc addFunction(id: string,
+      args: openarray[(NodeType, string)], nt: NodeType): string =
     var p = args.map do:
               proc(x: (NodeType, string)): string =
                 "$1: $2" % [x[1], $(x[0])]
     result = "fn $1*($2): $3\n" % [id, p.join(", "), $nt]
 
   proc fwd(id: string, returns: NodeType, args: openarray[(NodeType, string)] = [],
-      alias = "", wrapper: NimNode = nil, loadFrom = ""): Forward =
+      alias = "", wrapper: NimNode = nil, src = ""): Forward =
     Forward(id: id, returns: returns, args: args.toSeq,
         alias: alias, wrapper: wrapper, hasWrapper: wrapper != nil,
-        loadFrom: loadFrom)
+        src: src)
 
   # proc `*`(nt: NodeType, count: int): seq[NodeType] =
   #   for i in countup(1, count):
@@ -118,8 +119,6 @@ macro initStandardLibrary() =
 
   template systemInc: untyped =
     inc args[0].value.iVal
-    echo args[0].value
-    args[0].value
 
   template convertToString: untyped =
     var str: ast.Node
@@ -132,6 +131,11 @@ macro initStandardLibrary() =
       else: discard
     str
 
+  template parseCode: untyped =
+    var xast: Node = ast.newNode(ntRuntimeCode)
+    xast.runtimeCode = args[0].value.sVal
+    xast
+
   let
     fnSystem = @[
       # fwd("json", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
@@ -139,10 +143,12 @@ macro initStandardLibrary() =
       fwd("rand", ntLitInt, [(ntLitInt, "max")], "random", wrapper = getAst(systemRandomize())),
       fwd("len", ntLitInt, [(ntLitString, "x")]),
       # fwd("len", ntLitInt, [(ntLitArray, "x")]),
-      fwd("encode", ntLitString, [(ntLitString, "x")], loadFrom = "base64"),
-      fwd("decode", ntLitString, [(ntLitString, "x")], loadFrom = "base64"),
-      fwd("toString", ntLitString, [(ntLitInt, "x")], wrapper = getAst(convertToString()))
-      # fwd("int", ntInt, [(ntLitInt, "x")], "increment", wrapper = getAst(systemInc())),
+      fwd("encode", ntLitString, [(ntLitString, "x")], src = "base64"),
+      fwd("decode", ntLitString, [(ntLitString, "x")], src = "base64"),
+      fwd("toString", ntLitString, [(ntLitInt, "x")], wrapper = getAst(convertToString())),
+      fwd("timl", ntLitString, [(ntLitString, "x")], wrapper = getAst(parseCode())),
+      fwd("inc", ntLitVoid, [(ntLitInt, "x")], wrapper = getAst(systemInc())),
+      fwd("dec", ntLitVoid, [(ntLitInt, "x")]),
     ]
 
   let
@@ -150,8 +156,8 @@ macro initStandardLibrary() =
       fwd("ceil", ntLitFloat, [(ntLitFloat, "x")]),
       # fwd("clamp") need to add support for ranges
       fwd("floor", ntLitFloat, [(ntLitFloat, "x")]),
-      fwd("max", ntLitInt, [(ntLitInt, "x"), (ntLitInt, "y")], loadFrom = "system"),
-      fwd("min", ntLitInt, [(ntLitInt, "x"), (ntLitInt, "y")], loadFrom = "system"),
+      fwd("max", ntLitInt, [(ntLitInt, "x"), (ntLitInt, "y")], src = "system"),
+      fwd("min", ntLitInt, [(ntLitInt, "x"), (ntLitInt, "y")], src = "system"),
       fwd("round", ntLitFloat, [(ntLitFloat, "x")]),
       # fwd("abs", ntLitInt, [(ntLitInt, "x")]),
       fwd("hypot", ntLitFloat, [(ntLitFloat, "x"), (ntLitFloat, "y")]),
@@ -182,7 +188,7 @@ macro initStandardLibrary() =
       fwd("contains", ntLitBool, [(ntLitString, "s"), (ntLitString, "sub")]),
       fwd("parseBool", ntLitBool, [(ntLitString, "s")]),
       fwd("parseInt", ntLitInt, [(ntLitString, "s")]),
-      fwd("parseFloat", ntLitFloat, [(ntLitString, "s")], "toFloat"),
+      fwd("parseFloat", ntLitFloat, [(ntLitString, "s")]),
       fwd("format", ntLitString, [(ntLitString, "s"), (ntLitArray, "a")], wrapper = getAst(formatWrapper()))
     ]
 
@@ -204,7 +210,8 @@ macro initStandardLibrary() =
 
   template arraysPop: untyped =
     try:
-      delete(args[0].value.arrayItems, args[0].value.arrayItems.high)
+      delete(args[0].value.arrayItems,
+        args[0].value.arrayItems.high)
     except IndexDefect as e:
       raise newException(ArraysModule, e.msg)
 
@@ -213,7 +220,8 @@ macro initStandardLibrary() =
     shuffle(args[0].value.arrayItems)
 
   template arraysJoin: untyped =
-    ast.newString(strutils.join(toNimSeq(args[0].value), args[1].value.sVal))
+    ast.newString(strutils.join(
+      toNimSeq(args[0].value), args[1].value.sVal))
   
   template arraysDelete: untyped =
     delete(args[0].value.arrayItems, args[1].value.iVal)
@@ -226,12 +234,12 @@ macro initStandardLibrary() =
   let
     fnArrays = @[
       fwd("contains", ntLitBool, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysContains()),
-      fwd("add", ntUnknown, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysAdd()),
-      fwd("shift", ntUnknown, [(ntLitArray, "x")], wrapper = getAst arraysShift()),
-      fwd("pop", ntUnknown, [(ntLitArray, "x")], wrapper = getAst arraysPop()),
-      fwd("shuffle", ntUnknown, [(ntLitArray, "x")], wrapper = getAst arraysShuffle()),
+      fwd("add", ntLitVoid, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysAdd()),
+      fwd("shift", ntLitVoid, [(ntLitArray, "x")], wrapper = getAst arraysShift()),
+      fwd("pop", ntLitVoid, [(ntLitArray, "x")], wrapper = getAst arraysPop()),
+      fwd("shuffle", ntLitVoid, [(ntLitArray, "x")], wrapper = getAst arraysShuffle()),
       fwd("join", ntLitString, [(ntLitArray, "x"), (ntLitString, "sep")], wrapper = getAst arraysJoin()),
-      fwd("delete", ntUnknown, [(ntLitArray, "x"), (ntLitInt, "pos")], wrapper = getAst arraysDelete()),
+      fwd("delete", ntLitVoid, [(ntLitArray, "x"), (ntLitInt, "pos")], wrapper = getAst arraysDelete()),
       fwd("find", ntLitInt, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysFind()),
     ]
     # fnObjects = @[
@@ -260,7 +268,7 @@ macro initStandardLibrary() =
       # fwd("splitFile", ntTuple, [ntLitString]),
       fwd("extractFilename", ntLitString, [(ntLitString, "path")], "getFilename"),
       fwd("isAbsolute", ntLitBool, [(ntLitString, "path")]),
-      fwd("readFile", ntLitString, [(ntLitString, "path")], loadFrom="system"),
+      fwd("readFile", ntLitString, [(ntLitString, "path")], src="system"),
       fwd("isRelativeTo", ntLitBool, [(ntLitString, "path"), (ntLitString, "base")], "isRelative"),
       fwd("getCurrentDir", ntLitString),
       fwd("joinPath", ntLitString, [(ntLitString, "head"), (ntLitString, "tail")], "join"),
@@ -276,7 +284,6 @@ macro initStandardLibrary() =
     ("sequtils", fnArrays, "arrays"),
     ("os", fnOs, "os")
   ]
-  echo "Generate Standard Library"
   for lib in libs:
     var sourceCode: string
     for fn in lib[1]:
@@ -310,7 +317,7 @@ macro initStandardLibrary() =
         of ntLitFloat: "newFloat"
         of ntLitArray: "newArray" # todo implement toArray
         of ntLitObject: "newObject" # todo implement toObject
-        else: ""
+        else: "getVoidNode"
       var i = 0
       var fnIdent = if fn.alias.len != 0: fn.alias else: fn.id
       add sourceCode, addFunction(fnIdent, fn.args, fn.returns)
@@ -318,15 +325,15 @@ macro initStandardLibrary() =
       if not fn.hasWrapper:
         var callableNode =
           if lib[0] != "system":
-            if fn.loadFrom.len == 0:
+            if fn.src.len == 0:
               newCall(newDotExpr(ident(lib[0]), ident(fn.id)))
             else:
-              newCall(newDotExpr(ident(fn.loadFrom), ident(fn.id)))
+              newCall(newDotExpr(ident(fn.src), ident(fn.id)))
           else:
-            if fn.loadFrom.len == 0:
+            if fn.src.len == 0:
               newCall(newDotExpr(ident("system"), ident(fn.id)))
             else:
-              newCall(newDotExpr(ident(fn.loadFrom), ident(fn.id)))
+              newCall(newDotExpr(ident(fn.src), ident(fn.id)))
         for arg in fn.args:
           let fieldName =
             case arg[0]
@@ -341,10 +348,7 @@ macro initStandardLibrary() =
             callableNode.add(
               newDotExpr(
                 newDotExpr(
-                  nnkBracketExpr.newTree(
-                    ident("args"),
-                    newLit(i)
-                  ),
+                  nnkBracketExpr.newTree(ident("args"), newLit(i)),
                   ident("value")
                 ),
                 ident(fieldName)
@@ -353,17 +357,20 @@ macro initStandardLibrary() =
           else:
             callableNode.add(
               newDotExpr(
-                nnkBracketExpr.newTree(
-                  ident("args"),
-                  newLit(i)
-                ),
+                nnkBracketExpr.newTree(ident"args", newLit(i)),
                 ident("value")
               ),
             )
           inc i
-        callNode = newCall(ident(valNode), callableNode)
+        if fn.returns != ntLitVoid:
+          callNode = newCall(ident(valNode), callableNode)
+        else:
+          callNode = nnkStmtList.newTree(callableNode, newCall(ident("getVoidNode")))
       else:
-        callNode = fn.wrapper
+        if fn.returns != ntLitVoid:
+          callNode = fn.wrapper
+        else:
+          callNode = nnkStmtList.newTree(fn.wrapper, newCall(ident"getVoidNode"))
       lambda.add(newStmtList(callNode))
       add result,
         newAssignment(
@@ -384,11 +391,11 @@ macro initStandardLibrary() =
           newCall(ident("SourceCode"), newLit(sourceCode))
         )
       )
-    when not defined release:
-      echo "std/" & lib[2]
-      echo sourceCode
+    # when not defined release:
+      # echo "std/" & lib[2]
+      # echo sourceCode
 
-proc initstdlib*() =
+proc initModuleSystem* =
   {.gcsafe.}:
     initStandardLibrary()
 
