@@ -356,26 +356,33 @@ proc walkAccessorStorage(c: var HtmlCompiler,
   of ntDotExpr:
     let lhs = c.walkAccessorStorage(lhs.lhs, lhs.rhs, scopetables)
     notnil lhs:
-      case rhs.nt
-      of ntIdent:
-        rhs.identArgs.insert(lhs, 0)
-        result = c.fnCall(rhs, scopetables)
-        rhs.identArgs.del(0)
-      else:
+      case lhs.nt
+      of ntLitObject:
         return c.walkAccessorStorage(lhs, rhs, scopetables)
-  of ntIdent:
-    let lhs = c.getValue(lhs, scopetables)
-    notnil lhs:
-      case rhs.nt
-      of ntIdent:
-        let some = c.getScope(rhs.identName, scopetables)
-        if likely(some.scopeTable != nil):
+      else:
+        case rhs.nt
+        of ntIdent:
           rhs.identArgs.insert(lhs, 0)
           result = c.fnCall(rhs, scopetables)
           rhs.identArgs.del(0)
         else:
           return c.walkAccessorStorage(lhs, rhs, scopetables)
+  of ntIdent:
+    let lhs = c.getValue(lhs, scopetables)
+    notnil lhs:
+      case lhs.nt
+      of ntLitObject:
+        return c.walkAccessorStorage(lhs, rhs, scopetables)
       else:
+        case rhs.nt
+        of ntIdent:
+          let some = c.getScope(rhs.identName, scopetables)
+          if likely(some.scopeTable != nil):
+            rhs.identArgs.insert(lhs, 0)
+            result = c.fnCall(rhs, scopetables)
+            rhs.identArgs.del(0)
+          else: discard
+        else: discard
         return c.walkAccessorStorage(lhs, rhs, scopetables)
   of ntBracketExpr:
     let lhs = c.bracketEvaluator(lhs, scopetables)
@@ -711,8 +718,6 @@ proc getValue(c: var HtmlCompiler, node: Node,
     if likely(some.scopeTable != nil):
       case some.scopeTable[node.identName].nt
       of ntFunction:
-        # evaluate a function call and return the result
-        # if the retun type is not void, otherwise nil
         return c.unsafeCall(node, some.scopeTable[node.identName], scopetables)
       of ntVariableDef:
         return c.getValue(some.scopeTable[node.identName].varValue, scopetables)

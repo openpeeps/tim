@@ -204,40 +204,6 @@ proc compileCode(engine: TimEngine, tpl: TimTemplate,
       else: c.logger.displayErrors()
   else: p.logger.displayErrors()
 
-var sync: Thread[(Port, int)]
-var lastModified, prevModified: Time
-
-proc browserSync(x: (Port, int)) {.thread.} =
-  proc onRequest(req: Request) {.async.} =
-    if req.httpMethod == some(HttpGet):
-      case req.path.get()
-      of "/":
-        req.send("Hello, Hello!") # todo a cool page here?
-      of "/ws":
-        try:
-          var ws = await newWebSocket(req)
-          while ws.readyState == Open:
-            if lastModified > prevModified:
-              # our JS snippet listens on `message`, so once
-              # we have an update we can just send an empty string.
-              # connecting to Tim's WebSocket via JS:
-              #   const watchout = new WebSocket('ws://127.0.0.1:6502/ws');
-              #   watchout.addEventListener('message', () => location.reload());
-              await ws.send("")
-              ws.close()
-              prevModified = lastModified
-            sleep(x[1])
-        except WebSocketClosedError:
-          echo "Socket closed"
-        except WebSocketProtocolMismatchError:
-          echo "Socket tried to use an unknown protocol: ", getCurrentExceptionMsg()
-        except WebSocketError:
-          req.send(Http404)
-      else: req.send(Http404)
-    else: req.send(Http503)
-  let settings = initSettings(x[0], numThreads = 1)
-  httpx.run(onRequest, settings)
-
 proc resolveDependants(engine: TimEngine, x: seq[string]) =
   for path in x:
     let tpl = engine.getTemplateByPath(path)
@@ -251,11 +217,10 @@ proc resolveDependants(engine: TimEngine, x: seq[string]) =
       #   for err in engine.errors:
       #     echo err
       # else:
-      lastModified = getTime()
 
 proc precompile*(engine: TimEngine, callback: TimCallback = nil,
     flush = true, waitThread = false, browserSyncPort = Port(6502),
-    browserSyncDelay = 550, global: JsonNode = newJObject(), watchoutNotify = true) =
+    browserSyncDelay = 200, global: JsonNode = newJObject(), watchoutNotify = true) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
   ## 
@@ -293,7 +258,6 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
         case tpl.getType()
         of ttView, ttLayout:
           engine.compileCode(tpl)
-          lastModified = getTime()
         else:
           engine.resolveDependants(tpl.getDeps.toSeq)
 
@@ -303,10 +267,16 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
         notify("✨ Deleted", file.getName())
         engine.clearTemplateByPath(file.getPath())
 
-      var w = newWatchout(@[engine.getSourcePath() / "*"], onChange,
-        onFound, onDelete, recursive = true, ext = @["timl"], delay = 200)
-      # start browser sync server in a separate thread
-      createThread(sync, browserSync, (browserSyncPort, browserSyncDelay))
+      var w =
+        newWatchout(
+          @[engine.getSourcePath() / "*"],
+          onChange, onFound, onDelete,
+          recursive = true,
+          ext = @["timl"], delay = 200,
+          browserSync =
+            WatchoutBrowserSync(port: browserSyncPort,
+              delay: browserSyncDelay)
+          )
       # start filesystem monitor in a separate thread
       w.start(waitThread)
     else:
