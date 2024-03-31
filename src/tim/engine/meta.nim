@@ -218,7 +218,10 @@ proc getHtml*(t: TimTemplate): string =
 
 proc getTail*(t: TimTemplate): string =
   ## Returns the tail of a split layout
-  result = readFile(t.getHtmlPath.changeFileExt("tail"))
+  try:
+    result = readFile(t.getHtmlPath.changeFileExt("tail"))
+  except IOError as e:
+    raise newException(TimError, e.msg & "\nSource: " & t.sources.src)
 
 iterator getViews*(engine: TimEngine): TimTemplate =
   for id, tpl in engine.views:

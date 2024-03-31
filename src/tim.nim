@@ -17,7 +17,6 @@ from std/strutils import `%`, indent, split, parseInt, join
 from std/os import `/`, sleep
 
 from std/xmltree import escape
-
 const
   DOCKTYPE = "<!DOCKTYPE html>"
   defaultLayout = "base"
@@ -201,7 +200,8 @@ proc compileCode(engine: TimEngine, tpl: TimTemplate,
           engine.writeHtml(tpl, c.getHead)
           engine.writeHtmlTail(tpl, c.getTail)
         else: discard
-      else: c.logger.displayErrors()
+      else:
+        c.logger.displayErrors()
   else: p.logger.displayErrors()
 
 proc resolveDependants(engine: TimEngine, x: seq[string]) =
@@ -457,7 +457,7 @@ elif not isMainModule:
     echo result.repr
 
 
-  macro initLocalModule*(x: varargs[untyped]): untyped =
+  macro initModule*(x: varargs[untyped]): untyped =
     initModule(x)
 
 else:

@@ -776,6 +776,7 @@ prefixHandle pAnoObject:
           result = nil
           break
       else: errorWithArgs(duplicateField, k, [k.value])
+    else: return nil
   walk p # tkRC
 
 prefixHandle pAnoArray:

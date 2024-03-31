@@ -469,7 +469,7 @@ proc dotEvaluator(c: var HtmlCompiler, node: Node,
     let x = c.evalStorage(node)
     if likely(x != nil):
       return x.toTimNode
-    result = ast.newNode(ntLitBool)
+    result = getVoidNode()
   of scopeStorage:
     return c.walkAccessorStorage(node.lhs, node.rhs, scopetables)
 
@@ -1557,6 +1557,7 @@ when not defined timStandalone:
       data: JsonNode = newJObject()): HtmlCompiler =
     ## Create a new instance of `HtmlCompiler`
     assert indent in [2, 4]
+    assert ast != nil
     data["global"] = engine.getGlobalData()
     result =
       HtmlCompiler(
@@ -1579,6 +1580,7 @@ else:
       minify = true, indent = 2): HtmlCompiler =
     ## Create a new instance of `HtmlCompiler`
     assert indent in [2, 4]
+    assert ast != nil
     result =
       HtmlCompiler(
         engine: engine,
@@ -1596,6 +1598,7 @@ else:
 proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =
   ## Create a new instance of `HtmlCompiler
   assert indent in [2, 4]
+  assert ast != nil
   var c = HtmlCompiler(
     ast: ast,
     start: true,
