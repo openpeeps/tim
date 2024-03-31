@@ -1293,16 +1293,6 @@ proc fnCall(c: var HtmlCompiler, node: Node,
 #
 # Html Handler
 #
-proc getId(c: HtmlCompiler, node: Node): string =
-  # Get ID html attribute
-  add result, indent("id=", 1) & "\""
-  let attrNode = node.attrs["id"][0]
-  case attrNode.nt
-  of ntLitString:
-    add result, attrNode.sVal
-  else: discard # todo
-  add result, "\""
-
 proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
     scopetables: var seq[ScopeTable], xel = newStringOfCap(0)): string =
   # Write HTMLAttributes
@@ -1322,10 +1312,6 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
         if likely(xVal != nil):
           add attrStr, xVal.toString()
         else: return # undeclaredVariable
-      # of ntCall:
-      #   let xVal = c.fnCall(attrNode, scopetables)
-      #   if likely(xVal != nil):
-      #     add attrStr, xVal.toString()
       of ntDotExpr:
         let xVal = c.dotEvaluator(attrNode, scopetables)
         if likely(xVal != nil):
@@ -1361,9 +1347,6 @@ template htmlblock(x: Node, body) =
     add c.output, "<"
     add c.output, t
     if x.attrs != nil:
-      if x.attrs.hasKey("id"):
-        add c.output, c.getId(x)
-        x.attrs.del("id") # not needed anymore
       if x.attrs.len > 0:
         add c.output, c.getAttrs(x.attrs, scopetables)
     add c.output, ">"
