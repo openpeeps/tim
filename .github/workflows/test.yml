@@ -28,7 +28,9 @@ jobs:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 #       - run: sudo apt-get -y install libsass-dev
+      - run: "npm install node-gyp -g"
+      - run: "npm install cmake-js -g"
+      - run: "choosenim show path -y"
       - run: nimble install -Y
-      # - run: nimble prod
-#       - run: nim --threads:on c -r src/${{ github.event.repository.name }}.nim
       - run: nimble test
+      - run: denim build src/${{ github.event.repository.name }}.nim --release --yes --cmake
