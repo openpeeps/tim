@@ -454,8 +454,6 @@ elif not isMainModule:
           newCall(ident("SourceCode"), newLit(functions.join("\n")))
         )
       )
-    echo result.repr
-
 
   macro initModule*(x: varargs[untyped]): untyped =
     initModule(x)

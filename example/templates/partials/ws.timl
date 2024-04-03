@@ -2,7 +2,9 @@
   {
     function connectWatchoutServer() {      
       const watchout = new WebSocket('ws://127.0.0.1:6502/ws');
-      watchout.addEventListener('message', () => location.reload());
+      watchout.addEventListener('message', (e) => {
+        if(e.data == '1') location.reload()
+      });
       watchout.addEventListener('close', () => {
         setTimeout(() => {
           console.log('Watchout WebSocket is closed. Try again...')
