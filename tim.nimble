@@ -21,9 +21,9 @@ requires "kapsis#head"
 requires "denim#head"
 requires "checksums"
 requires "flatty#head"
+requires "malebolgia"
 requires "nyml"
 # requires "bro"
-requires "httpx", "websocketx"
 
 task node, "Build a NODE addon":
   exec "denim build src/tim.nim --cmake --yes"
@@ -38,3 +38,6 @@ task examples, "build all examples":
 
 task example, "example httpbeast + tim":
   exec "nim c -d:timHotCode --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"
+
+task bench, "run some benchmarks":
+  exec "nim c --threads:on -d:danger --opt:speed --mm:arc -o:./bin/bench example/benchmark.nim"
