@@ -449,7 +449,7 @@ prefixHandle pBreakCommand:
   result = ast.newCommand(cmdBreak, nil, p.curr)
   walk p
 
-template anyAttrIdent(): untyped =
+template anyAttrIdent: untyped =
   (
     (p.curr in {tkString, tkIdentifier, tkIf, tkFor,
       tkElif, tkElse, tkOr, tkIn} and p.next is tkAssign) or
@@ -552,7 +552,10 @@ prefixHandle pElement:
     # let groupNode = p.pGroupExpr()
     # caseNotNil groupNode:
     #   add result.attr, groupNode
-  else: discard
+  else:
+    if p.curr.line == this.line:
+      result.attrs = HtmlAttributes()
+      p.parseAttributes(result.attrs, this)
 
   case p.curr.kind
   of tkColon:
