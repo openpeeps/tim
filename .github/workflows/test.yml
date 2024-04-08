@@ -33,4 +33,4 @@ jobs:
       - run: "choosenim show path -y"
       - run: nimble install -Y
       - run: nimble test
-      - run: denim build src/${{ github.event.repository.name }}.nim --release --yes --cmake
+      - run: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
