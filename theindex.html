@@ -21,7 +21,7 @@
   <div class="document" id="documentId">
     <div class="container">
       <h1 class="title">Index</h1>
-      Modules: <a href="index.html">tim</a>, <a href="tim/engine/ast.html">tim/engine/ast</a>, <a href="tim/engine/compilers/html.html">tim/engine/compilers/html</a>, <a href="tim/engine/compilers/index.html">tim/engine/compilers/tim</a>, <a href="tim/engine/logging.html">tim/engine/logging</a>, <a href="tim/engine/meta.html">tim/engine/meta</a>, <a href="tim/engine/parser.html">tim/engine/parser</a>, <a href="tim/engine/tokens.html">tim/engine/tokens</a>.<br/><p /><h2>API symbols</h2>
+      Modules: <a href="index.html">tim</a>, <a href="tim/engine/ast.html">tim/engine/ast</a>, <a href="tim/engine/compilers/html.html">tim/engine/compilers/html</a>, <a href="tim/engine/compilers/index.html">tim/engine/compilers/tim</a>, <a href="tim/engine/logging.html">tim/engine/logging</a>, <a href="tim/engine/meta.html">tim/engine/meta</a>, <a href="tim/engine/parser.html">tim/engine/parser</a>, <a href="tim/engine/std.html">tim/engine/std</a>, <a href="tim/engine/tokens.html">tim/engine/tokens</a>.<br/><p /><h2>API symbols</h2>
 <dl><dt><a name="%60%24%60" href="#%60%24%60"><span>`$`:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: proc `$`(x: Ast): string" href="tim/engine/ast.html#%24%2CAst">ast: proc `$`(x: Ast): string</a></li>
@@ -46,13 +46,25 @@
 <li><a class="reference external"
           data-doc-search-tag="meta: proc addPlaceholder(engine: TimEngine; k: string; snippetTree: Ast)" href="tim/engine/meta.html#addPlaceholder%2CTimEngine%2Cstring%2CAst">meta: proc addPlaceholder(engine: TimEngine; k: string; snippetTree: Ast)</a></li>
           </ul></dd>
+<dt><a name="Arg" href="#Arg"><span>Arg:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: tuple Arg" href="tim/engine/std.html#Arg">std: tuple Arg</a></li>
+          </ul></dd>
+<dt><a name="ArraysModule" href="#ArraysModule"><span>ArraysModule:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: object ArraysModule" href="tim/engine/std.html#ArraysModule">std: object ArraysModule</a></li>
+          </ul></dd>
 <dt><a name="Ast" href="#Ast"><span>Ast:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="ast: object Ast" href="tim/engine/ast.html#Ast">ast: object Ast</a></li>
+          data-doc-search-tag="ast: type Ast" href="tim/engine/ast.html#Ast">ast: type Ast</a></li>
           </ul></dd>
 <dt><a name="badIndentation" href="#badIndentation"><span>badIndentation:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.badIndentation" href="tim/engine/logging.html#badIndentation">logging: Message.badIndentation</a></li>
+          </ul></dd>
+<dt><a name="call" href="#call"><span>call:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: proc call(lib, fnName: string; args: seq[Arg]): Node" href="tim/engine/std.html#call%2Cstring%2Cstring%2Cseq%5BArg%5D">std: proc call(lib, fnName: string; args: seq[Arg]): Node</a></li>
           </ul></dd>
 <dt><a name="clearTemplateByPath" href="#clearTemplateByPath"><span>clearTemplateByPath:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -73,6 +85,10 @@
 <dt><a name="cmdReturn" href="#cmdReturn"><span>cmdReturn:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: CommandType.cmdReturn" href="tim/engine/ast.html#cmdReturn">ast: CommandType.cmdReturn</a></li>
+          </ul></dd>
+<dt><a name="ColorsModule" href="#ColorsModule"><span>ColorsModule:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: object ColorsModule" href="tim/engine/std.html#ColorsModule">std: object ColorsModule</a></li>
           </ul></dd>
 <dt><a name="CommandType" href="#CommandType"><span>CommandType:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -146,6 +162,10 @@
 <li><a class="reference external"
           data-doc-search-tag="logging: template errorWithArgs(msg: Message; tk: TokenTuple; args: openArray[string])" href="tim/engine/logging.html#errorWithArgs.t%2CMessage%2CTokenTuple%2CopenArray%5Bstring%5D">logging: template errorWithArgs(msg: Message; tk: TokenTuple; args: openArray[string])</a></li>
           </ul></dd>
+<dt><a name="exists" href="#exists"><span>exists:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: proc exists(lib: string): bool" href="tim/engine/std.html#exists%2Cstring">std: proc exists(lib: string): bool</a></li>
+          </ul></dd>
 <dt><a name="flush" href="#flush"><span>flush:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="meta: proc flush(engine: TimEngine)" href="tim/engine/meta.html#flush%2CTimEngine">meta: proc flush(engine: TimEngine)</a></li>
@@ -153,6 +173,18 @@
 <dt><a name="fnExtraArg" href="#fnExtraArg"><span>fnExtraArg:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.fnExtraArg" href="tim/engine/logging.html#fnExtraArg">logging: Message.fnExtraArg</a></li>
+          </ul></dd>
+<dt><a name="fnImportLocal" href="#fnImportLocal"><span>fnImportLocal:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: FunctionType.fnImportLocal" href="tim/engine/ast.html#fnImportLocal">ast: FunctionType.fnImportLocal</a></li>
+          </ul></dd>
+<dt><a name="fnImportModule" href="#fnImportModule"><span>fnImportModule:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: FunctionType.fnImportModule" href="tim/engine/ast.html#fnImportModule">ast: FunctionType.fnImportModule</a></li>
+          </ul></dd>
+<dt><a name="fnImportSystem" href="#fnImportSystem"><span>fnImportSystem:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: FunctionType.fnImportSystem" href="tim/engine/ast.html#fnImportSystem">ast: FunctionType.fnImportSystem</a></li>
           </ul></dd>
 <dt><a name="FnParam" href="#FnParam"><span>FnParam:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -166,9 +198,17 @@
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.fnReturnMissingCommand" href="tim/engine/logging.html#fnReturnMissingCommand">logging: Message.fnReturnMissingCommand</a></li>
           </ul></dd>
+<dt><a name="fnReturnVoid" href="#fnReturnVoid"><span>fnReturnVoid:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="logging: Message.fnReturnVoid" href="tim/engine/logging.html#fnReturnVoid">logging: Message.fnReturnVoid</a></li>
+          </ul></dd>
 <dt><a name="fnUndeclared" href="#fnUndeclared"><span>fnUndeclared:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.fnUndeclared" href="tim/engine/logging.html#fnUndeclared">logging: Message.fnUndeclared</a></li>
+          </ul></dd>
+<dt><a name="FunctionType" href="#FunctionType"><span>FunctionType:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: enum FunctionType" href="tim/engine/ast.html#FunctionType">ast: enum FunctionType</a></li>
           </ul></dd>
 <dt><a name="getAst" href="#getAst"><span>getAst:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -286,6 +326,8 @@
           </ul></dd>
 <dt><a name="getType" href="#getType"><span>getType:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
+          data-doc-search-tag="ast: proc getType(x: NimNode): NodeType" href="tim/engine/ast.html#getType%2CNimNode">ast: proc getType(x: NimNode): NodeType</a></li>
+          <li><a class="reference external"
           data-doc-search-tag="meta: proc getType(t: TimTemplate): TimTemplateType" href="tim/engine/meta.html#getType%2CTimTemplate">meta: proc getType(t: TimTemplate): TimTemplateType</a></li>
           </ul></dd>
 <dt><a name="getView" href="#getView"><span>getView:</span></a></dt><dd><ul class="simple">
@@ -299,6 +341,10 @@
 <dt><a name="getViews" href="#getViews"><span>getViews:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="meta: iterator getViews(engine: TimEngine): TimTemplate" href="tim/engine/meta.html#getViews.i%2CTimEngine">meta: iterator getViews(engine: TimEngine): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getVoidNode" href="#getVoidNode"><span>getVoidNode:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: proc getVoidNode(): Node" href="tim/engine/ast.html#getVoidNode">ast: proc getVoidNode(): Node</a></li>
           </ul></dd>
 <dt><a name="globalStorage" href="#globalStorage"><span>globalStorage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -368,6 +414,10 @@
 <li><a class="reference external"
           data-doc-search-tag="tim: macro initCommonStorage(x: untyped)" href="index.html#initCommonStorage.m%2Cuntyped">tim: macro initCommonStorage(x: untyped)</a></li>
           </ul></dd>
+<dt><a name="initModuleSystem" href="#initModuleSystem"><span>initModuleSystem:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: proc initModuleSystem()" href="tim/engine/std.html#initModuleSystem">std: proc initModuleSystem()</a></li>
+          </ul></dd>
 <dt><a name="internalError" href="#internalError"><span>internalError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="logging: Message.internalError" href="tim/engine/logging.html#internalError">logging: Message.internalError</a></li>
@@ -431,6 +481,10 @@
 <dt><a name="listPlaceholders" href="#listPlaceholders"><span>listPlaceholders:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="meta: iterator listPlaceholders(engine: TimEngine): (string, seq[Ast])" href="tim/engine/meta.html#listPlaceholders.i%2CTimEngine">meta: iterator listPlaceholders(engine: TimEngine): (string, seq[Ast])</a></li>
+          </ul></dd>
+<dt><a name="localModule" href="#localModule"><span>localModule:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: var localModule" href="tim/engine/std.html#localModule">std: var localModule</a></li>
           </ul></dd>
 <dt><a name="localStorage" href="#localStorage"><span>localStorage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -614,6 +668,10 @@
                      extraLines: seq[string]; extraLabel: string;
                      args: varargs[string])</a></li>
           </ul></dd>
+<dt><a name="NimCall" href="#NimCall"><span>NimCall:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: type NimCall" href="tim/engine/std.html#NimCall">std: type NimCall</a></li>
+          </ul></dd>
 <dt><a name="nimValue" href="#nimValue"><span>nimValue:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: ValueKind.nimValue" href="tim/engine/ast.html#nimValue">ast: ValueKind.nimValue</a></li>
@@ -726,6 +784,10 @@
 <li><a class="reference external"
           data-doc-search-tag="ast: NodeType.ntLitString" href="tim/engine/ast.html#ntLitString">ast: NodeType.ntLitString</a></li>
           </ul></dd>
+<dt><a name="ntLitVoid" href="#ntLitVoid"><span>ntLitVoid:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: NodeType.ntLitVoid" href="tim/engine/ast.html#ntLitVoid">ast: NodeType.ntLitVoid</a></li>
+          </ul></dd>
 <dt><a name="ntLoopStmt" href="#ntLoopStmt"><span>ntLoopStmt:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: NodeType.ntLoopStmt" href="tim/engine/ast.html#ntLoopStmt">ast: NodeType.ntLoopStmt</a></li>
@@ -737,6 +799,10 @@
 <dt><a name="ntPlaceholder" href="#ntPlaceholder"><span>ntPlaceholder:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: NodeType.ntPlaceholder" href="tim/engine/ast.html#ntPlaceholder">ast: NodeType.ntPlaceholder</a></li>
+          </ul></dd>
+<dt><a name="ntRuntimeCode" href="#ntRuntimeCode"><span>ntRuntimeCode:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: NodeType.ntRuntimeCode" href="tim/engine/ast.html#ntRuntimeCode">ast: NodeType.ntRuntimeCode</a></li>
           </ul></dd>
 <dt><a name="ntStmtList" href="#ntStmtList"><span>ntStmtList:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -762,6 +828,10 @@
 <li><a class="reference external"
           data-doc-search-tag="ast: NodeType.ntYamlSnippet" href="tim/engine/ast.html#ntYamlSnippet">ast: NodeType.ntYamlSnippet</a></li>
           </ul></dd>
+<dt><a name="OSModule" href="#OSModule"><span>OSModule:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: object OSModule" href="tim/engine/std.html#OSModule">std: object OSModule</a></li>
+          </ul></dd>
 <dt><a name="Parser" href="#Parser"><span>Parser:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: object Parser" href="tim/engine/parser.html#Parser">parser: object Parser</a></li>
@@ -776,10 +846,10 @@
 <li><a class="reference external"
           data-doc-search-tag="tim: proc precompile(engine: TimEngine; callback: TimCallback = nil; flush = true;
            waitThread = false; browserSyncPort = Port(6502);
-           browserSyncDelay = 550; global: JsonNode = newJObject();
+           browserSyncDelay = 200; global: JsonNode = newJObject();
            watchoutNotify = true)" href="index.html#precompile%2CTimEngine%2CTimCallback%2Cint%2CJsonNode">tim: proc precompile(engine: TimEngine; callback: TimCallback = nil; flush = true;
            waitThread = false; browserSyncPort = Port(6502);
-           browserSyncDelay = 550; global: JsonNode = newJObject();
+           browserSyncDelay = 200; global: JsonNode = newJObject();
            watchoutNotify = true)</a></li>
           </ul></dd>
 <dt><a name="readAst" href="#readAst"><span>readAst:</span></a></dt><dd><ul class="simple">
@@ -789,8 +859,8 @@
 <dt><a name="render" href="#render"><span>render:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tim: proc render(engine: TimEngine; viewName: string; layoutName = defaultLayout;
-       global, local = newJObject()): string" href="index.html#render%2CTimEngine%2Cstring">tim: proc render(engine: TimEngine; viewName: string; layoutName = defaultLayout;
-       global, local = newJObject()): string</a></li>
+       local = newJObject()): string" href="index.html#render%2CTimEngine%2Cstring">tim: proc render(engine: TimEngine; viewName: string; layoutName = defaultLayout;
+       local = newJObject()): string</a></li>
           </ul></dd>
 <dt><a name="scopeStorage" href="#scopeStorage"><span>scopeStorage:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -824,9 +894,29 @@
 <li><a class="reference external"
           data-doc-search-tag="meta: iterator snippets(engine: TimEngine; k: string): Ast" href="tim/engine/meta.html#snippets.i%2CTimEngine%2Cstring">meta: iterator snippets(engine: TimEngine; k: string): Ast</a></li>
           </ul></dd>
+<dt><a name="SourceCode" href="#SourceCode"><span>SourceCode:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: type SourceCode" href="tim/engine/std.html#SourceCode">std: type SourceCode</a></li>
+          </ul></dd>
+<dt><a name="std" href="#std"><span>std:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: proc std(lib: string): (Module, SourceCode)" href="tim/engine/std.html#std%2Cstring">std: proc std(lib: string): (Module, SourceCode)</a></li>
+          </ul></dd>
+<dt><a name="stdlib" href="#stdlib"><span>stdlib:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: var stdlib" href="tim/engine/std.html#stdlib">std: var stdlib</a></li>
+          </ul></dd>
 <dt><a name="StorageType" href="#StorageType"><span>StorageType:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: enum StorageType" href="tim/engine/ast.html#StorageType">ast: enum StorageType</a></li>
+          </ul></dd>
+<dt><a name="StringsModule" href="#StringsModule"><span>StringsModule:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: object StringsModule" href="tim/engine/std.html#StringsModule">std: object StringsModule</a></li>
+          </ul></dd>
+<dt><a name="SystemModule" href="#SystemModule"><span>SystemModule:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: object SystemModule" href="tim/engine/std.html#SystemModule">std: object SystemModule</a></li>
           </ul></dd>
 <dt><a name="TimCallback" href="#TimCallback"><span>TimCallback:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -844,9 +934,17 @@
 <li><a class="reference external"
           data-doc-search-tag="meta: object TimError" href="tim/engine/meta.html#TimError">meta: object TimError</a></li>
           </ul></dd>
+<dt><a name="TimModulesTable" href="#TimModulesTable"><span>TimModulesTable:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="ast: type TimModulesTable" href="tim/engine/ast.html#TimModulesTable">ast: type TimModulesTable</a></li>
+          </ul></dd>
 <dt><a name="TimPartialsTable" href="#TimPartialsTable"><span>TimPartialsTable:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="ast: type TimPartialsTable" href="tim/engine/ast.html#TimPartialsTable">ast: type TimPartialsTable</a></li>
+          </ul></dd>
+<dt><a name="TimPolicy" href="#TimPolicy"><span>TimPolicy:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="meta: type TimPolicy" href="tim/engine/meta.html#TimPolicy">meta: type TimPolicy</a></li>
           </ul></dd>
 <dt><a name="TimTemplate" href="#TimTemplate"><span>TimTemplate:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -867,6 +965,10 @@
 <dt><a name="TokenTuple" href="#TokenTuple"><span>TokenTuple:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="tokens: tuple TokenTuple" href="tim/engine/tokens.html#TokenTuple">tokens: tuple TokenTuple</a></li>
+          </ul></dd>
+<dt><a name="toNimSeq" href="#toNimSeq"><span>toNimSeq:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="std: proc toNimSeq(node: Node): seq[string]" href="tim/engine/std.html#toNimSeq%2CNode">std: proc toNimSeq(node: Node): seq[string]</a></li>
           </ul></dd>
 <dt><a name="toTimNode" href="#toTimNode"><span>toTimNode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -956,7 +1058,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-18 09:18:48 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-08 09:55:47 UTC</small>
       </div>
     </div>
   </div>

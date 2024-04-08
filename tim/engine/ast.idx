@@ -7,6 +7,7 @@ nim	ntLitBool	tim/engine/ast.html#ntLitBool	NodeType.ntLitBool		20
 nim	ntLitArray	tim/engine/ast.html#ntLitArray	NodeType.ntLitArray		20
 nim	ntLitObject	tim/engine/ast.html#ntLitObject	NodeType.ntLitObject		20
 nim	ntFunction	tim/engine/ast.html#ntFunction	NodeType.ntFunction		20
+nim	ntLitVoid	tim/engine/ast.html#ntLitVoid	NodeType.ntLitVoid		20
 nim	ntVariableDef	tim/engine/ast.html#ntVariableDef	NodeType.ntVariableDef		20
 nim	ntAssignExpr	tim/engine/ast.html#ntAssignExpr	NodeType.ntAssignExpr		20
 nim	ntHtmlElement	tim/engine/ast.html#ntHtmlElement	NodeType.ntHtmlElement		20
@@ -32,64 +33,72 @@ nim	ntYamlSnippet	tim/engine/ast.html#ntYamlSnippet	NodeType.ntYamlSnippet		20
 nim	ntJsonSnippet	tim/engine/ast.html#ntJsonSnippet	NodeType.ntJsonSnippet		20
 nim	ntClientBlock	tim/engine/ast.html#ntClientBlock	NodeType.ntClientBlock		20
 nim	ntStmtList	tim/engine/ast.html#ntStmtList	NodeType.ntStmtList		20
+nim	ntRuntimeCode	tim/engine/ast.html#ntRuntimeCode	NodeType.ntRuntimeCode		20
 nim	NodeType	tim/engine/ast.html#NodeType	enum NodeType		20
-nim	cmdEcho	tim/engine/ast.html#cmdEcho	CommandType.cmdEcho		57
-nim	cmdReturn	tim/engine/ast.html#cmdReturn	CommandType.cmdReturn		57
-nim	cmdDiscard	tim/engine/ast.html#cmdDiscard	CommandType.cmdDiscard		57
-nim	cmdBreak	tim/engine/ast.html#cmdBreak	CommandType.cmdBreak		57
-nim	CommandType	tim/engine/ast.html#CommandType	enum CommandType		57
-nim	scopeStorage	tim/engine/ast.html#scopeStorage	StorageType.scopeStorage		63
-nim	globalStorage	tim/engine/ast.html#globalStorage	StorageType.globalStorage		63
-nim	localStorage	tim/engine/ast.html#localStorage	StorageType.localStorage		63
-nim	StorageType	tim/engine/ast.html#StorageType	enum StorageType		63
-nim	InfixOp	tim/engine/ast.html#InfixOp	enum InfixOp		81
-nim	MathOp	tim/engine/ast.html#MathOp	enum MathOp		93
-nim	HtmlAttributes	tim/engine/ast.html#HtmlAttributes	type HtmlAttributes		101
-nim	ConditionBranch	tim/engine/ast.html#ConditionBranch	tuple ConditionBranch		102
-nim	FnParam	tim/engine/ast.html#FnParam	tuple FnParam		103
-nim	Node	tim/engine/ast.html#Node	type Node		104
-nim	jsonValue	tim/engine/ast.html#jsonValue	ValueKind.jsonValue		250
-nim	nimValue	tim/engine/ast.html#nimValue	ValueKind.nimValue		250
-nim	ValueKind	tim/engine/ast.html#ValueKind	enum ValueKind		250
-nim	Value	tim/engine/ast.html#Value	object Value		253
-nim	Meta	tim/engine/ast.html#Meta	type Meta		260
-nim	ScopeTable	tim/engine/ast.html#ScopeTable	type ScopeTable		261
-nim	TimPartialsTable	tim/engine/ast.html#TimPartialsTable	type TimPartialsTable		262
-nim	Ast	tim/engine/ast.html#Ast	object Ast		263
-nim	ntAssignableSet	tim/engine/ast.html#ntAssignableSet	const ntAssignableSet		272
-nim	getInfixOp	tim/engine/ast.html#getInfixOp,TokenKind,bool	proc getInfixOp(kind: TokenKind; isInfixInfix: bool): InfixOp		281
-nim	getInfixMathOp	tim/engine/ast.html#getInfixMathOp,TokenKind,bool	proc getInfixMathOp(kind: TokenKind; isInfixInfix: bool): MathOp		300
-nim	getTag	tim/engine/ast.html#getTag,Node	proc getTag(x: Node): string		310
-nim	`$`	tim/engine/ast.html#$,Node	proc `$`(node: Node): string		442
-nim	`$`	tim/engine/ast.html#$,seq[Node]	proc `$`(nodes: seq[Node]): string		449
-nim	`$`	tim/engine/ast.html#$,Ast	proc `$`(x: Ast): string		456
-nim	newNode	tim/engine/ast.html#newNode,staticNodeType,TokenTuple	proc newNode(nt: static NodeType; tk: TokenTuple): Node		466
-nim	newNode	tim/engine/ast.html#newNode,staticNodeType	proc newNode(nt: static NodeType): Node		469
-nim	newString	tim/engine/ast.html#newString,TokenTuple	proc newString(tk: TokenTuple): Node		472
-nim	newString	tim/engine/ast.html#newString,string	proc newString(v: string): Node		477
-nim	newInteger	tim/engine/ast.html#newInteger,int,TokenTuple	proc newInteger(v: int; tk: TokenTuple): Node		482
-nim	newInteger	tim/engine/ast.html#newInteger,int	proc newInteger(v: int): Node		486
-nim	newFloat	tim/engine/ast.html#newFloat,float,TokenTuple	proc newFloat(v: float; tk: TokenTuple): Node		490
-nim	newFloat	tim/engine/ast.html#newFloat,float	proc newFloat(v: float): Node		495
-nim	newBool	tim/engine/ast.html#newBool,bool,TokenTuple	proc newBool(v: bool; tk: TokenTuple): Node		500
-nim	newBool	tim/engine/ast.html#newBool,bool	proc newBool(v: bool): Node		505
-nim	newVariable	tim/engine/ast.html#newVariable,string,Node,Meta	proc newVariable(varName: string; varValue: Node; meta: Meta): Node		510
-nim	newVariable	tim/engine/ast.html#newVariable,string,Node,TokenTuple	proc newVariable(varName: string; varValue: Node; tk: TokenTuple): Node		517
-nim	newAssignment	tim/engine/ast.html#newAssignment,TokenTuple,Node	proc newAssignment(tk: TokenTuple; varValue: Node): Node		523
-nim	newFunction	tim/engine/ast.html#newFunction,TokenTuple,string	proc newFunction(tk: TokenTuple; ident: string): Node		529
-nim	newCall	tim/engine/ast.html#newCall,TokenTuple	proc newCall(tk: TokenTuple): Node		534
-nim	newInfix	tim/engine/ast.html#newInfix,Node,Node,InfixOp,TokenTuple	proc newInfix(lhs, rhs: Node; infixOp: InfixOp; tk: TokenTuple): Node		539
-nim	newCommand	tim/engine/ast.html#newCommand,CommandType,Node,TokenTuple	proc newCommand(cmdType: CommandType; node: Node; tk: TokenTuple): Node		545
-nim	newIdent	tim/engine/ast.html#newIdent,TokenTuple	proc newIdent(tk: TokenTuple): Node		551
-nim	newHtmlElement	tim/engine/ast.html#newHtmlElement,HtmlTag,TokenTuple	proc newHtmlElement(tag: HtmlTag; tk: TokenTuple): Node		555
-nim	newCondition	tim/engine/ast.html#newCondition,ConditionBranch,TokenTuple	proc newCondition(condIfBranch: ConditionBranch; tk: TokenTuple): Node		563
-nim	newArray	tim/engine/ast.html#newArray,seq[Node]	proc newArray(items: seq[Node] = @[]): Node		567
-nim	toTimNode	tim/engine/ast.html#toTimNode,JsonNode	proc toTimNode(x: JsonNode): Node		572
-nim	newStream	tim/engine/ast.html#newStream,JsonNode	proc newStream(node: JsonNode): Node		597
-nimgrp	$	tim/engine/ast.html#$-procs-all	proc		442
-nimgrp	newnode	tim/engine/ast.html#newNode-procs-all	proc		466
-nimgrp	newstring	tim/engine/ast.html#newString-procs-all	proc		472
-nimgrp	newfloat	tim/engine/ast.html#newFloat-procs-all	proc		490
-nimgrp	newvariable	tim/engine/ast.html#newVariable-procs-all	proc		510
-nimgrp	newbool	tim/engine/ast.html#newBool-procs-all	proc		500
-nimgrp	newinteger	tim/engine/ast.html#newInteger-procs-all	proc		482
+nim	fnImportLocal	tim/engine/ast.html#fnImportLocal	FunctionType.fnImportLocal		59
+nim	fnImportSystem	tim/engine/ast.html#fnImportSystem	FunctionType.fnImportSystem		59
+nim	fnImportModule	tim/engine/ast.html#fnImportModule	FunctionType.fnImportModule		59
+nim	FunctionType	tim/engine/ast.html#FunctionType	enum FunctionType		59
+nim	cmdEcho	tim/engine/ast.html#cmdEcho	CommandType.cmdEcho		64
+nim	cmdReturn	tim/engine/ast.html#cmdReturn	CommandType.cmdReturn		64
+nim	cmdDiscard	tim/engine/ast.html#cmdDiscard	CommandType.cmdDiscard		64
+nim	cmdBreak	tim/engine/ast.html#cmdBreak	CommandType.cmdBreak		64
+nim	CommandType	tim/engine/ast.html#CommandType	enum CommandType		64
+nim	scopeStorage	tim/engine/ast.html#scopeStorage	StorageType.scopeStorage		70
+nim	globalStorage	tim/engine/ast.html#globalStorage	StorageType.globalStorage		70
+nim	localStorage	tim/engine/ast.html#localStorage	StorageType.localStorage		70
+nim	StorageType	tim/engine/ast.html#StorageType	enum StorageType		70
+nim	InfixOp	tim/engine/ast.html#InfixOp	enum InfixOp		88
+nim	MathOp	tim/engine/ast.html#MathOp	enum MathOp		100
+nim	HtmlAttributes	tim/engine/ast.html#HtmlAttributes	type HtmlAttributes		108
+nim	ConditionBranch	tim/engine/ast.html#ConditionBranch	tuple ConditionBranch		109
+nim	FnParam	tim/engine/ast.html#FnParam	tuple FnParam		110
+nim	Node	tim/engine/ast.html#Node	type Node		111
+nim	jsonValue	tim/engine/ast.html#jsonValue	ValueKind.jsonValue		264
+nim	nimValue	tim/engine/ast.html#nimValue	ValueKind.nimValue		264
+nim	ValueKind	tim/engine/ast.html#ValueKind	enum ValueKind		264
+nim	Value	tim/engine/ast.html#Value	object Value		267
+nim	Meta	tim/engine/ast.html#Meta	type Meta		274
+nim	ScopeTable	tim/engine/ast.html#ScopeTable	type ScopeTable		275
+nim	TimPartialsTable	tim/engine/ast.html#TimPartialsTable	type TimPartialsTable		276
+nim	TimModulesTable	tim/engine/ast.html#TimModulesTable	type TimModulesTable		277
+nim	Ast	tim/engine/ast.html#Ast	type Ast		278
+nim	ntAssignableSet	tim/engine/ast.html#ntAssignableSet	const ntAssignableSet		290
+nim	getInfixOp	tim/engine/ast.html#getInfixOp,TokenKind,bool	proc getInfixOp(kind: TokenKind; isInfixInfix: bool): InfixOp		294
+nim	getInfixMathOp	tim/engine/ast.html#getInfixMathOp,TokenKind,bool	proc getInfixMathOp(kind: TokenKind; isInfixInfix: bool): MathOp		313
+nim	getTag	tim/engine/ast.html#getTag,Node	proc getTag(x: Node): string		323
+nim	getType	tim/engine/ast.html#getType,NimNode	proc getType(x: NimNode): NodeType		452
+nim	`$`	tim/engine/ast.html#$,Node	proc `$`(node: Node): string		470
+nim	`$`	tim/engine/ast.html#$,seq[Node]	proc `$`(nodes: seq[Node]): string		477
+nim	`$`	tim/engine/ast.html#$,Ast	proc `$`(x: Ast): string		484
+nim	newNode	tim/engine/ast.html#newNode,staticNodeType,TokenTuple	proc newNode(nt: static NodeType; tk: TokenTuple): Node		494
+nim	newNode	tim/engine/ast.html#newNode,staticNodeType	proc newNode(nt: static NodeType): Node		497
+nim	newString	tim/engine/ast.html#newString,TokenTuple	proc newString(tk: TokenTuple): Node		500
+nim	newString	tim/engine/ast.html#newString,string	proc newString(v: string): Node		505
+nim	newInteger	tim/engine/ast.html#newInteger,int,TokenTuple	proc newInteger(v: int; tk: TokenTuple): Node		510
+nim	newInteger	tim/engine/ast.html#newInteger,int	proc newInteger(v: int): Node		514
+nim	newFloat	tim/engine/ast.html#newFloat,float,TokenTuple	proc newFloat(v: float; tk: TokenTuple): Node		518
+nim	newFloat	tim/engine/ast.html#newFloat,float	proc newFloat(v: float): Node		523
+nim	newBool	tim/engine/ast.html#newBool,bool,TokenTuple	proc newBool(v: bool; tk: TokenTuple): Node		528
+nim	newBool	tim/engine/ast.html#newBool,bool	proc newBool(v: bool): Node		533
+nim	getVoidNode	tim/engine/ast.html#getVoidNode	proc getVoidNode(): Node		539
+nim	newVariable	tim/engine/ast.html#newVariable,string,Node,Meta	proc newVariable(varName: string; varValue: Node; meta: Meta): Node		541
+nim	newVariable	tim/engine/ast.html#newVariable,string,Node,TokenTuple	proc newVariable(varName: string; varValue: Node; tk: TokenTuple): Node		548
+nim	newAssignment	tim/engine/ast.html#newAssignment,TokenTuple,Node	proc newAssignment(tk: TokenTuple; varValue: Node): Node		554
+nim	newFunction	tim/engine/ast.html#newFunction,TokenTuple,string	proc newFunction(tk: TokenTuple; ident: string): Node		560
+nim	newCall	tim/engine/ast.html#newCall,TokenTuple	proc newCall(tk: TokenTuple): Node		565
+nim	newInfix	tim/engine/ast.html#newInfix,Node,Node,InfixOp,TokenTuple	proc newInfix(lhs, rhs: Node; infixOp: InfixOp; tk: TokenTuple): Node		570
+nim	newCommand	tim/engine/ast.html#newCommand,CommandType,Node,TokenTuple	proc newCommand(cmdType: CommandType; node: Node; tk: TokenTuple): Node		576
+nim	newIdent	tim/engine/ast.html#newIdent,TokenTuple	proc newIdent(tk: TokenTuple): Node		582
+nim	newHtmlElement	tim/engine/ast.html#newHtmlElement,HtmlTag,TokenTuple	proc newHtmlElement(tag: HtmlTag; tk: TokenTuple): Node		586
+nim	newCondition	tim/engine/ast.html#newCondition,ConditionBranch,TokenTuple	proc newCondition(condIfBranch: ConditionBranch; tk: TokenTuple): Node		594
+nim	newArray	tim/engine/ast.html#newArray,seq[Node]	proc newArray(items: seq[Node] = @[]): Node		598
+nim	toTimNode	tim/engine/ast.html#toTimNode,JsonNode	proc toTimNode(x: JsonNode): Node		603
+nim	newStream	tim/engine/ast.html#newStream,JsonNode	proc newStream(node: JsonNode): Node		628
+nimgrp	$	tim/engine/ast.html#$-procs-all	proc		470
+nimgrp	newnode	tim/engine/ast.html#newNode-procs-all	proc		494
+nimgrp	newstring	tim/engine/ast.html#newString-procs-all	proc		500
+nimgrp	newfloat	tim/engine/ast.html#newFloat-procs-all	proc		518
+nimgrp	newvariable	tim/engine/ast.html#newVariable-procs-all	proc		541
+nimgrp	newbool	tim/engine/ast.html#newBool-procs-all	proc		528
+nimgrp	newinteger	tim/engine/ast.html#newInteger-procs-all	proc		510

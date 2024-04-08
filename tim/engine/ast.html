@@ -54,16 +54,19 @@
   <details open>
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#Ast" title="Ast = object
-  src*: string               ## trace the source path
+      <li><a class="reference" href="#Ast" title="Ast {.acyclic.} = ref object
+  src*: string               ## the source path of the ast
   nodes*: seq[Node]          ## a seq containing tree nodes 
-  partials*: TimPartialsTable ## other trees resulted from imports
-  jit*: bool">Ast</a></li>
+  partials*: TimPartialsTable ## AST trees from included partials 
+  modules*: TimModulesTable  ## AST trees from imported modules
+  jit*: bool                 ## whether the current AST requires JIT compliation or not">Ast</a></li>
 <li><a class="reference" href="#CommandType" title="CommandType = enum
   cmdEcho = &quot;echo&quot;, cmdReturn = &quot;return&quot;, cmdDiscard = &quot;discard&quot;,
   cmdBreak = &quot;break&quot;">CommandType</a></li>
 <li><a class="reference" href="#ConditionBranch" title="ConditionBranch = tuple[expr: Node, body: seq[Node]]">ConditionBranch</a></li>
 <li><a class="reference" href="#FnParam" title="FnParam = tuple[pName: string, pType: NodeType, pImplVal: Node, meta: Meta]">FnParam</a></li>
+<li><a class="reference" href="#FunctionType" title="FunctionType = enum
+  fnImportLocal, fnImportSystem, fnImportModule">FunctionType</a></li>
 <li><a class="reference" href="#HtmlAttributes" title="HtmlAttributes = TableRef[string, seq[Node]]">HtmlAttributes</a></li>
 <li><a class="reference" href="#InfixOp" title="InfixOp {.pure.} = enum
   None, EQ = &quot;==&quot;, NE = &quot;!=&quot;, GT = &quot;&gt;&quot;, GTE = &quot;&gt;=&quot;, LT = &quot;&lt;&quot;, LTE = &quot;&lt;=&quot;,
@@ -144,11 +147,8 @@
   of ntIdent:
       identName*: string
       identSafe*: bool
+      identArgs*: seq[Node]
 
-  of ntCall:
-      callIdent*: string     ## identifier name of a callable function
-      callArgs*: seq[Node]   ## a sequence of arguments to to pass
-    
   of ntDotExpr:
       storageType*: StorageType ## holds the storage type of a dot expression
       lhs*, rhs*: Node       ## lhs, rhs nodes of dot expression node
@@ -170,6 +170,8 @@
                               ## is used as default (void)
       fnReturnHtmlElement*: HtmlTag
       fnFwdDecl*, fnExport*: bool
+      fnType*: FunctionType
+      fnSource*: string
 
   of ntJavaScriptSnippet, ntYamlSnippet, ntJsonSnippet:
       snippetCode*: string   ## string-based snipept code for either
@@ -201,24 +203,28 @@
   of ntStmtList:
       stmtList*: seq[Node]
 
+  of ntRuntimeCode:
+      runtimeCode*: string
+
   else:
     nil
   meta*: Meta">Node</a></li>
 <li><a class="reference" href="#NodeType" title="NodeType = enum
   ntUnknown = &quot;void&quot;, ntLitInt = &quot;int&quot;, ntLitString = &quot;string&quot;,
   ntLitFloat = &quot;float&quot;, ntLitBool = &quot;bool&quot;, ntLitArray = &quot;array&quot;,
-  ntLitObject = &quot;object&quot;, ntFunction = &quot;function&quot;, ntVariableDef = &quot;Variable&quot;,
-  ntAssignExpr = &quot;Assignment&quot;, ntHtmlElement = &quot;HtmlElement&quot;,
-  ntInfixExpr = &quot;InfixExpression&quot;, ntMathInfixExpr = &quot;MathExpression&quot;,
-  ntCommandStmt = &quot;CommandStatement&quot;, ntIdent = &quot;Identifier&quot;,
-  ntCall = &quot;FunctionCall&quot;, ntIdentPair, ntDotExpr = &quot;DotExpression&quot;,
-  ntBracketExpr = &quot;BracketExpression&quot;, ntIndexRange = &quot;IndexRange&quot;,
-  ntConditionStmt = &quot;ConditionStatement&quot;, ntCaseStmt = &quot;CaseExpression&quot;,
-  ntLoopStmt = &quot;LoopStmt&quot;, ntViewLoader = &quot;ViewLoader&quot;, ntInclude = &quot;Include&quot;,
-  ntImport = &quot;Import&quot;, ntPlaceholder = &quot;Placeholder&quot;, ntStream = &quot;Stream&quot;,
+  ntLitObject = &quot;object&quot;, ntFunction = &quot;function&quot;, ntLitVoid = &quot;void&quot;,
+  ntVariableDef = &quot;Variable&quot;, ntAssignExpr = &quot;Assignment&quot;,
+  ntHtmlElement = &quot;HtmlElement&quot;, ntInfixExpr = &quot;InfixExpression&quot;,
+  ntMathInfixExpr = &quot;MathExpression&quot;, ntCommandStmt = &quot;CommandStatement&quot;,
+  ntIdent = &quot;Identifier&quot;, ntCall = &quot;FunctionCall&quot;, ntIdentPair,
+  ntDotExpr = &quot;DotExpression&quot;, ntBracketExpr = &quot;BracketExpression&quot;,
+  ntIndexRange = &quot;IndexRange&quot;, ntConditionStmt = &quot;ConditionStatement&quot;,
+  ntCaseStmt = &quot;CaseExpression&quot;, ntLoopStmt = &quot;LoopStmt&quot;,
+  ntViewLoader = &quot;ViewLoader&quot;, ntInclude = &quot;Include&quot;, ntImport = &quot;Import&quot;,
+  ntPlaceholder = &quot;Placeholder&quot;, ntStream = &quot;Stream&quot;,
   ntJavaScriptSnippet = &quot;JavaScriptSnippet&quot;, ntYamlSnippet = &quot;YAMLSnippet&quot;,
   ntJsonSnippet = &quot;JsonSnippet&quot;, ntClientBlock = &quot;ClientSideStatement&quot;,
-  ntStmtList = &quot;StatementList&quot;">NodeType</a></li>
+  ntStmtList = &quot;StatementList&quot;, ntRuntimeCode = &quot;Runtime&quot;">NodeType</a></li>
 <li><a class="reference" href="#ScopeTable" title="ScopeTable = TableRef[string, Node]">ScopeTable</a></li>
 <li><a class="reference" href="#StorageType" title="StorageType = enum
   scopeStorage,             ## Data created inside a `timl` template.
@@ -234,6 +240,7 @@
   localStorage ## Data exposed from a Controller using a `JsonNode` object is stored
                ## in a local storage.  Can be accessed from the current view, layout and its partials
                ## using the `$this` prefix.">StorageType</a></li>
+<li><a class="reference" href="#TimModulesTable" title="TimModulesTable = TableRef[string, Ast]">TimModulesTable</a></li>
 <li><a class="reference" href="#TimPartialsTable" title="TimPartialsTable = TableRef[string, (Ast, seq[cli.Row])]">TimPartialsTable</a></li>
 <li><a class="reference" href="#Value" title="Value = object
   case kind*: ValueKind
@@ -278,6 +285,14 @@
 </ul>
 <ul class="simple nested-toc-section">getTag
   <li><a class="reference" href="#getTag%2CNode" title="getTag(x: Node): string">getTag(x: Node): string</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">getType
+  <li><a class="reference" href="#getType%2CNimNode" title="getType(x: NimNode): NodeType">getType(x: NimNode): NodeType</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">getVoidNode
+  <li><a class="reference" href="#getVoidNode" title="getVoidNode(): Node">getVoidNode(): Node</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">newArray
@@ -377,12 +392,13 @@
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="Ast">
-  <dt><pre><a href="ast.html#Ast"><span class="Identifier">Ast</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">src</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>               <span class="Comment">## trace the source path</span>
+  <dt><pre><a href="ast.html#Ast"><span class="Identifier">Ast</span></a> {.<span class="Identifier">acyclic</span>.} <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+  <span class="Identifier">src</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>               <span class="Comment">## the source path of the ast</span>
   <span class="Identifier">nodes</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>          <span class="Comment">## a seq containing tree nodes </span>
-  <span class="Identifier">partials</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#TimPartialsTable"><span class="Identifier">TimPartialsTable</span></a> <span class="Comment">## other trees resulted from imports</span>
-  <span class="Identifier">jit</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
-</pre></dt>
+  <span class="Identifier">partials</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#TimPartialsTable"><span class="Identifier">TimPartialsTable</span></a> <span class="Comment">## AST trees from included partials </span>
+  <span class="Identifier">modules</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#TimModulesTable"><span class="Identifier">TimModulesTable</span></a>  <span class="Comment">## AST trees from imported modules</span>
+  <span class="Identifier">jit</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>                 <span class="Comment">## whether the current AST requires JIT compliation or not</span>
+  </pre></dt>
   <dd>
     
     
@@ -409,6 +425,15 @@
 </div>
 <div id="FnParam">
   <dt><pre><a href="ast.html#FnParam"><span class="Identifier">FnParam</span></a> <span class="Other">=</span> <span class="Keyword">tuple</span><span class="Other">[</span><span class="Identifier">pName</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">,</span> <span class="Identifier">pType</span><span class="Other">:</span> <a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a><span class="Other">,</span> <span class="Identifier">pImplVal</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">,</span> <span class="Identifier">meta</span><span class="Other">:</span> <a href="ast.html#Meta"><span class="Identifier">Meta</span></a><span class="Other">]</span></pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+<div id="FunctionType">
+  <dt><pre><a href="ast.html#FunctionType"><span class="Identifier">FunctionType</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+  <span class="Identifier">fnImportLocal</span><span class="Other">,</span> <span class="Identifier">fnImportSystem</span><span class="Other">,</span> <span class="Identifier">fnImportModule</span></pre></dt>
   <dd>
     
     
@@ -524,11 +549,8 @@
   <span class="Keyword">of</span> <span class="Identifier">ntIdent</span><span class="Other">:</span>
       <span class="Identifier">identName</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
       <span class="Identifier">identSafe</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
+      <span class="Identifier">identArgs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
 
-  <span class="Keyword">of</span> <span class="Identifier">ntCall</span><span class="Other">:</span>
-      <span class="Identifier">callIdent</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>     <span class="Comment">## identifier name of a callable function</span>
-      <span class="Identifier">callArgs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>   <span class="Comment">## a sequence of arguments to to pass</span>
-    
   <span class="Keyword">of</span> <span class="Identifier">ntDotExpr</span><span class="Other">:</span>
       <span class="Identifier">storageType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#StorageType"><span class="Identifier">StorageType</span></a> <span class="Comment">## holds the storage type of a dot expression</span>
       <span class="Identifier">lhs</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">rhs</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a>       <span class="Comment">## lhs, rhs nodes of dot expression node</span>
@@ -550,6 +572,8 @@
                               <span class="Comment">## is used as default (void)</span>
       <span class="Identifier">fnReturnHtmlElement</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">HtmlTag</span>
       <span class="Identifier">fnFwdDecl</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">fnExport</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
+      <span class="Identifier">fnType</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#FunctionType"><span class="Identifier">FunctionType</span></a>
+      <span class="Identifier">fnSource</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
 
   <span class="Keyword">of</span> <span class="Identifier">ntJavaScriptSnippet</span><span class="Other">,</span> <span class="Identifier">ntYamlSnippet</span><span class="Other">,</span> <span class="Identifier">ntJsonSnippet</span><span class="Other">:</span>
       <span class="Identifier">snippetCode</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>   <span class="Comment">## string-based snipept code for either</span>
@@ -581,13 +605,16 @@
   <span class="Keyword">of</span> <span class="Identifier">ntStmtList</span><span class="Other">:</span>
       <span class="Identifier">stmtList</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">]</span>
 
+  <span class="Keyword">of</span> <span class="Identifier">ntRuntimeCode</span><span class="Other">:</span>
+      <span class="Identifier">runtimeCode</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
+
   <span class="Keyword">else</span><span class="Other">:</span>
     <span class="Keyword">nil</span>
   <span class="Identifier">meta</span><span class="Operator">*</span><span class="Other">:</span> <a href="ast.html#Meta"><span class="Identifier">Meta</span></a>
 </pre></dt>
   <dd>
     
-    
+    Part of the compiler's abstract syntax tree <strong>Important</strong> do not initialize this object directly
     
   </dd>
 </div>
@@ -595,18 +622,19 @@
   <dt><pre><a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">ntUnknown</span> <span class="Other">=</span> <span class="StringLit">&quot;void&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitInt</span> <span class="Other">=</span> <span class="StringLit">&quot;int&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitString</span> <span class="Other">=</span> <span class="StringLit">&quot;string&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntLitFloat</span> <span class="Other">=</span> <span class="StringLit">&quot;float&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitBool</span> <span class="Other">=</span> <span class="StringLit">&quot;bool&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitArray</span> <span class="Other">=</span> <span class="StringLit">&quot;array&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntLitObject</span> <span class="Other">=</span> <span class="StringLit">&quot;object&quot;</span><span class="Other">,</span> <span class="Identifier">ntFunction</span> <span class="Other">=</span> <span class="StringLit">&quot;function&quot;</span><span class="Other">,</span> <span class="Identifier">ntVariableDef</span> <span class="Other">=</span> <span class="StringLit">&quot;Variable&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntAssignExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;Assignment&quot;</span><span class="Other">,</span> <span class="Identifier">ntHtmlElement</span> <span class="Other">=</span> <span class="StringLit">&quot;HtmlElement&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;InfixExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntMathInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;MathExpression&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntCommandStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CommandStatement&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdentPair</span><span class="Other">,</span> <span class="Identifier">ntDotExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;DotExpression&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntBracketExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;BracketExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntIndexRange</span> <span class="Other">=</span> <span class="StringLit">&quot;IndexRange&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span> <span class="Identifier">ntCaseStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CaseExpression&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntLoopStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;LoopStmt&quot;</span><span class="Other">,</span> <span class="Identifier">ntViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;ViewLoader&quot;</span><span class="Other">,</span> <span class="Identifier">ntInclude</span> <span class="Other">=</span> <span class="StringLit">&quot;Include&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntImport</span> <span class="Other">=</span> <span class="StringLit">&quot;Import&quot;</span><span class="Other">,</span> <span class="Identifier">ntPlaceholder</span> <span class="Other">=</span> <span class="StringLit">&quot;Placeholder&quot;</span><span class="Other">,</span> <span class="Identifier">ntStream</span> <span class="Other">=</span> <span class="StringLit">&quot;Stream&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntLitObject</span> <span class="Other">=</span> <span class="StringLit">&quot;object&quot;</span><span class="Other">,</span> <span class="Identifier">ntFunction</span> <span class="Other">=</span> <span class="StringLit">&quot;function&quot;</span><span class="Other">,</span> <span class="Identifier">ntLitVoid</span> <span class="Other">=</span> <span class="StringLit">&quot;void&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntVariableDef</span> <span class="Other">=</span> <span class="StringLit">&quot;Variable&quot;</span><span class="Other">,</span> <span class="Identifier">ntAssignExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;Assignment&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntHtmlElement</span> <span class="Other">=</span> <span class="StringLit">&quot;HtmlElement&quot;</span><span class="Other">,</span> <span class="Identifier">ntInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;InfixExpression&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntMathInfixExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;MathExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntCommandStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CommandStatement&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntIdent</span> <span class="Other">=</span> <span class="StringLit">&quot;Identifier&quot;</span><span class="Other">,</span> <span class="Identifier">ntCall</span> <span class="Other">=</span> <span class="StringLit">&quot;FunctionCall&quot;</span><span class="Other">,</span> <span class="Identifier">ntIdentPair</span><span class="Other">,</span>
+  <span class="Identifier">ntDotExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;DotExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntBracketExpr</span> <span class="Other">=</span> <span class="StringLit">&quot;BracketExpression&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntIndexRange</span> <span class="Other">=</span> <span class="StringLit">&quot;IndexRange&quot;</span><span class="Other">,</span> <span class="Identifier">ntConditionStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;ConditionStatement&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntCaseStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;CaseExpression&quot;</span><span class="Other">,</span> <span class="Identifier">ntLoopStmt</span> <span class="Other">=</span> <span class="StringLit">&quot;LoopStmt&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;ViewLoader&quot;</span><span class="Other">,</span> <span class="Identifier">ntInclude</span> <span class="Other">=</span> <span class="StringLit">&quot;Include&quot;</span><span class="Other">,</span> <span class="Identifier">ntImport</span> <span class="Other">=</span> <span class="StringLit">&quot;Import&quot;</span><span class="Other">,</span>
+  <span class="Identifier">ntPlaceholder</span> <span class="Other">=</span> <span class="StringLit">&quot;Placeholder&quot;</span><span class="Other">,</span> <span class="Identifier">ntStream</span> <span class="Other">=</span> <span class="StringLit">&quot;Stream&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntJavaScriptSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JavaScriptSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntYamlSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;YAMLSnippet&quot;</span><span class="Other">,</span>
   <span class="Identifier">ntJsonSnippet</span> <span class="Other">=</span> <span class="StringLit">&quot;JsonSnippet&quot;</span><span class="Other">,</span> <span class="Identifier">ntClientBlock</span> <span class="Other">=</span> <span class="StringLit">&quot;ClientSideStatement&quot;</span><span class="Other">,</span>
-  <span class="Identifier">ntStmtList</span> <span class="Other">=</span> <span class="StringLit">&quot;StatementList&quot;</span></pre></dt>
+  <span class="Identifier">ntStmtList</span> <span class="Other">=</span> <span class="StringLit">&quot;StatementList&quot;</span><span class="Other">,</span> <span class="Identifier">ntRuntimeCode</span> <span class="Other">=</span> <span class="StringLit">&quot;Runtime&quot;</span></pre></dt>
   <dd>
     
     
@@ -636,6 +664,14 @@
   <span class="Identifier">localStorage</span> <span class="Comment">## Data exposed from a Controller using a `JsonNode` object is stored</span>
                <span class="Comment">## in a local storage.  Can be accessed from the current view, layout and its partials</span>
                <span class="Comment">## using the `$this` prefix.</span></pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+<div id="TimModulesTable">
+  <dt><pre><a href="ast.html#TimModulesTable"><span class="Identifier">TimModulesTable</span></a> <span class="Other">=</span> <span class="Identifier">TableRef</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <a href="ast.html#Ast"><span class="Identifier">Ast</span></a><span class="Other">]</span></pre></dt>
   <dd>
     
     
@@ -752,6 +788,29 @@
 <div id="getTag-procs-all">
   <div id="getTag,Node">
   <dt><pre><span class="Keyword">proc</span> <a href="#getTag%2CNode"><span class="Identifier">getTag</span></a><span class="Other">(</span><span class="Identifier">x</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="getType-procs-all">
+  <div id="getType,NimNode">
+  <dt><pre><span class="Keyword">proc</span> <a href="#getType%2CNimNode"><span class="Identifier">getType</span></a><span class="Other">(</span><span class="Identifier">x</span><span class="Other">:</span> <span class="Identifier">NimNode</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#NodeType"><span class="Identifier">NodeType</span></a> {.<span class="Identifier">compileTime</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                                     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="getVoidNode-procs-all">
+  <div id="getVoidNode">
+  <dt><pre><span class="Keyword">proc</span> <a href="#getVoidNode"><span class="Identifier">getVoidNode</span></a><span class="Other">(</span><span class="Other">)</span><span class="Other">:</span> <a href="ast.html#Node"><span class="Identifier">Node</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -1015,7 +1074,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-18 09:18:47 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-08 09:55:47 UTC</small>
       </div>
     </div>
   </div>

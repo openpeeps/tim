@@ -1,0 +1,16 @@
+nimTitle	std	tim/engine/std.html	module tim/engine/std		0
+nim	Arg	tim/engine/std.html#Arg	tuple Arg		19
+nim	NimCall	tim/engine/std.html#NimCall	type NimCall		20
+nim	SourceCode	tim/engine/std.html#SourceCode	type SourceCode		23
+nim	StringsModule	tim/engine/std.html#StringsModule	object StringsModule		26
+nim	ArraysModule	tim/engine/std.html#ArraysModule	object ArraysModule		27
+nim	OSModule	tim/engine/std.html#OSModule	object OSModule		28
+nim	ColorsModule	tim/engine/std.html#ColorsModule	object ColorsModule		29
+nim	SystemModule	tim/engine/std.html#SystemModule	object SystemModule		30
+nim	stdlib	tim/engine/std.html#stdlib	var stdlib		33
+nim	localModule	tim/engine/std.html#localModule	var localModule		34
+nim	toNimSeq	tim/engine/std.html#toNimSeq,Node	proc toNimSeq(node: Node): seq[string]		42
+nim	initModuleSystem	tim/engine/std.html#initModuleSystem	proc initModuleSystem()		398
+nim	exists	tim/engine/std.html#exists,string	proc exists(lib: string): bool		402
+nim	std	tim/engine/std.html#std,string	proc std(lib: string): (Module, SourceCode)		406
+nim	call	tim/engine/std.html#call,string,string,seq[Arg]	proc call(lib, fnName: string; args: seq[Arg]): Node		410

@@ -67,6 +67,7 @@
   varRedefine = &quot;Attempt to redefine variable $ [VarRedefine]&quot;, varImmutable = &quot;Attempt to reassign value to immutable constant $ [VarImmutable]&quot;,
   fnRedefine = &quot;Attempt to redefine function $ [RedefineFunction]&quot;,
   fnUndeclared = &quot;Undeclared function $ [UndeclaredFunction]&quot;, fnReturnMissingCommand = &quot;Expression $ is of type $ and has to be used or discarded [UseOrDiscard]&quot;,
+  fnReturnVoid = &quot;Function $ has no return type [VoidFunction]&quot;,
   fnExtraArg = &quot;Extra arguments given. Got $ expected $ [ExtraArgs]&quot;,
   badIndentation = &quot;Nestable statement requires indentation [BadIndentation]&quot;,
   invalidContext = &quot;Invalid $ in this context [InvalidContext]&quot;, invalidViewLoader = &quot;Invalid use of `@view` in this context. Use a layout instead [InvalidViewLoader]&quot;,
@@ -255,6 +256,7 @@
   <span class="Identifier">varRedefine</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to redefine variable $ [VarRedefine]&quot;</span><span class="Other">,</span> <span class="Identifier">varImmutable</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to reassign value to immutable constant $ [VarImmutable]&quot;</span><span class="Other">,</span>
   <span class="Identifier">fnRedefine</span> <span class="Other">=</span> <span class="StringLit">&quot;Attempt to redefine function $ [RedefineFunction]&quot;</span><span class="Other">,</span>
   <span class="Identifier">fnUndeclared</span> <span class="Other">=</span> <span class="StringLit">&quot;Undeclared function $ [UndeclaredFunction]&quot;</span><span class="Other">,</span> <span class="Identifier">fnReturnMissingCommand</span> <span class="Other">=</span> <span class="StringLit">&quot;Expression $ is of type $ and has to be used or discarded [UseOrDiscard]&quot;</span><span class="Other">,</span>
+  <span class="Identifier">fnReturnVoid</span> <span class="Other">=</span> <span class="StringLit">&quot;Function $ has no return type [VoidFunction]&quot;</span><span class="Other">,</span>
   <span class="Identifier">fnExtraArg</span> <span class="Other">=</span> <span class="StringLit">&quot;Extra arguments given. Got $ expected $ [ExtraArgs]&quot;</span><span class="Other">,</span>
   <span class="Identifier">badIndentation</span> <span class="Other">=</span> <span class="StringLit">&quot;Nestable statement requires indentation [BadIndentation]&quot;</span><span class="Other">,</span>
   <span class="Identifier">invalidContext</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid $ in this context [InvalidContext]&quot;</span><span class="Other">,</span> <span class="Identifier">invalidViewLoader</span> <span class="Other">=</span> <span class="StringLit">&quot;Invalid use of `@view` in this context. Use a layout instead [InvalidViewLoader]&quot;</span><span class="Other">,</span>
@@ -557,7 +559,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2024-03-18 09:18:48 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2024-04-08 09:55:47 UTC</small>
       </div>
     </div>
   </div>
