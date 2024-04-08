@@ -381,7 +381,8 @@ when defined napibuild:
       return %*(x)
 
 elif not isMainModule:
-  # Expose Tim Engine API for Nim development (as a Nimble librayr)
+  # Expose Tim Engine API for Nim development
+  # as a Nimble library
   import std/enumutils
   import tim/engine/ast
   
@@ -389,7 +390,7 @@ elif not isMainModule:
   export meta except TimEngine
   export localModule, SourceCode, Arg, NodeType
 
-  proc initModule(modules: NimNode): NimNode =
+  proc initLocalModule(modules: NimNode): NimNode =
     result = newStmtList()
     var functions: seq[string]
     modules.expectKind nnkArgList
@@ -456,17 +457,43 @@ elif not isMainModule:
       )
 
   macro initModule*(x: varargs[untyped]): untyped =
-    initModule(x)
+    initLocalModule(x)
 
 else:
   # Build Tim Engine as a standalone CLI application
-  discard # todo
-#   import pkg/kapsis
-#   import ./tim/app/[runCommand]
+  import std/[os, strutils]
+  import pkg/[kapsis, flatty]
+  import pkg/kapsis/[runtime, cli]
+  import tim/engine/ast
+  # todo move commands
+  proc cCommand(v: Values) = 
+    ## Transpiles a `.timl` file to a target source
+    let fpath = v.get("timl").getPath.path
+    let p = parseSnippet(fpath, readFile(getCurrentDir() / fpath))
+    if likely(not p.hasErrors):
+      let c = newCompiler(parser.getAst(p), false)
+      display(c.getHtml().strip)
 
-#   App:
-#     about:
-#       "Tim Engine CLI application"
-#     commands:
-#       --- "Main Commands"
-#       $ run
+  proc astCommand(v: Values) =
+    ## Build binary AST from a `timl` file
+    let fpath = v.get("timl").getPath.path
+    let opath = normalizedPath(getCurrentDir() / v.get("output").getFilename)
+    let p = parseSnippet(fpath, readFile(getCurrentDir() / fpath))
+    if likely(not p.hasErrors):
+      writeFile(opath, flatty.toFlatty(parser.getAst(p)))
+
+  proc reprCommand(v: Values) =
+    ## Read a binary AST to target source
+    let fpath = v.get("ast").getPath.path
+    let c = newCompiler(flatty.fromFlatty(readFile(fpath), Ast), false)
+    if likely(not c.hasErrors):
+      display(c.getHtml().strip)
+
+  commands:
+    -- "Main Commands"
+    c path(`timl`):
+      ## Transpile `.timl` file to a target source
+    ast path(`timl`), filename(`output`):
+      ## Build binary AST for a `timl` file
+    repr path(`ast`):
+      ## Read from a binary AST to target source

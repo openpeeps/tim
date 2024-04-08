@@ -1,14 +1,14 @@
 # Package
 
 version       = "0.1.0"
-author        = "George Lemon"
+author        = "OpenPeeps"
 description   = "A super fast template engine for cool kids!"
 license       = "MIT"
 srcDir        = "src"
 skipDirs      = @["example", "editors"]
-# installExt    = @["nim"]
-# bin           = @["tim"]
-
+installExt    = @["nim"]
+bin           = @["tim"]
+binDir        = "bin"
 
 # Dependencies
 
@@ -23,6 +23,7 @@ requires "checksums"
 requires "flatty#head"
 requires "malebolgia"
 requires "nyml"
+requires "kapsis"
 # requires "bro"
 
 task node, "Build a NODE addon":
@@ -41,3 +42,9 @@ task example, "example httpbeast + tim":
 
 task bench, "run some benchmarks":
   exec "nim c --threads:on -d:danger --opt:speed --mm:arc -o:./bin/bench example/benchmark.nim"
+
+task dev, "build a dev cli":
+  exec "nimble build"
+
+task prod, "build a prod cli":
+  exec "nimble build -d:release"
