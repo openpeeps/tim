@@ -28,7 +28,7 @@ also available for Nim development as a Nimble package and for **JavaScript** de
 This allows you to seamlessly integrate Tim compilation within your existing workflow, empowering you to leverage
 Tim's capabilities directly within your codebase.<br>
 #### Other features
-- Available for Nim development via Nimble `npm install tim`
+- Available for Nim development via Nimble `nimble install tim`
 - Available for JavaScript backend via NPM `npm install timl`
 - Built-in AST Interpreter & JIT Rendering 
 
