@@ -1,8 +1,8 @@
 nimTitle	parser	tim/engine/parser.html	module tim/engine/parser		0
 nim	Parser	tim/engine/parser.html#Parser	object Parser		18
 nim	hasError	tim/engine/parser.html#hasError,Parser	proc hasError(p: Parser): bool		108
-nim	newParser	tim/engine/parser.html#newParser,TimEngine,TimTemplate	proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;\n          refreshAst = false): Parser		1163
-nim	getAst	tim/engine/parser.html#getAst,Parser	proc getAst(p: Parser): Ast		1165
-nim	parseSnippet	tim/engine/parser.html#parseSnippet,string,string	proc parseSnippet(id, code: string): Parser		1306
-nim	parseSnippet	tim/engine/parser.html#parseSnippet,string	proc parseSnippet(snippetPath: string): Parser		1331
-nimgrp	parsesnippet	tim/engine/parser.html#parseSnippet-procs-all	proc		1306
+nim	newParser	tim/engine/parser.html#newParser,TimEngine,TimTemplate	proc newParser(engine: TimEngine; tpl: TimTemplate; isMainParser = true;\n          refreshAst = false): Parser		1166
+nim	getAst	tim/engine/parser.html#getAst,Parser	proc getAst(p: Parser): Ast		1168
+nim	parseSnippet	tim/engine/parser.html#parseSnippet,string,string	proc parseSnippet(id, code: string): Parser		1309
+nim	parseSnippet	tim/engine/parser.html#parseSnippet,string	proc parseSnippet(snippetPath: string): Parser		1334
+nimgrp	parsesnippet	tim/engine/parser.html#parseSnippet-procs-all	proc		1309
