@@ -390,10 +390,9 @@ fn walkFiles*(path: string): array
 
 ## Browser Sync & Reload
 Compile your project with `-d:timHotCode` flag, then connect to Tim's WebSocket server to auto reload the page when there are changes on disk.<br>
-
 _Note that this feature is not available when compiling with `-d:release`._
 
-The internal websocket returns an empty string when detect file changes, so basically you can add an event listener on `message` in order to `reload` the page.
+The internal websocket returns `"1"` when detecting changes, otherwise `"0"`
 ```js
   {
     function connectWatchoutServer() {      
