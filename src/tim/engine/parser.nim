@@ -553,7 +553,7 @@ prefixHandle pElement:
     caseNotNil x:
       case x.nt
       of ntConditionStmt:
-        echo x
+        discard
       else:
         discard # todo
   of tkLP:
@@ -700,7 +700,7 @@ prefixHandle pCase:
         expectWalk tkColon
         let caseBody = p.parseStatement((currOfToken, result), excludes, includes)
         caseNotNil caseBody:
-          echo caseBody
+          discard
         # add result.caseBranch, caseBody
         
     # parse `else` branch
@@ -1041,7 +1041,7 @@ proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
 
 proc parseTernaryExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse an one line conditional using ternary operator
-  echo lhs
+  discard
 
 proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse math expressions with symbols (+, -, *, /)

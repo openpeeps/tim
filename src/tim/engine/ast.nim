@@ -467,19 +467,19 @@ proc getType*(x: NimNode): NodeType {.compileTime.} =
 #
 # AST to JSON convertors
 #
-proc `$`*(node: Node): string =
-  {.gcsafe.}:
-    when not defined release:
-      pretty(toJson(node), 2)
-    else:
-      toJson(node)
+# proc `$`*(node: Node): string =
+#   {.gcsafe.}:
+#     when not defined release:
+#       pretty(toJson(node), 2)
+#     else:
+#       toJson(node)
 
-proc `$`*(nodes: seq[Node]): string =
-  {.gcsafe.}:
-    when not defined release:
-      pretty(toJson(nodes), 2)
-    else:
-      toJson(nodes)
+# proc `$`*(nodes: seq[Node]): string =
+#   {.gcsafe.}:
+#     when not defined release:
+#       pretty(toJson(nodes), 2)
+#     else:
+#       toJson(nodes)
 
 proc `$`*(x: Ast): string =
   {.gcsafe.}:
