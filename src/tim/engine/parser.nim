@@ -481,11 +481,10 @@ proc parseAttributes(p: var Parser,
       if anyAttrIdent():
         let attrKey = p.curr
         walk p
-        if p.curr is tkAssign:
-          walk p
+        if p.curr is tkAssign: walk p
         if not attrs.hasKey(attrKey.value):
           case p.curr.kind
-          of tkString:
+          of tkString, tkInteger, tkFloat, tkBool:
             var attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
             walk p
@@ -498,6 +497,16 @@ proc parseAttributes(p: var Parser,
             let attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
             walk p
+          of tkLB:
+            let v = p.pAnoArray()
+            caseNotNil v:
+              attrs[attrKey.value] = @[v]
+            do: return
+          of tkLC:
+            let v = p.pAnoObject()
+            caseNotNil v:
+              attrs[attrKey.value] = @[v]
+            do: return
           else:
             var x: Node
             if p.next is tkLP and p.next.wsno == 0:
@@ -771,7 +780,7 @@ prefixHandle pAnoObject:
           result.objectItems[k.value] = v
           if p.curr is tkComma:
             walk p
-          else:
+          elif p.curr isnot tkRC:
             if p.curr.line == v.meta[0]:
               result = nil
               error(badIndentation, p.curr)

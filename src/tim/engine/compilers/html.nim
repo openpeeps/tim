@@ -10,7 +10,6 @@ import std/[tables, strutils, json,
 import pkg/jsony
 import ./tim, ../std, ../parser
 
-from std/xmltree import escape
 from ../meta import TimEngine, TimTemplate, TimTemplateType,
   getType, getSourcePath, getGlobalData
 
@@ -194,6 +193,17 @@ proc dumpHook*(s: var string, v: seq[Node])
 proc dumpHook*(s: var string, v: OrderedTableRef[string, Node])
 # proc dumpHook*(s: var string, v: Color)
 
+proc escapeValue(x: string): string =
+  for c in x:
+    case c
+    of '<': add result, "&lt;"
+    of '>': add result, "&gt;"
+    of '&': add result, "&amp;"
+    of '"': add result, "&quot;"
+    of NewLines: add result, "\\n"
+    of '\'': add result, "&apos;"
+    else: add result, c
+
 proc dumpHook*(s: var string, v: Node) =
   ## Dumps `v` node to stringified JSON using `pkg/jsony`
   case v.nt
@@ -235,13 +245,19 @@ proc toString(node: Node, escape = false): string =
       of ntLitFloat:  $node.fVal
       of ntLitBool:   $node.bVal
       of ntLitObject:
-        fromJson(jsony.toJson(node.objectItems)).pretty
+        if not escape:
+          fromJson(jsony.toJson(node.objectItems)).pretty
+        else:
+          jsony.toJson(node.objectItems)
       of ntLitArray:
-        fromJson(jsony.toJson(node.arrayItems)).pretty
+        if not escape:
+          fromJson(jsony.toJson(node.arrayItems)).pretty
+        else:
+          jsony.toJson(node.arrayItems)
       of ntIdent:     node.identName
       else: ""
     if escape:
-      result = xmltree.escape(result)
+      result = escapeValue(result)
 
 proc toString(c: var HtmlCompiler, node: Node,
     scopetables: var seq[ScopeTable], escape = false): string =
@@ -261,12 +277,18 @@ proc toString(c: var HtmlCompiler, node: Node,
     of ntLitFloat:  $node.fVal
     of ntLitBool:   $node.bVal
     of ntLitObject:
-      fromJson(jsony.toJson(node.objectItems)).pretty
+      if not escape:
+        fromJson(jsony.toJson(node.objectItems)).pretty
+      else:
+        jsony.toJson(node.objectItems)
     of ntLitArray:
-      fromJson(jsony.toJson(node.arrayItems)).pretty
+      if not escape:
+        fromJson(jsony.toJson(node.arrayItems)).pretty
+      else:
+        jsony.toJson(node.arrayItems)
     else: ""
   if escape:
-    result = xmltree.escape(result)
+    result = escapeValue(result)
 
 proc toString(node: JsonNode, escape = false): string =
   result =
@@ -1305,18 +1327,20 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
       add result, indent("$1=" % [k], 1) & "\""
     for attrNode in attrNodes:
       case attrNode.nt
-      of ntAssignableSet:
+      of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
         add attrStr, c.toString(attrNode, scopetables)
+      of ntLitObject, ntLitArray:
+        add attrStr, c.toString(attrNode, scopetables, escape = true)
       of ntIdent:
         let xVal = c.getValue(attrNode, scopetables)
-        if likely(xVal != nil):
-          add attrStr, xVal.toString()
-        else: return # undeclaredVariable
+        notnil xVal:
+          add attrStr, xVal.toString(xVal.nt in [ntLitObject, ntLitArray])
+        # else: return # undeclaredVariable
       of ntDotExpr:
         let xVal = c.dotEvaluator(attrNode, scopetables)
-        if likely(xVal != nil):
+        notnil xVal:
           add attrStr, xVal.toString()
-        else: return # undeclaredVariable
+        # else: return # undeclaredVariable
       else: discard
     if not c.isClientSide:
       add result, attrStr.join(" ")
