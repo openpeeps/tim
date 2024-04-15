@@ -68,8 +68,6 @@ nim	getInfixOp	tim/engine/ast.html#getInfixOp,TokenKind,bool	proc getInfixOp(kin
 nim	getInfixMathOp	tim/engine/ast.html#getInfixMathOp,TokenKind,bool	proc getInfixMathOp(kind: TokenKind; isInfixInfix: bool): MathOp		313
 nim	getTag	tim/engine/ast.html#getTag,Node	proc getTag(x: Node): string		323
 nim	getType	tim/engine/ast.html#getType,NimNode	proc getType(x: NimNode): NodeType		452
-nim	`$`	tim/engine/ast.html#$,Node	proc `$`(node: Node): string		470
-nim	`$`	tim/engine/ast.html#$,seq[Node]	proc `$`(nodes: seq[Node]): string		477
 nim	`$`	tim/engine/ast.html#$,Ast	proc `$`(x: Ast): string		484
 nim	newNode	tim/engine/ast.html#newNode,staticNodeType,TokenTuple	proc newNode(nt: static NodeType; tk: TokenTuple): Node		494
 nim	newNode	tim/engine/ast.html#newNode,staticNodeType	proc newNode(nt: static NodeType): Node		497
@@ -95,7 +93,6 @@ nim	newCondition	tim/engine/ast.html#newCondition,ConditionBranch,TokenTuple	pro
 nim	newArray	tim/engine/ast.html#newArray,seq[Node]	proc newArray(items: seq[Node] = @[]): Node		598
 nim	toTimNode	tim/engine/ast.html#toTimNode,JsonNode	proc toTimNode(x: JsonNode): Node		603
 nim	newStream	tim/engine/ast.html#newStream,JsonNode	proc newStream(node: JsonNode): Node		628
-nimgrp	$	tim/engine/ast.html#$-procs-all	proc		470
 nimgrp	newnode	tim/engine/ast.html#newNode-procs-all	proc		494
 nimgrp	newstring	tim/engine/ast.html#newString-procs-all	proc		500
 nimgrp	newfloat	tim/engine/ast.html#newFloat-procs-all	proc		518
