@@ -3,7 +3,10 @@
   "version": "0.1.2",
   "description": "This is Tim ⚡️ A high-performance template engine & markup language written in Nim",
   "main": "src/tim.js",
-  "files": ["README.md"],
+  "exports": {
+    "./": "./bindings/node/tim/"
+  }
+  "files": ["README.md", "/bin"],
   "keywords": [
     "template-engine",
     "markup-language",
