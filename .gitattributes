@@ -1,0 +1,2 @@
+*.node binary
+*.node -text -diff -delta
