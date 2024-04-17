@@ -16,11 +16,15 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         nim-version:
           - 'stable'
+        os:
+          - ubuntu-latest
+          # - windows-latest
+          - macOS-latest
     steps:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
