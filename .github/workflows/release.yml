@@ -33,6 +33,8 @@ jobs:
           git pull origin main
           git checkout .
           rm ./bindings/node/tim/src/bin/$timNodeName
+          git add ./bindings/node/tim/src/bin/$timNodeName
+          git commit -m "cleanup previous tim.node"
           cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
           git status
           git add ./bindings/node/tim/src/bin/$timNodeName
