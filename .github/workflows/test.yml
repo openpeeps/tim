@@ -44,9 +44,11 @@ jobs:
           timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
           git pull origin main
           git checkout .
-          rm -f ./bindings/node/tim/src/bin/$timNodeName
-          git add ./bindings/node/tim/src/bin/$timNodeName
-          git commit -m "cleanup previous tim.node"
+          if test -f ./bindings/node/tim/src/bin/$timNodeName; then
+            rm -f ./bindings/node/tim/src/bin/$timNodeName
+            git add ./bindings/node/tim/src/bin/$timNodeName
+            git commit -m "cleanup previous tim.node"
+          fi
           cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
           git status
           git add ./bindings/node/tim/src/bin/$timNodeName
