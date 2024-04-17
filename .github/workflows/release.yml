@@ -14,17 +14,15 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          # - windows-latest
+          - windows-latest
           - macOS-latest
     steps:
       - uses: actions/checkout@v1
       - uses: jiro4989/setup-nim-action@v1
         with:
           nim-version: ${{ env.NIM_VERSION }}
-      - run: npm install cmake-js -g
       - run: choosenim show path -y
       - run: nimble build -Y -d:release
-      - run: denim build src/${{github.event.repository.name}}.nim -r -y --cmake
       - name: Create artifact
         run: |
           os="${{ runner.os }}"
@@ -84,9 +82,9 @@ jobs:
           - os: ubuntu-latest
             asset_name_suffix: linux.tar.gz
             asset_content_type: application/gzip
-          # - os: windows-latest
-          #   asset_name_suffix: windows.zip
-          #   asset_content_type: application/zip
+          - os: windows-latest
+            asset_name_suffix: windows.zip
+            asset_content_type: application/zip
           - os: macOS-latest
             asset_name_suffix: macos.tar.gz
             asset_content_type: application/gzip
