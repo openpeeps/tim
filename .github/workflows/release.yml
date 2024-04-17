@@ -30,8 +30,8 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
-          mv tim.node $timNodeName
-          git add ./bin/$timNodeName
+          mv ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
+          git add ./bindings/node/tim/src/bin/$timNodeName
           git commit -m "bundle tim for node on ${{ runner.os }}"
       - name: Push changes # push the output folder to your repo
         uses: ad-m/github-push-action@master
