@@ -1,6 +1,6 @@
 .DS_Store
-bin/*
-!tim*.node
+/bin
+!tim-*.node
 nimcache/
 nimblecache/
 htmldocs/
