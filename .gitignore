@@ -9,3 +9,6 @@ htmldocs/
 /example/storage/ast/*
 /example/storage/html/*
 /bindings/tim/src/bin/*
+/init.sh
+/CMakeLists.txt
+denim_build/
