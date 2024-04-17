@@ -32,7 +32,6 @@ jobs:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 #       - run: sudo apt-get -y install libsass-dev
-      - run: "npm install node-gyp -g"
       - run: "npm install cmake-js -g"
       - run: "choosenim show path -y"
       - run: nimble install -Y
@@ -45,7 +44,7 @@ jobs:
           timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
           git pull origin main
           git checkout .
-          rm ./bindings/node/tim/src/bin/$timNodeName
+          rm -f ./bindings/node/tim/src/bin/$timNodeName
           git add ./bindings/node/tim/src/bin/$timNodeName
           git commit -m "cleanup previous tim.node"
           cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
