@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <code>nimble install tim</code> / <code>npm install timl</code>
+  <code>nimble install tim</code> / <code>npm install @openpeeps/tim</code>
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@ This allows you to seamlessly integrate Tim compilation within your existing wor
 Tim's capabilities directly within your codebase.<br>
 #### Other features
 - Available for Nim development via Nimble `nimble install tim`
-- Available for JavaScript backend via NPM `npm install timl`
+- Available for JavaScript backend via NPM `npm install @openpeeps/tim`
 - Built-in AST Interpreter & JIT Rendering 
 
 **Standalone CLI App**<br>
