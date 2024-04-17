@@ -350,6 +350,7 @@ proc render*(engine: TimEngine, viewName: string,
 when defined napibuild:
   # Setup for building TimEngine as a node addon via NAPI
   import pkg/[denim, jsony]
+  import std/os
   from std/sequtils import toSeq
 
   var timjs: TimEngine
@@ -379,6 +380,24 @@ when defined napibuild:
           local
         )
       return %*(x)
+
+    proc fromHtml(path: string) {.export_napi.} =
+      ## Read Tim code from `path` and output minified HTML
+      let path = $args.get("path")
+      let p = parseSnippet(path.extractFilename, readFile(path))
+      if likely(not p.hasErrors):
+        let c = newCompiler(parser.getAst(p), true)
+        return %*c.getHtml()
+
+    proc toHtml(name: string, code: string) {.export_napi.} =
+      ## Transpile `code` to minified HTML
+      let
+        name = $args.get("name")
+        code = $args.get("code")
+        p = parseSnippet(name, code)
+      if likely(not p.hasErrors):
+        let c = newCompiler(parser.getAst(p), true)
+        return %*c.getHtml()
 
 elif not isMainModule:
   # Expose Tim Engine API for Nim development
@@ -461,39 +480,15 @@ elif not isMainModule:
 
 else:
   # Build Tim Engine as a standalone CLI application
-  import std/[os, strutils]
-  import pkg/[kapsis, flatty]
+  import pkg/kapsis
   import pkg/kapsis/[runtime, cli]
-  import tim/engine/ast
-  # todo move commands
-  proc cCommand(v: Values) = 
-    ## Transpiles a `.timl` file to a target source
-    let fpath = v.get("timl").getPath.path
-    let p = parseSnippet(fpath, readFile(getCurrentDir() / fpath))
-    if likely(not p.hasErrors):
-      let c = newCompiler(parser.getAst(p), false)
-      display(c.getHtml().strip)
-
-  proc astCommand(v: Values) =
-    ## Build binary AST from a `timl` file
-    let fpath = v.get("timl").getPath.path
-    let opath = normalizedPath(getCurrentDir() / v.get("output").getFilename)
-    let p = parseSnippet(fpath, readFile(getCurrentDir() / fpath))
-    if likely(not p.hasErrors):
-      writeFile(opath, flatty.toFlatty(parser.getAst(p)))
-
-  proc reprCommand(v: Values) =
-    ## Read a binary AST to target source
-    let fpath = v.get("ast").getPath.path
-    let c = newCompiler(flatty.fromFlatty(readFile(fpath), Ast), false)
-    if likely(not c.hasErrors):
-      display(c.getHtml().strip)
+  import tim/app/[astCmd, compileCmd, reprCmd]
 
   commands:
     -- "Main Commands"
     c path(`timl`):
       ## Transpile `.timl` file to a target source
     ast path(`timl`), filename(`output`):
-      ## Build binary AST for a `timl` file
+      ## Generate binary AST from a `timl` file
     repr path(`ast`):
       ## Read from a binary AST to target source
