@@ -25,6 +25,19 @@ jobs:
       - run: choosenim show path -y
       - run: nimble build -Y -d:release
       - run: denim build src/${{github.event.repository.name}}.nim -r -y --cmake
+      - name: "bundle tim for node"
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
+          mv tim.node $timNodeName
+          git add ./bin/$timNodeName
+          git commit -m "bundle tim for node on ${{ runner.os }}"
+      - name: Push changes # push the output folder to your repo
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: 'main'
       - name: Create artifact
         run: |
           os="${{ runner.os }}"

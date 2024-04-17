@@ -1,7 +1,9 @@
 module.exports = (() => {
-  try {
-    return require('./bin/tim-' + process.platform + '.node');
-  } catch (e) {
-    // 
+  if(process.platform === 'darwin') {
+    return require('./bin/tim-macos.node');
+  } else if(process.platform === 'linux') {
+    return require('./bin/tim-linux.node');
+  } else {
+    throw new Error('Tim Engine - Unsupported platform ' + process.platform)
   }
 })();
