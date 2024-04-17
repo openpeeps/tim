@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://openpeeps.github.io/tim/">API reference</a> | <a href="https://github.com/openpeeps/tim/releases">Download</a><br><br>
+  <a href="https://openpeeps.github.io/tim/">API reference</a> | <a href="https://github.com/openpeeps/tim">Check Tim on GitHub</a><br><br>
   <img src="https://github.com/openpeeps/tim/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeeps/tim/workflows/docs/badge.svg" alt="Github Actions">
 </p>
 
