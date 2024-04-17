@@ -5,7 +5,7 @@
   "main": "src/tim.js",
   "exports": {
     "./": "./bindings/node/tim/"
-  }
+  },
   "files": ["README.md", "/bin"],
   "keywords": [
     "template-engine",
