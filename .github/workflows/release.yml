@@ -30,6 +30,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
+          git pull origin main
           rm ./bindings/node/tim/src/bin/$timNodeName
           cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
           git add ./bindings/node/tim/src/bin/$timNodeName
