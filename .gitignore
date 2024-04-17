@@ -1,5 +1,6 @@
 .DS_Store
-bin/
+bin/*
+!tim*.node
 nimcache/
 nimblecache/
 htmldocs/
@@ -7,3 +8,4 @@ htmldocs/
 /tests/app/storage/*
 /example/storage/ast/*
 /example/storage/html/*
+/bindings/tim/src/bin/*
