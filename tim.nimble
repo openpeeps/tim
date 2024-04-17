@@ -1,11 +1,11 @@
 # Package
 
-version       = "0.1.1"
+version       = "0.1.2"
 author        = "OpenPeeps"
 description   = "A super fast template engine for cool kids!"
 license       = "MIT"
 srcDir        = "src"
-skipDirs      = @["example", "editors"]
+skipDirs      = @["example", "editors", "bindings"]
 installExt    = @["nim"]
 bin           = @["tim"]
 binDir        = "bin"
