@@ -417,10 +417,17 @@ prefixHandle pEchoCommand:
   case p.curr.kind
   of tkAssignableSet:
     if p.curr in {tkIdentVar, tkIdentVarSafe}:
+      let safeEscape = p.curr is tkIdentVarSafe
       if p.next.isInfix:
         varNode = p.getPrefixOrInfix()
       else:
         varNode = p.pIdent()
+        case varNode.nt 
+        of ntIdent:
+          varNode.identSafe = safeEscape
+        of ntDotExpr:
+          varNode.lhs.identSafe = safeEscape
+        else: discard
         if p.curr.isInfix and p.curr.line == p.prev.line:
           # todo move line checker to `isInfix`
           varNode = p.parseInfix(varNode)

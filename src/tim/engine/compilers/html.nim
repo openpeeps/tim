@@ -22,11 +22,10 @@ type
       jsOutputCode: string = "{"
       jsCountEl: uint
       jsTargetElement: string
-      isClientSide: bool
     # jsComp: Table[string, JSCompiler] # todo
 
 # Forward Declaration
-proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler
+proc newCompiler*(ast: Ast, minify = true, indent = 2, data = newJObject()): HtmlCompiler
 proc getHtml*(c: HtmlCompiler): string
 
 proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
@@ -313,13 +312,13 @@ template write(x: Node, fixtail, escape: bool) =
     add c.output, x.toString(escape)
     c.stickytail = fixtail
 
-proc print(val: Node) =
+proc print(val: Node, identSafe = false) =
   let meta = " ($1:$2) " % [$val.meta[0], $val.meta[2]]
   stdout.styledWriteLine(
     fgGreen, "Debug",
     fgDefault, meta,
     fgMagenta, $(val.nt),
-    fgDefault, "\n" & toString(val)
+    fgDefault, "\n" & toString(val, identSafe)
   )
 
 proc print(val: JsonNode, line, col: int) =
@@ -534,7 +533,11 @@ proc evalCmd(c: var HtmlCompiler, node: Node,
         case node.cmdType
         of cmdEcho:
           val.meta = node.cmdValue.meta
-          print(val)
+          case node.cmdValue.nt
+          of ntIdent:
+            print(val, node.cmdValue.identSafe)
+          else:
+            print(val)
         of cmdReturn:
           return val
         else: discard
@@ -1602,7 +1605,7 @@ else:
     var scopetables = newSeq[ScopeTable]()
     result.walkNodes(result.ast.nodes, scopetables)
 
-proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =
+proc newCompiler*(ast: Ast, minify = true, indent = 2, data = newJObject()): HtmlCompiler =
   ## Create a new instance of `HtmlCompiler
   assert indent in [2, 4]
   assert ast != nil
@@ -1611,7 +1614,8 @@ proc newCompiler*(ast: Ast, minify = true, indent = 2): HtmlCompiler =
     start: true,
     tplType: ttView,
     logger: Logger(),
-    minify: minify
+    minify: minify,
+    data: data
   )
   if minify: setLen(result.nl, 0)
   var scopetables = newSeq[ScopeTable]()
