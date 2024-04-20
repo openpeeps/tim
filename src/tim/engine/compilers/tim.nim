@@ -9,7 +9,7 @@ type
     nl*: string = "\n"
     output*, jsOutput*, jsonOutput*,
       yamlOutput*, cssOutput*: string
-    start*: bool
+    start*, isClientSide*: bool
     case tplType*: TimTemplateType
     of ttLayout:
       head*: string
