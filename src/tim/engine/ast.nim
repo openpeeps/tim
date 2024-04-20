@@ -488,8 +488,9 @@ proc `$`*(x: Ast): string =
     else:
       toJson(x)
 
-proc debugEcho*(node: Node) =
-  echo pretty(toJson(node), 2)
+when not defined release:
+  proc debugEcho*(node: Node) =
+    echo pretty(toJson(node), 2)
 
 #
 # AST Generators
