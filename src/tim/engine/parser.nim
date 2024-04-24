@@ -488,8 +488,15 @@ proc parseAttributes(p: var Parser,
       if anyAttrIdent():
         let attrKey = p.curr
         walk p
-        if p.curr is tkAssign: walk p
+        var emptyAttr: bool
+        if p.curr is tkAssign:
+          walk p
+        else:
+          emptyAttr = true
         if not attrs.hasKey(attrKey.value):
+          if unlikely(emptyAttr):
+            attrs[attrKey.value] = @[]
+            continue
           case p.curr.kind
           of tkString, tkInteger, tkFloat, tkBool:
             var attrValue = ast.newString(p.curr)
@@ -1304,7 +1311,7 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
     baseIsMain = true
   )
   with p.handle:
-    tree = Ast()
+    tree = Ast(src: tpl.sources.src)
     lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
     engine = engine
     tpl = tpl
@@ -1326,7 +1333,7 @@ proc parseSnippet*(id, code: string): Parser {.gcsafe.} =
   ## Parse static snippet `code` at runtime before
   ## calling the `precompile` handle
   var p = Parser(
-    tree: Ast(),
+    tree: Ast(src: id),
     lex: newLexer(code, allowMultilineStrings = true),
     logger: Logger(filePath: id)
   )
@@ -1350,7 +1357,7 @@ proc parseSnippet*(id, code: string): Parser {.gcsafe.} =
 proc parseSnippet*(snippetPath: string): Parser {.gcsafe.} =
   ## Parse a snippet code from a `snippetPath` file.
   var p = Parser(
-    tree: Ast(),
+    tree: Ast(src: snippetPath),
     lex: newLexer(readFile(snippetPath), allowMultilineStrings = true),
     logger: Logger(filePath: snippetPath)
   )
