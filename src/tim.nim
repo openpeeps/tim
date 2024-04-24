@@ -60,10 +60,13 @@ proc jitCompiler(engine: TimEngine,
     engine.getIndentSize, data
   )
 
-proc toHtml*(name, code: string): string =
+proc toHtml*(name, code: string, local = newJObject()): string =
+  ## Read timl from `code` string 
   let p = parseSnippet(name, code)
   if likely(not p.hasErrors):
-    let c = newCompiler(parser.getAst(p), false)
+    var data = newJObject()
+    data["local"] = local
+    let c = newCompiler(parser.getAst(p), true, data = data)
     return c.getHtml()
 
 when not defined release:
@@ -190,8 +193,8 @@ proc compileCode(engine: TimEngine, tpl: TimTemplate,
     else:
       # otherwise, compiles the generated AST and save
       # a pre-compiled HTML version on disk
-      var c = engine.newCompiler(parser.getAst(p), tpl, engine.isMinified,
-          engine.getIndentSize)
+      var c = engine.newCompiler(parser.getAst(p),
+          tpl, engine.isMinified, engine.getIndentSize)
       if likely(not c.hasError):
         case tpl.getType:
         of ttView:
@@ -486,9 +489,9 @@ else:
 
   commands:
     -- "Main Commands"
-    c path(`timl`):
+    c path(`timl`), string(`ext`), bool(--pretty):
       ## Transpile `.timl` file to a target source
     ast path(`timl`), filename(`output`):
       ## Generate binary AST from a `timl` file
-    repr path(`ast`):
+    repr path(`ast`), string(`ext`), bool(--pretty):
       ## Read from a binary AST to target source
