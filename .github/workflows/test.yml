@@ -24,7 +24,8 @@ jobs:
         os:
           - ubuntu-latest
           # - windows-latest
-          - macOS-latest
+          # - macOS-latest
+          - macos-14-large # building on arm64 fails
     steps:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
