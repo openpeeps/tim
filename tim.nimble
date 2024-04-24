@@ -23,7 +23,6 @@ requires "checksums"
 requires "flatty#head"
 requires "malebolgia"
 requires "nyml"
-requires "kapsis#head"
 # requires "bro"
 
 task node, "Build a NODE addon":

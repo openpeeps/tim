@@ -94,7 +94,6 @@ proc getVar(c: var NimCompiler, node: Node): string =
   of true:
     writeToResult(newConst, 0, args = [node.varName, c.getValue(node.varValue)])
 
-
 proc getAttrs(c: var NimCompiler, attrs: HtmlAttributes): string =
   ## Write HTMLAttributes
   var i = 0
