@@ -22,7 +22,7 @@ requires "denim#head"
 requires "checksums"
 requires "flatty#head"
 requires "malebolgia"
-requires "nyml"
+requires "nyml >= 0.1.8"
 # requires "bro"
 
 task node, "Build a NODE addon":
