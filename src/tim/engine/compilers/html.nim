@@ -759,6 +759,10 @@ proc getValue(c: var HtmlCompiler, node: Node,
     if node.identArgs.len > 0:
       compileErrorWithArgs(fnUndeclared, [node.identName])
     compileErrorWithArgs(undeclaredVariable, [node.identName])
+  of ntEscape:
+    result = c.getValue(node.escapeIdent, scopetables)
+    notnil result:
+      result.sVal = result.sVal.escapeValue
   of ntAssignableSet, ntIndexRange:
     # return literal nodes
     result = node
@@ -1338,16 +1342,18 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
         add attrStr, c.toString(attrNode, scopetables)
       of ntLitObject, ntLitArray:
         add attrStr, c.toString(attrNode, scopetables, escape = true)
+      of ntEscape:
+        let xVal = c.getValue(attrNode, scopetables)
+        notnil xVal:
+          add attrStr, xVal.toString.escapeValue
       of ntIdent:
         let xVal = c.getValue(attrNode, scopetables)
         notnil xVal:
           add attrStr, xVal.toString(xVal.nt in [ntLitObject, ntLitArray])
-        # else: return # undeclaredVariable
       of ntDotExpr:
         let xVal = c.dotEvaluator(attrNode, scopetables)
         notnil xVal:
           add attrStr, xVal.toString()
-        # else: return # undeclaredVariable
       else: discard
     if not c.isClientSide:
       add result, attrStr.join(" ")

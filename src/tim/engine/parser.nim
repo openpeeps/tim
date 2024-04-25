@@ -348,6 +348,7 @@ proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
 
 prefixHandle pIdent:
   # parse an identifier
+  var isEscaped = p.curr is tkIdentVarSafe
   result = ast.newIdent(p.curr)
   let storageType = p.getStorageType()
   walk p
@@ -380,6 +381,10 @@ prefixHandle pIdent:
     of tkTernary:
       result = p.parseTernaryExpr(result)
     else: discard
+  if isEscaped:
+    var safeVarNode = ast.newNode(ntEscape)
+    safeVarNode.escapeIdent = result
+    return safeVarNode
 
 prefixHandle pIdentOrAssignment:
   let ident = p.curr
@@ -389,8 +394,8 @@ prefixHandle pIdentOrAssignment:
     caseNotNil varValue:
       return ast.newAssignment(ident, varValue)
   result = p.pIdent()
-  if result.nt == ntIdent:
-    result.identSafe = ident.kind == tkIdentVarSafe
+  # if result.nt == ntIdent:
+  #   result.identSafe = ident.kind == tkIdentVarSafe
 
 prefixHandle pAssignment:
   # parse assignment
@@ -414,27 +419,22 @@ prefixHandle pEchoCommand:
   let tk = p.curr
   walk p
   var varNode: Node
+  var isEscaped: bool
   case p.curr.kind
   of tkAssignableSet:
     if p.curr in {tkIdentVar, tkIdentVarSafe}:
-      let safeEscape = p.curr is tkIdentVarSafe
+      isEscaped = p.curr is tkIdentVarSafe
       if p.next.isInfix:
         varNode = p.getPrefixOrInfix()
       else:
         varNode = p.pIdent()
-        case varNode.nt 
-        of ntIdent:
-          varNode.identSafe = safeEscape
-        of ntDotExpr:
-          varNode.lhs.identSafe = safeEscape
-        else: discard
         if p.curr.isInfix and p.curr.line == p.prev.line:
           # todo move line checker to `isInfix`
           varNode = p.parseInfix(varNode)
     else:
       varNode = p.getPrefixOrInfix()
     caseNotNil varNode:
-      return ast.newCommand(cmdEcho, varNode, tk)
+      return ast.newCommand(cmdEcho, varNode, tk)      
   else: errorWithArgs(unexpectedToken, p.curr, [p.curr.value])
 
 prefixHandle pReturnCommand:

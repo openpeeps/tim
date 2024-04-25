@@ -36,6 +36,7 @@ type
     ntMathInfixExpr = "MathExpression"
     ntCommandStmt = "CommandStatement"
     ntIdent = "Identifier"
+    ntEscape = "EscapedIdentifier"
     ntCall = "FunctionCall"
     ntIdentPair
     ntDotExpr = "DotExpression"
@@ -191,11 +192,8 @@ type
       identSafe*: bool
         # whether to escape the stored value of `identName`
       identArgs*: seq[Node]
-    # of ntCall:
-    #   callIdent*: string
-    #     ## identifier name of a callable function
-    #   callArgs*: seq[Node]
-    #     ## a sequence of arguments to to pass
+    of ntEscape:
+      escapeIdent*: Node # ntIdent
     of ntDotExpr:
       storageType*: StorageType
         ## holds the storage type of a dot expression
@@ -489,8 +487,9 @@ proc `$`*(x: Ast): string =
       toJson(x)
 
 when not defined release:
-  proc debugEcho*(node: Node) =
-    echo pretty(toJson(node), 2)
+  proc debugEcho*(node: Node) {.gcsafe.} =
+    {.gcsafe.}:
+      echo pretty(toJson(node), 2)
 
 #
 # AST Generators
