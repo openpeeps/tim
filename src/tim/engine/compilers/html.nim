@@ -380,7 +380,7 @@ proc walkAccessorStorage(c: var HtmlCompiler,
     notnil lhs:
       case lhs.nt
       of ntLitObject:
-        return c.walkAccessorStorage(lhs, rhs, scopetables)
+        result = c.walkAccessorStorage(lhs, rhs, scopetables)
       else:
         case rhs.nt
         of ntIdent:
@@ -388,7 +388,7 @@ proc walkAccessorStorage(c: var HtmlCompiler,
           result = c.fnCall(rhs, scopetables)
           rhs.identArgs.del(0)
         else:
-          return c.walkAccessorStorage(lhs, rhs, scopetables)
+          result = c.walkAccessorStorage(lhs, rhs, scopetables)
   of ntIdent:
     let lhs = c.getValue(lhs, scopetables)
     notnil lhs:
@@ -773,7 +773,9 @@ proc getValue(c: var HtmlCompiler, node: Node,
       result = ast.newNode(ntLitString)
       let vNodes: seq[Node] = c.getValues(node, scopetables)
       for vNode in vNodes:
-        add result.sVal, c.toString(vNode, scopetables)
+        notnil vNode:
+          add result.sVal, c.toString(vNode, scopetables)
+        do: break
     else:
       result = ast.newNode(ntLitBool)
       result.bVal = c.infixEvaluator(node.infixLeft, node.infixRight, node.infixOp, scopetables)
@@ -786,7 +788,7 @@ proc getValue(c: var HtmlCompiler, node: Node,
     result = c.bracketEvaluator(node, scopetables)
     if likely(result != nil):
       case result.nt
-      of ntInfixExpr:
+      of ntInfixExpr, ntDotExpr:
         return c.getValue(result, scopetables)
       else: discard
   of ntMathInfixExpr:
@@ -1239,6 +1241,7 @@ proc unsafeCall(c: var HtmlCompiler, node, fnNode: Node,
               [node.identName, $(params.len), $(node.identArgs.len)])
         try:
           result = std.call(fnNode.fnSource, node.identName, args)
+          assert result != nil
           if result != nil:
             case result.nt
             of ntRuntimeCode:
@@ -1255,21 +1258,13 @@ proc unsafeCall(c: var HtmlCompiler, node, fnNode: Node,
             [e.msg, fnNode.fnSource, fnNode.fnIdent], node.meta)
       else:
         for k, p in fnNode.fnParams:
-          case node.identArgs[i].nt
-          of ntIdent, ntMathInfixExpr, ntInfixExpr:
-            var valNode = c.getValue(node.identArgs[i], scopetables)
-            if not c.typeCheck(valNode, p.pType):
-              return # error > type mismatch
-            add asgnValArgs, valNode
-            # let someParam = c.getScope(k, scopetables)
-            # if likely(someParam.scopeTable != nil):
-            #   someParam.scopeTable[k].varValue = valNode
-          else:
-            if c.typeCheck(node.identArgs[i], p.pType):
-              # let someParam = c.getScope(k, scopetables)
-              # someParam.scopeTable[k].varValue = node.identArgs[i]
-              add asgnValArgs, node.identArgs[i]
-            else: return
+          var argValue = c.getValue(node.identArgs[i], scopetables)
+          notnil argValue:
+            if not c.typeCheck(argValue, p.pType):
+              return  # typeCheck returns `typeMismatch`
+            add asgnValArgs, argValue
+          do:
+            return # undeclaredIdentifier
           inc i
   elif node.identArgs.len > fnNode.fnParams.len:
     compileErrorWithArgs(fnExtraArg,
