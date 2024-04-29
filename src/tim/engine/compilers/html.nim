@@ -401,11 +401,11 @@ proc walkAccessorStorage(c: var HtmlCompiler,
           let some = c.getScope(rhs.identName, scopetables)
           if likely(some.scopeTable != nil):
             rhs.identArgs.insert(lhs, 0)
-            result = c.fnCall(rhs, scopetables)
+            result = c.fnCall(rhs, scopetables) 
             rhs.identArgs.del(0)
           else: discard
-        else: discard
-        return c.walkAccessorStorage(lhs, rhs, scopetables)
+        else:
+          return c.walkAccessorStorage(lhs, rhs, scopetables)
   of ntBracketExpr:
     let lhs = c.bracketEvaluator(lhs, scopetables)
     if likely(lhs != nil):
@@ -780,7 +780,8 @@ proc getValue(c: var HtmlCompiler, node: Node,
       result.meta = node.meta
   of ntDotExpr:
     # evaluate dot expressions
-    result = c.dotEvaluator(node, scopetables)
+    # result = c.dotEvaluator(node, scopetables)
+    result = c.walkAccessorStorage(node.lhs, node.rhs, scopetables)
   of ntBracketExpr:
     result = c.bracketEvaluator(node, scopetables)
     if likely(result != nil):
