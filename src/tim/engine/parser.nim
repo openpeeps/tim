@@ -529,11 +529,10 @@ proc parseAttributes(p: var Parser,
               x = p.pIdent()
             caseNotNil x:
               attrs[attrKey.value] = @[x]
-            do:
-              discard
+            do: break
+            # do: errorWithArgs(unexpectedToken, p.curr, [p.curr.value])
         else: errorWithArgs(duplicateAttribute, attrKey, [attrKey.value])
       else: break
-      # errorWithArgs(invalidAttribute, p.prev, [p.prev.value])
 
 prefixHandle pGroupExpr:
   walk p # tkLP
@@ -742,24 +741,30 @@ prefixHandle pFor:
       pairNode.identPairs[1] = vNode
       result.loopItem = pairNode
       walk p
-    let inx = p.curr
+    let inToken = p.curr
     expectWalk tkIN
-    if p.curr in {tkIdentVar, tkString, tkLB} or p.isFnCall:
-    # expect {tkIdentVar, tkString, tkLB, tkInteger}: # todo function call
+    if p.curr in {tkIdentVar, tkIdentVarSafe, tkString, tkLB} or p.isFnCall:
       let items = p.parsePrefix()
       caseNotNil items:
         result.loopItems = items
-    elif p.curr is tkInteger and p.curr.line == inx.line:
+    elif p.curr in {tkInteger, tkIdentVar, tkIdentVarSafe} and p.curr.line == inToken.line:
       let min = p.curr; walk p
       if likely(isRange()):
         walk p, 2
-        expect tkInteger:
+        expect {tkInteger, tkIdentVar, tkIdentVarSafe}:
           result.loopItems = ast.newNode(ntIndexRange)
-          result.loopItems.rangeNodes = [
-            ast.newInteger(min.value.parseInt, min),
-            ast.newInteger(p.curr.value.parseInt, p.curr)
-          ]
+          case p.curr.kind
+          of tkInteger:
+            result.loopItems.rangeNodes = [
+              ast.newInteger(min.value.parseInt, min),
+              ast.newInteger(p.curr.value.parseInt, p.curr)
+            ]
+          of tkIdentVar, tkIdentVarSafe:
+            result.loopItems.rangeNodes[0] = ast.newInteger(min.value.parseInt, min)
+            result.loopItems.rangeNodes[1] = p.pIdent()
+          else: discard
           walk p
+      else: return nil
     if p.curr is tkColon: walk p
     while p.curr.isChild(tk):
       let node = p.getPrefixOrInfix()
@@ -1231,6 +1236,7 @@ template startParse(path: string): untyped =
     if unlikely(p.handle.lex.hasError):
       p.handle.logger.newError(internalError, p.handle.curr.line,
         p.handle.curr.col, false, p.handle.lex.getError)
+      break
     if unlikely(p.handle.hasErrors):
       # reset(p.handle.tree) # reset incomplete tree
       break
@@ -1274,6 +1280,7 @@ proc parseModule(engine: TimEngine, moduleName: string,
       if unlikely(p.lex.hasError):
         p.logger.newError(internalError, p.curr.line,
           p.curr.col, false, p.lex.getError)
+        break
       if unlikely(p.hasErrors):
         echo p.logger.errors.toSeq
         echo moduleName

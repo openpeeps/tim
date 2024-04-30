@@ -271,7 +271,11 @@ proc toString(c: var HtmlCompiler, node: Node,
         for concatNode in node.sVals:
           let x = c.getValue(concatNode, scopetables)
           if likely(x != nil):
-            add concat, x.sVal
+            case x.nt
+            of ntLitString:
+              add concat, x.sVal
+            else:
+              add concat, x.toString
         node.sVal & concat
     of ntLitInt:    $node.iVal
     of ntLitFloat:  $node.fVal
@@ -1064,9 +1068,14 @@ template loopEvaluator(kv, items: Node, xel: string) =
         handleBreakCommand(x)
     else: discard
   of ntIndexRange:
-    for i in items.rangeNodes[0].iVal .. items.rangeNodes[1].iVal:
+    let x = c.getValue(items.rangeNodes[0], scopetables)
+    let y = c.getValue(items.rangeNodes[1], scopetables)
+    if unlikely(x == nil or y == nil): return
+    var iNode = ast.newInteger(0)
+    for i in x.iVal .. y.iVal:
+      iNode.iVal = i
       newScope(scopetables)
-      node.loopItem.varValue = ast.newInteger(i)
+      node.loopItem.varValue = iNode
       c.varExpr(node.loopItem, scopetables)
       let x = c.walkNodes(node.loopBody, scopetables, xel = xel)
       clearScope(scopetables)
