@@ -7,12 +7,14 @@ on:
       - README.*
       - examples
       - editors
+      - package.json
   pull_request:
     paths-ignore:
       - LICENSE
       - README.*
       - examples
       - editors
+      - package.json
 
 jobs:
   test:

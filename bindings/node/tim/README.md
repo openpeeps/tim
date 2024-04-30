@@ -13,6 +13,13 @@
   <img src="https://github.com/openpeeps/tim/workflows/test/badge.svg" alt="Github Actions"> <img src="https://github.com/openpeeps/tim/workflows/docs/badge.svg" alt="Github Actions">
 </p>
 
+### Quick example
+```timl
+div.container > div.row > div.col-lg-7.mx-auto
+  h1.display-3.fw-bold: "Tim is Awesome"
+  a href="https://github.com/openpeeps/tim" title="This is hot!": "Check Tim on GitHub"
+```
+
 ## Key features
 - Fast, compiled, easy to code
 - Caching & Pre-compilation
@@ -22,12 +29,8 @@
 - Output Minifier
 - Written in Nim language 👑
 
-### Quick example
-```timl
-div.container > div.row > div.col-lg-7.mx-auto
-  h1.display-3.fw-bold: "Tim is Awesome"
-  a href="https://github.com/openpeeps/tim" title="This is hot!": "Check Tim on GitHub"
-```
+### Tim in action
+[Here is an example web app](https://github.com/openpeeps/tim/blob/main/example/example.js) rendered by Tim Engine.
 
 ### Syntax Highlighting
 - VSCode Extension available in [VS Marketplace](https://marketplace.visualstudio.com/items?itemName=CletusIgwe.timextension) (Thanks to [Cletus Igwe](https://github.com/Uzo2005))
