@@ -489,7 +489,7 @@ else:
 
   commands:
     -- "Main Commands"
-    c path(`timl`), string(`ext`), bool(--pretty):
+    c path(`timl`), string(`ext`), bool(-w), bool(--pretty):
       ## Transpile `.timl` file to a target source
     ast path(`timl`), filename(`output`):
       ## Generate binary AST from a `timl` file
