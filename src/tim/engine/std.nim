@@ -152,28 +152,14 @@ macro initStandardLibrary() =
     ]
 
   let
+    # std/math
+    # implements basic math functions
     fnMath = @[
       fwd("ceil", ntLitFloat, [(ntLitFloat, "x")]),
-      # fwd("clamp") need to add support for ranges
       fwd("floor", ntLitFloat, [(ntLitFloat, "x")]),
       fwd("max", ntLitInt, [(ntLitInt, "x"), (ntLitInt, "y")], src = "system"),
       fwd("min", ntLitInt, [(ntLitInt, "x"), (ntLitInt, "y")], src = "system"),
       fwd("round", ntLitFloat, [(ntLitFloat, "x")]),
-      # fwd("abs", ntLitInt, [(ntLitInt, "x")]),
-      fwd("hypot", ntLitFloat, [(ntLitFloat, "x"), (ntLitFloat, "y")]),
-      fwd("log", ntLitFloat, [(ntLitFloat, "x"), (ntLitFloat, "base")]),
-      fwd("pow", ntLitFloat, [(ntLitFloat, "x"), (ntLitFloat, "y")]),
-      fwd("sqrt", ntLitFloat, [(ntLitFloat, "x")]),
-      fwd("cos", ntLitFloat, [(ntLitFloat, "x")]),
-      fwd("sin", ntLitFloat, [(ntLitFloat, "x")]),
-      fwd("tan", ntLitFloat, [(ntLitFloat, "x")]),
-      fwd("arccos", ntLitFloat, [(ntLitFloat, "x")], "acos"),
-      fwd("arcsin", ntLitFloat, [(ntLitFloat, "x")], "asin"),
-      fwd("radToDeg", ntLitFloat, [(ntLitFloat, "d")], "rad2deg"),
-      fwd("degToRad", ntLitFloat, [(ntLitFloat, "d")], "deg2rad"),
-      fwd("arctan", ntLitFloat, [(ntLitFloat, "x")], "atan"),
-      fwd("arctan2", ntLitFloat, [(ntLitFloat, "x"), (ntLitFloat, "y")], "atan2"),
-      fwd("trunc", ntLitFloat, [(ntLitFloat, "x")]),
     ]
     # std/strings
     # implements common functions for working with strings
