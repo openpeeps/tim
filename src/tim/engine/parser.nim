@@ -87,7 +87,7 @@ proc pFunctionCall(p: var Parser, excludes,
 
 proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.}
-proc parseTernaryExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
+proc parseTernaryExpr(p: var Parser, infixExpr: Node): Node {.gcsafe.}
 
 proc parseModule(engine: TimEngine, moduleName: string,
     code: SourceCode = SourceCode("")): Ast {.gcsafe.}
@@ -229,6 +229,20 @@ proc getType(p: var Parser): NodeType =
       ntHtmlElement
     else: ntUnknown
 
+proc getDataType(p: var Parser): DataType =
+  result =
+    case p.curr.kind:
+    of tkLitString: typeString
+    of tkLitInt: typeInt
+    of tkLitFloat: typeFloat
+    of tkLitBool: typeBool
+    of tkLitArray: typeArray
+    of tkLitObject: typeObject
+    of tkLitFunction: typeFunction
+    of tkIdentifier:
+      typeHtmlElement
+    else: typeNil
+
 #
 # Parse Handlers
 #
@@ -276,6 +290,18 @@ prefixHandle pBool:
       return nil
   result = ast.newBool(v, p.curr)
   walk p
+
+proc parseStatement(p: var Parser, parent: TokenTuple,
+    excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
+  ## Parse a statement node
+  result = ast.newNode(ntStmtList)
+  while p.curr isnot tkEOF and p.curr.isChild(parent):
+    let tk = p.curr
+    let node = p.parsePrefix(excludes, includes)
+    caseNotNil node:
+      add result.stmtList, node
+  if unlikely(result.stmtlist.len > 0 == false):
+    return nil # empty stmtlist
 
 proc parseVarDef(p: var Parser, ident: TokenTuple, varType: TokenKind): Node {.gcsafe.} =
   # parse a new variable definition
@@ -397,22 +423,41 @@ prefixHandle pIdentOrAssignment:
   # if result.nt == ntIdent:
   #   result.identSafe = ident.kind == tkIdentVarSafe
 
+template getAssignedValue: Node {.dirty.} = 
+  case p.curr.kind:
+  of tkAssignableSet:
+    var varDef = p.parseVarDef(identToken, varType)
+    caseNotNil varDef:
+      let varValue = p.getPrefixOrInfix()
+      caseNotNil varValue:
+        varDef.varValue = varvalue
+        varDef
+  else: nil
+
 prefixHandle pAssignment:
   # parse assignment
-  let ident = p.next
+  let identToken = p.next
   let varType = p.curr.kind
   walk p, 2
-  expectWalk tkAssign
-  result = 
-    case p.curr.kind:
-    of tkAssignableSet:
-      var varDef = p.parseVarDef(ident, varType)
-      caseNotNil varDef:
-        let varValue = p.getPrefixOrInfix()
-        caseNotNil varValue:
-          varDef.varValue = varvalue
-          varDef
-    else: nil
+  case p.curr.kind
+  of tkAssign:
+    walk p # tkAssing
+    result = getAssignedValue()
+  of tkColon:
+    walk p # tkColon
+    case p.curr.kind
+    of tkTypedLiterals:
+      let varValueType = p.getDataType
+      walk p
+      if p.curr is tkAssign:
+        walk p
+        return getAssignedValue()
+      result = p.parseVarDef(identToken, varType)
+      result.varValueType = varValueType
+      if result.varValue == nil:
+        result.varValue = ast.getDefaultValue(result.varValueType)
+    else: discard # `unexpectedToken`
+  else: discard # `unexpectedToken`
 
 prefixHandle pEchoCommand:
   # parse `echo` command
@@ -627,6 +672,7 @@ prefixHandle pElement:
           if p.lvl != 0:
             dec p.lvl
           return result
+      else: return
   else: discard
   # parse nested nodes
   let currentParent = p.parentNode[^1]
@@ -649,15 +695,11 @@ prefixHandle pElement:
 proc parseCondBranch(p: var Parser, tk: TokenTuple): ConditionBranch {.gcsafe.} =
   walk p # `if` or `elif` token
   result.expr = p.getPrefixOrInfix()
-  if p.curr is tkColon: walk p # colon is optional
   caseNotNil result.expr:
-    while p.curr.isChild(tk):
-      let node = p.getPrefixOrInfix()
-      caseNotNil node:
-        add result.body, node
-      do: return
-    if unlikely(result.body.len == 0):
-      error(badIndentation, p.curr)
+    if likely p.curr is tkColon:
+      walk p
+    else: return
+    result.body = p.parseStatement(tk)
   do: return
 
 prefixHandle pCondition:
@@ -667,34 +709,22 @@ prefixHandle pCondition:
   let ifbranch = p.parseCondBranch(this)
   caseNotNil ifbranch.expr:
     result = ast.newCondition(ifbranch, this)
-    while p.curr is tkElif:
+    while p.curr is tkElif and p.curr.pos == this.pos:
       # parse `elif` branches
       let eliftk = p.curr
       let condBranch = p.parseCondBranch(eliftk)
       caseNotNil condBranch.expr:
-        if unlikely(condBranch.body.len == 0):
+        if unlikely(condBranch.body.stmtList.len == 0):
           return nil
         add result.condElifBranch, condBranch
-    if p.curr is tkElse:
-      # parse `else` branch, if any
+    if p.curr is tkElse and p.curr.pos == this.pos:
+      # parse `else` branch
       let elsetk = p.curr
-      if p.next is tkColon: walk p, 2
-      while p.curr.isChild(elsetk):
-        let node = p.getPrefixOrInfix()
-        caseNotNil node:
-          add result.condElseBranch, node
-      if unlikely(result.condElseBranch.len == 0):
-        return nil
-
-proc parseStatement(p: var Parser, parent: (TokenTuple, Node),
-    excludes, includes: set[TokenKind]): Node {.gcsafe.} =
-  ## Parse a statement node
-  result = ast.newNode(ntStmtList)
-  while p.curr isnot tkEOF:
-    let tk = p.curr
-    let node = p.parsePrefix(excludes, includes)
-    caseNotNil node:
-      add result.stmtList, node
+      walk p
+      expectWalk tkColon
+      let elseStmtBranch = p.parseStatement(elsetk)
+      caseNotNil elseStmtBranch:
+        result.condElseBranch = elseStmtBranch
 
 prefixHandle pCase:
   # parse a conditional `case` block
@@ -711,17 +741,23 @@ prefixHandle pCase:
       let caseValue = p.getPrefixOrInfix()
       caseNotNil caseValue:
         expectWalk tkColon
-        let caseBody = p.parseStatement((currOfToken, result), excludes, includes)
-        caseNotNil caseBody:
-          discard
-        # add result.caseBranch, caseBody
-        
-    # parse `else` branch
+        discard p.parseStatement(currOfToken, excludes, includes)
+
+prefixHandle pWhile:
+  # parse `while` statement
+  let tk = p.curr; walk p
+  result = ast.newNode(ntWhileStmt, tk)
+  result.whileExpr = p.getPrefixOrInfix()
+  caseNotNil result.whileExpr:
+    expectWalk tkColon
+    result.whileBody = # ntStmtList
+      p.parseStatement(tk, excludes, includes)
+    caseNotNil result.whileBody:
+      discard
 
 prefixHandle pFor:
   # parse `for` statement
-  let tk = p.curr
-  walk p
+  let tk = p.curr; walk p
   case p.curr.kind
   of tkIdentVar:
     result = ast.newNode(ntLoopStmt, tk)
@@ -910,7 +946,7 @@ prefixHandle pClientSide:
   let tk = p.curr; walk p # tkCLient
   expect tkIdentifier:
     if unlikely(p.curr.value != "target"):
-      return nil
+      return nil # todo error client-side requires `target` attribute
     walk p
     result = ast.newNode(ntClientBlock, tk)
     expectWalk tkAssign
@@ -1055,12 +1091,28 @@ proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
         infixNode.infixRight = rhs
         return infixNode
     of tkTernary:
-      discard p.parseTernaryExpr(result)
+      return p.parseTernaryExpr(result)
     else: discard
 
-proc parseTernaryExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
+proc parseTernaryExpr(p: var Parser, infixExpr: Node): Node {.gcsafe.} =
   # parse an one line conditional using ternary operator
-  discard
+  var condBranch: ConditionBranch
+  condBranch.expr = infixExpr
+  var ifToken = p.curr
+  expectWalk tkTernary
+  let condBody = p.getPrefixOrInfix()
+  caseNotNil condBody:
+    condBranch.body = ast.newNode(ntStmtList, ifToken)
+    add condBranch.body.stmtList, ast.newCommand(cmdReturn, condBody, ifToken)
+  expectWalk tkColon
+  let elseToken = p.prev
+  var condNode = ast.newCondition(condBranch, elseToken)
+  let node = p.getPrefixOrInfix()
+  caseNotNil node:
+    condNode.condElseBranch = ast.newNode(ntStmtList, elseToken)
+    add condNode.condElseBranch.stmtList, ast.newCommand(cmdReturn, node, elseToken)
+  result = newStmtList(ifToken)
+  result.stmtList.add(condNode)
 
 proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse math expressions with symbols (+, -, *, /)
@@ -1116,6 +1168,7 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkIF: pCondition
     of tkCase: pCase
     of tkFor: pFor
+    of tkWhile: pWhile
     of tkIdentifier:
       if p.next is tkLP and p.next.wsno == 0:
         pFunctionCall # function call by ident
@@ -1169,6 +1222,7 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkIF:          p.pCondition()
     of tkCase:        p.pCase()
     of tkFor:         p.pFor()
+    of tkWhile:       p.pWhile()
     of tkViewLoader:  p.pViewLoader()
     of tkIdentifier:
       if p.next is tkLP and p.next.wsno == 0:
@@ -1346,6 +1400,8 @@ proc parseSnippet*(id, code: string): Parser {.gcsafe.} =
   )
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
+  initModuleSystem()
+  p.initSystemModule()
   # p.skipComments() # if any
   while p.curr isnot tkEOF:
     if unlikely(p.lex.hasError):
@@ -1371,6 +1427,8 @@ proc parseSnippet*(snippetPath: string): Parser {.gcsafe.} =
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   # p.skipComments() # if any
+  initModuleSystem()
+  p.initSystemModule()
   while p.curr isnot tkEOF:
     if unlikely(p.lex.hasError):
       p.logger.newError(internalError, p.curr.line,

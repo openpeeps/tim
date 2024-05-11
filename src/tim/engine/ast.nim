@@ -45,6 +45,7 @@ type
     ntConditionStmt = "ConditionStatement"
     ntCaseStmt = "CaseExpression"
     ntLoopStmt = "LoopStmt"
+    ntWhileStmt = "WhileStmt"
     ntViewLoader = "ViewLoader"
     ntInclude = "Include"
     ntImport = "Import"
@@ -107,8 +108,20 @@ type
     mMod = "%"
 
   HtmlAttributes* = TableRef[string, seq[Node]]
-  ConditionBranch* = tuple[expr: Node, body: seq[Node]]
+  ConditionBranch* = tuple[expr: Node, body: Node]
   FnParam* = tuple[pName: string, pType: NodeType, pImplVal: Node, meta: Meta]
+  
+  DataType* = enum
+    typeNil = "nil"
+    typeInt = "int"
+    typeString = "string"
+    typeFloat = "float"
+    typeBool = "bool"
+    typeArray = "array"
+    typeObject = "object"
+    typeFunction = "function"
+    typeHtmlElement = "html"
+
   Node* {.acyclic.} = ref object
     ## Part of the compiler's abstract syntax tree
     ## **Important** do not initialize this object directly
@@ -125,6 +138,7 @@ type
         ## variable identifier
       varValue*: Node
         ## the value of a variable
+      varValueType*: DataType
       varType*: NodeType
         ## type of a variable, any of `string`, `int`, `float`, `array`, `object`
       varUsed*: bool        # todo find a way to manage used/unused variables
@@ -150,7 +164,7 @@ type
         ## the `if` branch of a conditional statement
       condElifBranch*: seq[ConditionBranch]
         ## a sequence of `elif` branches
-      condElseBranch*: seq[Node]
+      condElseBranch*: Node # ntStmtList
         ## the body of an `else` branch
     of ntCaseStmt:
       caseExpr*: Node
@@ -163,6 +177,9 @@ type
         ## a node type represeting an iterable storage
       loopBody*: seq[Node]
         ## a sequence of Node elements in `for` body
+    of ntWhileStmt:
+      whileExpr*: Node # ntIdent or ntInfixExpr
+      whileBody*: Node # ntStmtList
     of ntIdentPair:
       identPairs*: tuple[a, b: Node]
     of ntLitString:
@@ -472,12 +489,12 @@ proc getType*(x: NimNode): NodeType {.compileTime.} =
 #     else:
 #       toJson(node)
 
-# proc `$`*(nodes: seq[Node]): string =
-#   {.gcsafe.}:
-#     when not defined release:
-#       pretty(toJson(nodes), 2)
-#     else:
-#       toJson(nodes)
+proc printAstNodes*(x: Ast): string =
+  {.gcsafe.}:
+    when not defined release:
+      $(toJson(x.nodes))
+    else:
+      toJson(x.nodes)
 
 proc `$`*(x: Ast): string =
   {.gcsafe.}:
@@ -570,6 +587,10 @@ proc newCall*(tk: TokenTuple): Node =
   result = newNode(ntIdent, tk)
   result.identName = tk.value
 
+proc newStmtList*(tk: TokenTuple): Node =
+  ## Create a new statement Node
+  result = newNode(ntStmtList, tk) 
+
 proc newInfix*(lhs, rhs: Node, infixOp: InfixOp, tk: TokenTuple): Node =
   result = newNode(ntInfixExpr, tk)
   result.infixOp = infixOp
@@ -631,6 +652,19 @@ proc toTimNode*(x: JsonNode): Node =
 proc newStream*(node: JsonNode): Node =
   ## Create a new Stream from `node`
   Node(nt: ntStream, streamContent: node)
+
+proc getDefaultValue*(dt: DataType): Node =
+  case dt
+  of typeString:
+    ast.newString(newStringOfCap(0))
+  of typeInt:
+    ast.newInteger(0)
+  of typeFloat:
+    ast.newFloat(0.0)
+  of typeBool:
+    ast.newBool(false)
+  else:
+    nil
 
 # proc toTimNode(): NimNode =
 #   # https://github.com/nim-lang/Nim/blob/version-2-0/lib/pure/json.nim#L410
