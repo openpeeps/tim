@@ -18,9 +18,8 @@ type
     unexpectedToken = "Unexpected token $ [UnexpectedToken]"
     undeclaredVariable = "Undeclared variable $ [UndeclaredVariable]"
     invalidAccessorStorage = "Invalid accessor storage $ for $ [InvalidAccessorStorage]"
-    varRedefine = "Attempt to redefine variable $ [VarRedefine]"
+    identRedefine = "Attempt to redefine variable $ [IdentRedefine]"
     varImmutable = "Attempt to reassign value to immutable constant $ [VarImmutable]"
-    fnRedefine = "Attempt to redefine function $ [RedefineFunction]"
     fnUndeclared = "Undeclared function $ [UndeclaredFunction]"
     fnReturnMissingCommand = "Expression $ is of type $ and has to be used or discarded [UseOrDiscard]"
     fnReturnVoid = "Function $ has no return type [VoidFunction]"
@@ -227,7 +226,7 @@ when defined napiOrWasm:
           add extra, indent(extraLine, 12)
           yield extra
 
-elif compileOption("app", "console"):
+else:
   proc runIterator(i: Log, label: string, fgColor: ForegroundColor): Row =
     add result, span(label, fgColor, indentSize = 0)
     add result, span("(" & $i.line & ":" & $i.col & ")")
