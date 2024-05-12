@@ -4,19 +4,20 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import std/json except `%*`
-import std/[times, options, asyncdispatch,
-  sequtils, macros, macrocache, htmlgen]
+import std/[times, asyncdispatch,
+  sequtils, macros, macrocache]
 
-import pkg/[watchout, httpx, websocketx]
+import pkg/watchout
 import pkg/kapsis/cli
 
 import tim/engine/[meta, parser, logging, std]
 import tim/engine/compilers/html
 
+from tim/engine/ast import `$`
+
 from std/strutils import `%`, indent, split, parseInt, join
 from std/os import `/`, sleep
 
-from std/xmltree import escape
 const
   DOCKTYPE = "<!DOCKTYPE html>"
   defaultLayout = "base"
@@ -60,14 +61,22 @@ proc jitCompiler(engine: TimEngine,
     engine.getIndentSize, data
   )
 
-proc toHtml*(name, code: string, local = newJObject()): string =
+proc toHtml*(name, code: string, local = newJObject(), minify = true): string =
   ## Read timl from `code` string 
   let p = parseSnippet(name, code)
   if likely(not p.hasErrors):
     var data = newJObject()
     data["local"] = local
-    let c = newCompiler(parser.getAst(p), true, data = data)
-    return c.getHtml()
+    let c = newCompiler(parser.getAst(p), minify, data = data)
+    if likely(not c.hasErrors):
+      return c.getHtml()
+    raise newException(TimError, "c.logger.errors.toSeq[0]") # todo
+  raise newException(TimError, "p.logger.errors.toSeq[0]") # todo
+
+proc toAst*(name, code: string): string =
+  let p = parseSnippet(name, code)
+  if likely(not p.hasErrors):
+    return ast.printAstNodes(parser.getAst(p))
 
 when not defined release:
   when not defined napibuild:
@@ -187,8 +196,8 @@ proc compileCode(engine: TimEngine, tpl: TimTemplate,
   var p: Parser = engine.newParser(tpl, refreshAst = refreshAst)
   if likely(not p.hasError):
     if tpl.jitEnabled():
-      # when enabled, will save a cached ast
-      # to disk for runtime computation. 
+      # if marked as JIT will save the produced
+      # binary AST on disk for runtime computation
       engine.writeAst(tpl, parser.getAst(p))
     else:
       # otherwise, compiles the generated AST and save
@@ -216,10 +225,6 @@ proc resolveDependants(engine: TimEngine, x: seq[string]) =
       engine.resolveDependants(tpl.getDeps.toSeq)
     else:
       engine.compileCode(tpl, refreshAst = true)
-      # if engine.errors.len > 0:
-      #   for err in engine.errors:
-      #     echo err
-      # else:
 
 proc precompile*(engine: TimEngine, callback: TimCallback = nil,
     flush = true, waitThread = false, browserSyncPort = Port(6502),
@@ -235,58 +240,53 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
   ## (use `waitThread` to keep the thread alive)
   if flush: engine.flush()
   engine.setGlobalData(global)
-  when not defined release:
-    when defined timHotCode:
-      # Define callback procs for pkg/watchout
-      proc notify(label, fname: string) =
-        if watchoutNotify:
-          echo label
-          echo indent(fname & "\n", 3)
+  when defined timHotCode:
+    # Define callback procs for pkg/watchout
+    proc notify(label, fname: string) =
+      if watchoutNotify:
+        echo label
+        echo indent(fname & "\n", 3)
 
-      # Callback `onFound`
-      proc onFound(file: watchout.File) =
-        # Runs when detecting a new template.
-        let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-        # if not tpl.isUsed(): return # prevent compiling tpl if not in use
-        case tpl.getType
-        of ttView, ttLayout:
-          engine.compileCode(tpl)
-        else: discard
+    # Callback `onFound`
+    proc onFound(file: watchout.File) =
+      # Runs when detecting a new template.
+      let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+      # if not tpl.isUsed(): return # prevent compiling tpl if not in use
+      case tpl.getType
+      of ttView, ttLayout:
+        engine.compileCode(tpl)
+      else: discard
 
-      # Callback `onChange`
-      proc onChange(file: watchout.File) =
-        # Runs when detecting changes
-        let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-        notify("✨ Changes detected", file.getName())
-        case tpl.getType()
-        of ttView, ttLayout:
-          engine.compileCode(tpl)
-        else:
-          engine.resolveDependants(tpl.getDeps.toSeq)
+    # Callback `onChange`
+    proc onChange(file: watchout.File) =
+      # Runs when detecting changes
+      let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+      notify("✨ Changes detected", file.getName())
+      case tpl.getType()
+      of ttView, ttLayout:
+        engine.compileCode(tpl)
+      else:
+        engine.resolveDependants(tpl.getDeps.toSeq)
 
-      # Callback `onDelete`
-      proc onDelete(file: watchout.File) =
-        # Runs when deleting a file
-        notify("✨ Deleted", file.getName())
-        engine.clearTemplateByPath(file.getPath())
-
-      var w =
-        newWatchout(
-          @[engine.getSourcePath() / "*"],
-          onChange, onFound, onDelete,
-          recursive = true,
-          ext = @["timl"], delay = 200,
-          browserSync =
-            WatchoutBrowserSync(port: browserSyncPort,
-              delay: browserSyncDelay)
+    # Callback `onDelete`
+    proc onDelete(file: watchout.File) =
+      # Runs when deleting a file
+      notify("✨ Deleted", file.getName())
+      engine.clearTemplateByPath(file.getPath())
+    var watcher =
+      newWatchout(
+        @[engine.getSourcePath() / "*"],
+        onChange, onFound, onDelete,
+        recursive = true,
+        ext = @["timl"],
+        delay = browserSyncDelay,
+        browserSync =
+          WatchoutBrowserSync(
+            port: browserSyncPort,
+            delay: browserSyncDelay
           )
-      # start filesystem monitor in a separate thread
-      w.start(waitThread)
-    else:
-      for tpl in engine.getViews():
-        engine.compileCode(tpl)
-      for tpl in engine.getLayouts():
-        engine.compileCode(tpl)
+        )
+    watcher.start(waitThread) # watch for file changes in a separate thread
   else:
     for tpl in engine.getViews():
       engine.compileCode(tpl)
@@ -322,26 +322,35 @@ template layoutWrapper(getViewBlock) {.dirty.} =
 proc render*(engine: TimEngine, viewName: string,
     layoutName = defaultLayout, local = newJObject()): string =
   ## Renders a view based on `viewName` and `layoutName`.
-  ## Exposing data to a template is possible using `global` or
-  ## `local` objects.
+  ## Exposing data from controller to the current template is possible
+  ## using the `local` object.
   if engine.hasView(viewName):
     var
       view: TimTemplate = engine.getView(viewName)
       data: JsonNode = newJObject()
-    # data["global"] = global # todo merge global data
     data["local"] = local
     if likely(engine.hasLayout(layoutName)):
       var layout: TimTemplate = engine.getLayout(layoutName)
       if not view.jitEnabled:
         # render a pre-compiled HTML
         layoutWrapper:
-          add result, indent(view.getHtml(), layout.getViewIndent)
+          add result, view.getHtml()
+          # add result,
+          #   if engine.isMinified:
+          #     view.getHtml()
+          #   else:
+          #     indent(view.getHtml(), layout.getViewIndent)
       else:
         # compile and render template at runtime
         layoutWrapper:
           var jitView = engine.jitCompiler(view, data)
           if likely(not jitView.hasError):
-            add result, indent(jitView.getHtml(), layout.getViewIndent)
+            add result, jitView.getHtml
+            # add result,
+            #   if engine.isMinified:
+            #     jitView.getHtml()
+            #   else:
+            #     indent(jitView.getHtml(), layout.getViewIndent)
           else:
             jitView.logger.displayErrors()
             hasError = true
@@ -369,10 +378,63 @@ when defined napibuild:
         args.get("indent").getInt
       )
 
-    proc precompile(globals: object) {.export_napi.} =
+    proc precompile(globals: object, browserSync: object) {.export_napi.} =
       ## Precompile TimEngine templates
       var globals: JsonNode = jsony.fromJson($(args.get("globals")))
-      timjs.precompile(flush = true, global = globals, waitThread = false)
+      # timjs.precompile(flush = true, global = globals, waitThread = false)
+      var browserSync: JsonNode = jsony.fromJson($(args.get("browserSync")))
+      let browserSyncPort = browserSync["port"].getInt
+      timjs.flush() # each precompilation will flush old files
+      timjs.setGlobalData(globals)
+      if browserSync["enable"].getBool:
+        # Define callback procs for pkg/watchout
+        proc notify(label, fname: string) =
+          echo label
+          echo indent(fname & "\n", 3)
+
+        # Callback `onFound`
+        proc onFound(file: watchout.File) =
+          # Runs when detecting a new template.
+          let tpl: TimTemplate = timjs.getTemplateByPath(file.getPath())
+          case tpl.getType
+          of ttView, ttLayout:
+            timjs.compileCode(tpl)
+          else: discard
+
+        # Callback `onChange`
+        proc onChange(file: watchout.File) =
+          # Runs when detecting changes
+          let tpl: TimTemplate = timjs.getTemplateByPath(file.getPath())
+          notify("✨ Changes detected", file.getName())
+          case tpl.getType()
+          of ttView, ttLayout:
+            timjs.compileCode(tpl)
+          else:
+            timjs.resolveDependants(tpl.getDeps.toSeq)
+
+        # Callback `onDelete`
+        proc onDelete(file: watchout.File) =
+          # Runs when deleting a file
+          notify("✨ Deleted", file.getName())
+          timjs.clearTemplateByPath(file.getPath())
+
+        var w =
+          newWatchout(
+            @[timjs.getSourcePath() / "*"],
+            onChange, onFound, onDelete,
+            recursive = true,
+            ext = @["timl"], delay = 200,
+            browserSync =
+              WatchoutBrowserSync(port: Port(browserSyncPort),
+                delay: browserSync["delay"].getInt)
+            )
+        # start filesystem monitor in a separate thread
+        w.start(false)
+      else:
+        for tpl in timjs.getViews():
+          timjs.compileCode(tpl)
+        for tpl in timjs.getLayouts():
+          timjs.compileCode(tpl)
 
     proc render(view: string, layout: string, local: object) {.export_napi.} =
       ## Render a `view` by name
@@ -485,13 +547,20 @@ else:
   # Build Tim Engine as a standalone CLI application
   import pkg/kapsis
   import pkg/kapsis/[runtime, cli]
-  import tim/app/[astCmd, compileCmd, reprCmd]
+  import tim/app/[astCmd, srcCmd, reprCmd, liveCmd, jitCmd]
 
   commands:
-    -- "Main Commands"
-    c path(`timl`), string(`ext`), bool(-w), bool(--pretty):
-      ## Transpile `.timl` file to a target source
+    -- "Source-to-Source"
+    # todo fix kapsis flags
+    src string(--ext), bool(--code), bool(--pretty), string(`timl`):
+      ## Transpile `timl` code or file to a target source
     ast path(`timl`), filename(`output`):
       ## Generate binary AST from a `timl` file
     repr path(`ast`), string(`ext`), bool(--pretty):
       ## Read from a binary AST to target source
+    bin path(`ast`):
+      ## Produce small dynamic library from AST
+
+    -- "Microservice"
+    run path(`config`), bool(--liveview):
+      ## Tim as a Microservice background application
