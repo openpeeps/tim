@@ -6,14 +6,12 @@
 
 import std/[macros, os, json,
   strutils, sequtils, base64, tables]
+
 import pkg/[checksums/md5, flatty]
 
 export getProjectPath
 
 from ./ast import Ast
-
-when defined timStandalone:
-  type Globals* = ref object of RootObj
 
 type
   TimTemplateType* = enum
@@ -52,36 +50,45 @@ type
     placeholders: Table[string, seq[Ast]]
       ## A table containing available placeholders
     policy: TimPolicy
-    when defined timStandalone:
-      globals: Globals
-    else:
-      globals: JsonNode = newJObject()
+    globals: JsonNode = newJObject()
 
   TimError* = object of CatchableError
+
+when defined timStaticBundle:
+  import pkg/supersnappy
+  type
+    StaticFilesystemTable = TableRef[string, string]
+
+  var StaticFilesystem* = StaticFilesystemTable()
 
 #
 # Placeholders API
 #
-proc addPlaceholder*(engine: TimEngine,
-    k: string, snippetTree: Ast)  =
-  if engine.placeholders.hasKey(k):
-    engine.placeholders[k].add(snippetTree)
+proc toPlaceholder*(engine: TimEngine,
+    key: string, snippetTree: Ast)  =
+  ## Insert a snippet to a specific placeholder
+  if engine.placeholders.hasKey(key):
+    engine.placeholders[key].add(snippetTree)
   else:
-    engine.placeholders[k] = @[snippetTree]
+    engine.placeholders[key] = @[snippetTree]
 
-proc hasPlaceholder*(engine: TimEngine, k: string): bool =
-  result = engine.placeholders.hasKey(k)
+proc hasPlaceholder*(engine: TimEngine, key: string): bool =
+  ## Determine if a placholder exists by `key`
+  result = engine.placeholders.hasKey(key)
 
 iterator listPlaceholders*(engine: TimEngine): (string, seq[Ast]) =
+  ## List registered placeholders
   for k, v in engine.placeholders.mpairs:
     yield (k, v)
 
-iterator snippets*(engine: TimEngine, k: string): Ast =
-  for x in engine.placeholders[k]:
+iterator snippets*(engine: TimEngine, key: string): Ast =
+  ## List all snippets attached from a placeholder
+  for x in engine.placeholders[key]:
     yield x
 
-proc deleteSnippet*(engine: TimEngine, k: string, i: int) =
-    engine.placeholders[k].del(i)
+proc deleteSnippet*(engine: TimEngine, key: string, i: int) =
+  ## Delete a snippet from a placeholder by `key` and `i` order
+  engine.placeholders[key].del(i)
 
 proc getPath*(engine: TimEngine, key: string, templateType: TimTemplateType): string =
   ## Get absolute path of `key` view, partial or layout
@@ -162,6 +169,10 @@ proc getViewIndent*(t: TimTemplate): uint =
   assert t.templateType == ttLayout
   t.viewIndent
 
+when defined timStandalone:
+  proc getTargetSourcePath*(engine: TimEngine, t: TimTemplate, targetSourcePath, ext: string): string =
+    result = t.sources.src.replace(engine.src, targetSourcePath).changeFileExt(ext)
+
 proc hasDep*(t: TimTemplate, path: string): bool =
   t.dependents.hasKey(path)
 
@@ -174,23 +185,39 @@ proc getDeps*(t: TimTemplate): seq[string] =
 
 proc writeHtml*(engine: TimEngine, tpl: TimTemplate, htmlCode: string) =
   ## Writes `htmlCode` on disk using `tpl` info
-  writeFile(tpl.sources.html, htmlCode)
+  when defined timStaticBundle:
+    let id = splitFile(tpl.sources.html).name
+    StaticFilesystem[id] = compress(htmlCode)
+  else:
+    writeFile(tpl.sources.html, htmlCode)
 
 proc writeHtmlTail*(engine: TimEngine, tpl: TimTemplate, htmlCode: string) =
   ## Writes `htmlCode` tails on disk using `tpl` info
-  writeFile(tpl.sources.html.changeFileExt("tail"), htmlCode)
+  when defined timStaticBundle:
+    let id = splitFile(tpl.sources.html).name
+    StaticFilesystem[id & "_tail"] = compress(htmlCode)
+  else:
+    writeFile(tpl.sources.html.changeFileExt("tail"), htmlCode)
 
 proc writeAst*(engine: TimEngine, tpl: TimTemplate, astCode: Ast) =
   ## Writes `astCode` on disk using `tpl` info
-  writeFile(tpl.sources.ast, flatty.toFlatty(astCode))
+  when defined timStaticBundle:
+    let id = splitFile(tpl.sources.ast).name
+    StaticFilesystem[id] = toFlatty(astCode).compress
+  else:
+    writeFile(tpl.sources.ast, flatty.toFlatty(astCode))
 
 proc readAst*(engine: TimEngine, tpl: TimTemplate): Ast = 
   ## Get `AST` of `tpl` TimTemplate from storage
-  try:
-    let binAst = readFile(tpl.sources.ast)
-    result = flatty.fromFlatty(binAst, Ast)
-  except IOError:
-    discard
+  when defined timStaticBundle:
+    let id = splitFile(tpl.sources.ast).name
+    result = fromFlatty(uncompress(StaticFilesystem[id]), Ast)
+  else:
+    try:
+      let binAst = readFile(tpl.sources.ast)
+      result = flatty.fromFlatty(binAst, Ast)
+    except IOError:
+      discard
 
 proc getSourcePath*(t: TimTemplate): string =
   ## Returns the absolute source path of `t` TimTemplate
@@ -211,17 +238,25 @@ proc jitEnabled*(t: TimTemplate): bool = t.jit
 
 proc getHtml*(t: TimTemplate): string =
   ## Returns precompiled static HTML of `t` TimTemplate
-  try:
-    result = readFile(t.getHtmlPath)
-  except IOError:
-    result = ""
+  when defined timStaticBundle:
+    let id = splitFile(t.sources.html).name
+    result = uncompress(StaticFilesystem[id])
+  else:
+    try:
+      result = readFile(t.getHtmlPath)
+    except IOError:
+      result = ""
 
 proc getTail*(t: TimTemplate): string =
   ## Returns the tail of a split layout
-  try:
-    result = readFile(t.getHtmlPath.changeFileExt("tail"))
-  except IOError as e:
-    raise newException(TimError, e.msg & "\nSource: " & t.sources.src)
+  when defined timStaticBundle:
+    let id = splitFile(t.sources.html).name
+    result = uncompress(StaticFilesystem[id & "_tail"])
+  else:
+    try:
+      result = readFile(t.getHtmlPath.changeFileExt("tail"))
+    except IOError as e:
+      raise newException(TimError, e.msg & "\nSource: " & t.sources.src)
 
 iterator getViews*(engine: TimEngine): TimTemplate =
   for id, tpl in engine.views:
@@ -276,6 +311,9 @@ proc getView*(engine: TimEngine, key: string): TimTemplate =
   result = engine.views[engine.getPath(key, ttView)]
   result.inUse = true
 
+proc getBasePath*(engine: TimEngine): string =
+  engine.base
+
 proc getTemplatePath*(engine: TimEngine, path: string): string =
   path.replace(engine.base, "")
 
@@ -283,8 +321,24 @@ proc isUsed*(t: TimTemplate): bool = t.inUse
 proc showHtmlErrors*(engine: TimEngine): bool = engine.htmlErrors
 
 proc newTim*(src, output, basepath: string, minify = true,
-    indent = 2, showHtmlError = false): TimEngine =
+    indent = 2, showHtmlError, enableBinaryCompilation = false): TimEngine =
   ## Initializes `TimEngine` engine
+  ## 
+  ## Use `src` to specify the source target. `output` path
+  ## will be used to save pre-compiled files on disk.
+  ##  
+  ## `basepath` is the root path of your project. You can
+  ## use `currentSourcePath()`
+  ## 
+  ## Optionally, you can disable HTML minification using
+  ## `minify` and `indent`.
+  ## 
+  ## By enabling `enableBinaryCompilation` will compile
+  ## all binary `.ast` files found in the `/ast` directory
+  ## to dynamic library using Nim.
+  ## 
+  ## **Note, this feature is not available for Source-to-Source
+  ## transpilation.** Also, binary compilation requires having Nim installed.
   var basepath =
     if basepath.fileExists:
       basepath.parentDir # if comes from `currentSourcePath()`
@@ -322,9 +376,11 @@ proc newTim*(src, output, basepath: string, minify = true,
       of ttPartial:
         result.partials[fpath] = id.newTemplate(ttPartial, sources)
       else: discard
-
-  discard existsOrCreateDir(result.output / "ast")
-  discard existsOrCreateDir(result.output / "html")
+  when not defined timStaticBundle:
+    discard existsOrCreateDir(result.output / "ast")
+    discard existsOrCreateDir(result.output / "html")
+    if enableBinaryCompilation:
+      discard existsOrCreateDir(result.output / "html")
 
 proc isMinified*(engine: TimEngine): bool =
   result = engine.minify
