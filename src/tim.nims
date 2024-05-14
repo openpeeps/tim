@@ -9,6 +9,7 @@ when defined napibuild:
   --passC:"-I/usr/include/node -I/usr/local/include/node"
 
 when isMainModule:
+  --define:timStandalone
   when defined release:
     --opt:speed
     --define:useMalloc
