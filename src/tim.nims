@@ -4,6 +4,7 @@
 
 when defined napibuild:
   --define:napiOrWasm
+  --define:watchoutBrowserSync
   --noMain:on
   --passC:"-I/usr/include/node -I/usr/local/include/node"
 
