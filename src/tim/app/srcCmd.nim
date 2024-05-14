@@ -1,3 +1,9 @@
+# A super fast template engine for cool kids
+#
+# (c) 2024 George Lemon | LGPL-v3 License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
+
 import std/[os, strutils]
 import pkg/kapsis/[cli, runtime] 
 import ../engine/parser
@@ -42,36 +48,3 @@ proc srcCommand*(v: Values) =
       display(err)
     displayInfo p.logger.filePath
     quit(1)
-
-
-# import std/critbits
-
-# type
-#   ViewHandle* = proc(): string
-#   LayoutHandle* = proc(viewHtml: string): string
-#   ViewsTree* = CritBitTree[ViewHandle]
-#   LayoutsTree* = CritBitTree[LayoutHandle]
-
-# proc getIndex(): string =
-#   result = "view html"
-
-# var views = ViewsTree()
-# views["index"] = getIndex
-
-# proc getBaseLayout(viewHtml: string): string =
-#   result = "start layout"
-#   add result, viewHtml
-#   add result, "end layout"
-
-# var layouts = LayoutsTree()
-# layouts["base"] = getBaseLayout
-
-# template render*(viewName: string, layoutName = "base"): untyped =
-#   if likely(views.hasKey(viewName)):
-#     let viewHtml = views[viewName]()
-#     if likely(layouts.hasKey(layoutName)):
-#       layouts[layoutName](viewHtml)
-#     else: ""
-#   else: ""
-
-# echo render("index")

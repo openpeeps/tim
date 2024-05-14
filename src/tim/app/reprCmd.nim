@@ -1,3 +1,9 @@
+# A super fast template engine for cool kids
+#
+# (c) 2024 George Lemon | LGPL-v3 License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
+
 import std/[os, strutils]
 import pkg/flatty
 import pkg/kapsis/[cli, runtime]

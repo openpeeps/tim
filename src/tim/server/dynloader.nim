@@ -1,10 +1,9 @@
 # A super fast template engine for cool kids
 #
-# (c) 2023 George Lemon | LGPL License
+# (c) 2024 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-## This module implements a high-performance Just-in-Time
 import std/[tables, dynlib, json]
 type
   DynamicTemplate = object
@@ -17,7 +16,7 @@ type
 
 when defined macosx:
   const ext = ".dylib"
-elif windows:
+elif defined windows:
   const ext = ".dll"
 else:
   const ext = ".so"

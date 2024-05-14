@@ -1,10 +1,16 @@
+# A super fast template engine for cool kids
+#
+# (c) 2024 George Lemon | LGPL-v3 License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
+
 import std/[osproc, os]
 import pkg/flatty
 import pkg/kapsis/[runtime, cli]
 
 import ../engine/[parser, ast]
 import ../engine/compilers/nimc
-import ../server/vm
+import ../server/dynloader
 
 proc binCommand*(v: Values) =
   ## Execute Just-in-Time compilation of the specifie
