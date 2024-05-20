@@ -13,7 +13,6 @@ import ./std
 
 import pkg/kapsis/cli
 import pkg/importer
-import pkg/malebolgia
 
 type
   Parser* = object
