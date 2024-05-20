@@ -13,18 +13,12 @@ import ../engine/compilers/[html, nimc]
 proc srcCommand*(v: Values) = 
   ## Transpiles a `.timl` file to a target source
   let
-    fpath = v.get("timl").getStr
-    ext = v.get("ext").getStr
+    fpath = $(v.get("timl").getPath)
+    ext = v.get("-s").getStr
     pretty = v.has("pretty")
     # enableWatcher = v.has("w")
-  var
-    name: string
-    timlCode: string
-  if v.has"code":
-    timlCode = fpath
-  else:
-    name = fpath
-    timlCode = readFile(getCurrentDir() / fpath)
+  let name = fpath
+  let timlCode = readFile(getCurrentDir() / fpath)
   let p = parseSnippet(name, timlCode)
   if likely(not p.hasErrors):
     if ext == "html":

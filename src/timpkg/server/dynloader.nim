@@ -22,21 +22,22 @@ else:
   const ext = ".so"
 
 proc load*(collection: DynamicTemplates, t: string) =
-  ## Load a Dynamic template
+  ## Load a dynamic template
   var tpl = DynamicTemplate(lib: loadLib(t & ext))
   tpl.function = cast[Renderer](tpl.lib.symAddr("renderTemplate"))
   collection.templates[t] = tpl
 
 proc reload*(collection: DynamicTemplates, t: string) =
-  ## Reload a Dynamic template
+  ## Reload a dynamic template
   discard
 
 proc unload*(collection: DynamicTemplates, t: string) =
-  ## Unload a Dynamic template
+  ## Unload a dynamic template
   dynlib.unloadLib(collection.templates[t].lib)
   reset(collection.templates[t])
   collection.templates.del(t)
 
 proc render*(collection: DynamicTemplates, t: string): string =
+  ## Render a dynamic template
   if likely(collection.templates.hasKey(t)):
     return collection.templates[t].function(this = %*{"x": "ola!"})

@@ -83,6 +83,7 @@ proc precompile(engine: TimEngine, config: TimConfig, globals: JsonNode) =
   # Callback `onFound`
   proc onFound(file: watchout.File) =
     # Runs when detecting a new template.
+    echo file.getPath()
     let tpl: TimTemplate =
         engine.getTemplateByPath(file.getPath())
     case tpl.getType
@@ -112,7 +113,8 @@ proc precompile(engine: TimEngine, config: TimConfig, globals: JsonNode) =
       @[engine.getSourcePath() / "*"],
       onChange, onFound, onDelete,
       recursive = true,
-      ext = @["timl"], delay = config.sync.delay,
+      ext = @[".timl"],
+      delay = config.sync.delay,
       browserSync =
         WatchoutBrowserSync(
           port: config.sync.port,
@@ -179,6 +181,20 @@ proc render(engine: TimEngine, viewName, layoutName: string, local = newJObject(
             hasError = true
   else:
     raise newException(TimError, "View not found")
+
+# import pkg/netty
+# proc run*(engine: var TimEngine, config: TimConfig) =
+#   var server = newReactor("127.0.0.1", 1999)
+#   case config.target
+#   of tsHtml:
+#     display("Tim Engine is running at udp://127.0.0.1:1999")
+#     while true:
+#       server.tick()
+#       for msg in server.messages:
+#         echo msg.data
+#         server.send(msg.conn, msg.data)
+#       sleep(5)
+#   else: discard
 
 proc run*(engine: var TimEngine, config: TimConfig) =
   config.output = normalizedPath(engine.getBasePath / config.output)

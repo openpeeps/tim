@@ -10,10 +10,10 @@ import std/[times, asyncdispatch,
 import pkg/watchout
 import pkg/kapsis/cli
 
-import tim/engine/[meta, parser, logging, std]
-import tim/engine/compilers/html
+import timpkg/engine/[meta, parser, logging, std]
+import timpkg/engine/compilers/html
 
-from tim/engine/ast import `$`
+from timpkg/engine/ast import `$`
 
 from std/strutils import `%`, indent, split, parseInt, join
 from std/os import `/`, sleep
@@ -273,12 +273,15 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
       # Runs when deleting a file
       notify("✨ Deleted", file.getName())
       engine.clearTemplateByPath(file.getPath())
+    let basepath = engine.getSourcePath()
     var watcher =
       newWatchout(
-        @[engine.getSourcePath() / "*"],
+        dirs = @[basepath / "layouts" / "*",
+                basepath / "views" / "*",
+                basepath / "partials" / "*"],
         onChange, onFound, onDelete,
         recursive = true,
-        ext = @["timl"],
+        ext = @[".timl"],
         delay = browserSyncDelay,
         browserSync =
           WatchoutBrowserSync(
@@ -420,10 +423,12 @@ when defined napibuild:
 
         var w =
           newWatchout(
-            @[timjs.getSourcePath() / "*"],
+            dirs = @[basepath / "layouts" / "*",
+                basepath / "views" / "*",
+                basepath / "partials" / "*"],
             onChange, onFound, onDelete,
             recursive = true,
-            ext = @["timl"], delay = 200,
+            ext = @[".timl"], delay = 200,
             browserSync =
               WatchoutBrowserSync(port: Port(browserSyncPort),
                 delay: browserSync["delay"].getInt)
@@ -468,7 +473,7 @@ elif not isMainModule:
   # Expose Tim Engine API for Nim development
   # as a Nimble library
   import std/enumutils
-  import tim/engine/ast
+  import timpkg/engine/ast
   
   export ast, parser, html, json, stdlib
   export meta except TimEngine
@@ -547,20 +552,19 @@ else:
   # Build Tim Engine as a standalone CLI application
   import pkg/kapsis
   import pkg/kapsis/[runtime, cli]
-  import tim/app/[astCmd, srcCmd, reprCmd, liveCmd, jitCmd]
+  import timpkg/app/[astCmd, srcCmd, reprCmd, liveCmd, jitCmd]
 
   commands:
     -- "Source-to-Source"
     # todo fix kapsis flags
-    src string(--ext), bool(--code), bool(--pretty), string(`timl`):
+    src string(-s), path(`timl`):
       ## Transpile `timl` code or file to a target source
     ast path(`timl`), filename(`output`):
       ## Generate binary AST from a `timl` file
     repr path(`ast`), string(`ext`), bool(--pretty):
       ## Read from a binary AST to target source
-    bin path(`ast`):
-      ## Produce small dynamic library from AST
-
     -- "Microservice"
     run path(`config`), bool(--liveview):
       ## Tim as a Microservice background application
+    bundle path(`ast`):
+      ## Produce binary dynamic templates (dll) from AST. Requires Nim

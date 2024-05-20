@@ -12,7 +12,7 @@ import ../engine/[parser, ast]
 import ../engine/compilers/nimc
 import ../server/dynloader
 
-proc binCommand*(v: Values) =
+proc bundleCommand*(v: Values) =
   ## Execute Just-in-Time compilation of the specifie
   let
     cachedPath = v.get("ast").getPath.path

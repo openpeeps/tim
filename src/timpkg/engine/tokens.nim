@@ -1,6 +1,6 @@
 # A super fast template engine for cool kids
 #
-# (c) 2023 George Lemon | LGPL License
+# (c) 2024 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
@@ -220,7 +220,7 @@ registerTokens toktokSettings:
   `include`
 
   fn = "fn"
-  `func` = "func"
+  `func` = "func" # alias `fn`
   `var` = "var"
   `const` = "const"
   returnCmd = "return"

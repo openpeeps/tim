@@ -788,11 +788,11 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
       if not result:
         case rhs.nt
         of ntInfixExpr:
-          return c.infixEvaluator(rhs.infixLeft,
+          result = c.infixEvaluator(rhs.infixLeft,
               rhs.infixRight, rhs.infixOp, scopetables)
         else:
-          result = rhs.bVal == true
-    else: 
+          result = rhs.bVal
+    else:
       result = lhs.bVal == true or rhs.bVal == true
   else: discard # todo
 
@@ -1441,6 +1441,10 @@ proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
         let xVal = c.dotEvaluator(attrNode, scopetables)
         notnil xVal:
           add attrStr, xVal.toString()
+      of ntParGroupExpr:
+        let xVal = c.getValue(attrNode.groupExpr, scopetables)
+        notnil xVal:
+          add attrStr, xVal.toString()
       else: discard
     if not c.isClientSide:
       add result, attrStr.join(" ")
@@ -1491,8 +1495,32 @@ template htmlblock(x: Node, body) =
 proc htmlElement(c: var HtmlCompiler, node: Node,
     scopetables: var seq[ScopeTable]) =
   # Handle HTML element
-  htmlblock node:
-    c.walkNodes(node.nodes, scopetables, ntHtmlElement)
+  if likely(node.htmlMultiplyBy == nil):
+    htmlblock node:
+      c.walkNodes(node.nodes, scopetables, ntHtmlElement)
+    return
+  newScope(scopetables)
+  let multiplyVar = ast.newNode(ntVariableDef)
+  multiplyVar.varName = "i"
+  multiplyVar.varValue = ast.newNode(ntLitInt)
+  c.varExpr(multiplyVar, scopetables)
+  var multiplier: int
+  case node.htmlMultiplyBy.nt
+  of ntLitInt:
+    multiplier = node.htmlMultiplyBy.iVal
+  of ntIdent:
+    let x = c.getValue(node.htmlMultiplyBy, scopetables)
+    notnil x:
+      if likely(x.nt == ntLitInt):
+        multiplier = x.iVal
+      else:
+        compileErrorWithArgs(typeMismatch, [$(x.nt), $(ntLitInt)])
+  else: compileErrorWithArgs(typeMismatch, [$(node.htmlMultiplyBy.nt), $(ntLitInt)])
+  for i in 1..multiplier:
+    multiplyVar.varValue.iVal = (i - 1)
+    htmlblock node:
+      c.walkNodes(node.nodes, scopetables, ntHtmlElement)
+  clearScope(scopetables)
 
 proc evaluatePartials(c: var HtmlCompiler,
     node: Node, scopetables: var seq[ScopeTable]) =
@@ -1707,7 +1735,7 @@ proc newCompiler*(ast: Ast, minify = true,
   indent = 2, data = newJObject()): HtmlCompiler =
   ## Create a new instance of `HtmlCompiler
   assert indent in [2, 4]
-  assert ast != nil
+  if unlikely(ast == nil): return
   result = HtmlCompiler(
     ast: ast,
     start: true,

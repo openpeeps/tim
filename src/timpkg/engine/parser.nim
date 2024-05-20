@@ -13,6 +13,7 @@ import ./std
 
 import pkg/kapsis/cli
 import pkg/importer
+import pkg/malebolgia
 
 type
   Parser* = object
@@ -508,8 +509,36 @@ template anyAttrIdent: untyped =
     (p.curr is tkIdentifier and (p.curr.line == el.line or (p.curr.isChild(el) and p.next is tkAssign)))
   )
 
-proc parseAttributes(p: var Parser,
-    attrs: var HtmlAttributes, el: TokenTuple) {.gcsafe.} =
+#
+# Short Hand Generators
+#
+# proc multiplyElement(p: var Parser, multiplier: TokenTuple,
+#     useIndexRange: bool): Node {.gcsafe.} =
+#   result = ast.newNode(ntLoopStmt)
+#   result.loopItem = ast.newNode(ntVariableDef)
+#   result.loopItem.varName = "i"
+#   result.loopItem.varImmutable = true
+#   case useIndexRange
+#   of true:
+#     result.loopItems = ast.newNode(ntIndexRange)
+#     result.loopItems.rangeNodes = [
+#       ast.newInteger(0),
+#       ast.newInteger(parseInt(multiplier.value), multiplier)
+#     ]
+#   else: discard
+
+
+prefixHandle pGroupExpr:
+  # parse a group expression
+  walk p # tkLP
+  result = ast.newNode(ntParGroupExpr)
+  result.meta = p.prev.trace
+  result.groupExpr = p.getPrefixOrInfix(includes = tkAssignableSet)
+  caseNotNil result.groupExpr:
+    expectWalk tkRP
+
+proc parseAttributes(p: var Parser, attrs: var HtmlAttributes,
+    el: TokenTuple) {.gcsafe.} =
   # parse HTML element attributes
   while true:
     case p.curr.kind
@@ -550,8 +579,14 @@ proc parseAttributes(p: var Parser,
             if p.curr is tkAmp:
               while p.curr is tkAmp:
                 attrValue = p.pStringConcat()
-                if likely(attrValue != nil):
+                caseNotNil attrValue:
                   add attrs[attrKey.value][^1].sVals, attrValue
+                do: return
+          of tkLP:
+            let attrValue = p.pGroupExpr()
+            caseNotNil attrValue:
+              attrs[attrKey.value] = @[attrValue]
+            do: return
           of tkBacktick:
             let attrValue = ast.newString(p.curr)
             attrs[attrKey.value] = @[attrValue]
@@ -575,14 +610,8 @@ proc parseAttributes(p: var Parser,
             caseNotNil x:
               attrs[attrKey.value] = @[x]
             do: break
-            # do: errorWithArgs(unexpectedToken, p.curr, [p.curr.value])
         else: errorWithArgs(duplicateAttribute, attrKey, [attrKey.value])
       else: break
-
-prefixHandle pGroupExpr:
-  walk p # tkLP
-  result = p.getPrefixOrInfix(includes = tkAssignableSet)
-  expectWalk tkRP
 
 prefixHandle pElement:
   # parse HTML Element
@@ -614,16 +643,22 @@ prefixHandle pElement:
         discard
       else:
         discard # todo
-  of tkLP:
-    discard # todo
-    # let groupNode = p.pGroupExpr()
-    # caseNotNil groupNode:
-    #   add result.attr, groupNode
+  of tkAsterisk:
+    walk p
+    case p.curr.kind
+    of tkInteger:
+      result.htmlMultiplyBy = ast.newNode(ntLitInt)
+      result.htmlMultiplyBy.iVal = p.curr.value.parseInt
+      walk p
+    of tkIdentVar, tkIdentVarSafe:
+      result.htmlMultiplyBy = p.pIdent()
+      caseNotNil result.htmlMultiplyBy:
+        discard
+    else: return nil
   else:
     if p.curr.line == this.line:
       result.attrs = HtmlAttributes()
       p.parseAttributes(result.attrs, this)
-
   case p.curr.kind
   of tkColon:
     walk p
@@ -1247,6 +1282,7 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
 # fwd
 proc newParser*(engine: TimEngine, tpl: TimTemplate,
     isMainParser = true, refreshAst = false): Parser {.gcsafe.}
+
 proc getAst*(p: Parser): Ast {.gcsafe.}
 
 let partials = TimPartialsTable()
@@ -1326,7 +1362,7 @@ proc parseModule(engine: TimEngine, moduleName: string,
       engine: engine,
       lex: newLexer(code.string, allowMultilineStrings = true),
       logger: Logger(filePath: "")
-    )  
+    )
     p.curr = p.lex.getToken()
     p.next = p.lex.getToken()
     # p.skipComments() # if any
@@ -1355,7 +1391,6 @@ proc initSystemModule(p: var Parser) =
     p.tree.modules = TimModulesTable()
     p.tree.modules[x] =
       p.engine.parseModule(x, std(x)[1])
-
   # var L = initTicketLock()
   # parseHandle[Parser](sysid, dirPath(p.tpl.sources), addr(p.imports),
   #           addr L, true, std(sysid)[1])
@@ -1371,13 +1406,13 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
     engine.getSourcePath() / $(ttPartial),
     baseIsMain = true
   )
-  with p.handle:
-    tree = Ast(src: tpl.sources.src)
-    lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
-    engine = engine
-    tpl = tpl
-    isMain = isMainParser
-    refreshAst = refreshAst
+  # var p = Parser(engine: engine, tpl: tpl,
+  #           isMain: isMainParser, refreshAst: refreshAst)
+  p.handle.engine = engine
+  p.handle.tpl = tpl
+  p.handle.refreshAst = refreshAst
+  p.handle.tree = Ast(src: tpl.sources.src)
+  p.handle.lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
   initModuleSystem()
   p.handle.initSystemModule()
   startParse(tpl.sources.src)

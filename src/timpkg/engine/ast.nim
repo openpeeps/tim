@@ -1,6 +1,6 @@
 # A super fast template engine for cool kids
 #
-# (c) 2023 George Lemon | LGPL License
+# (c) 2024 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import ./tokens
@@ -33,6 +33,7 @@ type
     ntAssignExpr = "Assignment"
     ntHtmlElement = "HtmlElement"
     ntInfixExpr = "InfixExpression"
+    ntParGroupExpr = "GroupExpression"
     ntMathInfixExpr = "MathExpression"
     ntCommandStmt = "CommandStatement"
     ntIdent = "Identifier"
@@ -131,8 +132,9 @@ type
       stag*: string
       attrs*: HtmlAttributes
         # used to store html attributes
-      attrNodes*: seq[Node]
+      # attrNodes*: seq[Node]
       nodes*: seq[Node]
+      htmlMultiplyBy*: Node # ntLitInt or a callable that returns ntLitInt
     of ntVariableDef:
       varName*: string
         ## variable identifier
@@ -159,6 +161,8 @@ type
         ## the infix operator for math operations
       infixMathLeft*, infixMathRight*: Node
         ## lhs, rhs nodes for math operations
+    of ntParGroupExpr:
+      groupExpr*: Node
     of ntConditionStmt:
       condIfBranch*: ConditionBranch
         ## the `if` branch of a conditional statement
@@ -295,7 +299,7 @@ type
       ## the source path of the ast
     nodes*: seq[Node]
       ## a seq containing tree nodes 
-    partials*: TimPartialsTable
+    partials*: TimPartialsTable = TimPartialsTable()
       ## AST trees from included partials 
     modules*: TimModulesTable
       ## AST trees from imported modules
@@ -511,6 +515,9 @@ when not defined release:
 #
 # AST Generators
 #
+proc trace*(tk: TokenTuple): Meta =
+  result = [tk.line, tk.pos, tk.col]
+
 proc newNode*(nt: static NodeType, tk: TokenTuple): Node =
   Node(nt: nt, meta: [tk.line, tk.pos, tk.col])
 
