@@ -420,7 +420,7 @@ when defined napibuild:
           # Runs when deleting a file
           notify("✨ Deleted", file.getName())
           timjs.clearTemplateByPath(file.getPath())
-
+        let basepath = timjs.getSourcePath()
         var w =
           newWatchout(
             dirs = @[basepath / "layouts" / "*",
