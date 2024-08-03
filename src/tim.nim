@@ -1,13 +1,15 @@
 # A super fast template engine for cool kids
 #
-# (c) 2023 George Lemon | LGPL License
+# (c) 2024 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
+
 import std/json except `%*`
 import std/[times, asyncdispatch,
-  sequtils, macros, macrocache]
+  sequtils, macros, macrocache, strutils, os]
 
 import pkg/watchout
+import pkg/importer/resolver
 import pkg/kapsis/cli
 
 import timpkg/engine/[meta, parser, logging, std]
@@ -15,8 +17,7 @@ import timpkg/engine/compilers/html
 
 from timpkg/engine/ast import `$`
 
-from std/strutils import `%`, indent, split, parseInt, join
-from std/os import `/`, sleep
+# from std/strutils import `%`, indent, split, parseInt, join
 
 const
   DOCKTYPE = "<!DOCKTYPE html>"
@@ -33,32 +34,38 @@ macro initCommonStorage*(x: untyped) =
     add localStorage, x
   else: error("Invalid common storage initializer. Use `{}`, or `do` block")
 
-template `&*`*(n: untyped): untyped =
+proc toLocalStorage*(x: NimNode): NimNode =
+  if x.kind in {nnkTableConstr, nnkCurly}:
+    var shareLocalNode: NimNode
+    if localStorage.len > 0:
+      shareLocalNode = localStorage[0]
+    if x.len > 0:
+      shareLocalNode.copyChildrenTo(x)
+      return newCall(ident("%*"), x)
+    if shareLocalNode != nil:
+      return newCall(ident("%*"), shareLocalNode)
+  result = newCall(ident"newJObject")
+  # error("Local storage requires either `nnkTableConstr` or `nnkCurly`")
+
+macro `&*`*(n: untyped): untyped =
   ## Compile-time localStorage initializer
   ## that helps reusing shareable data.
   ## 
   ## Once merged it calls `%*` macro from `std/json`
   ## for converting NimNode to JsonNode
-  macro toLocalStorage(x: untyped): untyped =
-    if x.kind in {nnkTableConstr, nnkCurly}:
-      var shareLocalNode: NimNode
-      if localStorage.len > 0:
-        shareLocalNode = localStorage[0]
-      if x.len > 0:
-        shareLocalNode.copyChildrenTo(x)
-        return newCall(ident("%*"), x)
-      if shareLocalNode != nil:
-        return newCall(ident("%*"), shareLocalNode)
-      return newCall(ident("%*"), newNimNode(nnkCurly))
-    error("Local storage requires either `nnkTableConstr` or `nnkCurly`")
-  toLocalStorage(n)
+  result = toLocalStorage(n)
 
 proc jitCompiler(engine: TimEngine,
-    tpl: TimTemplate, data: JsonNode): HtmlCompiler =
+    tpl: TimTemplate, data: JsonNode,
+    placeholders: TimEngineSnippets = nil): HtmlCompiler =
   ## Compiles `tpl` AST at runtime
   engine.newCompiler(
-    engine.readAst(tpl), tpl, engine.isMinified,
-    engine.getIndentSize, data
+    ast = engine.readAst(tpl),
+    tpl = tpl,
+    minify = engine.isMinified,
+    indent = engine.getIndentSize,
+    data = data,
+    placeholders = placeholders
   )
 
 proc toHtml*(name, code: string, local = newJObject(), minify = true): string =
@@ -67,7 +74,11 @@ proc toHtml*(name, code: string, local = newJObject(), minify = true): string =
   if likely(not p.hasErrors):
     var data = newJObject()
     data["local"] = local
-    let c = newCompiler(parser.getAst(p), minify, data = data)
+    let c = newCompiler(
+      ast = parser.getAst(p),
+      minify,
+      data = data
+    )
     if likely(not c.hasErrors):
       return c.getHtml()
     raise newException(TimError, "c.logger.errors.toSeq[0]") # todo
@@ -226,8 +237,8 @@ proc resolveDependants(engine: TimEngine, x: seq[string]) =
     else:
       engine.compileCode(tpl, refreshAst = true)
 
-proc precompile*(engine: TimEngine, callback: TimCallback = nil,
-    flush = true, waitThread = false, browserSyncPort = Port(6502),
+proc precompile*(engine: TimEngine, flush = true,
+    waitThread = false, browserSyncPort = Port(6502),
     browserSyncDelay = 200, global: JsonNode = newJObject(), watchoutNotify = true) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
@@ -240,6 +251,7 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
   ## (use `waitThread` to keep the thread alive)
   if flush: engine.flush()
   engine.setGlobalData(global)
+  engine.importsHandle = initResolver()
   when defined timHotCode:
     # Define callback procs for pkg/watchout
     proc notify(label, fname: string) =
@@ -264,17 +276,20 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
       notify("✨ Changes detected", file.getName())
       case tpl.getType()
       of ttView, ttLayout:
+        # engine.importsHandle.excl(file.getPath())
         engine.compileCode(tpl)
       else:
-        engine.resolveDependants(tpl.getDeps.toSeq)
+        # engine.importsHandle.excl(file.getPath())
+        engine.resolveDependants(engine.importsHandle.dependencies(file.getPath).toSeq)
 
     # Callback `onDelete`
     proc onDelete(file: watchout.File) =
       # Runs when deleting a file
       notify("✨ Deleted", file.getName())
       engine.clearTemplateByPath(file.getPath())
+
     let basepath = engine.getSourcePath()
-    var watcher =
+    let watcher =
       newWatchout(
         dirs = @[basepath / "layouts" / "*",
                 basepath / "views" / "*",
@@ -289,7 +304,7 @@ proc precompile*(engine: TimEngine, callback: TimCallback = nil,
             delay: browserSyncDelay
           )
         )
-    watcher.start(waitThread) # watch for file changes in a separate thread
+    watcher.start() # watch for file changes in a separate thread
   else:
     for tpl in engine.getViews():
       engine.compileCode(tpl)
@@ -307,7 +322,7 @@ template layoutWrapper(getViewBlock) {.dirty.} =
     getViewBlock
     layoutTail = layout.getTail()
   else:
-    var jitLayout = engine.jitCompiler(layout, data)
+    var jitLayout = engine.jitCompiler(layout, data, placeholders)
     if likely(not jitLayout.hasError):
       add result, jitLayout.getHead()
       getViewBlock
@@ -323,7 +338,8 @@ template layoutWrapper(getViewBlock) {.dirty.} =
   add result, layoutTail
 
 proc render*(engine: TimEngine, viewName: string,
-    layoutName = defaultLayout, local = newJObject()): string =
+    layoutName = defaultLayout, local = newJObject(),
+    placeholders: TimEngineSnippets = nil): string =
   ## Renders a view based on `viewName` and `layoutName`.
   ## Exposing data from controller to the current template is possible
   ## using the `local` object.
@@ -346,7 +362,7 @@ proc render*(engine: TimEngine, viewName: string,
       else:
         # compile and render template at runtime
         layoutWrapper:
-          var jitView = engine.jitCompiler(view, data)
+          var jitView = engine.jitCompiler(view, data, placeholders)
           if likely(not jitView.hasError):
             add result, jitView.getHtml
             # add result,
@@ -358,15 +374,15 @@ proc render*(engine: TimEngine, viewName: string,
             jitView.logger.displayErrors()
             hasError = true
     else:
-      raise newException(TimError, "No layouts available")
+      raise newException(TimError, "Trying to wrap `" & viewName & "` view using non-existing layout " & layoutName)
   else:
-    raise newException(TimError, "View not found: `$1`" % [viewName])
+    raise newException(TimError, "View not found " & viewName)
 
 when defined napibuild:
   # Setup for building TimEngine as a node addon via NAPI
   import pkg/[denim, jsony]
-  import std/os
-  from std/sequtils import toSeq
+  # import std/os
+  # from std/sequtils import toSeq
 
   var timjs: TimEngine
   init proc(module: Module) =
@@ -389,6 +405,7 @@ when defined napibuild:
       let browserSyncPort = browserSync["port"].getInt
       timjs.flush() # each precompilation will flush old files
       timjs.setGlobalData(globals)
+      timjs.importsHandle = initResolver()
       if browserSync["enable"].getBool:
         # Define callback procs for pkg/watchout
         proc notify(label, fname: string) =
@@ -413,13 +430,14 @@ when defined napibuild:
           of ttView, ttLayout:
             timjs.compileCode(tpl)
           else:
-            timjs.resolveDependants(tpl.getDeps.toSeq)
+            timjs.resolveDependants(timjs.importsHandle.dependencies(file.getPath).toSeq)
 
         # Callback `onDelete`
         proc onDelete(file: watchout.File) =
           # Runs when deleting a file
           notify("✨ Deleted", file.getName())
           timjs.clearTemplateByPath(file.getPath())
+
         let basepath = timjs.getSourcePath()
         var w =
           newWatchout(
@@ -434,7 +452,7 @@ when defined napibuild:
                 delay: browserSync["delay"].getInt)
             )
         # start filesystem monitor in a separate thread
-        w.start(false)
+        w.start()
       else:
         for tpl in timjs.getViews():
           timjs.compileCode(tpl)
@@ -524,10 +542,12 @@ elif not isMainModule:
           add lambda, newEmptyNode()
           add lambda, newEmptyNode()
           add lambda, m[6]
+          let callableName = id.strVal
+          let callableId = callableName[0] & toLowerAscii(callableName[1..^1])
           add result, 
             newAssignment(
               nnkBracketExpr.newTree(
-                ident"localModule", newLit($id)
+                ident"localModule", newLit(callableId)
               ),
               lambda
             )
@@ -556,15 +576,18 @@ else:
 
   commands:
     -- "Source-to-Source"
-    # todo fix kapsis flags
-    src string(-s), path(`timl`):
+    src string(-t), path(`timl`), string(-o), bool(--pretty):
       ## Transpile `timl` code or file to a target source
+    
     ast path(`timl`), filename(`output`):
       ## Generate binary AST from a `timl` file
+    
     repr path(`ast`), string(`ext`), bool(--pretty):
       ## Read from a binary AST to target source
+    
     -- "Microservice"
     run path(`config`), bool(--liveview):
       ## Tim as a Microservice background application
+    
     bundle path(`ast`):
       ## Produce binary dynamic templates (dll) from AST. Requires Nim

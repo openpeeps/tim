@@ -4,14 +4,17 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[macros, os, json,
-  strutils, sequtils, base64, tables]
+import std/[macros, os, json, strutils,
+      sequtils, base64, locks, tables]
 
 import pkg/[checksums/md5, flatty]
+import pkg/importer/resolver
 
 export getProjectPath
 
 from ./ast import Ast
+
+var placeholderLocker*: Lock
 
 type
   TimTemplateType* = enum
@@ -36,8 +39,6 @@ type
 
   TemplateTable = TableRef[string, TimTemplate]
 
-  TimCallback* = proc() {.nimcall, gcsafe.}
-
   TimPolicy* = ref object
     # todo
 
@@ -47,11 +48,12 @@ type
     indentSize: int
     layouts, views, partials: TemplateTable = TemplateTable()
     errors*: seq[string]
-    placeholders: Table[string, seq[Ast]]
-      ## A table containing available placeholders
     policy: TimPolicy
     globals: JsonNode = newJObject()
+    importsHandle*: Resolver
 
+
+  TimEngineSnippets* = TableRef[string, seq[Ast]]
   TimError* = object of CatchableError
 
 when defined timStaticBundle:
@@ -64,31 +66,40 @@ when defined timStaticBundle:
 #
 # Placeholders API
 #
-proc toPlaceholder*(engine: TimEngine,
-    key: string, snippetTree: Ast)  =
+proc toPlaceholder*(placeholders: TimEngineSnippets, key: string, snippetTree: Ast)  =
   ## Insert a snippet to a specific placeholder
-  if engine.placeholders.hasKey(key):
-    engine.placeholders[key].add(snippetTree)
-  else:
-    engine.placeholders[key] = @[snippetTree]
+  withLock placeholderLocker:
+    if placeholders.hasKey(key):
+      placeholders[key].add(snippetTree)
+    else:
+      placeholders[key] = @[snippetTree]
+  deinitLock placeholderLocker
 
-proc hasPlaceholder*(engine: TimEngine, key: string): bool =
+proc hasPlaceholder*(placeholders: TimEngineSnippets, key: string): bool =
   ## Determine if a placholder exists by `key`
-  result = engine.placeholders.hasKey(key)
+  withLock placeholderLocker:
+    result = placeholders.hasKey(key)
+  deinitLock placeholderLocker
 
-iterator listPlaceholders*(engine: TimEngine): (string, seq[Ast]) =
+iterator listPlaceholders*(placeholders: TimEngineSnippets): (string, seq[Ast]) =
   ## List registered placeholders
-  for k, v in engine.placeholders.mpairs:
-    yield (k, v)
+  withLock placeholderLocker:
+    for k, v in placeholders.mpairs:
+      yield (k, v)
+  deinitLock placeholderLocker
 
-iterator snippets*(engine: TimEngine, key: string): Ast =
+iterator snippets*(placeholders: TimEngineSnippets, key: string): Ast =
   ## List all snippets attached from a placeholder
-  for x in engine.placeholders[key]:
-    yield x
+  withLock placeholderLocker:
+    for x in placeholders[key]:
+      yield x
+  deinitLock placeholderLocker
 
-proc deleteSnippet*(engine: TimEngine, key: string, i: int) =
+proc deleteSnippet*(placeholders: TimEngineSnippets, key: string, i: int) =
   ## Delete a snippet from a placeholder by `key` and `i` order
-  engine.placeholders[key].del(i)
+  withLock placeholderLocker:
+    placeholders[key].del(i)
+  deinitLock placeholderLocker
 
 proc getPath*(engine: TimEngine, key: string, templateType: TimTemplateType): string =
   ## Get absolute path of `key` view, partial or layout

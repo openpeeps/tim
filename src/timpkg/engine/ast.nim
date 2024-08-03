@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import ./tokens
-import std/[tables, json, macros]
+import std/[tables, json, macros, critbits]
 
 import kapsis/cli
 
@@ -18,7 +18,7 @@ else:
 
 type
   NodeType* = enum
-    ntUnknown = "void"
+    ntUnknown = "untyped"
 
     ntLitInt = "int"
     ntLitString = "string"
@@ -27,22 +27,27 @@ type
     ntLitArray = "array"
     ntLitObject = "object"
     ntFunction = "function"
+    ntBlock = "block"
     ntLitVoid = "void"
 
     ntVariableDef = "Variable"
     ntAssignExpr = "Assignment"
     ntHtmlElement = "HtmlElement"
+    ntHtmlAttribute = "HtmlAttribute"
     ntInfixExpr = "InfixExpression"
     ntParGroupExpr = "GroupExpression"
     ntMathInfixExpr = "MathExpression"
     ntCommandStmt = "CommandStatement"
     ntIdent = "Identifier"
+    ntBlockIdent = "BlockIdentifier"
+    ntComponent = "Component"
     ntEscape = "EscapedIdentifier"
     ntCall = "FunctionCall"
     ntIdentPair
     ntDotExpr = "DotExpression"
     ntBracketExpr = "BracketExpression"
     ntIndexRange = "IndexRange"
+    ntDoBlock = "DoBlock"
     ntConditionStmt = "ConditionStatement"
     ntCaseStmt = "CaseExpression"
     ntLoopStmt = "LoopStmt"
@@ -109,11 +114,21 @@ type
     mMod = "%"
 
   HtmlAttributes* = TableRef[string, seq[Node]]
+  HtmlAttributesTable* = CritBitTree[seq[Node]]
   ConditionBranch* = tuple[expr: Node, body: Node]
-  FnParam* = tuple[pName: string, pType: NodeType, pImplVal: Node, meta: Meta]
+  FnParam* = tuple[
+    pName: string,
+    pType: NodeType,
+    pImplVal: Node,
+    dataType: DataType,
+    isMutable: bool,
+    meta: Meta
+  ]
   
   DataType* = enum
+    typeNone = "none"
     typeNil = "nil"
+    typeVoid = "void"
     typeInt = "int"
     typeString = "string"
     typeFloat = "float"
@@ -121,6 +136,7 @@ type
     typeArray = "array"
     typeObject = "object"
     typeFunction = "function"
+    typeBlock = "block"
     typeHtmlElement = "html"
 
   Node* {.acyclic.} = ref object
@@ -135,6 +151,10 @@ type
       # attrNodes*: seq[Node]
       nodes*: seq[Node]
       htmlMultiplyBy*: Node # ntLitInt or a callable that returns ntLitInt
+      htmlAttributes*: seq[Node]
+    of ntHtmlAttribute:
+      attrName*: string
+      attrValue*: Node
     of ntVariableDef:
       varName*: string
         ## variable identifier
@@ -207,12 +227,43 @@ type
         ## type of given command, either `echo` or `return`
       cmdValue*: Node
         ## the node value of the command 
-    of ntIdent:
+    of ntIdent, ntBlockIdent:
       identName*: string
         # identifier name
       identSafe*: bool
         # whether to escape the stored value of `identName`
       identArgs*: seq[Node]
+    of ntComponent:
+      ## Generate a custom element via JavaScript. A Tim component
+      ## inherits from the standard `HTMLElement` class
+      componentIdent*: string
+      componentName*: string
+        ## The name of a custom element must contain a dash.
+        ##  So <x-tags>, <my-element>, and <my-awesome-app> are all
+        ## valid names, while <tabs> and <foo_bar> are not.
+        ## This requirement is so the HTML parser can distinguish
+        ## custom elements from regular elements. It also ensures
+        ## forward compatibility when new tags are added to HTML
+      componentConnected*: Node
+        ## Called each time the component is added
+        ## to the document. The specification recommends that,
+        ## as far as possible, developers should implement custom
+        ## element setup in this callback rather than the constructor
+      componentDisconnected*: Node
+        ## Called each time the element is removed
+        ## from the document
+      componentAdopted*: Node
+        ## Called each time the element is moved to
+        ## a new document
+      componentAttributeChanged*: Node
+        ## Called when attributes are changed,
+        ## added, removed, or replaced
+      componentObservedAttributes: seq[string]
+        ## Elements can react to attribute changes by defining a
+        ## `componentAttributeChanged`. The browser will call this
+        ## method for every change to attributes listed in the
+        ## `componentObservedAttributes` sequence
+      componentBody*: Node # ntStmtList
     of ntEscape:
       escapeIdent*: Node # ntIdent
     of ntDotExpr:
@@ -228,12 +279,12 @@ type
     of ntIndexRange:
       rangeNodes*: array[2, Node]
       rangeLastIndex*: bool # from end to start using ^ circumflex accent
-    of ntFunction:
+    of ntFunction, ntBlock:
       fnIdent*: string
         ## function identifier name
       fnParams*: OrderedTable[string, FnParam]
         ## an ordered table containing the function parameters
-      fnBody*: seq[Node]
+      fnBody*: Node # ntStmtList
         ## the function body
       fnReturnType*: NodeType
         ## the return type of a function
@@ -246,7 +297,8 @@ type
     of ntJavaScriptSnippet,
       ntYamlSnippet, ntJsonSnippet:
         snippetCode*: string
-          ## string-based snipept code for either
+        snippetCodeAttrs*: seq[(string, Node)]
+          ## string-based snippet code for either
           ## `yaml`, `json` or `js`
           # todo add support bass code (bro lang)
           # find more about Bro on https://github.com/openpeeps/bro
@@ -273,8 +325,14 @@ type
         ## other statements (such `if`, `for`, `var`) are getting
         ## interpreted at compile-time (for static templates) or 
         ## on the fly for templates marked as jit.
+      clientBind*: Node # ntDoBlock
     of ntStmtList:
       stmtList*: seq[Node]
+        ## A sequence of `Node` in a statement list
+    of ntDoBlock:
+      doBlockCode*: string
+      ## optionally, `@client` and `block` can be followed
+      ## by `@do` block, which allows for fast JavaScript bindings
     of ntRuntimeCode:
       runtimeCode*: string
     else: discard
@@ -291,9 +349,13 @@ type
       nVal*: Node
 
   Meta* = array[3, int]
-  ScopeTable* = TableRef[string, Node]
+  
+  ScopeTable* = ref object
+    data*: CritBitTree[Node]
+
   TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
   TimModulesTable* = TableRef[string, Ast]
+
   Ast* {.acyclic.} = ref object
     src*: string
       ## the source path of the ast
@@ -306,9 +368,43 @@ type
     jit*: bool
       ## whether the current AST requires JIT compliation or not
 
-const ntAssignableSet* =
-  {ntLitString, ntLitInt, ntLitFloat,
-  ntLitBool, ntLitObject, ntLitArray}
+  OpCode* = enum
+    opTypeAdd
+    opTypeSub
+    opTypeMulti
+    opTypeDiv
+    opTypeVar
+    opTypeConst
+    opTypeEcho
+    opTypeAsgn
+    opTypeCall
+    opTypeReturn
+    opTypeBreak
+    opTypeStackBlock
+    opTypeStackBlockEnd
+
+  Operation* {.acyclic.} = ref object
+    case code*: OpCode
+    of opTypeVar, opTypeConst: discard
+    of opTypeEcho, opTypeReturn, opTypeBreak:
+      cmdNode*: Node
+    else: discard
+    stackPos*: seq[uint]
+
+  OpTree* = object
+    instructions: seq[Operation]
+
+iterator items*(optree: OpTree): Operation =
+  for op in optree.instructions:
+    yield op
+
+proc add*(optree: var OpTree, op: Operation) =
+  optree.instructions.add(op)
+
+const
+  ntAssignableSet* =
+    {ntLitString, ntLitInt, ntLitFloat, ntLitBool}
+  ntAssignables* = ntAssignableSet + {ntLitObject, ntLitArray}
 
 proc getInfixOp*(kind: TokenKind, isInfixInfix: bool): InfixOp =
   result =
@@ -512,6 +608,14 @@ when not defined release:
     {.gcsafe.}:
       echo pretty(toJson(node), 2)
 
+  proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
+    {.gcsafe.}:
+      echo pretty(toJson(nodes), 2)
+  
+  proc debugEcho*(tree: OpTree) {.gcsafe.} =
+    {.gcsafe.}:
+      echo pretty(toJson(tree), 2)
+
 #
 # AST Generators
 #
@@ -594,6 +698,16 @@ proc newCall*(tk: TokenTuple): Node =
   result = newNode(ntIdent, tk)
   result.identName = tk.value
 
+proc newComponent*(tk: TokenTuple): Node =
+  ## Create a new Component node
+  result = ast.newNode(ntComponent, tk)
+  result.componentIdent = tk.value
+
+proc newBlockIdent*(tk: TokenTuple): Node =
+  ## Create a new macro call Node
+  result = newNode(ntBlockIdent, tk)
+  result.identName = "@" & tk.value
+
 proc newStmtList*(tk: TokenTuple): Node =
   ## Create a new statement Node
   result = newNode(ntStmtList, tk) 
@@ -621,6 +735,11 @@ proc newHtmlElement*(tag: HtmlTag, tk: TokenTuple): Node =
   of tagUnknown:
     result.stag = tk.value
   else: discard
+
+proc newHtmlAttribute*(name: sink string, value: Node, tk: TokenTuple): Node =
+  result = newNode(ntHtmlAttribute, tk)
+  result.attrName = name
+  result.attrValue = value
 
 proc newCondition*(condIfBranch: ConditionBranch, tk: TokenTuple): Node =
   result = newNode(ntConditionStmt, tk)

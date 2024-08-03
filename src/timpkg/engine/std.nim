@@ -6,20 +6,17 @@
 
 import std/[macros, macrocache, enumutils,
   critbits, os, math, fenv, strutils,
-  sequtils, random, unicode, json, base64]
+  sequtils, random, unicode, json, tables, base64]
+
 import pkg/[jsony, nyml]
 
 import ./ast, ./meta
 
-# const
-  # localModules* = CacheSeq"LocalModules"
-    # Compile-time Cache seq to handle local modules
-
 type
   Arg* = tuple[name: string, value: Node]
-  NimCall* = proc(args: openarray[Arg], returnType: NodeType = ntLitVoid): Node
+  NimCallableHandle* = proc(args: openarray[Arg], returnType: NodeType = ntLitVoid): Node
 
-  Module = CritBitTree[NimCall]
+  Module = CritBitTree[NimCallableHandle]
   SourceCode* = distinct string
   Stdlib = CritBitTree[(Module, SourceCode)]
 
@@ -28,6 +25,7 @@ type
   OSModule* = object of CatchableError
   ColorsModule* = object of CatchableError
   SystemModule* = object of CatchableError
+  ObjectsModule* = object of CatchableError
 
 var
   stdlib*: Stdlib
@@ -37,6 +35,7 @@ var
     critbitsModule {.threadvar.},
     systemModule {.threadvar.},
     mathModule {.threadvar.},
+    objectsModule {.threadvar.},
     localModule* {.threadvar.}: Module
 
 proc toNimSeq*(node: Node): seq[string] =
@@ -45,14 +44,7 @@ proc toNimSeq*(node: Node): seq[string] =
 
 macro initStandardLibrary() =
   type
-    Wrapper = proc(args: seq[Node]): Node {.nimcall.}
-    
-    FwdType = enum
-      fwdProc
-      fwdIterator
-
     Forward = object
-      fwdType: FwdType
       id: string
         # function identifier (nim side)
       alias: string
@@ -216,7 +208,6 @@ macro initStandardLibrary() =
     for i in 0..args[0].value.arrayItems.high:
       if args[0].value.arrayItems[i].sVal == args[1].value.sVal:
         return ast.newInteger(i)
-
   let
     fnArrays = @[
       fwd("contains", ntLitBool, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysContains()),
@@ -228,11 +219,63 @@ macro initStandardLibrary() =
       fwd("delete", ntLitVoid, [(ntLitArray, "x"), (ntLitInt, "pos")], wrapper = getAst arraysDelete()),
       fwd("find", ntLitInt, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysFind()),
     ]
-    # fnObjects = @[
-    #   fwd("hasKey", ntLitBool, [ntLitObject, ntLitString]),
-    #   # fwd("keys", ntLitArray, [ntLitObject])
-    # ]
 
+  template objectHasKey: untyped =
+    ast.newBool(args[0].value.objectItems.hasKey(args[1].value.sVal))
+
+  template objectAddValue: untyped =
+    args[0].value.objectItems[args[1].value.sVal] = args[2].value
+
+  template objectDeleteValue: untyped =
+    if args[0].value.objectItems.hasKey(args[1].value.sVal):
+      args[0].value.objectItems.del(args[1].value.sVal)
+
+  template objectClearValues: untyped =
+    args[0].value.objectItems.clear()
+
+  template objectLength: untyped =
+    ast.newInteger(args[0].value.objectItems.len)
+
+  template objectGetOrDefault: untyped =
+    getOrDefault(args[0].value.objectItems, args[1].value.sVal)
+
+  proc convertObjectCss(node: Node, isNested = false): string =
+    var x: seq[string]
+    for k, v in node.objectItems:
+      case v.nt:
+      of ntLitInt:
+        add x, k & ":"
+        add x[^1], $(v.iVal)
+      of ntLitFloat:
+        add x, k & ":"
+        add x[^1], $(v.fVal)
+      of ntLitString:
+        add x, k & ":"
+        add x[^1], v.sVal
+      of ntLitObject: 
+        if isNested:
+          raise newException(ObjectsModule, "Cannot converted nested objects to CSS")
+        add x, k & "{"
+        add x[^1], convertObjectCss(v, true)
+        add x[^1], "}"
+      else: discard
+    result = x.join(";")
+
+  template objectInlineCss: untyped =
+    ast.newString(convertObjectCss(args[0].value))
+
+  let 
+    fnObjects = @[
+      fwd("hasKey", ntLitBool, [(ntLitObject, "x"), (ntLitString, "key")], wrapper = getAst(objectHasKey())),
+      fwd("add", ntLitVoid, [(ntLitObject, "x"), (ntLitString, "key"), (ntLitString, "value")], wrapper = getAst(objectAddValue())),
+      fwd("add", ntLitVoid, [(ntLitObject, "x"), (ntLitString, "key"), (ntLitInt, "value")], wrapper = getAst(objectAddValue())),
+      fwd("add", ntLitVoid, [(ntLitObject, "x"), (ntLitString, "key"), (ntLitFloat, "value")], wrapper = getAst(objectAddValue())),
+      fwd("add", ntLitVoid, [(ntLitObject, "x"), (ntLitString, "key"), (ntLitBool, "value")], wrapper = getAst(objectAddValue())),
+      fwd("del", ntLitVoid, [(ntLitObject, "x"), (ntLitString, "key")], wrapper = getAst(objectDeleteValue())),
+      fwd("len", ntLitInt, [(ntLitObject, "x")], wrapper = getAst(objectLength())),
+      fwd("clear", ntLitVoid, [(ntLitObject, "x")], wrapper = getAst(objectClearValues())),
+      fwd("toCSS", ntLitString, [(ntLitObject, "x")], wrapper = getAst(objectInlineCss())),
+    ]
 
   # std/os
   # implements some read-only basic operating system functions
@@ -268,6 +311,7 @@ macro initStandardLibrary() =
     ("math", fnMath, "math"),
     ("strutils", fnStrings, "strings"),
     ("sequtils", fnArrays, "arrays"),
+    ("objects", fnObjects, "objects"),
     ("os", fnOs, "os")
   ]
   for lib in libs:
@@ -305,7 +349,10 @@ macro initStandardLibrary() =
         of ntLitObject: "newObject" # todo implement toObject
         else: "getVoidNode"
       var i = 0
-      var fnIdent = if fn.alias.len != 0: fn.alias else: fn.id
+      var fnIdent =
+        if fn.alias.len != 0: fn.alias
+        else: fn.id
+
       add sourceCode, addFunction(fnIdent, fn.args, fn.returns)
       var callNode: NimNode
       if not fn.hasWrapper:
@@ -358,11 +405,12 @@ macro initStandardLibrary() =
         else:
           callNode = nnkStmtList.newTree(fn.wrapper, newCall(ident"getVoidNode"))
       lambda.add(newStmtList(callNode))
+      let fnName = fnIdent[0] & fnIdent[1..^1].toLowerAscii
       add result,
         newAssignment(
           nnkBracketExpr.newTree(
             ident(lib[0] & "Module"),
-            newLit(fnIdent)
+            newLit(fnName)
           ),
           lambda
         )
@@ -378,21 +426,23 @@ macro initStandardLibrary() =
         )
       )
     # when not defined release:
-      # echo "std/" & lib[2]
-      # echo sourceCode
+    # echo result.repr
+    # echo "std/" & lib[2]
+    # echo sourceCode
 
 proc initModuleSystem* =
   {.gcsafe.}:
     initStandardLibrary()
 
 proc exists*(lib: string): bool =
-  ## Checks if if `lib` exists in `Stdlib` 
+  ## Checks if `lib` exists in `stdlib` 
   result = stdlib.hasKey(lib)
 
 proc std*(lib: string): (Module, SourceCode) {.raises: KeyError.} =
-  ## Retrieves a module from `Stdlib`
+  ## Retrieves a module from `stdlib`
   result = stdlib[lib]
 
 proc call*(lib, fnName: string, args: seq[Arg]): Node =
   ## Retrieves a Nim proc from `module`
-  result = stdlib[lib][0][fnName](args)
+  let key = fnName[0] & fnName[1..^1].toLowerAscii
+  result = stdlib[lib][0][key](args)

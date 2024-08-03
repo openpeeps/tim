@@ -16,10 +16,11 @@ type
   Message* = enum
     invalidIndentation = "Invalid indentation [InvalidIndentation]"
     unexpectedToken = "Unexpected token $ [UnexpectedToken]"
-    undeclaredVariable = "Undeclared variable $ [UndeclaredVariable]"
+    undeclaredIdentifier = "Undeclared identifier $ [UndeclaredIdentifier]"
     invalidAccessorStorage = "Invalid accessor storage $ for $ [InvalidAccessorStorage]"
     identRedefine = "Attempt to redefine variable $ [IdentRedefine]"
     varImmutable = "Attempt to reassign value to immutable constant $ [VarImmutable]"
+    typeMismatchMutable = "Type mismatch. Got $ expected a mutable $  [TypeMismatchMutable]"
     fnUndeclared = "Undeclared function $ [UndeclaredFunction]"
     fnReturnMissingCommand = "Expression $ is of type $ and has to be used or discarded [UseOrDiscard]"
     fnReturnVoid = "Function $ has no return type [VoidFunction]"
@@ -36,6 +37,7 @@ type
     indexDefect = "Index $ not in $ [IndexDefect]"
     importNotFound = "Cannot open file: $ [ImportNotFound]"
     importCircularError = "Circular import detected: $ [CircularImport]"
+    invalidComponentName = "Invalid component name $ [InvalidComponentName]"
     eof = "EOF reached before closing $ [EOF]"
     internalError = "$"
 

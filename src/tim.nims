@@ -1,6 +1,7 @@
 --mm:arc
 --define:timHotCode
 --threads:on
+--deepcopy:on
 
 when defined napibuild:
   --define:napiOrWasm
@@ -12,9 +13,6 @@ when isMainModule:
   --define:timStandalone
   when defined release:
     --opt:speed
-    --define:useMalloc
     --define:danger
-    --checks:off
     --passC:"-flto"
     --passL:"-flto"
-    --define:nimAllocPagesViaMalloc

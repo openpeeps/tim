@@ -3,7 +3,7 @@
 # (c) 2024 George Lemon | LGPL License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
-
+import std/oids
 import pkg/toktok
 
 handlers:
@@ -46,7 +46,6 @@ handlers:
         of IdentChars:
           add lex
         of Whitespace, EndOfFile:
-          # lex.handleNewLine()
           break
         else:
           break
@@ -78,7 +77,24 @@ handlers:
             add lex.token, "\n"
             lex.handleNewLine()
           else:
-            add lex
+            if lex.buf[lex.bufpos] == '%' and lex.next("*"):
+              case lex.buf[lex.bufpos + 2]
+              of IdentStartChars:
+                inc lex.bufpos, 2
+                var attr = $(genOid()) & "_"
+                add attr, lex.buf[lex.bufpos]
+                inc lex.bufpos
+                while true:
+                  case lex.buf[lex.bufpos]
+                  of IdentChars:
+                    add attr, lex.buf[lex.bufpos]
+                    inc lex.bufpos
+                  else:
+                    add lex.attr, attr
+                    add lex.token, "%*" & attr
+                    break
+              else: discard
+            else: add lex
         except:
           lex.bufpos = lex.handleRefillChar(lex.bufpos)
     lexReady lex
@@ -90,6 +106,10 @@ handlers:
       let pos = lex.getColNumber(lex.bufpos)
       inc lex.bufpos, 3
       collectSnippet(tkSnippetJs)
+    elif lex.next("do"):
+      let pos = lex.getColNumber(lex.bufpos)
+      inc lex.bufpos, 3
+      collectSnippet(tkDo)
     elif lex.next("yaml"):
       let pos = lex.getColNumber(lex.bufpos)
       inc lex.bufpos, 5
@@ -106,10 +126,11 @@ handlers:
     elif lex.next("view"):
       lex.setToken tkViewLoader, 5
     elif lex.next("client"):
-      lex.setToken tkClient, 7 
+      lex.setToken tkClient, 7
     elif lex.next("end"):
       lex.setToken tkEnd, 4
-    else: discard
+    else:
+      lex.setToken tkAt, 1
 
   proc handleBackticks(lex: var Lexer, kind: TokenKind) =
     lex.startPos = lex.getColNumber(lex.bufpos)
@@ -218,9 +239,11 @@ registerTokens toktokSettings:
   client
   `end`
   `include`
-
+  `do` = "do"
   fn = "fn"
   `func` = "func" # alias `fn`
+  `block` = "block"
+  component = "component"
   `var` = "var"
   `const` = "const"
   returnCmd = "return"
