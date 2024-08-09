@@ -167,8 +167,8 @@ type
       varImmutable*: bool
         ## enabled when a variable is defined as `const`
     of ntAssignExpr:
-      asgnIdent*: string
-        ## identifier name
+      asgnIdent*: Node
+        ## an ntIdent identifier name
       asgnVal*: Node
         ## a Node value assigned to `asgnIdent`
     of ntInfixExpr:
@@ -199,8 +199,7 @@ type
         ## a node type of `ntIdent` or `ntIdentPair`
       loopItems*: Node
         ## a node type represeting an iterable storage
-      loopBody*: seq[Node]
-        ## a sequence of Node elements in `for` body
+      loopBody*: Node # ntStmtList
     of ntWhileStmt:
       whileExpr*: Node # ntIdent or ntInfixExpr
       whileBody*: Node # ntStmtList
@@ -685,8 +684,16 @@ proc newVariable*(varName: string, varValue: Node, tk: TokenTuple): Node =
 proc newAssignment*(tk: TokenTuple, varValue: Node): Node =
   ## Create a new assignment Node
   result = newNode(ntAssignExpr, tk)
-  result.asgnIdent = tk.value
+  result.asgnIdent = newNode(ntIdent, tk)
+  result.asgnIdent.identName = tk.value
   result.asgnVal = varValue
+
+proc newAssignment*(ident, varValue: Node): Node =
+  ## Create a new assignment Node
+  result = newNode(ntAssignExpr)
+  result.asgnIdent = ident
+  result.asgnVal = varValue
+  result.meta = ident.meta
 
 proc newFunction*(tk: TokenTuple, ident: string): Node =
   ## Create a new Function definition Node

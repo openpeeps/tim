@@ -1173,7 +1173,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         node.loopItem.varValue =
           ast.Node(nt: ntLitString, sVal: $(x)) # todo implement `ntLitChar`
         c.varExpr(node.loopItem, scopetables)
-        let x = c.walkNodes(node.loopBody, scopetables, xel = xel)
+        let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
         clearScope(scopetables)
         node.loopItem.varValue = nil
         handleBreakCommand(x)
@@ -1185,7 +1185,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         newScope(scopetables)
         node.loopItem.varValue = x
         c.varExpr(node.loopItem, scopetables)
-        let x = c.walkNodes(node.loopBody, scopetables, xel = xel)
+        let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
         clearScope(scopetables)
         node.loopItem.varValue = nil
         handleBreakCommand(x)
@@ -1197,7 +1197,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         newScope(scopetables)
         node.loopItem.varValue = y
         c.varExpr(node.loopItem, scopetables)
-        let x = c.walkNodes(node.loopBody, scopetables, xel = xel)
+        let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
         clearScope(scopetables)
         node.loopItem.varValue = nil
         handleBreakCommand(x)
@@ -1210,7 +1210,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         node.loopItem.identPairs[1].varValue = y
         c.varExpr(node.loopItem.identPairs[0], scopetables)
         c.varExpr(node.loopItem.identPairs[1], scopetables)
-        let x = c.walkNodes(node.loopBody, scopetables, xel = xel)
+        let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
         clearScope(scopetables)
         node.loopItem.identPairs[0].varValue = nil
         node.loopItem.identPairs[1].varValue = nil
@@ -1226,7 +1226,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
       newScope(scopetables)
       node.loopItem.varValue = iNode
       c.varExpr(node.loopItem, scopetables)
-      let x = c.walkNodes(node.loopBody, scopetables, xel = xel)
+      let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
       clearScope(scopetables)
       node.loopItem.varValue = nil
       handleBreakCommand(x)
@@ -1366,21 +1366,72 @@ proc varExpr(c: var HtmlCompiler, node: Node,
     else: discard
     let valNode = c.getValue(node.varValue, scopetables)
     notnil valNode:
-      c.stack(node.varName, valNode, scopetables)
+      node.varValue = valNode
+      c.stack(node.varName, node, scopetables)
   else: compileErrorWithArgs(identRedefine, [node.varName])
+
+proc getIdentName(x: Node): string =
+  result = 
+    case x.nt
+      of ntDotExpr:
+        x.lhs.identName
+      of ntBracketExpr:
+        x.bracketLHS.identName
+      of ntIdent:
+        x.identName
+      else: ""
+
+proc setVarValue(c: var HtmlCompiler, identName: string,
+    isImmutable: bool, node, bNode: Node) =
+  # Modifies the current `node` value with `bNode` 
+  if likely(c.typeCheck(node, bNode)):
+    if likely(not isImmutable):
+      case node.nt
+      of ntLitString:
+        node.sVal = bNode.sVal
+      of ntLitInt:
+        node.iVal = bNode.iVal
+      of ntLitFloat:
+        node.fVal = bNode.fVal
+      of ntLitBool:
+        node.bVal = bNode.bVal
+      of ntLitObject:
+        node.objectItems = bNode.objectItems
+      of ntLitArray:
+        node.arrayItems = bNode.arrayItems
+      else: discard
+    else:
+      compileErrorWithArgs(varImmutable, [identName])
 
 proc assignExpr(c: var HtmlCompiler,
     node: Node, scopetables: var seq[ScopeTable]) =
   # Handle assignment expressions
-  let some = c.getScope(node.asgnIdent, scopetables)
+  let identName = node.asgnIdent.getIdentName()
+  let some = c.getScope(identName, scopetables)
   if likely(some.scopeTable != nil):
-    let varNode = some.scopeTable.get(node.asgnIdent)
-    let asgnVal = c.getValue(node.asgnVal, scopetables)
-    if likely(c.typeCheck(varNode.varValue, asgnVal)):
-      if likely(not varNode.varImmutable):
-        varNode.varValue = asgnVal
+    let varNode = some.scopeTable.get(identName)
+    let asgnValue = c.getValue(node.asgnVal, scopetables)
+    notnil asgnValue:
+      case node.asgnIdent.nt
+      of ntDotExpr:
+        let initialValue = c.getValue(node.asgnIdent, scopetables)
+        c.setVarValue(identName, varNode.varImmutable, initialValue, asgnValue)
+      of ntBracketExpr:
+        let initialValue = c.getValue(node.asgnIdent, scopetables)
+        c.setVarValue(identName, varNode.varImmutable, initialValue, asgnValue)
       else:
-        compileErrorWithArgs(varImmutable, [varNode.varName])
+        let initialValue: Node =
+          case varNode.nt
+          of ntVariableDef:
+            varNode.varValue
+          of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
+            varNode
+          else: nil
+        if likely(c.typeCheck(initialValue, asgnValue)):
+          if likely(not varNode.varImmutable):
+            varNode.varValue = asgnValue
+          else:
+            compileErrorWithArgs(varImmutable, [varNode.varName])
 
 proc fnDef(c: var HtmlCompiler, node: Node,
     scopetables: var seq[ScopeTable]) =

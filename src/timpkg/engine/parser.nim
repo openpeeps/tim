@@ -314,13 +314,22 @@ proc parseStatement(p: var Parser, parent: TokenTuple,
     walk p
   else: return nil
   result = ast.newNode(ntStmtList)
-  while p.curr isnot tkEOF and p.curr.isChild(parent):
-    let tk = p.curr
-    let node = p.parsePrefix(excludes, includes)
-    caseNotNil node:
-      add result.stmtList, node
-    do:
-      return nil
+  if isIndentBlock:
+    while p.curr isnot tkEOF and p.curr.isChild(parent):
+      let tk = p.curr
+      let node = p.parsePrefix(excludes, includes)
+      caseNotNil node:
+        add result.stmtList, node
+      do:
+        return nil
+  else:
+    while p.curr notin {tkEOF, tkRC}:
+      let tk = p.curr
+      let node = p.parsePrefix(excludes, includes)
+      caseNotNil node:
+        add result.stmtList, node
+      do:
+        return nil
   if unlikely(result.stmtlist.len > 0 == false):
     return nil # empty stmtlist
   if unlikely(not isIndentBlock):
@@ -355,8 +364,7 @@ proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
       if p.curr.line == result.meta[0]:
         result = p.parseBracketExpr(result)
       else: break
-    else:
-      break # todo handle infix expressions
+    else: break
 
 proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse bracket expression
@@ -774,7 +782,7 @@ prefixHandle pCondition:
   let ifbranch = p.parseCondBranch(this)
   caseNotNil ifbranch.expr:
     result = ast.newCondition(ifbranch, this)
-    while p.curr is tkElif and p.curr.pos == this.pos:
+    while p.curr is tkElif and (p.curr.pos == this.pos or p.prev is tkRC):
       # parse `elif` branches
       let eliftk = p.curr
       let condBranch = p.parseCondBranch(eliftk)
@@ -783,7 +791,7 @@ prefixHandle pCondition:
           return nil
         add result.condElifBranch, condBranch
 
-    if p.curr is tkElse and p.curr.pos == this.pos:
+    if p.curr is tkElse and (p.curr.pos == this.pos or p.next is tkLC):
       # parse `else` branch
       let elsetk = p.curr
       walk p
@@ -857,18 +865,16 @@ prefixHandle pFor:
               ast.newInteger(min.value.parseInt, min),
               ast.newInteger(p.curr.value.parseInt, p.curr)
             ]
+            walk p
           of tkIdentVar, tkIdentVarSafe:
             result.loopItems.rangeNodes[0] = ast.newInteger(min.value.parseInt, min)
             result.loopItems.rangeNodes[1] = p.pIdent()
           else: discard
-          walk p
       else: return nil
-    if p.curr is tkColon: walk p
-    while p.curr.isChild(tk):
-      let node = p.getPrefixOrInfix()
-      caseNotNil node:
-        add result.loopBody, node
-    if unlikely(result.loopBody.len == 0):
+    result.loopBody = p.parseStatement(tk)
+    caseNotNil result.loopBody:
+      discard
+    do:
       error(badIndentation, p.curr)
   else: discard
 
@@ -1278,10 +1284,18 @@ proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
     else:
       result.infixMathRight = rhs
 
+proc parseAssignExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
+  # parse assignment expression
+  walk p # tkAssign
+  let varValue = p.getPrefixOrInfix()
+  caseNotNil varValue:
+    result = ast.newAssignment(lhs, varValue)
+
 proc getInfixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): InfixFunction {.gcsafe.} =
   case p.curr.kind
   of tkCompSet: parseCompExp
   of tkMathSet: parseMathExp
+  of tkAssign: parseAssignExpr
   else: nil
 
 proc parseInfix(p: var Parser, lhs: Node): Node {.gcsafe.} =
@@ -1368,7 +1382,7 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkIdentVar, tkIdentVarSafe:
       if p.next is tkAssign:
         p.pIdentOrAssignment()
-      elif p.next is tkDot:
+      elif p.next in {tkDot, tkLB}:
         p.pIdent()
       else: nil
     of tkIF:          p.pCondition()
