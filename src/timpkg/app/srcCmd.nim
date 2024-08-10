@@ -14,18 +14,21 @@ proc srcCommand*(v: Values) =
   ## Transpiles a `.timl` file to a target source
   let
     fpath = $(v.get("timl").getPath)
-    ext = v.get("-s").getStr
-    pretty = v.has("pretty")
+    ext = v.get("-t").getStr
+    pretty = v.has("--pretty")
+    outputPath = if v.has("-o"): v.get("-o").getStr else: ""
     # enableWatcher = v.has("w")
   let name = fpath
   let timlCode = readFile(getCurrentDir() / fpath)
   let p = parseSnippet(name, timlCode)
   if likely(not p.hasErrors):
     if ext == "html":
-      let c = html.newCompiler(parser.getAst(p), pretty == false)
+      let c = html.newCompiler(parser.getAst(p), minify = pretty == false)
       if likely(not c.hasErrors):
-        display c.getHtml().strip
-        discard
+        if outputPath.len > 0:
+          writeFile(outputPath, c.getHtml.strip)
+        else:
+          display c.getHtml().strip
       else:
         for err in c.logger.errors:
           display err

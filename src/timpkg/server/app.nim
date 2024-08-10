@@ -122,7 +122,7 @@ proc precompile(engine: TimEngine, config: TimConfig, globals: JsonNode) =
         )
       )
   # watch for file changes in a separate thread
-  watcher.start(config.target != tsHtml)
+  watcher.start() # config.target != tsHtml
 
 proc jitCompiler(engine: TimEngine,
     tpl: TimTemplate, data: JsonNode): HtmlCompiler =
