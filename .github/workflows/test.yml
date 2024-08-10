@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         nim-version:
-          - 'stable'
+          - '2.0.0'
         os:
           - ubuntu-latest
           # - windows-latest
