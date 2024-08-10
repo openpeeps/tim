@@ -21,7 +21,6 @@ requires "kapsis#head"
 requires "denim#head"
 requires "checksums"
 requires "flatty#head"
-# requires "malebolgia"
 requires "nyml >= 0.1.8"
 requires "zmq#head"
 
@@ -37,7 +36,7 @@ task examples, "build all examples":
       exec "nim c -d:timHotCode --threads:on --mm:arc -o:./bin/" & x.name & " example/" & x.name & x.ext
 
 task example, "example httpbeast + tim":
-  exec "nim c -d:timHotCode -d:watchoutBrowserSync --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"
+  exec "nim c -d:timHotCode -d:watchoutBrowserSync --deepcopy:on --path:/Users/georgelemon/Development/packages/importer/src --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"
 
 task examplep, "example httpbeast + tim release":
   exec "nim c -d:timStaticBundle -d:release --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"
@@ -46,7 +45,13 @@ task bench, "run some benchmarks":
   exec "nim c --threads:on -d:danger --opt:speed --mm:arc -o:./bin/bench example/benchmark.nim"
 
 task dev, "build a dev cli":
-  exec "nimble build -d:timStandalone"
+  exec "nimble build -f -d:timStandalone"
 
 task prod, "build a prod cli":
   exec "nimble build -d:release -d:timStandalone"
+
+task fastparser, "testing a parser":
+  exec "nimble --mm:arc -d:release c src/timpkg/engine/fastparser.nim -o:./bin/fastparser"
+
+task client, "build udp client":
+  exec "nimble c src/timpkg/server/client.nim"
