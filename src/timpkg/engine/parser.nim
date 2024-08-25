@@ -450,7 +450,9 @@ prefixHandle pIdent:
         if p.curr.isInfix:
           result = p.parseInfix(result)
     else: 
-      if p.curr.isInfix:
+      if p.curr.isInfix and p.next in tkAssignableSet - {tkIdentifier}:
+        # excluding tkIdentifier to avoid
+        # `h1 x=$x > span: ""` conflicts
         result = p.parseInfix(result)
   if isEscaped:
     var safeVarNode = ast.newNode(ntEscape)
@@ -566,7 +568,7 @@ prefixHandle pGroupExpr:
   caseNotNil result.groupExpr:
     expectWalk tkRP
 
-proc parseAttributes(p: var Parser, attrs: ptr seq[Node],
+proc parseAttributes(p: var Parser, attrs: var seq[Node],
     el: TokenTuple) {.gcsafe.} =
   # parse HTML element attributes
   while true:
@@ -576,59 +578,62 @@ proc parseAttributes(p: var Parser, attrs: ptr seq[Node],
       walk p
       if likely(anyAttrIdent()):
         let attrKey = "class"
-        add attrs[],
+        add attrs,
           ast.newHtmlAttribute("class", ast.newString(p.curr), p.curr)
         walk p
       else: return
     of tkID:
       walk p
       if likely(anyAttrIdent()):
-        add attrs[],
+        add attrs,
           ast.newHtmlAttribute("id", ast.newString(p.curr), p.curr)
         walk p
       else: return
     else:
       if anyAttrIdent():
-        let attrKey = p.curr
-        walk p
+        let attrKey = p.curr; walk p
         var emptyAttr: bool
         if p.curr is tkAssign:
           walk p
         else:
           emptyAttr = true
         if unlikely(emptyAttr):
-          add attrs[],
+          add attrs,
             ast.newHtmlAttribute(attrKey.value, nil, attrKey)
-          continue
+          continue # accept attributes without assigned values. e.g. `readonly`
         case p.curr.kind
         of tkString, tkInteger, tkFloat, tkBool:
-          add attrs[], ast.newHtmlAttribute(attrKey.value, ast.newString(p.curr), attrKey)
+          add attrs,
+            ast.newHtmlAttribute(attrKey.value,
+              ast.newString(p.curr), attrKey)
           walk p
           if p.curr is tkAmp:
             while p.curr is tkAmp:
               let attrNode = p.pStringConcat()
               caseNotNil attrNode:
-                add attrs[][^1].attrValue.sVals, attrNode
+                add attrs[^1].attrValue.sVals, attrNode
               do: return
         of tkLP:
           let exprNode = p.pGroupExpr()
           caseNotNil exprNode:
-            add attrs[], exprNode
+            add attrs, exprNode
           do: return
         # of tkBacktick:
         #   let attrValue = ast.newString(p.curr)
         #   attrs[attrKey.value] = @[attrValue]
         #   walk p
-        # of tkLB:
-        #   let v = p.pAnoArray()
-        #   caseNotNil v:
-        #     attrs[attrKey.value] = @[v]
-        #   do: return
-        # of tkLC:
-        #   let v = p.pAnoObject()
-        #   caseNotNil v:
-        #     attrs[attrKey.value] = @[v]
-        #   do: return
+        of tkLB:
+          let arrayNode: Node = p.pAnoArray()
+          caseNotNil arrayNode:
+            add attrs,
+              ast.newHtmlAttribute(attrKey.value, arrayNode, attrKey)
+          do: return
+        of tkLC:
+          let objectNode: Node = p.pAnoObject()
+          caseNotNil objectNode:
+            add attrs,
+              ast.newHtmlAttribute(attrKey.value, objectNode, attrKey)
+          do: return
         else:
           var x: Node
           if p.next is tkLP and p.next.wsno == 0:
@@ -636,26 +641,28 @@ proc parseAttributes(p: var Parser, attrs: ptr seq[Node],
           else:
             x = p.pIdent()
           caseNotNil x:
-            add attrs[],
+            add attrs,
               ast.newHtmlAttribute(attrKey.value, x, attrKey)
-            # attrs[attrKey.value] = @[x]
           do: break
-        # else: errorWithArgs(duplicateAttribute, attrKey, [attrKey.value])
       else:
         case p.curr.kind
         of tkIdentVar, tkIdentVarSafe:
-          if p.curr.pos <= el.pos or not p.next.isInfix: break
+          if p.curr.line == el.line or p.curr.pos > el.line:
+            discard
+          elif p.next isnot tkGT and p.next.line != p.curr.line:
+            if p.curr.pos <= el.pos or not p.next.isInfix:
+              break
           let x = p.pIdent()
           caseNotNil x:
-            add attrs[], x
+            add attrs, x
           do: break
         of tkLP:
           let exprNode = p.pGroupExpr()
           caseNotNil exprNode:
-            add attrs[], exprNode
-          do: return
+            add attrs, exprNode
+          do: break
         else:
-          return
+          break
 
 prefixHandle pElement:
   # parse HTML Element
@@ -673,14 +680,16 @@ prefixHandle pElement:
       add p.parentNode, result
   # parse HTML attributes
   case p.curr.kind
-  of tkDot, tkID:
-    p.parseAttributes(result.htmlAttributes.addr, this)
-  of tkIdentifier:
-    p.parseAttributes(result.htmlAttributes.addr, this)
+  of tkDot, tkID, tkIdentifier:
+    p.parseAttributes(result.htmlAttributes, this)
   of tkIdentVar, tkIdentVarSafe:
     let x = p.pIdent()
     caseNotNil x:
       add result.htmlAttributes, x
+    case p.curr.kind
+    of tkDot, tkID, tkIdentifier:
+      p.parseAttributes(result.htmlAttributes, this)
+    else: discard
   of tkAsterisk:
     walk p
     case p.curr.kind
@@ -694,7 +703,10 @@ prefixHandle pElement:
         discard
     else: return nil
   else:
-    discard
+    if p.curr is tkLP and
+      (p.curr.line == this.line or p.curr.pos > this.pos):
+        p.parseAttributes(result.htmlAttributes, this)
+    else: discard
     # if p.curr.line == this.line:
     #   result.attrs = HtmlAttributes()
     #   p.parseAttributes(result, this)
@@ -1084,6 +1096,7 @@ prefixHandle pFunction:
       walk p
     if p.curr is tkLP:
       walk p
+      result.fnParams = newOrderedTable[string, FNParam]()
       while p.curr isnot tkRP:
         var isTypedOrDefault: bool
         case p.curr.kind
@@ -1162,7 +1175,6 @@ prefixHandle pBlock:
       result.clientBind.doBlockCode = p.curr.value
 
 
-
 prefixHandle pFunctionCall:
   # parse a function call
   result = ast.newCall(p.curr)
@@ -1208,10 +1220,10 @@ prefixHandle pBlockCall:
             add result.identArgs, inlineNode
           break
       of tkDot, tkID:
-        p.parseAttributes(result.identArgs.addr, tk)
+        p.parseAttributes(result.identArgs, tk)
       of tkIdentifier:
         if tk.col >= p.curr.col: break
-        p.parseAttributes(result.identArgs.addr, tk)
+        p.parseAttributes(result.identArgs, tk)
       else: break
 
 #
@@ -1250,12 +1262,12 @@ proc parseTernaryExpr(p: var Parser, infixExpr: Node): Node {.gcsafe.} =
   var condBranch: ConditionBranch
   condBranch.expr = infixExpr
   var ifToken = p.curr
-  expectWalk tkTernary
+  expectWalk tkTernary # ?
   let condBody = p.getPrefixOrInfix()
   caseNotNil condBody:
     condBranch.body = ast.newNode(ntStmtList, ifToken)
     add condBranch.body.stmtList, ast.newCommand(cmdReturn, condBody, ifToken)
-  expectWalk tkColon
+  expectWalk tkOrOr # ||
   let elseToken = p.prev
   var condNode = ast.newCondition(condBranch, elseToken)
   let node = p.getPrefixOrInfix()
