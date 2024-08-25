@@ -114,7 +114,7 @@ type
     mMod = "%"
 
   HtmlAttributes* = TableRef[string, seq[Node]]
-  HtmlAttributesTable* = CritBitTree[seq[Node]]
+  HtmlAttributesTable* = TableRef[string, seq[Node]]
   ConditionBranch* = tuple[expr: Node, body: Node]
   FnParam* = tuple[
     pName: string,
@@ -281,7 +281,7 @@ type
     of ntFunction, ntBlock:
       fnIdent*: string
         ## function identifier name
-      fnParams*: OrderedTable[string, FnParam]
+      fnParams*: OrderedTableRef[string, FnParam]
         ## an ordered table containing the function parameters
       fnBody*: Node # ntStmtList
         ## the function body

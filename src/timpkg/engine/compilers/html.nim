@@ -42,7 +42,10 @@ proc walkFunctionBody(c: var HtmlCompiler, fnNode: Node, nodes: ptr seq[Node],
 ): Node {.discardable.}
 
 proc getDataType(node: Node): DataType
-proc unwrapArgs(c: var HtmlCompiler, args: seq[Node], scopetables: var seq[ScopeTable]): tuple[resolvedArgs, htmlAttributes: seq[Node]]
+
+proc unwrapArgs(c: var HtmlCompiler, args: seq[Node],
+    scopetables: var seq[ScopeTable]): tuple[resolvedArgs, htmlAttributes: seq[Node]]
+
 proc unwrap(identName: string, args: seq[Node]): string
 
 proc getHtml*(c: HtmlCompiler): string
@@ -65,7 +68,7 @@ proc getValue(c: var HtmlCompiler, node: Node,
   scopetables: var seq[ScopeTable]): Node
 
 proc functionCall(c: var HtmlCompiler, node, fnNode: Node,
-    args: seq[Node], scopetables: var seq[ScopeTable], htmlAttrs: ptr seq[Node] = nil): Node
+    args: seq[Node], scopetables: var seq[ScopeTable], htmlAttrs: seq[Node] = @[]): Node
 
 proc componentCall(c: var HtmlCompiler, componentNode: Node,
     scopetables: var seq[ScopeTable]): Node
@@ -300,6 +303,7 @@ proc dumpHook*(s: var string, v: Node) =
   of ntLitBool:   s.add($v.bVal)
   of ntLitObject: s.dumpHook(v.objectItems)
   of ntLitArray:  s.dumpHook(v.arrayItems)
+  # of ntHtmlAttribute: s.dumpHook(v.attrValue) # todo find a way to output attributes
   else: discard
 
 proc dumpHook*(s: var string, v: seq[Node]) =
@@ -880,7 +884,7 @@ proc getValue(c: var HtmlCompiler, node: Node,
       of ntFunction:
         return c.functionCall(node, scopeNode, args[0], scopetables)
       of ntBlock:
-        return c.functionCall(node, scopeNode, args[0], scopetables, args[1].addr)
+        return c.functionCall(node, scopeNode, args[0], scopetables, args[1])
       of ntComponent:
         return c.componentCall(scopeNode, scopetables)
       of ntVariableDef:
@@ -904,8 +908,12 @@ proc getValue(c: var HtmlCompiler, node: Node,
     # return literal nodes
     result = node
   of ntHtmlAttribute:
-    node.attrValue = c.getValue(node.attrValue, scopetables)
-    return node
+    result = newNode(ntHtmlAttribute)
+    result.attrName = node.attrName
+    let attrValue = c.getValue(node.attrValue, scopetables)
+    notnil attrValue:
+      if likely(c.typeCheck(attrValue, ntLitString)):
+        result.attrValue = attrValue
   of ntInfixExpr:
     # evaluate infix expressions
     case node.infixOp
@@ -939,11 +947,11 @@ proc getValue(c: var HtmlCompiler, node: Node,
   of ntHtmlElement:
     return node
   of ntLitObject:
-    let someObject = c.checkObjectStorage(node, scopetables)
+    let someObject = c.checkObjectStorage(node, scopetables, true)
     if likely(someObject[0]):
       return someObject[1]
   of ntLitArray:
-    let someArray = c.checkArrayStorage(node, scopetables)
+    let someArray = c.checkArrayStorage(node, scopetables, true)
     if likely(someArray[0]):
       return someArray[1]
   else: discard
@@ -1565,7 +1573,7 @@ proc unwrap(identName: string, args: seq[Node]): string =
       add result, $(arg.getDataType.ord)
 
 proc functionCall(c: var HtmlCompiler, node, fnNode: Node,
-  args: seq[Node], scopetables: var seq[ScopeTable], htmlAttrs: ptr seq[Node] = nil
+  args: seq[Node], scopetables: var seq[ScopeTable], htmlAttrs: seq[Node] = @[]
 ): Node =
   case fnNode.fnType
   of fnImportSystem:
@@ -1624,13 +1632,17 @@ proc functionCall(c: var HtmlCompiler, node, fnNode: Node,
           compileErrorWithArgs(typeMismatch, [$(typeNone), $(param.dataType)])
       inc i
     if fnNode.nt == ntBlock:
+      # support for calling blocks by attaching classes,
+      # id or custom attributes. then inside the block
+      # available attributes can be expanded using the
+      # `blockAttributes` variable, if any.
       let blockAttrs = ast.newArray()
-      `=sink`(blockAttrs.arrayItems, htmlAttrs[])
+      # `=sink`(blockAttrs.arrayItems, htmlAttrs[])
+      if htmlAttrs.len > 0:
+        blockAttrs.arrayItems = htmlAttrs
       let blockAttributes =
-        if htmlAttrs != nil:
-          ast.newVariable("blockAttributes", blockAttrs, node.meta)
-        else:
-          ast.newVariable("blockAttributes", blockAttrs, node.meta)
+        ast.newVariable("blockAttributes", blockAttrs, node.meta)
+      blockAttributes.varImmutable = true # blockAttributes cannot be changed
       c.stack("blockAttributes", blockAttributes, scopetables)
     result = c.walkNodes(fnNode.fnBody.stmtList, scopetables, fnNode.nt)
     notnil result:
@@ -1666,69 +1678,71 @@ proc fnCall(c: var HtmlCompiler, node: Node,
 #
 # Html Handler
 #
-proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
-    scopetables: var seq[ScopeTable], xel = newStringOfCap(0)): string =
-  # Write HTMLAttributes
-  var i = 0
-  var skipQuote: bool
-  let len = attrs.len
-  for k, attrNodes in attrs.mpairs:
-    if unlikely(k == "__"):
-      for attrNode in attrNodes:
-        for exprNode in attrNode.stmtList:
-          c.evalCondition(exprNode, scopetables, xel)
-      continue
-    var attrStr: seq[string]
-    if not c.isClientSide:
-      add result, indent("$1=" % [k], 1) & "\""
-    for attrNode in attrNodes:
-      case attrNode.nt
-      of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
-        add attrStr, c.toString(attrNode, scopetables)
-      of ntLitObject, ntLitArray:
-        add attrStr, c.toString(attrNode, scopetables, escape = true)
-      of ntEscape:
-        let xVal = c.getValue(attrNode, scopetables)
-        notnil xVal:
-          add attrStr, xVal.toString.escapeValue # todo better checks
-      of ntIdent:
-        let xVal = c.getValue(attrNode, scopetables)
-        notnil xVal:
-          add attrStr, xVal.toString(xVal.nt in [ntLitObject, ntLitArray])
-      of ntDotExpr:
-        let xVal = c.dotEvaluator(attrNode, scopetables)
-        notnil xVal:
-          add attrStr, xVal.toString()
-      of ntParGroupExpr:
-        let xVal = c.getValue(attrNode.groupExpr, scopetables)
-        notnil xVal:
-          add attrStr, xVal.toString()
-      else: discard
-    if not c.isClientSide:
-      add result, attrStr.join(" ")
-      if not skipQuote and i != len:
-        add result, "\""
-      else:
-        skipQuote = false
-      inc i
-    else:
-      add result, domSetAttribute % [xel, k, attrStr.join(" ")]
+# proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributes,
+#     scopetables: var seq[ScopeTable], xel = newStringOfCap(0)): string =
+#   # Write HTMLAttributes
+#   var i = 0
+#   var skipQuote: bool
+#   let len = attrs.len
+#   for k, attrNodes in attrs.mpairs:
+#     if unlikely(k == "__"):
+#       for attrNode in attrNodes:
+#         for exprNode in attrNode.stmtList:
+#           c.evalCondition(exprNode, scopetables, xel)
+#       continue
+#     var attrStr: seq[string]
+#     if not c.isClientSide:
+#       add result, indent("$1=" % [k], 1) & "\""
+#     for attrNode in attrNodes:
+#       case attrNode.nt
+#       of ntLitString, ntLitInt, ntLitFloat, ntLitBool:
+#         add attrStr, c.toString(attrNode, scopetables)
+#       of ntLitObject, ntLitArray:
+#         add attrStr, c.toString(attrNode, scopetables, escape = true)
+#       of ntEscape:
+#         let xVal = c.getValue(attrNode, scopetables)
+#         notnil xVal:
+#           add attrStr, xVal.toString.escapeValue # todo better checks
+#       of ntIdent:
+#         let xVal = c.getValue(attrNode, scopetables)
+#         notnil xVal:
+#           add attrStr, xVal.toString(xVal.nt in [ntLitObject, ntLitArray])
+#       of ntDotExpr:
+#         let xVal = c.dotEvaluator(attrNode, scopetables)
+#         notnil xVal:
+#           add attrStr, xVal.toString()
+#       of ntParGroupExpr:
+#         let xVal = c.getValue(attrNode.groupExpr, scopetables)
+#         notnil xVal:
+#           add attrStr, xVal.toString()
+#       else: discard
+#     if not c.isClientSide:
+#       add result, attrStr.join(" ")
+#       if not skipQuote and i != len:
+#         add result, "\""
+#       else:
+#         skipQuote = false
+#       inc i
+#     else:
+#       add result, domSetAttribute % [xel, k, attrStr.join(" ")]
 
-proc getAttrs(c: var HtmlCompiler, attrs: sink HtmlAttributesTable,
+proc getAttrs(c: var HtmlCompiler, attrs: HtmlAttributesTable,
     scopetables: var seq[ScopeTable], xel = newStringOfCap(0)): string =
   var i = 0
   var skipQuote: bool
   let len = attrs.len
   for k, attrNodes in attrs:
     if not c.isClientSide:
-      add result, indent("$1=" % [k], 1) & "\""
+      add result, indent("$1=" % k, 1) & "\""
     var attrValues: seq[string]
     for attrNode in attrNodes:
       case attrNode.nt
       of ntHtmlAttribute:
-        add attrValues, c.toString(attrNode.attrValue, scopetables)
+        add attrValues,
+          c.toString(attrNode.attrValue, scopetables)
       else:
-        add attrValues, c.toString(attrNode, scopetables)
+        add attrValues,
+          c.toString(attrNode, scopetables)
     if not c.isClientSide:
       add result, attrValues.join(" ")
       if not skipQuote and i != len:
@@ -1740,7 +1754,7 @@ proc getAttrs(c: var HtmlCompiler, attrs: sink HtmlAttributesTable,
       add result, domSetAttribute % [xel, k, attrValues.join(" ")]
 
 proc prepareHtmlAttributes(c: var HtmlCompiler,
-    attrs: sink seq[Node], attrsTable: var HtmlAttributesTable,
+    attrs: sink seq[Node], attrsTable: HtmlAttributesTable,
     scopetables: var seq[ScopeTable],
     xel = newStringOfCap(0)) =
   ## Evaluate available HTML Attributes of HtmlElement `node`
@@ -1749,11 +1763,12 @@ proc prepareHtmlAttributes(c: var HtmlCompiler,
     of ntStmtList:
       c.prepareHtmlAttributes(attr.stmtList, attrsTable, scopetables)
     of ntHtmlAttribute:
-      if not attrsTable.hasKey(attr.attrName):
-        attrsTable[attr.attrName] = newSeq[Node]()
-      let val = c.getValue(attr.attrValue, scopetables)
-      notnil val:
-        add attrsTable[attr.attrName], val
+      if attrsTable != nil:
+        if not attrsTable.hasKey(attr.attrName):
+          attrsTable[attr.attrName] = newSeq[Node]()
+        let val = c.getValue(attr.attrValue, scopetables)
+        notnil val:
+          add attrsTable[attr.attrName], val
     of ntParGroupExpr:
       let attrNode = c.getValue(attr.groupExpr, scopetables)
       if not attrsTable.hasKey(attrNode.attrName):
@@ -1794,7 +1809,7 @@ template htmlblock(x: Node, body) =
     add c.output, "<"
     add c.output, t
     if x.htmlAttributes.len > 0:
-      var htmlAttributes: HtmlAttributesTable
+      let htmlAttributes = HtmlAttributesTable()
       c.prepareHtmlAttributes(x.htmlAttributes, htmlAttributes, scopetables)
       add c.output, c.getAttrs(htmlAttributes, scopetables)
     # if x.attrs != nil:
@@ -1877,12 +1892,12 @@ proc createHtmlElement(c: var HtmlCompiler, x: Node,
   let xel = "el" & $(c.jsCountEl)
   add c.jsOutputCode, domCreateElement % [xel, x.getTag()]
   if x.htmlAttributes.len > 0:
-    var htmlAttributes: HtmlAttributesTable
+    let htmlAttributes = HtmlAttributesTable()
     c.prepareHtmlAttributes(x.htmlAttributes, htmlAttributes, scopetables)
     add c.jsOutputCode, c.getAttrs(htmlAttributes, scopetables, xel)
   inc c.jsCountEl
   if x.nodes.len > 0:
-    c.walkNodes(x.nodes, scopetables, xel = xel)
+    c.walkNodes(x.nodes, scopetables, ntClientBlock, xel = xel)
   if pEl.len > 0:
     add c.jsOutputCode,
       domInsertAdjacentElement % [pEl, xel]
@@ -1986,8 +2001,9 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
       # Handle variable/function/block calls
       let x: Node = c.getValue(node, scopetables)
       notnil x:
-        if parentNodeType notin {ntFunction, ntHtmlElement, ntBlock} and x.nt notin {ntHtmlElement, ntLitVoid}:
-          compileErrorWithArgs(fnReturnMissingCommand, [node.identName, $(x.nt)])
+        if parentNodeType notin {ntFunction, ntHtmlElement, ntBlock, ntClientBlock} and
+          x.nt notin {ntHtmlElement, ntLitVoid}:
+            compileErrorWithArgs(fnReturnMissingCommand, [node.identName, $(x.nt)])
         if not c.isClientSide:
           write x, true, node.identSafe
         else:
@@ -2077,7 +2093,7 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
       # Handle `@client` blocks
       c.jsTargetElement = node.clientTargetElement
       c.isClientSide = true
-      c.walkNodes(node.clientStmt, scopetables)
+      c.walkNodes(node.clientStmt, scopetables, ntClientBlock)
       if node.clientBind != nil:
         add c.jsOutputCode,  "{" & node.clientBind.doBlockCode & "}"
       add c.jsOutputCode, "}"
