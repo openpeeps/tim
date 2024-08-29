@@ -328,6 +328,16 @@ proc dumpHook*(s: var string, v: OrderedTableRef[string, Node]) =
     inc i
   s.add("}")
 
+proc toString(node: JsonNode, escape = false): string =
+  result =
+    case node.kind
+    of JString: node.str
+    of JInt:    $node.num
+    of JFloat:  $node.fnum
+    of JBool:   $node.bval
+    of JObject, JArray: $(node)
+    else: "null"
+
 proc toString(node: Node, escape = false): string =
   if likely(node != nil):
     result =
@@ -336,6 +346,7 @@ proc toString(node: Node, escape = false): string =
       of ntLitInt:    $node.iVal
       of ntLitFloat:  $node.fVal
       of ntLitBool:   $node.bVal
+      of ntStream:    toString(node.streamContent)
       of ntLitObject:
         if not escape:
           # fromJson(jsony.toJson(node.objectItems)).pretty
@@ -390,16 +401,6 @@ proc toString(c: var HtmlCompiler, node: Node,
   if escape:
     result = escapeValue(result)
 
-proc toString(node: JsonNode, escape = false): string =
-  result =
-    case node.kind
-    of JString: node.str
-    of JInt:    $node.num
-    of JFloat:  $node.fnum
-    of JBool:   $node.bval
-    of JObject, JArray: $(node)
-    else: "null"
-
 proc toString(value: Value, escape = false): string =
   result =
     case value.kind
@@ -419,6 +420,7 @@ proc getDataType(node: Node): DataType =
   of ntLitArray:  typeArray
   of ntLitObject: typeObject
   of ntFunction:  typeFunction
+  of ntStream:    typeStream
   of ntBlock, ntStmtList:
     typeBlock
   of ntHtmlElement: typeHtmlElement

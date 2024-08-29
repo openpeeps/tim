@@ -226,6 +226,7 @@ registerTokens toktokSettings:
   litObject = "object"
   litArray = "array"
   litFunction = "function"
+  litStream = "stream"
   litVoid = "void"
   
   # magics

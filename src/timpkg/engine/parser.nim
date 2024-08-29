@@ -51,7 +51,7 @@ const
   tkComparable = tkAssignableSet
   tkTypedLiterals = {
     tkLitArray, tkLitBool, tkLitFloat, tkLitFunction,
-    tkLitInt, tkLitObject, tkLitString, tkBlock
+    tkLitInt, tkLitObject, tkLitString, tkBlock, tkLitStream
   }
 
 #
@@ -233,6 +233,7 @@ proc getType(kind: TokenKind): NodeType =
     of tkLitArray: ntLitArray
     of tkLitObject: ntLitObject
     of tkLitFunction: ntFunction
+    of tkLitStream: ntStream
     of tkBlock: ntBlock
     of tkIdentifier:
       ntHtmlElement
@@ -248,6 +249,7 @@ proc getDataType(p: var Parser): DataType =
     of tkLitArray: typeArray
     of tkLitObject: typeObject
     of tkLitFunction: typeFunction
+    of tkLitStream: typeStream
     of tkBlock: typeBlock
     of tkIdentifier:
       typeHtmlElement

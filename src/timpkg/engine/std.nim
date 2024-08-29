@@ -130,8 +130,8 @@ macro initStandardLibrary() =
 
   let
     fnSystem = @[
-      # fwd("json", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
-      # fwd("yaml", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
+      fwd("json", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
+      fwd("yaml", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
       fwd("rand", ntLitInt, [(ntLitInt, "max")], "random", wrapper = getAst(systemRandomize())),
       fwd("len", ntLitInt, [(ntLitString, "x")]),
       # fwd("len", ntLitInt, [(ntLitArray, "x")]),
@@ -436,8 +436,8 @@ macro initStandardLibrary() =
       )
     # when not defined release:
     # echo result.repr
-    # echo "std/" & lib[2]
-    # echo sourceCode
+    echo "std/" & lib[2]
+    echo sourceCode
 
 proc initModuleSystem* =
   {.gcsafe.}:
