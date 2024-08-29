@@ -436,8 +436,8 @@ macro initStandardLibrary() =
       )
     # when not defined release:
     # echo result.repr
-    echo "std/" & lib[2]
-    echo sourceCode
+    # echo "std/" & lib[2]
+    # echo sourceCode
 
 proc initModuleSystem* =
   {.gcsafe.}:
