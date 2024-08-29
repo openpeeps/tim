@@ -394,7 +394,10 @@ proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
         if p.curr is tkCaret:
           walk p; true
         else: false
-      expect {tkInteger, tkIdentVar}:
+      expect {tkInteger, tkIdentVar, tkIdentifier}:
+        if p.curr is tkIdentifier:
+          if p.isFnCall(): discard
+          else: return nil
         let rhs = p.parsePrefix()
         caseNotnil rhs:
           let rangeNode = ast.newNode(ntIndexRange)
@@ -869,7 +872,10 @@ prefixHandle pFor:
       let min = p.curr; walk p
       if likely(isRange()):
         walk p, 2
-        expect {tkInteger, tkIdentVar, tkIdentVarSafe}:
+        expect {tkInteger, tkIdentVar, tkIdentVarSafe, tkIdentifier}:
+          if p.curr is tkIdentifier:
+            if p.isFnCall(): discard
+            else: return nil
           result.loopItems = ast.newNode(ntIndexRange)
           case p.curr.kind
           of tkInteger:
@@ -910,7 +916,8 @@ prefixHandle pAnoObject:
         of tkLC:
           v = p.pAnoObject()
         else:
-          v = p.getPrefixOrInfix(includes = tkAssignableSet)
+          v = p.getPrefixOrInfix(includes = tkAssignableSet + {tkBlock, tkFunc})
+          # todo wip allow defining anonymous functions/blocks 
         caseNotNil v:
           result.objectItems[k.value] = v
           if p.curr is tkComma:
@@ -1088,81 +1095,83 @@ template handleImplicitDefaultValue {.dirty.} =
 prefixHandle pFunction:
   # parse a function declaration
   let tk = p.curr; walk p # tkFN
-  expect tkIdentifier: # function identifier
+  if p.curr is tkIdentifier:
     result = ast.newFunction(tk, p.curr.value)
     walk p
-    if p.curr is tkAsterisk:
-      result.fnExport = true
-      walk p
-    if p.curr is tkLP:
-      walk p
-      result.fnParams = newOrderedTable[string, FNParam]()
-      while p.curr isnot tkRP:
-        var isTypedOrDefault: bool
-        case p.curr.kind
-        of tkIdentifier:
-          let pName = p.curr
-          walk p
-          if p.curr is tkColon:
-            walk p # tkColon
-            let isMut =
-              if p.curr is tkVar:
-                walk p; true
-              else: false
-            case p.curr.kind
-            of tkTypedLiterals:
-              let pType = p.curr.kind.getType
-              let dataType = p.getDataType
-              result.fnParams[pName.value] =
-                (pName.value, pType, nil, dataType, isMut, [p.curr.line, p.curr.pos, p.curr.col]) # todo parse implicit value
-              walk p
-              if p.curr is tkAssign:
-                handleImplicitDefaultValue()
-              else:
-                isTypedOrDefault = true
-            else: return nil
-          elif p.curr is tkAssign:
-            result.fnParams[pName.value] =
-              (pName.value, ntUnknown, nil, typeNil, false, [0, 0, 0])
-            handleImplicitDefaultValue()
-            result.fnParams[pName.value].meta = implNode.meta
-          if p.curr is tkComma and p.next isnot tkRP:
-            walk p
-          elif not isTypedOrDefault and p.next isnot tkIdentifier:
-            return nil
-          elif p.curr isnot tkRP:
-            return nil
-        else: return nil
-      walk p # tkRP
-    if p.curr is tkColon:
-      walk p
+  else:
+    result = ast.newFunction(tk)
+  if p.curr is tkAsterisk:
+    result.fnExport = true
+    walk p
+  if p.curr is tkLP:
+    walk p
+    result.fnParams = newOrderedTable[string, FNParam]()
+    while p.curr isnot tkRP:
+      var isTypedOrDefault: bool
       case p.curr.kind
       of tkIdentifier:
-        if p.curr.value == "Html":
-          walk p; expectWalk(tkLB)
-          result.fnReturnType = p.curr.kind.getType
-          result.fnReturnHtmlElement = htmlTag(p.curr.value)
-          walk p; expectWalk(tkRB)
-        else: discard # todo error
-      of tkLitVoid:
-        result.fnReturnType = ntLitVoid
+        let pName = p.curr
         walk p
-      else:
-        expect tkTypedLiterals:
-          # set a return type
-          result.fnReturnType = p.curr.kind.getType
+        if p.curr is tkColon:
+          walk p # tkColon
+          let isMut =
+            if p.curr is tkVar:
+              walk p; true
+            else: false
+          case p.curr.kind
+          of tkTypedLiterals:
+            let pType = p.curr.kind.getType
+            let dataType = p.getDataType
+            result.fnParams[pName.value] =
+              (pName.value, pType, nil, dataType, isMut, [p.curr.line, p.curr.pos, p.curr.col]) # todo parse implicit value
+            walk p
+            if p.curr is tkAssign:
+              handleImplicitDefaultValue()
+            else:
+              isTypedOrDefault = true
+          else: return nil
+        elif p.curr is tkAssign:
+          result.fnParams[pName.value] =
+            (pName.value, ntUnknown, nil, typeNil, false, [0, 0, 0])
+          handleImplicitDefaultValue()
+          result.fnParams[pName.value].meta = implNode.meta
+        if p.curr is tkComma and p.next isnot tkRP:
           walk p
-    if p.curr in {tkAssign, tkLC}:
-      # begin function body
-      result.fnBody = p.parseStatement(tk, defaultBodyMarker = tkAssign)
-      result.fnSource = p.tree.src
+        elif not isTypedOrDefault and p.next isnot tkIdentifier:
+          return nil
+        elif p.curr isnot tkRP:
+          return nil
+      else: return nil
+    walk p # tkRP
+  if p.curr is tkColon:
+    walk p
+    case p.curr.kind
+    of tkIdentifier:
+      if p.curr.value == "Html":
+        walk p; expectWalk(tkLB)
+        result.fnReturnType = p.curr.kind.getType
+        result.fnReturnHtmlElement = htmlTag(p.curr.value)
+        walk p; expectWalk(tkRB)
+      else: discard # todo error
+    of tkLitVoid:
+      result.fnReturnType = ntLitVoid
+      walk p
     else:
-      if p.tree.src.startsWith("std/") or p.tree.src == "*":
-        result.fnType = FunctionType.fnImportSystem
-      else:
-        result.fnType = FunctionType.fnImportModule
-      result.fnSource = p.tree.src
-      result.fnFwdDecl = true
+      expect tkTypedLiterals:
+        # set a return type
+        result.fnReturnType = p.curr.kind.getType
+        walk p
+  if p.curr in {tkAssign, tkLC}:
+    # begin function body
+    result.fnBody = p.parseStatement(tk, defaultBodyMarker = tkAssign)
+    result.fnSource = p.tree.src
+  else:
+    if p.tree.src.startsWith("std/") or p.tree.src == "*":
+      result.fnType = FunctionType.fnImportSystem
+    else:
+      result.fnType = FunctionType.fnImportModule
+    result.fnSource = p.tree.src
+    result.fnFwdDecl = true
 
 prefixHandle pBlock:
   # parse a macro definition
@@ -1383,8 +1392,27 @@ proc getPrefixOrInfix(p: var Parser, includes,
         return infixNode
   result = lhs
 
-# prefixHandle parseHtmlComment:
-  # parse a HTML comment block
+prefixHandle pComponent:
+  ## Create custom HtmlElements at client-side
+  # todo
+  let tk = p.curr; walk p # tkComponent
+  expect tkIdentifier:
+    let id = p.curr
+    walk p
+    expectWalk tkLP
+    expect tkIdentifier:
+      let tagName = p.curr
+      walk p
+    expectWalk tkRP
+    result = newComponent(id)
+    let componentBody = p.pAnoObject()
+    # todo parsed object is one level
+    # object that should contain specific
+    # keys/values and must be validated
+    # at compile-time
+    caseNotNil componentBody:
+      result.componentBody = componentBody
+    # debugEcho result
 
 proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
   # Parse elements declared at root-level
@@ -1417,7 +1445,7 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkLC:          p.pAnoObject()
     of tkFN, tkFunc:  p.pFunction()
     of tkBlock:       p.pBlock()
-    # of tkComponent:   p.pComponent()
+    of tkComponent:   p.pComponent()
     of tkClient:      p.pClientSide()
     of tkEchoCmd:     p.pEchoCommand()
     of tkDiscardCmd:  p.pDiscardCommand()

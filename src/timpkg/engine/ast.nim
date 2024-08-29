@@ -290,7 +290,7 @@ type
         ## if a function has no return type, then `ntUnknown`
         ## is used as default (void)
       fnReturnHtmlElement*: HtmlTag
-      fnFwdDecl*, fnExport*: bool
+      fnFwdDecl*, fnExport*, fnAnon*: bool
       fnType*: FunctionType
       fnSource*: string
     of ntJavaScriptSnippet,
@@ -699,6 +699,11 @@ proc newFunction*(tk: TokenTuple, ident: string): Node =
   ## Create a new Function definition Node
   result = newNode(ntFunction, tk)
   result.fnIdent = ident
+
+proc newFunction*(tk: TokenTuple): Node =
+  ## Create a new anonymous function definition Node
+  result = newNode(ntFunction, tk)
+  result.fnAnon = true
 
 proc newCall*(tk: TokenTuple): Node =
   ## Create a new function call Node
