@@ -1,4 +1,6 @@
 import ../src/tim
+import ../src/timpkg/engine/meta
+import std/critbits
 
 #
 # Setup Tim Engine
@@ -11,8 +13,15 @@ var
       basepath = currentSourcePath(),
       minify = true,
       indent = 2,
-      showHtmlError = true
+      # showHtmlError = true
     )
+
+tim.initModule:
+  # initialize local module
+  block:
+    proc sayHello(x: string): string =
+      result = ast.newNode(ntLitString)
+      result.sVal = args[0].value.sVal
 
 # some read-only data to expose inside templates
 # using the built-in `$app` constant
@@ -51,14 +60,14 @@ var timThread: Thread[void]
 proc precompileEngine() {.thread.} =
   {.gcsafe.}:
     # let's add some placeholders
-    const snippetCode2 = """
-div.alert.aler.dark.rounded-0.border-0.mb-0 > p.mb-0: "Alright, I'm the second snippet loaded by #topbar placeholder."
-    """
-    let snippetParser = parseSnippet("mysnippet", readFile("./mysnippet.timl"))
-    timl.addPlaceholder("topbar", snippetParser.getAst)
+    #     const snippetCode2 = """
+    # div.alert.aler.dark.rounded-0.border-0.mb-0 > p.mb-0: "Alright, I'm the second snippet loaded by #topbar placeholder."
+    #     """
+    # let snippetParser = parseSnippet("mysnippet", readFile("./mysnippet.timl"))
+    # # timl.addPlaceholder("topbar", snippetParser.getAst)
     
-    let snippetParser2 = parseSnippet("mysnippet2", snippetCode2)
-    timl.addPlaceholder("topbar", snippetParser2.getAst)
+    # let snippetParser2 = parseSnippet("mysnippet2", snippetCode2)
+    # timl.addPlaceholder("topbar", snippetParser2.getAst)
 
     timl.precompile(
       waitThread = true,

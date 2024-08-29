@@ -33,10 +33,10 @@ task examples, "build all examples":
   for e in walkDir(currentSourcePath().parentDir / "example"):
     let x = e.path.splitFile
     if x.name.startsWith("example_") and x.ext == ".nim":
-      exec "nim c -d:timHotCode --threads:on --mm:arc -o:./bin/" & x.name & " example/" & x.name & x.ext
+      exec "nim c -d:timHotCode --threads:on -d:watchoutBrowserSync --deepcopy:on --mm:arc -o:./bin/" & x.name & " example/" & x.name & x.ext
 
 task example, "example httpbeast + tim":
-  exec "nim c -d:timHotCode -d:watchoutBrowserSync --deepcopy:on --path:/Users/georgelemon/Development/packages/importer/src --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"
+  exec "nim c -d:timHotCode -d:watchoutBrowserSync --deepcopy:on --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"
 
 task examplep, "example httpbeast + tim release":
   exec "nim c -d:timStaticBundle -d:release --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"

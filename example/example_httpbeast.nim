@@ -34,12 +34,13 @@ proc onRequest(req: Request): Future[void] =
               "title": "About Tim Engine"
             }
           })
-      req.resp("error", code = Http404, local = %*{
-        "meta": {
-          "title": "Oh, you're a genius!",
-          "msg": "Oh yes, yes. It's got action, it's got drama, it's got dance! Oh, it's going to be a hit hit hit!"
-        }
-      })
+      else:
+        req.resp("error", code = Http404, local = %*{
+          "meta": {
+            "title": "Oh, you're a genius!",
+            "msg": "Oh yes, yes. It's got action, it's got drama, it's got dance! Oh, it's going to be a hit hit hit!"
+          }
+        })
     else: req.send(Http501)
 
 echo "Serving on http://localhost:8080"
