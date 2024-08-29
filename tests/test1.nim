@@ -32,7 +32,7 @@ proc toHtml(id, code: string): (Parser, HtmlCompiler) =
   result[0] = parseSnippet(id, code)  
   result[1] = newCompiler(result[0].getAst, false)
 
-test "language test var":
+test "assignment var":
   const code = """
 var a = 123
 h1: $a
@@ -42,7 +42,7 @@ var b = {}
   check x[0].hasErrors == false
   check x[1].hasErrors == false
 
-test "language test const":
+test "assignment const":
   let code = """
 const x = 123
 h1: $x
@@ -97,6 +97,21 @@ for $fruit in $fruits:
   assert tim.toHtml("test_loops", code) ==
     """<span data-fruit="satsuma">satsuma</span><span data-fruit="watermelon">watermelon</span><span data-fruit="orange">orange</span>"""
 
+test "loops for + nested elements":
+  let code = """
+section#main > div.my-4 > ul.text-center
+  for $x in ["barberbeats", "vaporwave", "aesthetic"]:
+    li.d-block > span.fw-bold: $x"""
+  assert tim.toHtml("test_loops_nested", code) ==
+    """<section id="main"><div class="my-4"><ul class="text-center"><li class="d-block"><span class="fw-bold">barberbeats</span></li><li class="d-block"><span class="fw-bold">vaporwave</span></li><li class="d-block"><span class="fw-bold">aesthetic</span></li></ul></div></section>"""
+
+test "loops for in range":
+  let code = """
+for $i in 0..4:
+  i: $i"""
+  assert tim.toHtml("for_inrange", code) ==
+    """<i>0</i><i>1</i><i>2</i><i>3</i><i>4</i>"""
+
 test "loops using * multiplier":
   let code = """
 const items = ["keyboard", "speakers", "mug"]
@@ -111,3 +126,34 @@ const items = ["keyboard", "speakers", "mug"]
 li * $x: $items[$i]"""
   assert tim.toHtml("test_multiplier", code) ==
     """<li>keyboard</li><li>speakers</li><li>mug</li>"""
+
+test "loops while block + inc break":
+  let code = """
+var i = 0
+while true:
+  if $i == 100:
+    break
+  inc($i)
+span: "Total: " & $i.toString"""
+  assert tim.toHtml("test_while_inc", code) ==
+    """<span>Total: 100</span>"""
+
+test "loops while block + dec break":
+  let code = """
+var i = 100
+while true:
+  if $i == 0:
+    break
+  dec($i)
+span: "Remained: " & $i.toString"""
+  assert tim.toHtml("test_while_dec", code) ==
+    """<span>Remained: 0</span>"""
+
+test "loops while block + dec":
+  let code = """
+var i = 100
+while $i != 0:
+  dec($i)
+span: "Remained: " & $i.toString"""
+  assert tim.toHtml("test_while_dec", code) ==
+    """<span>Remained: 0</span>"""
