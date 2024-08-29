@@ -119,6 +119,7 @@ const
   domSetAttribute = "$1.setAttribute('$2','$3');"
   domInsertAdjacentElement = "$1.insertAdjacentElement('beforeend',$2);"
   domInnerText = "$1.innerText=\"$2\";"
+  domInnerHtml = "$1.innerHTML=`$2`;"
   stdlibPaths = ["std/system", "std/strings", "std/arrays", "std/os", "*"]
 
 # Scope API, available for library version of TimEngine 
@@ -2007,7 +2008,8 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
         if not c.isClientSide:
           write x, true, node.identSafe
         else:
-          add c.jsOutputCode, domInnerText % [xel, c.toString(x, scopetables)]
+          # add c.jsOutputCode, domInnerText % [xel, c.toString(x, scopetables)]
+          add c.jsOutputCode, domInnerHtml % [xel, c.toString(x, scopetables)]
     of ntDotExpr:     writeDotExpression()
     of ntBracketExpr: writeBracketExpr()
     of ntVariableDef:
