@@ -208,6 +208,13 @@ macro initStandardLibrary() =
     for i in 0..args[0].value.arrayItems.high:
       if args[0].value.arrayItems[i].sVal == args[1].value.sVal:
         return ast.newInteger(i)
+  
+  template arrayLength: untyped =
+    ast.newInteger(args[0].value.arrayItems.len)
+
+  template arrayHigh: untyped =
+    ast.newInteger(args[0].value.arrayItems.high)
+
   let
     fnArrays = @[
       fwd("contains", ntLitBool, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysContains()),
@@ -218,6 +225,8 @@ macro initStandardLibrary() =
       fwd("join", ntLitString, [(ntLitArray, "x"), (ntLitString, "sep")], wrapper = getAst arraysJoin()),
       fwd("delete", ntLitVoid, [(ntLitArray, "x"), (ntLitInt, "pos")], wrapper = getAst arraysDelete()),
       fwd("find", ntLitInt, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysFind()),
+      fwd("len", ntLitInt, [(ntLitArray, "x")], wrapper = getAst(arrayLength())),
+      fwd("high", ntLitInt, [(ntLitArray, "x")], wrapper = getAst(arrayHigh())),
     ]
 
   template objectHasKey: untyped =
