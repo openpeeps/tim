@@ -2014,7 +2014,7 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
     of ntCommandStmt:
       # Handle `echo`, `return` and `discard` command statements
       case node.cmdType
-      of cmdReturn. cmdBreak, cmdContinue:
+      of cmdReturn, cmdBreak, cmdContinue:
         return c.evalCmd(node, scopetables, parentNodeType)
       else:
         discard c.evalCmd(node, scopetables, parentNodeType)
