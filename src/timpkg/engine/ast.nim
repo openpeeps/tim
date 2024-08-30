@@ -74,6 +74,7 @@ type
     cmdReturn = "return"
     cmdDiscard = "discard"
     cmdBreak = "break"
+    cmdContinue = "continue"
 
   StorageType* = enum
     scopeStorage
@@ -139,6 +140,7 @@ type
     typeFunction = "function"
     typeBlock = "block"
     typeHtmlElement = "html"
+    typeAny = "any"
 
   Node* {.acyclic.} = ref object
     ## Part of the compiler's abstract syntax tree

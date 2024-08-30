@@ -412,7 +412,7 @@ proc toString(value: Value, escape = false): string =
 proc getDataType(node: Node): DataType =
   # Get `DataType` from `NodeType`
   case node.nt
-  of ntLitVoid: typeVoid
+  of ntLitVoid:   typeVoid
   of ntLitInt:    typeInt
   of ntLitString: typeString
   of ntLitFloat:  typeFloat
@@ -653,7 +653,7 @@ proc evalCmd(c: var HtmlCompiler, node: Node,
     parentNodeType: NodeType = ntUnknown): Node =
   # Evaluate a command
   case node.cmdType
-  of cmdBreak:
+  of cmdBreak, cmdContinue:
     return node
   else:
     var val: Node
@@ -679,8 +679,9 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
     infixOp: InfixOp, scopetables: var seq[ScopeTable]): bool =
   # Evaluates comparison expressions
   if unlikely(lhs == nil or rhs == nil): return
-  let lhs = c.getValue(lhs, scopetables)
-  let rhs = c.getValue(rhs, scopetables)
+  let
+    lhs = c.getValue(lhs, scopetables)
+    rhs = c.getValue(rhs, scopetables)
   if unlikely(lhs == nil or rhs == nil): return
   case infixOp:
   of EQ:
@@ -1166,12 +1167,14 @@ proc evalConcat(c: var HtmlCompiler, node: Node, scopetables: var seq[ScopeTable
     write x, true, false
     write y, true, false
 
-template handleBreakCommand(x: Node) {.dirty.} =
+template handleBreakContinue(x: Node) {.dirty.} =
   if x != nil:
     case x.nt
     of ntCommandStmt:
-      if x.cmdType == cmdBreak:
-        break
+      case x.cmdType
+      of cmdBreak: break
+      of cmdContinue: continue
+      else: discard
     else: discard
 
 template loopEvaluator(kv, items: Node, xel: string) =
@@ -1187,7 +1190,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
         clearScope(scopetables)
         node.loopItem.varValue = nil
-        handleBreakCommand(x)
+        handleBreakContinue(x)
     else: discard # todo error
   of ntLitArray:
     case kv.nt
@@ -1199,7 +1202,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
         clearScope(scopetables)
         node.loopItem.varValue = nil
-        handleBreakCommand(x)
+        handleBreakContinue(x)
     else: discard # todo error
   of ntLitObject:
     case kv.nt
@@ -1211,7 +1214,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
         clearScope(scopetables)
         node.loopItem.varValue = nil
-        handleBreakCommand(x)
+        handleBreakContinue(x)
     of ntIdentPair:
       for x, y in items.objectItems:
         newScope(scopetables)
@@ -1225,7 +1228,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
         clearScope(scopetables)
         node.loopItem.identPairs[0].varValue = nil
         node.loopItem.identPairs[1].varValue = nil
-        handleBreakCommand(x)
+        handleBreakContinue(x)
     else: discard
   of ntIndexRange:
     let x = c.getValue(items.rangeNodes[0], scopetables)
@@ -1240,7 +1243,7 @@ template loopEvaluator(kv, items: Node, xel: string) =
       let x = c.walkNodes(node.loopBody.stmtList, scopetables, xel = xel)
       clearScope(scopetables)
       node.loopItem.varValue = nil
-      handleBreakCommand(x)
+      handleBreakContinue(x)
   else:
     compileErrorWithArgs(invalidIterator)
 
@@ -1925,15 +1928,6 @@ template writeDotExpression =
     else:
       add c.jsOutputCode, domInnerText % [xel, c.toString(x, scopetables)]
 
-template writeCommandStatement =
-  case node.cmdType
-  of cmdReturn:
-    return c.evalCmd(node, scopetables, parentNodeType)
-  of cmdBreak:
-    return c.evalCmd(node, scopetables, parentNodeType)
-  else:
-    discard c.evalCmd(node, scopetables, parentNodeType)
-
 #
 # Main AST explorers
 #
@@ -2019,7 +2013,11 @@ proc walkNodes(c: var HtmlCompiler, nodes: seq[Node],
       c.varExpr(node, scopetables)
     of ntCommandStmt:
       # Handle `echo`, `return` and `discard` command statements
-      writeCommandStatement()
+      case node.cmdType
+      of cmdReturn. cmdBreak, cmdContinue:
+        return c.evalCmd(node, scopetables, parentNodeType)
+      else:
+        discard c.evalCmd(node, scopetables, parentNodeType)
     of ntAssignExpr:
       # Handle assignments
       c.assignExpr(node, scopetables)
@@ -2161,6 +2159,7 @@ proc newCompiler*(ast: Ast, minify = true,
   if minify: setLen(result.nl, 0)
   var scopetables = newSeq[ScopeTable]()
   for moduleName, moduleAst in result.ast.modules:
+    # debugEcho moduleAst.nodes
     result.walkNodes(moduleAst.nodes, scopetables)
   result.walkNodes(result.ast.nodes, scopetables)
 

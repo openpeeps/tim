@@ -554,6 +554,11 @@ prefixHandle pBreakCommand:
   result = ast.newCommand(cmdBreak, nil, p.curr)
   walk p
 
+prefixHandle pContinueCommand:
+  # parse a `continue` command
+  result = ast.newCommand(cmdContinue, nil, p.curr)
+  walk p
+
 template anyAttrIdent: untyped =
   (
     (p.curr in {tkString, tkIdentifier, tkIf, tkFor,
@@ -1372,6 +1377,7 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkEchoCmd: pEchoCommand
     of tkDiscardCmd: pDiscardCommand
     of tkBreakCmd: pBreakCommand
+    of tkContinueCmd: pContinueCommand
     of tkReturnCmd: pReturnCommand
     of tkPlaceholder: pPlaceholder
     of tkAt: pBlockCall
@@ -1414,7 +1420,6 @@ prefixHandle pComponent:
     # at compile-time
     caseNotNil componentBody:
       result.componentBody = componentBody
-    # debugEcho result
 
 proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
   # Parse elements declared at root-level
@@ -1551,8 +1556,8 @@ proc parseModule(engine: TimEngine, moduleName: string,
           p.curr.col, false, p.lex.getError)
         break
       if unlikely(p.hasErrors):
-        echo p.logger.errors.toSeq
-        echo moduleName
+        # echo p.logger.errors.toSeq
+        # echo moduleName
         break
       let node = p.parseRoot()
       if node != nil:
@@ -1563,7 +1568,7 @@ proc parseModule(engine: TimEngine, moduleName: string,
 proc initSystemModule(p: var Parser) =
   ## Make `std/system` available by default
   {.gcsafe.}:
-    let x= "std/system"
+    let x = "std/system"
     var sysNode = ast.newNode(ntImport)
     sysNode.modules.add(x)
     p.tree.nodes.add(sysNode)
@@ -1600,9 +1605,9 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
         p.handle.tree.partials = partials
       if jitMainParser:
         p.handle.tpl.jitEnable
-    for path, notification in engine.importsHandle.notifications:
-      echo path
-      echo notification
+    # for path, notification in engine.importsHandle.notifications:
+      # echo path
+      # echo notification
   collectImporterErrors()
   result = p.handle
 

@@ -251,5 +251,6 @@ registerTokens toktokSettings:
   echoCmd = "echo"
   discardCmd = "discard"
   breakCmd = "break"
+  continueCmd = "continue"
   identVar = tokenize(handleVar, '$')
   identVarSafe
