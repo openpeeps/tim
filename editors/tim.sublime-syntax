@@ -12,20 +12,21 @@ contexts:
 
   main:
     - include: cssSnippet
+    - include: scriptSnippet
+    - include: styleSnippet
     - include: jsSnippet
     - include: json
     - include: yaml
+    - include: identCall
 
-    - match: '\b(echo)\b|@\b(include|end|client|placeholder)\b'
+    - match: '\b(echo)\b|@\b(include|import|end|client|placeholder)\b'
       scope: keyword.control.import.timl
 
     - match: '@view'
       scope: entity.name.function.timl
 
-    - match: '(@mixin)\s([\w+-]*)(\((.*)?\))'
-      captures:
-        1: keyword.control.function.tim
-        2: entity.name.function.tim
+    - match: '(@[\w+-]*)'
+      scope: entity.name.function.tim
 
     - match: '(@[\w+-]*)(\((.*)?\))'
       captures:
@@ -37,7 +38,10 @@ contexts:
     - match: '\$(app|this)\b'
       scope: constant.language.timl
 
-    - match: '\b(if|elif|else|for|in|and|or|fn|return|string|int|float|bool|array|object)\b'
+    - match: '\b(if|elif|else|for|while|in|and|or|fn|func|block|component|return|discard|break|type|typeof)\b'
+      scope: keyword.control.timl
+
+    - match: '\b(string|int|float|bool|array|object|stream)\b'
       scope: keyword.control.timl
 
     - match: '\b(var|const)\b'
@@ -74,8 +78,8 @@ contexts:
       scope: punctuation.definition.comment.tim
       push: line_comment
 
-    - match: '>'
-      scope: markup.bold
+    # - match: '>'
+    #   scope: markup.bold
 
     - match: '(\?|\||\*|/|&|\-|\+)'
       scope: keyword.operator.logical
@@ -86,34 +90,39 @@ contexts:
     - match: '='
       scope: markup.bold keyword.operator.assignment.timl
 
-    - match: '\b(html|head|meta|script|body|title)\b'
+    - match: '\b(?<!\-|\+)(html|head|meta|script|body|title)\b'
       scope: entity.name.tag.timl
 
-    - match: '\b(main|section|article|aside|div|footer|header)\b'
+    - match: '\b(?<!\-|\+)(main|section|article|aside|div|footer|header)\b'
       scope: entity.name.tag.timl
 
-    - match: '\b(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span|small|u|pre|code)\b'
+    - match: '\b(?<!\-|\+)(h1|h2|h3|h4|h5|h6|a|p|em|b|strong|span|small|u|pre|code|blockquote|iframe)\b'
       scope: entity.name.tag.text.timl
 
-    - match: '\b(table|tbody|td|tfoot|th|thead|tr)\b'
+    - match: '\b(?<!\-|\+)(table|tbody|td|tfoot|th|thead|tr)\b'
       scope: entity.name.tag.table.timl
 
-    - match: '\b(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b'
+    - match: '\b(?<!\-|\+)(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b'
       scope: entity.name.tag.selfclosing.timl
 
-    - match: '\b(button|form|label|select|textarea|legend|datalist|output|option|optgroup)\b'
+    - match: '\b(?<!\-|\+)(button|form|label|select|textarea|legend|datalist|output|option|optgroup)\b'
       scope: entity.name.tag.form.timl
 
-    - match: '\b(ul|ol|dl|dt|dd|li)\b'
+    - match: '\b(?<!\-|\+)(ul|ol|dl|dt|dd|li)\b'
       scope: entity.name.tag.list.timl
 
-    # Numbers
     - match: '\b(-)?[0-9.]+\b'
       scope: constant.numeric.tim
 
   varIdent:
     - match: '[A-Za-z_][A-Za-z_0-9]*'
       scope: entity.name
+      pop: true
+
+  identCall:
+    - match: '([A-Za-z_-][A-Za-z_0-9-]*)(\()'
+      captures:
+        1: entity.name.function
       pop: true
 
   single_quoted_string:
@@ -146,7 +155,7 @@ contexts:
       pop: true
 
   jsSnippet:
-    - match: '@\b(js)\b'
+    - match: '@\b(js|do)\b'
       scope: keyword.control.import.tim
       embed: scope:source.js
       embed_scope: meta.tag.tim
@@ -180,3 +189,23 @@ contexts:
       escape: ({{end_block}})
       escape_captures:
         0: keyword.control.import.tim punctuation.definition.tag.end.tim
+
+  styleSnippet:
+    - match: '\b(style)\b:(\s*?)(\"\"\")'
+      captures:
+        1: entity.name.tag.timl
+      embed: scope:source.css
+      embed_scope: meta.tag.tim
+      escape: (\"\"\")
+      escape_captures:
+        0: triple_quoted_string punctuation.definition.tag.end.tim
+
+  scriptSnippet:
+    - match: '\b(script)\b:(\s*?)(\"\"\")'
+      captures:
+        1: entity.name.tag.timl
+      embed: scope:source.js
+      embed_scope: meta.tag.tim
+      escape: (\"\"\")
+      escape_captures:
+        0: triple_quoted_string punctuation.definition.tag.end.tim
