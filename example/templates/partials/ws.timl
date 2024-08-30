@@ -1,17 +1,20 @@
-@js
-  {
-    function connectWatchoutServer() {      
-      const watchout = new WebSocket('ws://127.0.0.1:6502/ws');
-      watchout.addEventListener('message', (e) => {
-        if(e.data == '1') location.reload()
-      });
-      watchout.addEventListener('close', () => {
-        setTimeout(() => {
-          console.log('Watchout WebSocket is closed. Try again...')
-          connectWatchoutServer()
-        }, 300)
-      })
+if $app.watchout.enable:
+  @js
+    // use `%*` to pass data from Tim to Javascript
+    let watchoutSyncPort = %*app.watchout.port
+    {
+      function connectWatchoutServer() {      
+        const watchout = new WebSocket(`ws://127.0.0.1:${watchoutSyncPort}/ws`);
+        watchout.addEventListener('message', (e) => {
+          if(e.data == '1') location.reload()
+        });
+        watchout.addEventListener('close', () => {
+          setTimeout(() => {
+            console.log('Watchout WebSocket is closed. Try again...')
+            connectWatchoutServer()
+          }, 300)
+        })
+      }
+      connectWatchoutServer()
     }
-    connectWatchoutServer()
-  }
-@end
+  @end

@@ -12,26 +12,35 @@ tim.init(
 // Tim Engine - Precompile available templates
 // exposing some basic data to the global storage
 let now = new Date()
+let watchoutOpts = {
+  enable: true,
+  port: 6502,
+  delay: 300,
+}
 tim.precompile({
-  year: now.getFullYear(),
-  stylesheets: [
-    {
-      type: "stylesheet",
-      src: "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-    },
-    {
-      type: "preconnect",
-      src: "https://fonts.googleapis.com"
-    },
-    {
-      type: "preconnect",
-      src: "https://fonts.gstatic.com"
-    },
-    {
-      type: "stylesheet",
-      src: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
-    }
-  ]
+  data: {
+    watchout: watchoutOpts,
+    year: now.getFullYear(),
+    stylesheets: [
+      {
+        type: "stylesheet",
+        src: "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      },
+      {
+        type: "preconnect",
+        src: "https://fonts.googleapis.com"
+      },
+      {
+        type: "preconnect",
+        src: "https://fonts.gstatic.com"
+      },
+      {
+        type: "stylesheet",
+        src: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+      }
+    ]
+  },
+  watchout: watchoutOpts
 })
 
 // Let's create a simple server using `std/http` module
@@ -49,7 +58,8 @@ http.createServer(
         tim.render("index", "base", {
           meta: {
             title: "Tim Engine is Awesome!"
-          }
+          },
+          path: req.url
         })
       )
     } else if(req.url == '/about') {
@@ -58,7 +68,8 @@ http.createServer(
         tim.render("about", "secondary", {
           meta: {
             title: "Tim Engine is Awesome!"
-          }
+          },
+          path: req.url
         })
       )
     } else {
@@ -68,7 +79,8 @@ http.createServer(
           meta: {
             title: "Oh, you're a genius!",
             msg: "Oh yes, yes. It's got action, it's got drama, it's got dance! Oh, it's going to be a hit hit hit!"
-          }
+          },
+          path: req.url
         })
       )
     }

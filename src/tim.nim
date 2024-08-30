@@ -397,11 +397,15 @@ when defined napibuild:
         args.get("indent").getInt
       )
 
-    proc precompile(globals: object, browserSync: object) {.export_napi.} =
+    proc precompile(opts: object) {.export_napi.} =
       ## Precompile TimEngine templates
-      var globals: JsonNode = jsony.fromJson($(args.get("globals")))
-      # timjs.precompile(flush = true, global = globals, waitThread = false)
-      var browserSync: JsonNode = jsony.fromJson($(args.get("browserSync")))
+      var opts: JsonNode = jsony.fromJson($(args.get("opts")))
+      var globals: JsonNode
+      if opts.hasKey"data":
+        globals = opts["data"]
+      var browserSync: JsonNode
+      if opts.hasKey"watchout":
+        browserSync = opts["watchout"]
       let browserSyncPort = browserSync["port"].getInt
       timjs.flush() # each precompilation will flush old files
       timjs.setGlobalData(globals)

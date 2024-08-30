@@ -1,6 +1,5 @@
 // tips: variables declared at template level
 // with default value are known at compile-time
-@import "*"
 const logo = "https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png"
 const heading = "This is Tim 👋 A super fast template engine for cool kids!"
 const lead = // double quote in multi-line strings
@@ -14,5 +13,3 @@ section.pt-5 > div.container > div.row > div#content-zone.col-lg-7.mx-auto
   h1.display-4.fw-bold: $heading
   p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em": $lead
   @include "foot" // include footer
-
-echo sayHello("Tim Engine") // check in terminal
