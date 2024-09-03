@@ -1,3 +1,25 @@
 div.container > div.row > div.col-12
-  h1: "Hello!"
+  h1: "Hello, Hello, Hello!"
+  p: "It's me, The Red Guy!"
   @include "btn"
+
+fn say(guessWho: string): string =
+  return "Hello, " & $guessWho & " is here!"
+
+echo "✨ " & say("The Red Guy") & " ✨"
+
+// passing data form Tim to JavaScript
+var x = "Hello from JavaScript"
+@js
+  console.log("%*x")
+@end
+
+// using `client` block tells Tim to transpile the 
+// given timl code to JavaScript for client-side rendering
+// use `do` block to insert additional
+// js code after `client` block
+@client target="div.container"
+  button.btn: "Hello"
+@do
+  el0.addEventListener('click', (e) => console.log(e.currentTarget))
+@end
