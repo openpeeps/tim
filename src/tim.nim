@@ -576,7 +576,8 @@ else:
   # Build Tim Engine as a standalone CLI application
   import pkg/kapsis
   import pkg/kapsis/[runtime, cli]
-  import timpkg/app/[astCmd, srcCmd, reprCmd, jitCmd, pkgCmd, vmCmd]
+  import timpkg/app/[astCmd, srcCmd, reprCmd]
+  #import timpkg/app/[jitCmd, pkgCmd, vmCmd]
 
   commands:
     -- "Source-to-Source"

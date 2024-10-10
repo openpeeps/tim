@@ -1,5 +1,4 @@
 section.container > div.row.vh-100 > div.col-lg-7.mx-auto.align-self-center.text-center
   h1.display-5.fw-bold: "😅 " & $this.meta.title
   p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em": $this.meta.msg
-  // adding classes in the classic way is also possible!
   a href="/" class="btn btn-outline-secondary text-light btn-lg px-4 rounded-pill": "👉 Go back to Pantzini"

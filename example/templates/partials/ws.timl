@@ -1,7 +1,8 @@
 if $app.watchout.enable:
+  const watchoutPort = $app.watchout.port
   @js
-    // use `%*` to pass data from Tim to Javascript
-    let watchoutSyncPort = %*app.watchout.port
+    // use to pass data from Tim to Javascript
+    let watchoutSyncPort = %*watchoutPort
     {
       function connectWatchoutServer() {      
         const watchout = new WebSocket(`ws://127.0.0.1:${watchoutSyncPort}/ws`);

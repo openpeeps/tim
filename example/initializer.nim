@@ -19,7 +19,7 @@ var
 tim.initModule:
   # initialize local module
   block:
-    proc sayHello(x: string): string =
+    proc sayHello(x: string): Node[ntLitString] =
       result = ast.newNode(ntLitString)
       result.sVal = args[0].value.sVal
 
@@ -27,6 +27,11 @@ tim.initModule:
 # using the built-in `$app` constant
 let globalData = %*{
     "year": parseInt(now().format("yyyy")),
+    "watchout": {
+      "enable": true,
+      "port": 6502,
+      "delay": 300,
+    },
     "stylesheets": [
       {
         "type": "stylesheet",

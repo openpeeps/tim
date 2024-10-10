@@ -2,33 +2,33 @@ html
   head
     @include "meta/head"
     style: """
-  body {
-    background-color: #212121;
-    color: whitesmoke
-  }
+      body {
+        background-color: #212121;
+        color: whitesmoke
+      }
 
-  body, h1, h2, h3, h4, h5, h6,
-  .h1, .h2, .h3, .h4, .h5, .h6{
-    font-family: 'Inter', sans-serif;
-  }
-  
-  .btn-primary {
-    --bs-btn-color: #fff;
-    --bs-btn-bg: #ea4444;
-    --bs-btn-border-color: #ea4444;
-    --bs-btn-hover-color: #fff;
-    --bs-btn-hover-bg: #c73434;
-    --bs-btn-hover-border-color: #c73434;
-    --bs-btn-focus-shadow-rgb: 49,132,253;
-    --bs-btn-active-color: #fff;
-    --bs-btn-active-bg: #b62929;
-    --bs-btn-active-border-color: #b62929;
-    --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
-    --bs-btn-disabled-color: #fff;
-    --bs-btn-disabled-bg: #0d6efd;
-    --bs-btn-disabled-border-color: #0d6efd;
-  }
-  """
+      body, h1, h2, h3, h4, h5, h6,
+      .h1, .h2, .h3, .h4, .h5, .h6{
+        font-family: 'Inter', sans-serif;
+      }
+
+      .btn-primary {
+        --bs-btn-color: #fff;
+        --bs-btn-bg: #ea4444;
+        --bs-btn-border-color: #ea4444;
+        --bs-btn-hover-color: #fff;
+        --bs-btn-hover-bg: #c73434;
+        --bs-btn-hover-border-color: #c73434;
+        --bs-btn-focus-shadow-rgb: 49,132,253;
+        --bs-btn-active-color: #fff;
+        --bs-btn-active-bg: #b62929;
+        --bs-btn-active-border-color: #b62929;
+        --bs-btn-active-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
+        --bs-btn-disabled-color: #fff;
+        --bs-btn-disabled-bg: #0d6efd;
+        --bs-btn-disabled-border-color: #0d6efd;
+      }
+    """
   body
     @view
     @include "ws"

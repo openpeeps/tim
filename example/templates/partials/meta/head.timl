@@ -1,5 +1,6 @@
 meta charset="UTF-8"
 meta name="viewport" content="width=device-width, initial-scale=1"
 title: $this.meta.title
+
 for $style in $app.stylesheets:
   link rel=$style.type href=$style.src
