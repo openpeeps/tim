@@ -5,7 +5,7 @@ on:
       - '*.*.*'
 env:
   APP_NAME: 'tim'
-  NIM_VERSION: 'stable'
+  NIM_VERSION: '2.0.0'
   MAINTAINER: 'OpenPeeps'
 jobs:
   build-artifact:

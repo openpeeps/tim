@@ -1,4 +1,4 @@
-import std/[unittest, htmlparser, xmltree, strtabs, sequtils]
+import std/[unittest, os, htmlparser, xmltree, strtabs, sequtils]
 import ../src/tim
 
 var t = newTim("./app/templates", "./app/storage",
@@ -32,6 +32,9 @@ proc toHtml(id, code: string): (Parser, HtmlCompiler) =
   result[0] = parseSnippet(id, code)  
   result[1] = newCompiler(result[0].getAst, false)
 
+proc load(x: string): string =
+  readFile(currentSourcePath().parentDir / "snippets" / x & ".timl")
+
 test "assignment var":
   const code = """
 var a = 123
@@ -42,13 +45,8 @@ var b = {}
   check x[0].hasErrors == false
   check x[1].hasErrors == false
 
-test "assignment const":
-  let code = """
-const x = 123
-h1: $x
-$x = 321
-  """
-  let x = toHtml("test_var", code)
+test "invalid timl code":
+  let x = toHtml("invalid", load("invalid"))
   check x[0].hasErrors == false
   check x[1].hasErrors == true
 
@@ -84,9 +82,10 @@ if 1 != 1:
 elif 1 > 1:
   span.just-some-basic-stuff: "this is basic"
 else:
-  span"""
+  span.none
+  """
   assert tim.toHtml("test_if", code) ==
-    """<span></span>"""
+    """<span class="none"></span>"""
 
 test "loops for":
   let code = """
@@ -157,3 +156,49 @@ while $i != 0:
 span: "Remained: " & $i.toString"""
   assert tim.toHtml("test_while_dec", code) ==
     """<span>Remained: 0</span>"""
+
+test "function return string":
+  let code = """
+fn hello(x: string): string =
+  return $x
+h1: hello("Tim is awesome!")
+  """
+  assert tim.toHtml("test_function", code) ==
+    """<h1>Tim is awesome!</h1>"""
+
+test "function return int":
+  let code = """
+fn hello(x: int): int =
+  return $x + 10
+h1: hello(7)
+  """
+  assert tim.toHtml("test_function", code) ==
+    """<h1>17</h1>"""
+
+test "objects anonymous function":
+  let code = """
+@import "std/strings"
+@import "std/os"
+
+var x = {
+  getHello:
+    fn(x: string): string {
+      return toUpper($x & " World")
+    }
+}
+h1: $x.getHello("Hello")
+  """
+  assert tim.toHtml("anonymous_function", code) ==
+    """<h1>HELLO WORLD</h1>"""
+
+test "std/strings":
+  let x = toHtml("std_strings", load("std_strings"))
+  assert x[1].hasErrors == false
+
+test "std/arrays":
+  let x = toHtml("std_arrays", load("std_arrays"))
+  assert x[1].hasErrors == false
+
+test "std/objects":
+  let x = toHtml("std_objects", load("std_objects"))
+  assert x[1].hasErrors == false
