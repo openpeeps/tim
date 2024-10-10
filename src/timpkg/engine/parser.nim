@@ -8,8 +8,8 @@
 import std/[macros, macrocache, streams, lexbase,
   strutils, sequtils, re, tables, os, with, options]
 
-import ./meta, ./tokens, ./ast, ./logging, 
-  ./std, ./package/manager
+import ./meta, ./tokens, ./ast, ./logging, ./std
+# import  ./package/manager
 
 import pkg/kapsis/cli
 import pkg/importer
@@ -1117,20 +1117,21 @@ prefixHandle pImport:
           p.engine.parseModule(p.curr.value, std(p.curr.value)[1])
         p.tree.modules[p.curr.value].src = p.curr.value
       elif p.curr.value.startsWith("pkg/"):
-        if likely(p.engine.packager.hasPackage(p.curr.value[4..^1].split("/")[0])):
-          # var moduleAst: Ast
-          # if likely(p.engine.packager.flagNoCache == false):
-          #   moduleAst = p.engine.packager.getCachedModule(p.curr.value)
-          # if moduleAst != nil:
-          #   p.tree.modules[p.curr.value] = moduleAst
-          # else:
-          let moduleCode = p.engine.packager.loadModule(p.curr.value)
-          let moduleAst = p.engine.parseModule(p.curr.value, SourceCode(moduleCode))
-          p.tree.modules[p.curr.value] = moduleAst
-          # if p.engine.packager.flagNoCache == false:
-            # p.engine.packager.cacheModule(p.curr.value, moduleAst)
-        else:
-          errorWithArgs(importError, p.curr, [p.curr.value.addFileExt(".timl")])
+        discard # todo
+        # if likely(p.engine.packager.hasPackage(p.curr.value[4..^1].split("/")[0])):
+        #   # var moduleAst: Ast
+        #   # if likely(p.engine.packager.flagNoCache == false):
+        #   #   moduleAst = p.engine.packager.getCachedModule(p.curr.value)
+        #   # if moduleAst != nil:
+        #   #   p.tree.modules[p.curr.value] = moduleAst
+        #   # else:
+        #   let moduleCode = p.engine.packager.loadModule(p.curr.value)
+        #   let moduleAst = p.engine.parseModule(p.curr.value, SourceCode(moduleCode))
+        #   p.tree.modules[p.curr.value] = moduleAst
+        #   # if p.engine.packager.flagNoCache == false:
+        #     # p.engine.packager.cacheModule(p.curr.value, moduleAst)
+        # else:
+        #   errorWithArgs(importError, p.curr, [p.curr.value.addFileExt(".timl")])
       else:
         let path = 
           (if not isAbsolute(p.curr.value):
@@ -1896,13 +1897,13 @@ proc parseSnippet*(id, code: string,
     logger: Logger(filePath: id),
     engine: TimEngine(
       `type`: TimEngineRuntime.runtimePassAndExit,
-      packager: Packager(
-        flagNoCache: noCache,
-        flagRecache: reCache
-      )
+      # packager: Packager(
+      #   flagNoCache: noCache,
+      #   flagRecache: reCache
+      # )
     ),
   )
-  p.engine.packager.loadPackages()
+  # p.engine.packager.loadPackages()
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   initModuleSystem()
@@ -1931,9 +1932,9 @@ proc parseSnippet*(snippetPath: string): Parser {.gcsafe.} =
     logger: Logger(filePath: snippetPath),
     engine: TimEngine(
       `type`: TimEngineRuntime.runtimePassAndExit,
-      packager: Packager(
-        flagNoCache: true
-      )
+      # packager: Packager(
+      #   flagNoCache: true
+      # )
     ),
   )
   p.curr = p.lex.getToken()
