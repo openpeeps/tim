@@ -27,7 +27,7 @@ jobs:
           - ubuntu-latest
           # - windows-latest
           # - macOS-latest
-          - macos-13 # building on arm64 fails
+          # - macos-13 # building on arm64 fails
     steps:
       - uses: actions/checkout@v2
       - uses: jiro4989/setup-nim-action@v1
@@ -35,6 +35,7 @@ jobs:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 #       - run: sudo apt-get -y install libsass-dev
+      - run: 'apt-get install -y libpcre3-dev'
       - run: "npm install cmake-js -g"
       - run: "choosenim show path -y"
       - run: nimble install -Y
