@@ -35,7 +35,7 @@ jobs:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 #       - run: sudo apt-get -y install libsass-dev
-      - run: 'apt-get install -y libpcre3-dev'
+      - run: 'sudo apt-get install -y libpcre3-dev'
       - run: "npm install cmake-js -g"
       - run: "choosenim show path -y"
       - run: nimble install -Y
