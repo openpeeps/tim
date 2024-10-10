@@ -21,9 +21,10 @@ proc runCommand*(v: Values) =
   ## More details about ZeroMQ check [https://github.com/zeromq](https://github.com/zeromq)
   let path = absolutePath(v.get("config").getPath.path)
   let config = fromYaml(path.readFile, TimConfig)
-  var timEngine = newTim(
-    config.source,
-    config.output,
-    path.parentDir
-  )
+  var timEngine =
+    newTim(
+      config.compilation.source,
+      config.compilation.output,
+      path.parentDir
+    )
   app.run(timEngine, config)

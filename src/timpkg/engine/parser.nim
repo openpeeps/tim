@@ -6,10 +6,10 @@
 
 {.warning[ImplicitDefaultValue]:off.}
 import std/[macros, macrocache, streams, lexbase,
-  strutils, sequtils, re, tables, os, with]
+  strutils, sequtils, re, tables, os, with, options]
 
-import ./meta, ./tokens, ./ast, ./logging
-import ./std
+import ./meta, ./tokens, ./ast, ./logging, 
+  ./std, ./package/manager
 
 import pkg/kapsis/cli
 import pkg/importer
@@ -38,7 +38,9 @@ type
     tree: Ast
       # The generated Abstract Syntax Tree
 
-  PrefixFunction = proc(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
+  PrefixFunction =
+    proc(p: var Parser, excludes, includes: set[TokenKind] = {},
+      indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.}
   InfixFunction = proc(p: var Parser, lhs: Node): Node {.gcsafe.}
 
 const
@@ -66,16 +68,20 @@ proc getInfixFn(p: var Parser, excludes,
 proc parseInfix(p: var Parser, lhs: Node): Node {.gcsafe.}
 
 proc getPrefixOrInfix(p: var Parser, includes,
-    excludes: set[TokenKind] = {}, infix: Node = nil): Node {.gcsafe.}
+    excludes: set[TokenKind] = {}, infix: Node = nil,
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.}
 
 proc parsePrefix(p: var Parser,
-    excludes, includes: set[TokenKind] = {}): Node {.gcsafe.}
+    excludes, includes: set[TokenKind] = {},
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.}
 
 proc pAnoArray(p: var Parser, excludes,
-    includes: set[TokenKind] = {}): Node {.gcsafe.}
+    includes: set[TokenKind] = {},
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.}
 
 proc pAnoObject(p: var Parser, excludes,
-    includes: set[TokenKind] = {}): Node {.gcsafe.}
+    includes: set[TokenKind] = {},
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.}
 
 proc pAssignable(p: var Parser): Node {.gcsafe.}
 
@@ -84,8 +90,14 @@ proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 
 proc pFunctionCall(p: var Parser, excludes,
-    includes: set[TokenKind] = {}): Node {.gcsafe.}
+    includes: set[TokenKind] = {},
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.}
 
+proc pBlockCall(p: var Parser, excludes,
+    includes: set[TokenKind] = {},
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.}
+
+proc parseRangeExpr(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.}
 proc parseTernaryExpr(p: var Parser, infixExpr: Node): Node {.gcsafe.}
@@ -98,7 +110,7 @@ template caseNotNil(x: Node, body): untyped =
     body
   else: return nil
 
-template caseNotNil(x: Node, body, then): untyped =
+template caseNotNil(x: Node|TypeDefinition, body, then): untyped =
   if likely(x != nil):
     body
   else: then
@@ -138,7 +150,7 @@ proc isFnCall(p: var Parser): bool {.inline.} =
 template isRange: untyped =
   (
     (p.curr is tkDot and p.next is tkDot) and
-      (p.curr.line == tk.line and p.next.line == tk.line)
+      (p.curr.line == p.next.line and p.next.wsno == 0)
   )
 
 template expectWalk(kind: TokenKind) =
@@ -156,6 +168,11 @@ template expect(kind: set[TokenKInd], body) =
     body
   else: return nil
 
+template expect(nt: NodeType, expect: set[NodeType], body) =
+  if likely(nt in expect):
+    body
+  else: return nil
+
 proc isIdent(tk: TokenTuple, anyIdent, anyStringKey = false): bool =
   result = tk is tkIdentifier
   if anyStringKey:
@@ -169,6 +186,13 @@ proc skipNextComment(p: var Parser) =
     of tkComment:
       p.next = p.lex.getToken() # skip inline comments
     else: break
+
+template expectNewLine {.dirty.} =
+  if p.curr isnot tkEOF:
+    if p.curr.line == p.prev.line:
+      result = nil
+      error(badIndentation, p.curr)
+  else: discard
 
 proc walk(p: var Parser, offset = 1) {.gcsafe.} =
   var i = 0
@@ -204,6 +228,17 @@ macro prefixHandle(name: untyped, body: untyped) =
         ),
         newNimNode(nnkCurly)
       ),
+      nnkIdentDefs.newTree(
+        ident"indentToken",
+        nnkBracketExpr.newTree(
+          ident"Option",
+          ident"TokenTuple"
+        ),
+        macros.newCall(
+          ident"none",
+          ident"TokenTuple"
+        )
+      )
     ],
     body,
     pragmas = nnkPragma.newTree(ident("gcsafe"))
@@ -218,7 +253,8 @@ proc includePartial(p: var Parser, node: Node, s: string) =
 
 proc getStorageType(p: var Parser): StorageType =
   if p.curr.value in ["this", "app"]:
-    p.tpl.jitEnable()
+    if p.engine.`type` == runtimeLiveAndRun:
+      p.tpl.jitEnable()
     if p.curr.value == "this":
       return localStorage
     result = globalStorage
@@ -239,7 +275,7 @@ proc getType(kind: TokenKind): NodeType =
       ntHtmlElement
     else: ntUnknown
 
-proc getDataType(p: var Parser): DataType =
+proc getDataType(p: var Parser, asIdentifier = false): DataType =
   result =
     case p.curr.kind:
     of tkLitString: typeString
@@ -252,7 +288,8 @@ proc getDataType(p: var Parser): DataType =
     of tkLitStream: typeStream
     of tkBlock: typeBlock
     of tkIdentifier:
-      typeHtmlElement
+      if not asIdentifier: typeHtmlElement
+      else: typeIdentifier
     else: typeNil
 
 #
@@ -269,7 +306,7 @@ prefixHandle pStringConcat:
 
 prefixHandle pBacktick:
   # parse template literals enclosed by backticks
-  # todo
+  # walk p # tkBacktick
   result = ast.newString(p.curr)
   walk p
 
@@ -316,8 +353,17 @@ proc parseStatement(p: var Parser, parent: TokenTuple,
     walk p
   else: return nil
   result = ast.newNode(ntStmtList)
+  # result.meta = [p.curr.line, p.lvl * 4, p.lvl * 4]
   if isIndentBlock:
-    while p.curr isnot tkEOF and p.curr.isChild(parent):
+    if p.curr isnot tkEOF and p.curr.isChild(parent):
+      while p.curr isnot tkEOF and p.curr.isChild(parent):
+        let tk = p.curr
+        let node = p.parsePrefix(excludes, includes)
+        caseNotNil node:
+          add result.stmtList, node
+        do:
+          return nil
+    elif p.curr isnot tkEOF and p.curr.line == parent.line:
       let tk = p.curr
       let node = p.parsePrefix(excludes, includes)
       caseNotNil node:
@@ -352,14 +398,14 @@ proc parseDotExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
     let fnCallNode = p.pFunctionCall()
     caseNotNil fnCallNode:
       result.rhs = fnCallNode
-  elif p.curr is tkIdentifier:
+  elif p.curr.isIdent(anyIdent = true, anyStringKey = true) and p.curr.wsno == 0:
     result.rhs = ast.newIdent(p.curr)
     walk p
   else: return nil
   while true:
     case p.curr.kind
     of tkDot:
-      if p.curr.line == result.meta[0]:
+      if p.curr.line == result.meta[0] and p.curr.wsno == 0:
         result = p.parseDotExpr(result)
       else: break
     of tkLB:
@@ -381,7 +427,7 @@ proc parseBracketExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
       while true:
         case p.curr.kind
         of tkDot:
-          if p.curr.line == result.meta[0]:
+          if p.curr.line == result.meta[0] and p.curr.wsno == 0:
             result = p.parseDotExpr(result)
           else: break
         of tkLB:
@@ -427,7 +473,9 @@ prefixHandle pIdent:
     case p.curr.kind
     of tkDot:
       # handle dot expressions
-      if unlikely(p.next is tkDot):
+      if p.next is tkDot:
+        return # result
+      elif p.curr.wsno > 0:
         return # result
       result = p.parseDotExpr(result)
       caseNotNil result:
@@ -449,16 +497,17 @@ prefixHandle pIdent:
         of ntBracketExpr:
           result.bracketStorageType = storageType
         else: discard
-      if p.curr is tkDot and p.curr.line == result.meta[0]:
+      if p.curr is tkDot and p.curr.line == result.meta[0] and p.curr.wsno == 0:
         result = p.parseDotExpr(result)
       caseNotNil result:
         if p.curr.isInfix:
           result = p.parseInfix(result)
     else: 
-      if p.curr.isInfix and p.next in tkAssignableSet - {tkIdentifier}:
-        # excluding tkIdentifier to avoid
-        # `h1 x=$x > span: ""` conflicts
-        result = p.parseInfix(result)
+      discard # TODO
+      # if p.curr.isInfix and p.next in tkAssignableSet - {tkIdentifier}:
+      #   # excluding tkIdentifier to avoid
+      #   # `h1 x=$x > span: ""` conflicts
+      #   result = p.parseInfix(result)
   if isEscaped:
     var safeVarNode = ast.newNode(ntEscape)
     safeVarNode.escapeIdent = result
@@ -475,16 +524,21 @@ prefixHandle pIdentOrAssignment:
   # if result.nt == ntIdent:
   #   result.identSafe = ident.kind == tkIdentVarSafe
 
-template getAssignedValue: Node {.dirty.} = 
-  case p.curr.kind:
-  of tkAssignableSet:
-    var varDef = p.parseVarDef(identToken, varType)
-    caseNotNil varDef:
-      let varValue = p.getPrefixOrInfix()
-      caseNotNil varValue:
-        varDef.varValue = varvalue
-        varDef
-  else: nil
+template getAssignedValue(typedNode: TypeDefinition = nil, identTypeName = ""): Node {.dirty.} = 
+  # case p.curr.kind:
+  # of tkAssignableSet:
+  var varDef = p.parseVarDef(identToken, varType)
+  caseNotNil varDef:
+    let varValue = p.getPrefixOrInfix()
+    caseNotNil varValue:
+      varDef.varValue = varvalue
+      caseNotNil typedNode:
+        varDef.varValueType = typedNode
+        if varDef.varValueType.datatype == typeIdentifier:
+          varDef.varValueType.typeName = identTypeName
+      do: discard
+      varDef
+  # else: nil
 
 prefixHandle pAssignment:
   # parse assignment
@@ -498,19 +552,22 @@ prefixHandle pAssignment:
   of tkColon:
     walk p # tkColon
     case p.curr.kind
-    of tkTypedLiterals:
-      let varValueType = p.getDataType
+    of tkTypedLiterals + {tkIdentifier}:
+      let typeName: TokenTuple = p.curr
+      let varValueType =
+        TypeDefinition(datatype:
+          p.getDataType(asIdentifier = true))
       walk p
       if p.curr is tkAssign:
         walk p
-        return getAssignedValue()
+        return getAssignedValue(varValueType, typeName.value)
       result = p.parseVarDef(identToken, varType)
       result.varValueType = varValueType
       if result.varValue == nil:
-        result.varValue = ast.getDefaultValue(result.varValueType)
+        result.varValue =
+          ast.getDefaultValue(result.varValueType.datatype)
     else: discard # `unexpectedToken`
   else: discard # `unexpectedToken`
-
 
 prefixHandle pEchoCommand:
   # parse `echo` command
@@ -558,10 +615,19 @@ prefixHandle pContinueCommand:
   # parse a `continue` command
   result = ast.newCommand(cmdContinue, nil, p.curr)
   walk p
+  expectNewLine()
+
+prefixHandle pAssertCommand:
+  # parse an `assert` command
+  let tk = p.curr
+  walk p
+  let assertionNode = p.getPrefixOrInfix(includes = tkAssignableSet) 
+  caseNotNil assertionNode:
+    result = ast.newCommand(cmdAssert, assertionNode, tk)
 
 template anyAttrIdent: untyped =
   (
-    (p.curr in {tkString, tkIdentifier, tkIf, tkFor,
+    (p.curr in {tkString, tkIdentifier, tkType, tkIf, tkFor,
       tkElif, tkElse, tkOr, tkIn} and p.next is tkAssign) or
     (
       (p.curr is tkIdentifier and p.curr.value[0] in IdentChars) and
@@ -578,19 +644,48 @@ prefixHandle pGroupExpr:
   caseNotNil result.groupExpr:
     expectWalk tkRP
 
+proc getAttributeValue(p: var Parser, tk: TokenTuple): Node =
+  if p.next is tkLC and tk.line == p.next.line:
+    result = ast.newNode(ntIdent)
+    result.identName = tk.value
+    result.meta = tk.trace
+    walk p
+    while p.curr.line == tk.line:
+      case p.curr.kind
+      of tkIdentifier:
+        let arg: Node = p.pString()
+        caseNotNil arg:
+          add result.identArgs, arg
+      of tkLC:
+        walk p # tkLC
+        while p.curr isnot tkRC:
+          if p.curr is tkEOF: return nil # todo error
+          let arg: Node = p.getPrefixOrInfix()
+          caseNotNil arg:
+            add result.identArgs, arg
+        walk p # tkRC
+      else: break
+  else:
+    result = ast.newString(tk)
+    walk p
+
 proc parseAttributes(p: var Parser, attrs: var seq[Node],
     el: TokenTuple) {.gcsafe.} =
   # parse HTML element attributes
   while true:
     case p.curr.kind
-    of tkEOF: break
+    of tkEOF:
+      break
     of tkDot:
       walk p
       if likely(anyAttrIdent()):
         let attrKey = "class"
+        let attrValueToken = p.curr
+        let attrValue = p.getAttributeValue(attrValueToken)
         add attrs,
-          ast.newHtmlAttribute("class", ast.newString(p.curr), p.curr)
-        walk p
+          ast.newHtmlAttribute("class",
+            attrValue, p.curr
+          )
       else: return
     of tkID:
       walk p
@@ -657,11 +752,14 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node],
       else:
         case p.curr.kind
         of tkIdentVar, tkIdentVarSafe:
-          if p.curr.line == el.line or p.curr.pos > el.line:
-            discard
-          elif p.next isnot tkGT and p.next.line != p.curr.line:
-            if p.curr.pos <= el.pos or not p.next.isInfix:
+          if p.curr.line == el.line:
+            discard # parse var as HtmlAttribute
+          elif p.next notin {tkGT, tkAssign} and p.next.line != p.curr.line:
+            if el.pos >= p.curr.pos or p.next.isInfix == false:
               break
+            else: discard
+          elif p.next is tkEOF and p.curr.pos >= el.pos:
+            break 
           let x = p.pIdent()
           caseNotNil x:
             add attrs, x
@@ -671,8 +769,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node],
           caseNotNil exprNode:
             add attrs, exprNode
           do: break
-        else:
-          break
+        else: break
 
 prefixHandle pElement:
   # parse HTML Element
@@ -690,14 +787,14 @@ prefixHandle pElement:
       add p.parentNode, result
   # parse HTML attributes
   case p.curr.kind
-  of tkDot, tkID, tkIdentifier:
+  of tkDot, tkID, tkIdentifier, tkType:
     p.parseAttributes(result.htmlAttributes, this)
   of tkIdentVar, tkIdentVarSafe:
     let x = p.pIdent()
     caseNotNil x:
       add result.htmlAttributes, x
     case p.curr.kind
-    of tkDot, tkID, tkIdentifier:
+    of tkDot, tkID, tkIdentifier, tkType:
       p.parseAttributes(result.htmlAttributes, this)
     else: discard
   of tkAsterisk:
@@ -771,6 +868,11 @@ prefixHandle pElement:
           if p.lvl != 0:
             dec p.lvl
           return result
+      elif p.next is tkAt:
+        walk p
+        node = p.pBlockCall(indentToken = some(this))
+        caseNotNil node:
+          add result.nodes, node
       else: return
   else: discard
   # parse nested nodes
@@ -793,9 +895,18 @@ prefixHandle pElement:
 
 proc parseCondBranch(p: var Parser, tk: TokenTuple): ConditionBranch {.gcsafe.} =
   walk p # `if` or `elif` token
+  let current = p.curr
   result.expr = p.getPrefixOrInfix()
   caseNotNil result.expr:
-    result.body = p.parseStatement(tk)
+    if likely(result.expr.nt in ntAssignableSet + {ntDotExpr, ntIdent,
+        ntInfixExpr, ntMathInfixExpr, ntBracketExpr}):
+      result.body = p.parseStatement(tk)
+      caseNotNil result.body:
+        discard
+      do:
+        error(badIndentation, p.curr)
+    else:
+      errorWithArgs(unexpectedToken, current, [current.value])
   do: return
 
 prefixHandle pCondition:
@@ -826,16 +937,19 @@ prefixHandle pCase:
   let tk = p.curr
   result = ast.newNode(ntCaseStmt)
   walk p
-  let caseExpr = p.getPrefixOrInfix()
-  caseNotNil caseExpr:
-    let firstof = p.curr
-    expectWalk tkOF
-    while p.curr is tkOF and (p.curr.isChild(tk) and p.curr.pos > firstof.pos):
+  result.caseExpr = p.getPrefixOrInfix()
+  caseNotNil result.caseExpr:
+    let firstOf = p.curr
+    while p.curr is tkOF and (p.curr.isChild(tk) or p.curr.pos == tk.pos):
       let currOfToken = p.curr
       walk p # tkOF
-      let caseValue = p.getPrefixOrInfix()
+      let caseValue: Node = p.getPrefixOrInfix()
       caseNotNil caseValue:
-        discard p.parseStatement(currOfToken, excludes, includes)
+        let caseStmt: Node = p.parseStatement(currOfToken, excludes, includes)
+        caseNotNil caseStmt:
+          add result.caseBranch, (caseValue, caseStmt)
+    # handle else statement
+    # todo
 
 prefixHandle pWhile:
   # parse `while` statement
@@ -871,31 +985,11 @@ prefixHandle pFor:
       walk p
     let inToken = p.curr
     expectWalk tkIN
-    if p.curr in {tkIdentVar, tkIdentVarSafe, tkString, tkLB} or p.isFnCall:
-      let items = p.parsePrefix()
-      caseNotNil items:
-        result.loopItems = items
-    elif p.curr in {tkInteger, tkIdentVar, tkIdentVarSafe} and p.curr.line == inToken.line:
-      let min = p.curr; walk p
-      if likely(isRange()):
-        walk p, 2
-        expect {tkInteger, tkIdentVar, tkIdentVarSafe, tkIdentifier}:
-          if p.curr is tkIdentifier:
-            if p.isFnCall(): discard
-            else: return nil
-          result.loopItems = ast.newNode(ntIndexRange)
-          case p.curr.kind
-          of tkInteger:
-            result.loopItems.rangeNodes = [
-              ast.newInteger(min.value.parseInt, min),
-              ast.newInteger(p.curr.value.parseInt, p.curr)
-            ]
-            walk p
-          of tkIdentVar, tkIdentVarSafe:
-            result.loopItems.rangeNodes[0] = ast.newInteger(min.value.parseInt, min)
-            result.loopItems.rangeNodes[1] = p.pIdent()
-          else: discard
-      else: return nil
+    let itemsNode = p.getPrefixOrInfix()
+    expect itemsNode.nt,
+      {ntIdent, ntLitInt, ntIndexRange, ntDotExpr,
+        ntBracketExpr, ntLitArray, ntLitObject}:
+        result.loopItems = itemsNode
     result.loopBody = p.parseStatement(tk)
     caseNotNil result.loopBody:
       discard
@@ -923,11 +1017,15 @@ prefixHandle pAnoObject:
         of tkLC:
           v = p.pAnoObject()
         else:
-          v = p.getPrefixOrInfix(includes = tkAssignableSet + {tkBlock, tkFunc})
+          v =
+            p.getPrefixOrInfix(
+              includes = tkAssignableSet + {tkBlock, tkFunc, tkFn},
+              indentToken = some(k)
+            )
           # todo wip allow defining anonymous functions/blocks 
         caseNotNil v:
           result.objectItems[k.value] = v
-          if p.curr is tkComma:
+          if p.curr is tkComma and likely(p.prev isnot tkComma):
             walk p
           elif p.curr isnot tkRC:
             if p.curr.line == v.meta[0]:
@@ -1009,7 +1107,7 @@ prefixHandle pInclude:
 prefixHandle pImport:
   # parse `@import`
   {.gcsafe.}:
-    if likely p.next is tkString:
+    if likely(p.next is tkString):
       let tk = p.curr
       walk p
       result = ast.newNode(ntImport, tk)
@@ -1018,6 +1116,21 @@ prefixHandle pImport:
         p.tree.modules[p.curr.value] =
           p.engine.parseModule(p.curr.value, std(p.curr.value)[1])
         p.tree.modules[p.curr.value].src = p.curr.value
+      elif p.curr.value.startsWith("pkg/"):
+        if likely(p.engine.packager.hasPackage(p.curr.value[4..^1].split("/")[0])):
+          # var moduleAst: Ast
+          # if likely(p.engine.packager.flagNoCache == false):
+          #   moduleAst = p.engine.packager.getCachedModule(p.curr.value)
+          # if moduleAst != nil:
+          #   p.tree.modules[p.curr.value] = moduleAst
+          # else:
+          let moduleCode = p.engine.packager.loadModule(p.curr.value)
+          let moduleAst = p.engine.parseModule(p.curr.value, SourceCode(moduleCode))
+          p.tree.modules[p.curr.value] = moduleAst
+          # if p.engine.packager.flagNoCache == false:
+            # p.engine.packager.cacheModule(p.curr.value, moduleAst)
+        else:
+          errorWithArgs(importError, p.curr, [p.curr.value.addFileExt(".timl")])
       else:
         let path = 
           (if not isAbsolute(p.curr.value):
@@ -1029,7 +1142,7 @@ prefixHandle pImport:
           p.tree.modules[path] =
             p.engine.parseModule(path, SourceCode(contents))
         else:
-          errorWithArgs(importNotFound, p.curr, [p.curr.value.addFileExt(".timl")])
+          errorWithArgs(importError, p.curr, [p.curr.value.addFileExt(".timl")])
         if likely(not p.hasErrors):
           p.tree.modules[path].src = path
       walk p
@@ -1049,6 +1162,9 @@ prefixHandle pSnippet:
     result.snippetCode = p.curr.value
   of tkSnippetJSON:
     result = ast.newNode(ntJsonSnippet, p.curr)
+    if p.curr.attr.len > 0:
+      if p.curr.attr[0].startsWith("#"):
+        result.snippetId = p.curr.attr[0][1..^1]
     result.snippetCode = p.curr.value    
   else: discard
   walk p
@@ -1089,27 +1205,49 @@ prefixHandle pPlaceholder:
   expect tkIdentifier:
     result = ast.newNode(ntPlaceholder)
     result.placeholderName = p.curr.value; walk p
-    p.tpl.jitEnable()
+    if p.engine.`type` == runtimeLiveAndRun:
+      p.tpl.jitEnable()
 
 template handleImplicitDefaultValue {.dirty.} =
   # handle implicit default value
   walk p
   let implNode = p.getPrefixOrInfix(includes = tkAssignableSet)
   caseNotNil implNode:
-    result.fnParams[pName.value].pImplVal = implNode
+    result.fnParams[paramName.value].paramImplicitValue = implNode
     isTypedOrDefault = true
+
+proc getFunctionIdent(p: var Parser, tk: TokenTuple): Node =
+  result = ast.newNode(ntIdent)
+  result.identName = p.curr.value
+  result.meta = p.curr.trace
+  walk p
+  while p.curr.line == tk.line:
+    case p.curr.kind
+    of tkIdentifier:
+      let arg: Node = p.pString()
+      caseNotNil arg:
+        add result.identArgs, arg
+    of tkLC:
+      walk p # tkLC
+      while p.curr isnot tkRC:
+        let arg: Node = p.getPrefixOrInfix()
+        caseNotNil arg:
+          add result.identArgs, arg
+      walk p # tkRC
+    else: break
 
 prefixHandle pFunction:
   # parse a function declaration
   let tk = p.curr; walk p # tkFN
   if p.curr is tkIdentifier:
-    result = ast.newFunction(tk, p.curr.value)
-    walk p
+    let fnIdent: Node = p.getFunctionIdent(tk)
+    caseNotNil fnIdent:
+      result = ast.newFunction(tk, fnIdent)
+    if p.curr is tkAsterisk:
+      result.fnExport = true
+      walk p
   else:
     result = ast.newFunction(tk)
-  if p.curr is tkAsterisk:
-    result.fnExport = true
-    walk p
   if p.curr is tkLP:
     walk p
     result.fnParams = newOrderedTable[string, FNParam]()
@@ -1117,7 +1255,7 @@ prefixHandle pFunction:
       var isTypedOrDefault: bool
       case p.curr.kind
       of tkIdentifier:
-        let pName = p.curr
+        let paramName = p.curr
         walk p
         if p.curr is tkColon:
           walk p # tkColon
@@ -1127,21 +1265,38 @@ prefixHandle pFunction:
             else: false
           case p.curr.kind
           of tkTypedLiterals:
-            let pType = p.curr.kind.getType
+            let paramType = p.curr.kind.getType
             let dataType = p.getDataType
-            result.fnParams[pName.value] =
-              (pName.value, pType, nil, dataType, isMut, [p.curr.line, p.curr.pos, p.curr.col]) # todo parse implicit value
-            walk p
+            result.fnParams[paramName.value] =
+              (
+                paramName.value, paramType, nil, dataType, nil, "", isMut,
+                [p.curr.line, p.curr.pos, p.curr.col]
+              )
+            walk p # any of tkAssignableSet
             if p.curr is tkAssign:
               handleImplicitDefaultValue()
-            else:
-              isTypedOrDefault = true
+            elif dataType == typeBlock and (p.curr is tkLB and p.curr.line == p.prev.line):
+              walk p # tkLB
+              let paramTypeGenericIdent = p.pIdent()
+              caseNotNil paramTypeGenericIdent:
+                result.fnParams[paramName.value].paramTypeGenericIdent = paramTypeGenericIdent
+              expectWalk tkRB
+            isTypedOrDefault = true
+          of tkIdentifier:
+            result.fnParams[paramName.value] =
+              (
+                paramName.value, ntIdent, nil, typeIdentifier, nil,
+                p.curr.value, isMut, [p.curr.line, p.curr.pos, p.curr.col]
+              )
+            # todo handle implicit values
+            isTypedOrDefault = true
+            walk p # tkIdentifier
           else: return nil
         elif p.curr is tkAssign:
-          result.fnParams[pName.value] =
-            (pName.value, ntUnknown, nil, typeNil, false, [0, 0, 0])
+          result.fnParams[paramName.value] =
+            (paramName.value, ntUnknown, nil, typeNil, nil, "", false, [0, 0, 0])
           handleImplicitDefaultValue()
-          result.fnParams[pName.value].meta = implNode.meta
+          result.fnParams[paramName.value].meta = implNode.meta
         if p.curr is tkComma and p.next isnot tkRP:
           walk p
         elif not isTypedOrDefault and p.next isnot tkIdentifier:
@@ -1170,7 +1325,10 @@ prefixHandle pFunction:
         walk p
   if p.curr in {tkAssign, tkLC}:
     # begin function body
-    result.fnBody = p.parseStatement(tk, defaultBodyMarker = tkAssign)
+    let indentToken =
+      if indentToken.isSome: indentToken.get()
+                       else: tk
+    result.fnBody = p.parseStatement(indentToken, defaultBodyMarker = tkAssign)
     result.fnSource = p.tree.src
   else:
     if p.tree.src.startsWith("std/") or p.tree.src == "*":
@@ -1179,17 +1337,20 @@ prefixHandle pFunction:
       result.fnType = FunctionType.fnImportModule
     result.fnSource = p.tree.src
     result.fnFwdDecl = true
+    if not p.tree.forwardDeclarations.hasKey(result.fnIdent.identName):
+      p.tree.forwardDeclarations[result.fnIdent.identName] = @[result]
+    else:
+      add p.tree.forwardDeclarations[result.fnIdent.identName], result
 
 prefixHandle pBlock:
-  # parse a macro definition
+  # parse a `block` definition
   result = p.pFunction(excludes, includes)
   caseNotNil result:
-    result.fnIdent = "@" & result.fnIdent
+    result.fnIdent.identName = "@" & result.fnIdent.identName
     result.nt = ntBlock
     if p.curr is tkDO and p.curr.line == result.meta[0]:
       result.clientBind = ast.newNode(ntDoBlock)
       result.clientBind.doBlockCode = p.curr.value
-
 
 prefixHandle pFunctionCall:
   # parse a function call
@@ -1207,14 +1368,27 @@ prefixHandle pFunctionCall:
   walk p # tkRP
 
 prefixHandle pBlockCall:
-  # Parse a macro call
-  let tk = p.curr
+  # Parse a block call
+  let tk =
+    if indentToken.isSome:
+      indentToken.get()
+    else:
+      p.curr
   walk p # tkAt
   expect tkIdentifier:
     result = ast.newBlockIdent(p.curr)
     walk p
+    # todo fix block calls with parentheses
+    var isPar =
+      if p.curr is tkLP:
+        walk p; true
+      else: false
     while true:
       case p.curr.kind
+      of tkRP:
+        if isPar:
+          walk p; break
+        else: return nil
       of tkComma:
         walk p
         if p.curr is tkIdentifier and p.next is tkAssign:
@@ -1224,6 +1398,18 @@ prefixHandle pBlockCall:
           let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
           caseNotNil argNode:
             add result.identArgs, argNode
+      # of tkAssignableSet:
+      #   let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
+      #   caseNotNil argNode:
+      #     add result.identArgs, argNode
+      of tkGT:
+        walk p # tkGT
+        let stmtNode = ast.newNode(ntStmtList)
+        let childNode = p.getPrefixOrInfix(indentToken = some(tk))
+        caseNotNil childNode:
+          add stmtNode.stmtList, childNode
+        add result.identArgs, stmtNode
+        break
       of tkColon:
         if p.next.isChild(tk):
           let stmtNode = p.parseStatement(tk)
@@ -1237,10 +1423,18 @@ prefixHandle pBlockCall:
           break
       of tkDot, tkID:
         p.parseAttributes(result.identArgs, tk)
-      of tkIdentifier:
-        if tk.col >= p.curr.col: break
-        p.parseAttributes(result.identArgs, tk)
-      else: break
+      else:
+        if p.curr is tkEOF or
+           tk.pos >= p.curr.pos: break
+        if p.next is tkAssign:
+          p.parseAttributes(result.identArgs, tk)
+        else:
+          let stmtNode = ast.newNode(ntStmtList)
+          while p.curr.isChild(tk):
+            let childNode = p.getPrefixOrInfix()
+            caseNotNil childNode:
+              add stmtNode.stmtList, childNode
+          add result.identArgs, stmtNode
 
 #
 # Infix Main Handlers
@@ -1298,7 +1492,11 @@ proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
   let infixOp = getInfixMathOp(p.curr.kind, false)
   walk p
   let rhstk = p.curr
-  let rhs = p.parsePrefix(includes = tkComparable)
+  let rhs =
+    if p.curr is tkLP:
+      p.pGroupExpr()
+    else:
+      p.parsePrefix(includes = tkComparable)
   caseNotNil rhs:
     result = ast.newNode(ntMathInfixExpr, rhstk)
     result.infixMathOp = infixOp
@@ -1319,11 +1517,22 @@ proc parseAssignExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   caseNotNil varValue:
     result = ast.newAssignment(lhs, varValue)
 
+proc parseRangeExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
+  # parse a range expression `[$x .. $y]`
+  walk p, 2
+  let yNode = p.getPrefixOrInfix()
+  caseNotNil yNode:
+    result = ast.newNode(ntIndexRange)
+    result.rangeNodes = [lhs, yNode]
+
 proc getInfixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): InfixFunction {.gcsafe.} =
   case p.curr.kind
   of tkCompSet: parseCompExp
   of tkMathSet: parseMathExp
   of tkAssign: parseAssignExpr
+  of tkDot:
+    if isRange(): parseRangeExpr
+    else: nil
   else: nil
 
 proc parseInfix(p: var Parser, lhs: Node): Node {.gcsafe.} =
@@ -1372,28 +1581,33 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkClient: pClientSide
     of tkLB: pAnoArray
     of tkLC: pAnoObject
+    # of tkLP: pGroupExpr ???????
     of tkFN, tkFunc: pFunction
     of tkBlock: pBlock
     of tkEchoCmd: pEchoCommand
     of tkDiscardCmd: pDiscardCommand
     of tkBreakCmd: pBreakCommand
     of tkContinueCmd: pContinueCommand
+    of tkAssertCmd: pAssertCommand
     of tkReturnCmd: pReturnCommand
     of tkPlaceholder: pPlaceholder
     of tkAt: pBlockCall
     else: nil
 
 proc parsePrefix(p: var Parser, excludes,
-    includes: set[TokenKind] = {}): Node {.gcsafe.} =
+    includes: set[TokenKind] = {},
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.} =
   let prefixFn = p.getPrefixFn(excludes, includes)
   if likely(prefixFn != nil):
-    return p.prefixFn(excludes, includes)
+    return p.prefixFn(excludes, includes,
+      indentToken = indentToken)
   result = nil
 
 proc getPrefixOrInfix(p: var Parser, includes,
-    excludes: set[TokenKind] = {}, infix: Node = nil): Node {.gcsafe.} =
-  let lhs = p.parsePrefix(excludes, includes)
-  if p.curr.isInfix:
+    excludes: set[TokenKind] = {}, infix: Node = nil,
+    indentToken: Option[TokenTuple] = none(TokenTuple)): Node {.gcsafe.} =
+  let lhs = p.parsePrefix(excludes, includes, indentToken)
+  if p.curr.isInfix or isRange():
     caseNotNil lhs:
       let infixNode = p.parseInfix(lhs)
       caseNotNil infixNode:
@@ -1420,6 +1634,65 @@ prefixHandle pComponent:
     # at compile-time
     caseNotNil componentBody:
       result.componentBody = componentBody
+
+prefixHandle pTypeDefinition:
+  ## Parse a type definition block
+  let tk = p.curr # tkType
+  walk p
+  expect tkIdentifier:
+    result = ast.newNode(ntTypeDef)
+    result.typeIdent = p.curr.value
+    result.meta = tk.trace
+    walk p;
+    if p.curr is tkAsterisk:
+      if p.next is tkAsterisk:
+        result.typeExport = VisibilityType.vtProtected
+        walk p, 2
+      else:
+        result.typeExport = VisibilityType.vtPublic
+        walk p
+    expectWalk tkAssign
+    case p.curr.kind
+    of tkTypedLiterals:
+      result.typeStructDef =
+        TypeDefinition(dataType: p.getDataType())
+      walk p
+    of tkLC:
+      walk p
+      result.typeStructDef =
+        TypeDefinition(dataType: typeObject)
+      new(result.typeStructDef.objectType)
+      while p.curr isnot tkRC and p.hasErrors == false:
+        if p.curr is tkEOF: errorWithArgs(eof, p.curr, [$tkRC])
+        if p.curr.isIdent(anyIdent = true, anyStringKey = true) and p.next is tkColon:
+          let k = p.curr
+          walk p, 2 # key and colon
+          case p.curr.kind
+          of tkTypedLiterals, tkIdentifier:
+            let ft = p.getDataType(asIdentifier = true)
+            if likely(ft != typeNil):
+              result.typeStructDef.objectType[k.value] = (ft, p.curr.value, nil)
+              walk p
+              if p.curr is tkAssign:
+                walk p
+                let implValue: Node = p.getPrefixOrInfix(includes = tkAssignableSet)
+                caseNotNil implValue:
+                  result.typeStructDef.objectType[k.value][2] = implValue
+            else: 
+              # todo error message for typeNil
+              return nil
+          else: return nil
+        else:
+          if p.curr is tkComma and likely(p.prev isnot tkComma):
+            walk p
+          elif p.curr isnot tkRC:
+            if p.curr.line == p.prev.line:
+              result = nil
+              error(badIndentation, p.curr)
+          else: return nil
+      expectWalk tkRC
+    else:
+      result = nil
 
 proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
   # Parse elements declared at root-level
@@ -1453,11 +1726,13 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkFN, tkFunc:  p.pFunction()
     of tkBlock:       p.pBlock()
     of tkComponent:   p.pComponent()
+    of tkType:        p.pTypeDefinition()
     of tkClient:      p.pClientSide()
     of tkEchoCmd:     p.pEchoCommand()
     of tkDiscardCmd:  p.pDiscardCommand()
     of tkPlaceholder: p.pPlaceholder()
     of tkAt:          p.pBlockCall()
+    of tkAssertCmd:    p.pAssertCommand()
     else: nil
   if unlikely(result == nil):
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev
@@ -1529,7 +1804,7 @@ template collectImporterErrors =
     var emsg: logging.Message
     case err.reason
     of ImportErrorMessage.importNotFound:
-      emsg = Message.importNotFound
+      emsg = Message.importError
     of ImportErrorMessage.importCircularError:
       emsg = Message.importCircularError
     else: discard
@@ -1542,22 +1817,22 @@ proc parseModule(engine: TimEngine, moduleName: string,
     code: SourceCode = SourceCode("")): Ast {.gcsafe.} =
   {.gcsafe.}:
     var p = Parser(
-      tree: Ast(src: moduleName),
+      tree: Ast(src: moduleName, partials: TimPartialsTable()),
       engine: engine,
       lex: newLexer(code.string, allowMultilineStrings = true),
       logger: Logger(filePath: "")
     )
     p.curr = p.lex.getToken()
     p.next = p.lex.getToken()
-    # p.skipComments() # if any
+    p.skipComments() # if any
     while p.curr isnot tkEOF:
       if unlikely(p.lex.hasError):
         p.logger.newError(internalError, p.curr.line,
           p.curr.col, false, p.lex.getError)
         break
       if unlikely(p.hasErrors):
-        # echo p.logger.errors.toSeq
-        # echo moduleName
+        echo p.logger.errors.toSeq
+        echo moduleName
         break
       let node = p.parseRoot()
       if node != nil:
@@ -1594,7 +1869,7 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
   p.handle.engine = engine
   p.handle.tpl = tpl
   p.handle.refreshAst = refreshAst
-  p.handle.tree = Ast(src: tpl.sources.src)
+  p.handle.tree = Ast(src: tpl.sources.src, partials: TimPartialsTable())
   p.handle.lex = newLexer(readFile(tpl.sources.src), allowMultilineStrings = true)
   initModuleSystem()
   p.handle.initSystemModule()
@@ -1611,14 +1886,23 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
   collectImporterErrors()
   result = p.handle
 
-proc parseSnippet*(id, code: string): Parser {.gcsafe.} =
+proc parseSnippet*(id, code: string,
+  noCache, reCache = false): Parser {.gcsafe.} =
   ## Parse static snippet `code` at runtime before
   ## calling the `precompile` handle
   var p = Parser(
-    tree: Ast(src: id),
+    tree: Ast(src: id, partials: TimPartialsTable()),
     lex: newLexer(code, allowMultilineStrings = true),
-    logger: Logger(filePath: id)
+    logger: Logger(filePath: id),
+    engine: TimEngine(
+      `type`: TimEngineRuntime.runtimePassAndExit,
+      packager: Packager(
+        flagNoCache: noCache,
+        flagRecache: reCache
+      )
+    ),
   )
+  p.engine.packager.loadPackages()
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   initModuleSystem()
@@ -1642,9 +1926,15 @@ proc parseSnippet*(snippetPath: string): Parser {.gcsafe.} =
   ## Parse a snippet code from a `snippetPath` file.
   let snippetPath = absolutePath(snippetPath)
   var p = Parser(
-    tree: Ast(src: snippetPath),
+    tree: Ast(src: snippetPath, partials: TimPartialsTable()),
     lex: newLexer(readFile(snippetPath), allowMultilineStrings = true),
-    logger: Logger(filePath: snippetPath)
+    logger: Logger(filePath: snippetPath),
+    engine: TimEngine(
+      `type`: TimEngineRuntime.runtimePassAndExit,
+      packager: Packager(
+        flagNoCache: true
+      )
+    ),
   )
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()

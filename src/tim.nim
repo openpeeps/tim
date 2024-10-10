@@ -251,7 +251,7 @@ proc precompile*(engine: TimEngine, flush = true,
   ## (use `waitThread` to keep the thread alive)
   if flush: engine.flush()
   engine.setGlobalData(global)
-  engine.importsHandle = initResolver()
+  engine.importsHandle = resolver.initResolver()
   when defined timHotCode:
     # Define callback procs for pkg/watchout
     proc notify(label, fname: string) =
@@ -519,8 +519,8 @@ elif not isMainModule:
               add params, $p[0] & ":" & $p[1]
             add fn, params.join(",")
             add fn, "): "
-            add fn, $m[3][0]
             fnReturnType = ast.getType(m[3][0])
+            add fn, $fnReturnType
           else:
             add fn, ")"
           add functions, fn
@@ -576,22 +576,35 @@ else:
   # Build Tim Engine as a standalone CLI application
   import pkg/kapsis
   import pkg/kapsis/[runtime, cli]
-  import timpkg/app/[astCmd, srcCmd, reprCmd, liveCmd, jitCmd]
+  import timpkg/app/[astCmd, srcCmd, reprCmd, jitCmd, pkgCmd, vmCmd]
 
   commands:
     -- "Source-to-Source"
-    src string(-t), path(`timl`), string(-o), bool(--pretty):
-      ## Transpile `timl` code or file to a target source
-    
+    src string(-t), path(`timl`), string(-o),
+      ?json(--data),    # pass data to global/local scope
+      bool(--pretty),   # pretty print output HTML
+      bool(--nocache),  # tells Tim to not cache packages
+      bool("--json-errors"):
+        ## Transpile `timl` to a target source
+
     ast path(`timl`), filename(`output`):
       ## Generate binary AST from a `timl` file
-    
+
     repr path(`ast`), string(`ext`), bool(--pretty):
       ## Read from a binary AST to target source
-    
-    -- "Microservice"
-    run path(`config`), bool(--liveview):
-      ## Tim as a Microservice background application
-    
-    bundle path(`ast`):
-      ## Produce binary dynamic templates (dll) from AST. Requires Nim
+
+    # -- "Microservice"
+    # # run path(`config`):
+    # #   ## Run Tim as a Microservice application
+    # # bundle path(`ast`):
+    # #   ## Produce binary dynamic templates (dll) from AST. Requires Nim
+    # analyze path(`timl`):
+    #   ## Performs a static analyze
+    # run:
+    #   ## Run a Tim Engine Virtual Machine through a UNIX socket
+
+    # -- "Development"
+    # install url(`pkg`):
+    #   ## Install a package from remote source
+    # uninstall string(`pkg`):
+    #   ## Uninstall a package from local source

@@ -1,0 +1,3 @@
+const x = 123
+h1: $x
+$x = 321 // invalid

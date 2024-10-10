@@ -58,7 +58,29 @@ handlers:
       lex.setError("Identifier name is longer than 255 characters")
 
   proc handleMagics(lex: var Lexer, kind: TokenKind) =
-    template collectSnippet(tkind: TokenKind) =
+    template collectSnippet(tKind: TokenKind) =
+      if tKind in {tkSnippetJson, tkSnippetJs, tkSnippetYaml}:
+        # first, check if snippet has an identifier that
+        # stats with `#` tag
+        if lex.buf[lex.bufpos] == '#':
+          inc lex.bufpos
+          var scriptName = "#"
+          while true:
+            case lex.buf[lex.bufpos]:
+            of EndOfFile:
+              lex.setError("EOF reached before closing @end")
+              return
+            of IdentStartChars:
+              add scriptName, lex.buf[lex.bufpos]
+              inc lex.bufpos
+              while true:
+                case lex.buf[lex.bufpos]:
+                of IdentChars + {'-'}:
+                  add scriptName, lex.buf[lex.bufpos]
+                  inc lex.bufpos
+                else: break
+            else: break
+          add lex.attr, scriptName
       while true:
         try:
           case lex.buf[lex.bufpos]
@@ -67,7 +89,7 @@ handlers:
             return
           of '@':
             if lex.next("end"):
-              lex.kind = tkind
+              lex.kind = tKind
               lex.token = lex.token.unindent(pos + 2)
               inc lex.bufpos, 4
               break
@@ -141,7 +163,7 @@ handlers:
       case lex.buf[lex.bufpos]
       of '\\':
         lex.handleSpecial()
-        if lex.hasError(): return
+        if lex.hasError: return
       of '`':
         lex.kind = kind
         inc lex.bufpos
@@ -160,6 +182,32 @@ handlers:
         inc lex.bufpos
     if lex.multiLineStr:
       lex.lineNumber = lineno
+
+  proc handleSingleQuoteStr(lex: var Lexer, kind: TokenKind) =
+    setLen(lex.token, 0)
+    inc lex.bufpos # '
+    while true:
+      case lex.buf[lex.bufpos]
+      of '\\':
+        add lex.token, "\\"
+        if lex.next("'"):
+          add lex.token, '\''
+          inc lex.bufpos
+        else:
+          add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
+      of '\'':
+        lex.kind = tkString # marks token kind as tkString
+        inc lex.bufpos # '
+        break
+      of NewLines:
+        lex.setError("EOL reached before end of single-quote string")
+        return
+      of EndOfFile:
+        lex.setError("EOF reached before end of single-qute string")
+      else:
+        add lex.token, lex.buf[lex.bufpos]
+        inc lex.bufpos
 
 const toktokSettings =
   toktok.Settings(
@@ -206,6 +254,7 @@ registerTokens toktokSettings:
   pipe = '|':
     orOr = '|'
   backtick = tokenize(handleBackticks, '`')
+  sqString = tokenize(handleSingleQuoteStr, '\'')
   `case` = "case"
   `of`   = "of"
   `if`   = "if"
@@ -247,10 +296,12 @@ registerTokens toktokSettings:
   component = "component"
   `var` = "var"
   `const` = "const"
+  `type` = "type"
   returnCmd = "return"
   echoCmd = "echo"
   discardCmd = "discard"
   breakCmd = "break"
   continueCmd = "continue"
+  assertCmd = "assert"
   identVar = tokenize(handleVar, '$')
   identVarSafe

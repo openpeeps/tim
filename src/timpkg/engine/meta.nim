@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/tim
 
 import std/[macros, os, json, strutils,
-      sequtils, base64, locks, tables]
+      sequtils, locks, tables]
 
 import pkg/[checksums/md5, flatty]
 import pkg/importer/resolver
@@ -13,6 +13,7 @@ import pkg/importer/resolver
 export getProjectPath
 
 from ./ast import Ast
+from ./package/manager import Packager, loadPackages
 
 var placeholderLocker*: Lock
 
@@ -41,8 +42,14 @@ type
 
   TimPolicy* = ref object
     # todo
+  
+  TimEngineRuntime* = enum
+    runtimeLiveAndRun
+    runtimeLiveAndRunCli
+    runtimePassAndExit
 
   TimEngine* = ref object
+    `type`*: TimEngineRuntime
     base, src, output: string
     minify, htmlErrors: bool
     indentSize: int
@@ -51,7 +58,7 @@ type
     policy: TimPolicy
     globals: JsonNode = newJObject()
     importsHandle*: Resolver
-
+    packager*: Packager
 
   TimEngineSnippets* = TableRef[string, seq[Ast]]
   TimError* = object of CatchableError
@@ -367,9 +374,10 @@ proc newTim*(src, output, basepath: string, minify = true,
       base: basepath,
       minify: minify,
       indentSize: indent,
-      htmlErrors: showHtmlError
+      htmlErrors: showHtmlError,
+      packager: Packager()
     )
-
+  result.packager.loadPackages()
   for sourceDir in [ttLayout, ttView, ttPartial]:
     if not dirExists(result.src / $sourceDir):
       raise newException(TimError, "Missing $1 directory: \n$2" % [$sourceDir, result.src / $sourceDir])

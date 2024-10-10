@@ -14,6 +14,7 @@ binDir        = "bin"
 
 requires "nim >= 2.0.0"
 requires "toktok#head"
+requires "sorta"
 requires "jsony"
 requires "https://github.com/openpeeps/importer"
 requires "watchout#head"
@@ -22,7 +23,9 @@ requires "denim#head"
 requires "checksums"
 requires "flatty#head"
 requires "nyml >= 0.1.8"
-requires "zmq#head"
+requires "urlly >= 1.1.1"
+requires "semver >= 1.2.2"
+requires "dotenv"
 
 task node, "Build a NODE addon":
   exec "denim build src/tim.nim --cmake --yes"

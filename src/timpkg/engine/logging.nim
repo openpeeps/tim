@@ -7,7 +7,7 @@
 from ./tokens import TokenTuple
 from ./ast import Meta
 
-import std/[sequtils, strutils]
+import std/[sequtils, json, strutils]
 
 when compileOption("app", "console"):
   import pkg/kapsis/cli
@@ -25,19 +25,22 @@ type
     fnReturnMissingCommand = "Expression $ is of type $ and has to be used or discarded [UseOrDiscard]"
     fnReturnVoid = "Function $ has no return type [VoidFunction]"
     fnExtraArg = "Extra arguments given. Got $ expected $ [ExtraArgs]"
+    unimplementedForwardDeclaration = "Unimplemented forward declaration $ [UnimplementedForwardDeclaration]"
     badIndentation = "Nestable statement requires indentation [BadIndentation]"
     invalidContext = "Invalid $ in this context [InvalidContext]"
     invalidViewLoader = "Invalid use of `@view` in this context. Use a layout instead [InvalidViewLoader]"
     duplicateViewLoader = "Duplicate `@view` loader [DuplicateViewLoaded]"
     typeMismatch = "Type mismatch. Got $ expected $ [TypeMismatch]"
+    typeMismatchObject = "Type mismatch. Expected an instance of $ [TypeMismatch]"
     duplicateAttribute = "Duplicate HTML attribute $ [DuplicateAttribute]"
     duplicateField = "Duplicate field $ [DuplicateField]"
     undeclaredField = "Undeclared field $ [UndeclaredField]"
     invalidIterator = "Invalid iterator [InvalidIterator]"
     indexDefect = "Index $ not in $ [IndexDefect]"
-    importNotFound = "Cannot open file: $ [ImportNotFound]"
+    importError = "Cannot open file: $ [ImportError]"
     importCircularError = "Circular import detected: $ [CircularImport]"
     invalidComponentName = "Invalid component name $ [InvalidComponentName]"
+    assertionFailed = "Assertion failed"
     eof = "EOF reached before closing $ [EOF]"
     internalError = "$"
 
@@ -262,3 +265,42 @@ else:
           var extra: Row
           extra.add(span(extraLine, indentSize = 12))
           yield extra
+
+  proc runIteratorStr(i: Log, label = ""): JsonNode =
+    result = newJObject()
+    result["line"] = newJInt(i.line)
+    result["col"] = newJInt(i.col)
+    result["code"] = newJInt(i.msg.ord)
+    if i.useFmt:
+      var x: int
+      var str = split($i.msg, "$")
+      let length = count($i.msg, "$") - 1
+      var msg: string
+      for s in str:
+        add msg, s
+        if length >= x:
+          add msg, i.args[x]
+        inc x
+      result["msg"] = newJString(msg)
+    else:
+      var str = $i.msg
+      for a in i.args:
+        add str, a
+      result["msg"] = newJString(str)
+
+  # iterator warningsStr*(logger: Logger): string =
+  #   for i in logger.warnLogs:
+  #     yield runIteratorStr(i, "Warning")
+
+  iterator errorsStr*(logger: Logger): JsonNode =
+    for i in logger.errorLogs:
+      yield runIteratorStr(i)
+      # if i.extraLines.len != 0:
+      #   if i.extraLabel.len != 0:
+      #     var extraLabel = "\n"
+      #     add extraLabel, indent(i.extraLabel, 6)
+      #     yield extraLabel
+      #   for extraLine in i.extraLines:
+      #     var extra = "\n"
+      #     add extra, indent(extraLine, 12)
+      #     yield extra

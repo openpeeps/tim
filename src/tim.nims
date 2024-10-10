@@ -2,6 +2,10 @@
 --define:timHotCode
 --threads:on
 --deepcopy:on
+--define:nimPreviewHashRef
+--define:ssl
+--define:"ThreadPoolSize=16"
+--define:"FixedChanSize=32"
 
 when defined napibuild:
   --define:napiOrWasm

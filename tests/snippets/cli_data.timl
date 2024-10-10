@@ -1,0 +1,5 @@
+echo $app
+echo $this
+
+for $it in $app.items:
+  li > span: $it

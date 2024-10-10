@@ -5,12 +5,13 @@
 #          https://github.com/openpeeps/bro
 
 import std/[macros, macrocache, enumutils,
-  critbits, os, math, fenv, strutils,
-  sequtils, random, unicode, json, tables, base64]
+  critbits, os, math, fenv, strutils, re,
+  sequtils, random, unicode, json, tables, base64,
+  httpclient, oids]
 
-import pkg/[jsony, nyml]
-
-import ./ast, ./meta
+import pkg/[jsony, nyml, urlly, flatty]
+import pkg/checksums/md5
+import ./ast
 
 type
   Arg* = tuple[name: string, value: Node]
@@ -36,7 +37,11 @@ var
     systemModule {.threadvar.},
     mathModule {.threadvar.},
     objectsModule {.threadvar.},
+    urlModule {.threadvar.},
     localModule* {.threadvar.}: Module
+
+const NimblePkgVersion {.strdefine.} = "Unknown"
+const version = NimblePkgVersion
 
 proc toNimSeq*(node: Node): seq[string] =
   for item in node.arrayItems:
@@ -69,9 +74,15 @@ macro initStandardLibrary() =
 
   proc fwd(id: string, returns: NodeType, args: openarray[(NodeType, string)] = [],
       alias = "", wrapper: NimNode = nil, src = ""): Forward =
-    Forward(id: id, returns: returns, args: args.toSeq,
-        alias: alias, wrapper: wrapper, hasWrapper: wrapper != nil,
-        src: src)
+    Forward(
+      id: id,
+      returns: returns,
+      args: args.toSeq,
+      alias: alias,
+      wrapper: wrapper,
+      hasWrapper: wrapper != nil,
+      src: src
+    )
 
   # proc `*`(nt: NodeType, count: int): seq[NodeType] =
   #   for i in countup(1, count):
@@ -88,14 +99,14 @@ macro initStandardLibrary() =
 
   template systemStreamFunction: untyped =
     try:
-      let filepath =
+      let src =
         if not isAbsolute(args[0].value.sVal):
           absolutePath(args[0].value.sVal)
         else: args[0].value.sVal
-      let str = readFile(filepath)
-      let ext = filepath.splitFile.ext
+      let str = readFile(src)
+      let ext = src.splitFile.ext
       if ext == ".json":
-        return ast.newStream(str.fromJson(JsonNode))
+        return ast.newStream(jsony.fromJson(str, JsonNode))
       elif ext in [".yml", ".yaml"]:
         return ast.newStream(yaml(str).toJson.get)
       else:
@@ -104,6 +115,25 @@ macro initStandardLibrary() =
       raise newException(SystemModule, e.msg)
     except JsonParsingError as e:
       raise newException(SystemModule, e.msg)
+
+  template systemJsonUrlStream =
+    # retrieve JSON content from remote source
+    # parse and return it as a Stream node
+    var httpClient: HttpClient =
+      if args.len == 1:
+        newHttpClient(userAgent = "Tim Engine v" & version)
+      else:
+        let httpHeaders = newHttpHeaders()
+        for k, v in args[1].value.objectItems:
+          httpHeaders[k] = v.toString()
+        newHttpClient(userAgent = "Tim Engine v" & version, headers = httpHeaders)
+    let streamNode: Node = ast.newNode(ntStream)
+    try:      
+      let contents = httpClient.getContent(args[0].value.sVal)
+      streamNode.streamContent = fromJson(contents)
+      streamNode
+    finally:
+      httpClient.close()
 
   template systemRandomize: untyped =
     randomize()
@@ -120,6 +150,22 @@ macro initStandardLibrary() =
         str = ast.newString($(val.iVal))
       of ntLitFloat:
         str = ast.newString($(val.fVal))
+      of ntLitBool:
+        str = ast.newString($(val.bVal))
+      of ntStream:
+        if likely(val.streamContent != nil):
+          case val.streamContent.kind:
+            of JString:
+              str = ast.newString($(val.streamContent.str))
+            of JBool:
+              str = ast.newString($(val.streamContent.bval))
+            of JInt:
+              str = ast.newString($(val.streamContent.num))
+            of JFloat:
+              str = ast.newString($(val.streamContent.fnum))
+            of JNull:
+              str = ast.newString("null")
+            else: discard # should dump Object/Array too?
       else: discard
     str
 
@@ -128,19 +174,38 @@ macro initStandardLibrary() =
     xast.runtimeCode = args[0].value.sVal
     xast
 
+  template systemArrayLen =
+    let x = ast.newNode(ntLitInt)
+    x.iVal = args[0].value.arrayItems.len
+    x
+
+  template systemStreamLen =
+    let x = ast.newNode(ntLitInt)
+    x.iVal = args[0].value.streamContent.len
+    x
+  
+  template generateId =
+    ast.newString($genOid())
+
   let
     fnSystem = @[
       fwd("json", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
+      fwd("remoteJson", ntStream, [(ntLitString, "path")], wrapper = getAst(systemJsonUrlStream())),
+      fwd("remoteJson", ntStream, [(ntLitString, "path"), (ntLitObject, "headers")], wrapper = getAst(systemJsonUrlStream())),
       fwd("yaml", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
       fwd("rand", ntLitInt, [(ntLitInt, "max")], "random", wrapper = getAst(systemRandomize())),
       fwd("len", ntLitInt, [(ntLitString, "x")]),
-      # fwd("len", ntLitInt, [(ntLitArray, "x")]),
+      fwd("len", ntLitInt, [(ntLitArray, "x")], wrapper = getAst(systemArrayLen())),
+      fwd("len", ntLitInt, [(ntStream, "x")], wrapper = getAst(systemStreamLen())),
       fwd("encode", ntLitString, [(ntLitString, "x")], src = "base64"),
       fwd("decode", ntLitString, [(ntLitString, "x")], src = "base64"),
       fwd("toString", ntLitString, [(ntLitInt, "x")], wrapper = getAst(convertToString())),
+      fwd("toString", ntLitString, [(ntLitBool, "x")], wrapper = getAst(convertToString())),
+      fwd("toString", ntLitString, [(ntStream, "x")], wrapper = getAst(convertToString())),
       fwd("timl", ntLitString, [(ntLitString, "x")], wrapper = getAst(parseCode())),
       fwd("inc", ntLitVoid, [(ntLitInt, "x")], wrapper = getAst(systemInc())),
       fwd("dec", ntLitVoid, [(ntLitInt, "x")]),
+      fwd("genid", ntLitString, wrapper = getAst(generateId()))
     ]
 
   let
@@ -156,6 +221,20 @@ macro initStandardLibrary() =
     # std/strings
     # implements common functions for working with strings
     # https://nim-lang.github.io/Nim/strutils.html
+
+  template strRegexFind =
+    let arrayNode = ast.newNode(ntLitArray)
+    for res in re.findAll(args[0].value.sVal, re(args[1].value.sVal)):
+      let strNode = ast.newNode(ntLitString)
+      strNode.sVal = res
+      add arrayNode.arrayItems, strNode
+    arrayNode
+
+  template strRegexMatch =
+    let boolNode = ast.newNode(ntLitBool)
+    boolNode.bVal = re.match(args[0].value.sVal, re(args[1].value.sVal))
+    boolNode
+
   let
     fnStrings = @[
       fwd("endsWith", ntLitBool, [(ntLitString, "s"), (ntLitString, "suffix")]),
@@ -163,11 +242,14 @@ macro initStandardLibrary() =
       fwd("capitalizeAscii", ntLitString, [(ntLitString, "s")], "capitalize"),
       fwd("replace", ntLitString, [(ntLitString, "s"), (ntLitString, "sub"), (ntLitString, "by")]),
       fwd("toLowerAscii", ntLitString, [(ntLitString, "s")], "toLower"),
+      fwd("toUpperAscii", ntLitString, [(ntLitString, "s")], "toUpper"),
       fwd("contains", ntLitBool, [(ntLitString, "s"), (ntLitString, "sub")]),
       fwd("parseBool", ntLitBool, [(ntLitString, "s")]),
       fwd("parseInt", ntLitInt, [(ntLitString, "s")]),
       fwd("parseFloat", ntLitFloat, [(ntLitString, "s")]),
-      fwd("format", ntLitString, [(ntLitString, "s"), (ntLitArray, "a")], wrapper = getAst(formatWrapper()))
+      fwd("format", ntLitString, [(ntLitString, "s"), (ntLitArray, "a")], wrapper = getAst(formatWrapper())),
+      fwd("find", ntLitArray, [(ntLitString, "s"), (ntLitString, "pattern")], wrapper = getAst(strRegexFind())),
+      fwd("match", ntLitBool, [(ntLitString, "s"), (ntLitString, "pattern")], wrapper = getAst(strRegexMatch()))
     ]
 
   # std/arrays
@@ -193,40 +275,52 @@ macro initStandardLibrary() =
     except IndexDefect as e:
       raise newException(ArraysModule, e.msg)
 
-  template arraysShuffle: untyped =
+  template arraysShuffle =
     randomize()
     shuffle(args[0].value.arrayItems)
 
-  template arraysJoin: untyped =
+  template arraysJoin =
     ast.newString(strutils.join(
       toNimSeq(args[0].value), args[1].value.sVal))
   
-  template arraysDelete: untyped =
+  template arraysDelete =
     delete(args[0].value.arrayItems, args[1].value.iVal)
 
-  template arraysFind: untyped =
+  template arraysFind =
     for i in 0..args[0].value.arrayItems.high:
       if args[0].value.arrayItems[i].sVal == args[1].value.sVal:
         return ast.newInteger(i)
-  
-  template arrayLength: untyped =
-    ast.newInteger(args[0].value.arrayItems.len)
 
-  template arrayHigh: untyped =
+  template arrayHigh =
     ast.newInteger(args[0].value.arrayItems.high)
+
+  template arraySplit =
+    let arr = ast.newArray()
+    for x in strutils.split(args[0].value.sVal, args[1].value.sVal):
+      add arr.arrayItems, ast.newString(x)
+    arr
+
+  template arrayCountdown = 
+    let arr = ast.newArray()
+    for i in countdown(args[0].value.arrayItems.high, 0):
+      add arr.arrayItems, args[0].value.arrayItems[i]
+    arr
 
   let
     fnArrays = @[
       fwd("contains", ntLitBool, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysContains()),
       fwd("add", ntLitVoid, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysAdd()),
+      fwd("add", ntLitVoid, [(ntLitArray, "x"), (ntLitInt, "item")], wrapper = getAst arraysAdd()),
+      fwd("add", ntLitVoid, [(ntLitArray, "x"), (ntLitBool, "item")], wrapper = getAst arraysAdd()),
       fwd("shift", ntLitVoid, [(ntLitArray, "x")], wrapper = getAst arraysShift()),
       fwd("pop", ntLitVoid, [(ntLitArray, "x")], wrapper = getAst arraysPop()),
       fwd("shuffle", ntLitVoid, [(ntLitArray, "x")], wrapper = getAst arraysShuffle()),
       fwd("join", ntLitString, [(ntLitArray, "x"), (ntLitString, "sep")], wrapper = getAst arraysJoin()),
       fwd("delete", ntLitVoid, [(ntLitArray, "x"), (ntLitInt, "pos")], wrapper = getAst arraysDelete()),
       fwd("find", ntLitInt, [(ntLitArray, "x"), (ntLitString, "item")], wrapper = getAst arraysFind()),
-      fwd("len", ntLitInt, [(ntLitArray, "x")], wrapper = getAst(arrayLength())),
       fwd("high", ntLitInt, [(ntLitArray, "x")], wrapper = getAst(arrayHigh())),
+      fwd("split", ntLitArray, [(ntLitString, "s"), (ntLitString, "sep")], wrapper = getAst(arraySplit())),
+      fwd("countdown", ntLitArray, [(ntLitArray, "x")], wrapper = getAst(arrayCountdown())),
     ]
 
   template objectHasKey: untyped =
@@ -287,7 +381,7 @@ macro initStandardLibrary() =
     ]
 
   # std/os
-  # implements some read-only basic operating system functions
+  # implements some basic read-only operating system functions
   # https://nim-lang.org/docs/os.html 
   template osWalkFiles: untyped =
     let x = toSeq(walkPattern(args[0].value.sVal))
@@ -313,6 +407,54 @@ macro initStandardLibrary() =
       fwd("parentDir", ntLitString, [(ntLitString, "path")]),
       fwd("walkFiles", ntLitArray, [(ntLitString, "path")], wrapper = getAst osWalkFiles()),
     ]
+  
+  #
+  # std/url
+  # https://treeform.github.io/urlly/urlly.html
+  template urlParse =
+    let address =
+      if args[0].value.nt == ntLitString:
+        args[0].value.sVal
+      else:
+        ast.toString(args[0].value.streamContent)
+    let someUrl: Url = parseUrl(address)
+    let paths = ast.newArray()
+    for somePath in someUrl.paths:
+      add paths.arrayItems, ast.newString(somePath)
+    let objectResult = ast.newObject(newOrderedTable({
+      "scheme": ast.newString(someUrl.scheme),
+      "username": ast.newString(someUrl.username),
+      "password": ast.newString(someUrl.password),
+      "hostname": ast.newString(someUrl.hostname),
+      "port": ast.newString(someUrl.port),
+      "fragment": ast.newString(someUrl.fragment),
+      "paths": paths,
+      "secured": ast.newBool(someUrl.scheme in ["https", "ftps"])
+    }))
+
+    let queryTable = ast.newObject(ObjectStorage())
+    for query in someUrl.query:
+      queryTable.objectItems[query[0]] = ast.newString(query[1])
+    objectResult.objectItems["query"] = queryTable
+    objectResult
+
+  let
+    fnUrl = @[
+      fwd("parseUrl", ntLitObject, [(ntLitString, "s")], wrapper = getAst(urlParse())),
+      fwd("parseUrl", ntLitObject, [(ntStream, "s")], wrapper = getAst(urlParse())),
+    ]
+
+  #
+  # Times
+  #
+  # template timesParseDate =
+  #   let obj = ast.newNode(ntLitObject)
+  #   # obj.objectItems[""]
+
+  # let
+  #   fnTimes = @[
+  #     fwd("parseDate", ntLitObject, [(ntLitString, "input"), (ntLitString, "format")], wrapper = getAst(timesParseDate())])
+  #   ]
 
   result = newStmtList()
   let libs = [
@@ -321,7 +463,9 @@ macro initStandardLibrary() =
     ("strutils", fnStrings, "strings"),
     ("sequtils", fnArrays, "arrays"),
     ("objects", fnObjects, "objects"),
-    ("os", fnOs, "os")
+    ("os", fnOs, "os"),
+    ("url", fnUrl, "url"),
+    # ("times", fnTimes, "times"),
   ]
   for lib in libs:
     var sourceCode: string

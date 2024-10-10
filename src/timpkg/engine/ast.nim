@@ -4,9 +4,10 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import ./tokens
-import std/[tables, json, macros, critbits]
+import std/[tables, json, macros, hashes]
 
-import kapsis/cli
+import pkg/sorta
+import pkg/kapsis/cli
 
 from std/htmlparser import tagToStr, htmlTag, HtmlTag
 export tagToStr, htmlTag, HtmlTag
@@ -39,8 +40,10 @@ type
     ntMathInfixExpr = "MathExpression"
     ntCommandStmt = "CommandStatement"
     ntIdent = "Identifier"
+    ntIdentVar = "VarIdentifier"
     ntBlockIdent = "BlockIdentifier"
     ntComponent = "Component"
+    ntTypeDef = "TypeDefinition"
     ntEscape = "EscapedIdentifier"
     ntCall = "FunctionCall"
     ntIdentPair
@@ -56,13 +59,14 @@ type
     ntInclude = "Include"
     ntImport = "Import"
     ntPlaceholder = "Placeholder"
-    ntStream = "stream"
+    ntStream = "stream" # todo rename to `json`
     ntJavaScriptSnippet = "JavaScriptSnippet"
     ntYamlSnippet = "YAMLSnippet"
     ntJsonSnippet = "JsonSnippet"
     ntClientBlock = "ClientSideStatement"
     ntStmtList = "StatementList"
     ntRuntimeCode = "Runtime"
+    ntReference = "Reference"
 
   FunctionType* = enum
     fnImportLocal
@@ -75,6 +79,7 @@ type
     cmdDiscard = "discard"
     cmdBreak = "break"
     cmdContinue = "continue"
+    cmdAssert = "assert"
 
   StorageType* = enum
     scopeStorage
@@ -118,10 +123,12 @@ type
   HtmlAttributesTable* = TableRef[string, seq[Node]]
   ConditionBranch* = tuple[expr: Node, body: Node]
   FnParam* = tuple[
-    pName: string,
-    pType: NodeType,
-    pImplVal: Node,
-    dataType: DataType,
+    paramName: string,
+    paramType: NodeType,
+    paramImplicitValue: Node,
+    paramDataTypeValue: DataType,
+    paramTypeGenericIdent: Node,
+    pTypeName: string,
     isMutable: bool,
     meta: Meta
   ]
@@ -141,6 +148,42 @@ type
     typeBlock = "block"
     typeHtmlElement = "html"
     typeAny = "any"
+    typeIdentifier
+
+  TypeDefintionObjectField* = tuple[
+    fieldType: DataType,
+    fieldTypeName: string,
+    fieldTypeImpl: Node   # an implicit `Node` value, when available
+  ]
+
+  TypeDefinition* = ref object
+    typeName*: string
+    case dataType*: DataType
+    of typeInt, typeString, typeBool, typeFloat:
+      discard
+    of typeArray:
+      # arraySize*: uint
+      arrayType*: DataType
+        ## `typeAny` allows creates a mixed array
+    of typeObject:
+      objectType*: OrderedTableRef[string, TypeDefintionObjectField]
+    else: discard # todo
+
+  ObjectStorage* = OrderedTableRef[string, Node]
+  
+  VisibilityType* = enum
+    vtPrivate
+      ## Default for all definitions. Marks definitions
+      ## as private so it can be used outside of the module
+    vtProtected
+      ## Any block, function, variable or type definition
+      ## suffixed with `**` is marked as protected.
+      ## Which makes the definition publicly available
+      ## for internal use. This may be useful for packages
+      ## to share components
+    vtPublic
+      ## Definitions suffixed with a single `*`
+      ## results in a public definition
 
   Node* {.acyclic.} = ref object
     ## Part of the compiler's abstract syntax tree
@@ -151,7 +194,6 @@ type
       stag*: string
       attrs*: HtmlAttributes
         # used to store html attributes
-      # attrNodes*: seq[Node]
       nodes*: seq[Node]
       htmlMultiplyBy*: Node # ntLitInt or a callable that returns ntLitInt
       htmlAttributes*: seq[Node]
@@ -163,10 +205,8 @@ type
         ## variable identifier
       varValue*: Node
         ## the value of a variable
-      varValueType*: DataType
-      varType*: NodeType
-        ## type of a variable, any of `string`, `int`, `float`, `array`, `object`
-      varUsed*: bool        # todo find a way to manage used/unused variables
+      varValueType*: TypeDefinition
+      # varType*: NodeType
       varImmutable*: bool
         ## enabled when a variable is defined as `const`
     of ntAssignExpr:
@@ -222,13 +262,15 @@ type
       arrayItems*: seq[Node]
         ## a sequence of nodes representing an array
     of ntLitObject:
-      objectItems*: OrderedTableRef[string, Node]
+      objectItems*: ObjectStorage
         ## Ordered table of Nodes for object storage
     of ntCommandStmt:
       cmdType*: CommandType
         ## type of given command, either `echo` or `return`
       cmdValue*: Node
         ## the node value of the command 
+    of ntIdentVar:
+      identVarName*: string
     of ntIdent, ntBlockIdent:
       identName*: string
         # identifier name
@@ -266,6 +308,12 @@ type
         ## method for every change to attributes listed in the
         ## `componentObservedAttributes` sequence
       componentBody*: Node # ntStmtList
+    of ntTypeDef:
+      typeExport*: VisibilityType
+      typeIdent*: string
+      typeStructDef*: TypeDefinition
+        ## Holds a custom `TypeDefinition` object
+      typeStruct*: OrderedTableRef[string, (DataType, string)]
     of ntEscape:
       escapeIdent*: Node # ntIdent
     of ntDotExpr:
@@ -282,8 +330,8 @@ type
       rangeNodes*: array[2, Node]
       rangeLastIndex*: bool # from end to start using ^ circumflex accent
     of ntFunction, ntBlock:
-      fnIdent*: string
-        ## function identifier name
+      fnIdent*: Node
+        ## an `ntIdent` node to identify the function
       fnParams*: OrderedTableRef[string, FnParam]
         ## an ordered table containing the function parameters
       fnBody*: Node # ntStmtList
@@ -296,9 +344,10 @@ type
       fnFwdDecl*, fnExport*, fnAnon*: bool
       fnType*: FunctionType
       fnSource*: string
+      fnLazyScope*: ScopeTable
     of ntJavaScriptSnippet,
       ntYamlSnippet, ntJsonSnippet:
-        snippetCode*: string
+        snippetId*, snippetCode*: string
         snippetCodeAttrs*: seq[(string, Node)]
           ## string-based snippet code for either
           ## `yaml`, `json` or `js`
@@ -337,71 +386,43 @@ type
       ## by `@do` block, which allows for fast JavaScript bindings
     of ntRuntimeCode:
       runtimeCode*: string
+    of ntReference:
+      refNode*, refValue*: Node
     else: discard
     meta*: Meta
-
-  ValueKind* = enum
-    jsonValue, nimValue
-
-  Value* = object
-    case kind*: ValueKind
-    of jsonValue:
-      jVal*: JsonNode
-    of nimValue:
-      nVal*: Node
 
   Meta* = array[3, int]
   
   ScopeTable* = ref object
-    data*: CritBitTree[Node]
+    ## ScopeTable is used to store variables,
+    ## functions and blocks
+    data*: OrderedTable[Hash, seq[Node]]
+    # variables*: OrderedTable[Hash, Node]
+    #   ## an ordered table of Node, here
+    #   ## we'll store scoped variable declarations
+    # functions*, blocks*: OrderedTable[Hash, seq[Node]]
+    #   ## an ordered table of seq[Node] where we store 
+    #   ## all functions and blocks. these are stored
+      ## in sequenece to support function overrides
 
   TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
   TimModulesTable* = TableRef[string, Ast]
 
   Ast* {.acyclic.} = ref object
+    ## The main structure of the Abstract Syntax Tree
+    ## used to store created Nodes, partials
+    ## and modules.
     src*: string
       ## the source path of the ast
     nodes*: seq[Node]
       ## a seq containing tree nodes 
-    partials*: TimPartialsTable = TimPartialsTable()
+    partials*: TimPartialsTable
       ## AST trees from included partials 
     modules*: TimModulesTable
       ## AST trees from imported modules
+    forwardDeclarations*: OrderedTableRef[string, seq[Node]] = newOrderedTable[string, seq[Node]]()
     jit*: bool
       ## whether the current AST requires JIT compliation or not
-
-  OpCode* = enum
-    opTypeAdd
-    opTypeSub
-    opTypeMulti
-    opTypeDiv
-    opTypeVar
-    opTypeConst
-    opTypeEcho
-    opTypeAsgn
-    opTypeCall
-    opTypeReturn
-    opTypeBreak
-    opTypeStackBlock
-    opTypeStackBlockEnd
-
-  Operation* {.acyclic.} = ref object
-    case code*: OpCode
-    of opTypeVar, opTypeConst: discard
-    of opTypeEcho, opTypeReturn, opTypeBreak:
-      cmdNode*: Node
-    else: discard
-    stackPos*: seq[uint]
-
-  OpTree* = object
-    instructions: seq[Operation]
-
-iterator items*(optree: OpTree): Operation =
-  for op in optree.instructions:
-    yield op
-
-proc add*(optree: var OpTree, op: Operation) =
-  optree.instructions.add(op)
 
 const
   ntAssignableSet* =
@@ -567,19 +588,44 @@ proc getTag*(x: Node): string =
     else: x.stag # tagUnknown
 
 proc getType*(x: NimNode): NodeType {.compileTime.} = 
-  if x.strVal == "string":
-    return ntLitString
-  if x.strVal == "int":
-    return ntLitInt
-  if x.strVal == "float":
-    return ntLitFloat
-  if x.strVal == "bool":
-    return ntLitBool
-  if x.strVal == "object":
-    return ntLitObject
-  if x.strVal == "array":
-    return ntLitArray
-  result = ntUnknown
+  # Compile-time proc to transform x `NimNode` to `NodeType`
+  expectKind x, nnkBracketExpr
+  if x[0].eqIdent("Node"):
+    if x[1].eqIdent("ntLitString"):
+      return ntLitString
+    if x[1].eqIdent("ntLitInt"):
+      return ntLitInt
+    if x[1].eqIdent("ntLitFloat"):
+      return ntLitFloat
+    if x[1].eqIdent("ntLitBool"):
+      return ntLitBool
+    if x[1].eqIdent("ntLitObject"):
+      return ntLitObject
+    if x[1].eqIdent("ntLitArray"):
+      return ntLitArray
+    result = ntUnknown
+
+proc toString*(node: JsonNode): string =
+  if node == nil: return "null"
+  result =
+    case node.kind
+    of JString: node.str
+    of JInt:    $node.num
+    of JFloat:  $node.fnum
+    of JBool:   $node.bval
+    of JObject, JArray: $(node)
+    else: "null"
+
+proc toString*(node: Node): string =
+  if likely(node != nil):
+    result =
+      case node.nt
+      of ntLitString: node.sVal
+      of ntLitInt:    $node.iVal
+      of ntLitFloat:  $node.fVal
+      of ntLitBool:   $node.bVal
+      of ntStream: toString(node.streamContent)
+      else: ""
 
 #
 # AST to JSON convertors
@@ -613,10 +659,14 @@ when not defined release:
   proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
     {.gcsafe.}:
       echo pretty(toJson(nodes), 2)
-  
-  proc debugEcho*(tree: OpTree) {.gcsafe.} =
-    {.gcsafe.}:
-      echo pretty(toJson(tree), 2)
+else:
+  proc debugEcho*(node: Node) {.gcsafe.} =
+    static:
+      warning("`debugEcho` has no effect when building with `release` flag")
+
+  proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
+    static:
+      warning("`debugEcho` has no effect when building with `release` flag")
 
 #
 # AST Generators
@@ -698,7 +748,7 @@ proc newAssignment*(ident, varValue: Node): Node =
   result.asgnVal = varValue
   result.meta = ident.meta
 
-proc newFunction*(tk: TokenTuple, ident: string): Node =
+proc newFunction*(tk: TokenTuple, ident: Node): Node =
   ## Create a new Function definition Node
   result = newNode(ntFunction, tk)
   result.fnIdent = ident
@@ -765,6 +815,12 @@ proc newArray*(items: seq[Node] = @[]): Node =
   result = newNode(ntLitArray)
   result.arrayItems = items
 
+proc newObject*(fields: OrderedTableRef[string, Node]): Node =
+  ## Creates a new `Object` node
+  result = newNode(ntLitObject)
+  if fields != nil:
+    result.objectItems = fields
+
 proc toTimNode*(x: JsonNode): Node =
   case x.kind
   of JString:
@@ -804,6 +860,10 @@ proc getDefaultValue*(dt: DataType): Node =
     ast.newFloat(0.0)
   of typeBool:
     ast.newBool(false)
+  of typeArray:
+    ast.newArray()
+  of typeObject:
+    ast.newObject(nil)
   else:
     nil
 
