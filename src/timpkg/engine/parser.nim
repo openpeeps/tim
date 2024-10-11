@@ -466,7 +466,7 @@ prefixHandle pHtmlAttribute:
 prefixHandle pIdent:
   # parse an identifier
   var isEscaped = p.curr is tkIdentVarSafe
-  result = ast.newIdent(p.curr)
+  result = ast.newIdentVar(p.curr)
   let storageType = p.getStorageType()
   walk p
   if p.curr.line == result.meta[0]:
@@ -754,7 +754,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node],
         of tkIdentVar, tkIdentVarSafe:
           if p.curr.line == el.line:
             discard # parse var as HtmlAttribute
-          elif p.next notin {tkGT, tkAssign} and p.next.line != p.curr.line:
+          elif p.next notin {tkGT, tkAssign} and p.next.line > p.curr.line:
             if el.pos >= p.curr.pos or p.next.isInfix == false:
               break
             else: discard
@@ -983,11 +983,10 @@ prefixHandle pFor:
       pairNode.identPairs[1] = vNode
       result.loopItem = pairNode
       walk p
-    let inToken = p.curr
-    expectWalk tkIN
+    expectWalk tkIn
     let itemsNode = p.getPrefixOrInfix()
     expect itemsNode.nt,
-      {ntIdent, ntLitInt, ntIndexRange, ntDotExpr,
+      {ntIdent, ntIdentVar, ntLitInt, ntIndexRange, ntDotExpr,
         ntBracketExpr, ntLitArray, ntLitObject}:
         result.loopItems = itemsNode
     result.loopBody = p.parseStatement(tk)
@@ -1117,7 +1116,6 @@ prefixHandle pImport:
           p.engine.parseModule(p.curr.value, std(p.curr.value)[1])
         p.tree.modules[p.curr.value].src = p.curr.value
       elif p.curr.value.startsWith("pkg/"):
-        discard # todo
         # if likely(p.engine.packager.hasPackage(p.curr.value[4..^1].split("/")[0])):
         #   # var moduleAst: Ast
         #   # if likely(p.engine.packager.flagNoCache == false):
@@ -1132,6 +1130,7 @@ prefixHandle pImport:
         #     # p.engine.packager.cacheModule(p.curr.value, moduleAst)
         # else:
         #   errorWithArgs(importError, p.curr, [p.curr.value.addFileExt(".timl")])
+        discard
       else:
         let path = 
           (if not isAbsolute(p.curr.value):
@@ -1154,9 +1153,9 @@ prefixHandle pSnippet:
     result = ast.newNode(ntJavaScriptSnippet, p.curr)
     result.snippetCode = p.curr.value
     for attr in p.curr.attr:
-      let identNode = ast.newNode(ntIdent, p.curr)
+      let identNode = ast.newNode(ntIdentVar, p.curr)
       let id = attr.split("_")
-      identNode.identName = id[1]
+      identNode.identVarName = id[1]
       add result.snippetCodeAttrs, (attr, identNode)
   of tkSnippetYaml:
     result = ast.newNode(ntYamlSnippet, p.curr)
@@ -1347,7 +1346,6 @@ prefixHandle pBlock:
   # parse a `block` definition
   result = p.pFunction(excludes, includes)
   caseNotNil result:
-    result.fnIdent.identName = "@" & result.fnIdent.identName
     result.nt = ntBlock
     if p.curr is tkDO and p.curr.line == result.meta[0]:
       result.clientBind = ast.newNode(ntDoBlock)

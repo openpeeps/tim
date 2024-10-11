@@ -271,6 +271,7 @@ type
         ## the node value of the command 
     of ntIdentVar:
       identVarName*: string
+      identVarSafe*: bool
     of ntIdent, ntBlockIdent:
       identName*: string
         # identifier name
@@ -397,13 +398,12 @@ type
     ## ScopeTable is used to store variables,
     ## functions and blocks
     data*: OrderedTable[Hash, seq[Node]]
-    # variables*: OrderedTable[Hash, Node]
-    #   ## an ordered table of Node, here
-    #   ## we'll store scoped variable declarations
-    # functions*, blocks*: OrderedTable[Hash, seq[Node]]
-    #   ## an ordered table of seq[Node] where we store 
-    #   ## all functions and blocks. these are stored
-      ## in sequenece to support function overrides
+    variables*: OrderedTable[Hash, Node]
+      ## an ordered table of Node, here
+      ## we'll store variable declarations
+    functions*, blocks*: OrderedTable[Hash, Node]
+      ## an ordered table of seq[Node] where we store 
+      ## all functions and blocks.
 
   TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
   TimModulesTable* = TableRef[string, Ast]
@@ -771,7 +771,7 @@ proc newComponent*(tk: TokenTuple): Node =
 proc newBlockIdent*(tk: TokenTuple): Node =
   ## Create a new macro call Node
   result = newNode(ntBlockIdent, tk)
-  result.identName = "@" & tk.value
+  result.identName = tk.value
 
 proc newStmtList*(tk: TokenTuple): Node =
   ## Create a new statement Node
@@ -789,9 +789,13 @@ proc newCommand*(cmdType: CommandType, node: Node, tk: TokenTuple): Node =
   result.cmdType = cmdType
   result.cmdValue = node
 
-proc newIdent*(tk: TokenTuple): Node=
+proc newIdent*(tk: TokenTuple): Node =
   result = newNode(ntIdent, tk)
   result.identName = tk.value
+
+proc newIdentVar*(tk: TokenTuple): Node =
+  result = newNode(ntIdentVar, tk)
+  result.identVarName = tk.value
 
 proc newHtmlElement*(tag: HtmlTag, tk: TokenTuple): Node =
   result = newNode(ntHtmlElement, tk)

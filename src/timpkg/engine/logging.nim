@@ -18,7 +18,7 @@ type
     unexpectedToken = "Unexpected token $ [UnexpectedToken]"
     undeclaredIdentifier = "Undeclared identifier $ [UndeclaredIdentifier]"
     invalidAccessorStorage = "Invalid accessor storage $ for $ [InvalidAccessorStorage]"
-    identRedefine = "Attempt to redefine variable $ [IdentRedefine]"
+    identRedefine = "Attempt to redefine $ [IdentRedefine]"
     varImmutable = "Attempt to reassign value to immutable constant $ [VarImmutable]"
     typeMismatchMutable = "Type mismatch. Got $ expected a mutable $  [TypeMismatchMutable]"
     fnUndeclared = "Undeclared function $ [UndeclaredFunction]"
