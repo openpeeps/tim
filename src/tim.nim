@@ -351,6 +351,7 @@ proc render*(engine: TimEngine, viewName: string,
     data["local"] = local
     if likely(engine.hasLayout(layoutName)):
       var layout: TimTemplate = engine.getLayout(layoutName)
+      # echo view.jitEnabled
       if not view.jitEnabled:
         # render a pre-compiled HTML
         layoutWrapper:
@@ -604,13 +605,15 @@ else:
     # Transpile timl code to a specific target source.
     # For now only `-t:html` works. S2S targets planned:
     # JavaScript, Nim, Python, Ruby and more
-    src string(-t), path(`timl`), string(-o),
+    src path(`timl`),
+      string(-t),       # choose a target (default target `html`)
+      string(-o),       # save output to file
       ?json(--data),    # pass data to global/local scope
       bool(--pretty),   # pretty print output HTML (still buggy)
       bool(--nocache),  # tells Tim to import modules and rebuild cache
-      bool(--bench), # benchmark operations
+      bool(--bench),    # benchmark operations
       bool("--json-errors"):
-        ## Transpile `timl` to a target source
+        ## Transpile `timl` to HTML
 
     ast path(`timl`), filename(`output`):
       ## Serialize template to binary AST
