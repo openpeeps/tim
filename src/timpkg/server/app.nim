@@ -4,14 +4,20 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[os, strutils, sequtils, json, critbits]
-import pkg/[zmq, watchout, jsony]
-import pkg/kapsis/[cli]
+import std/[os, asyncdispatch, strutils,
+  sequtils, json, critbits, options]
+
+import pkg/[httpbeast, watchout, jsony]
+import pkg/importer/resolver
+import pkg/kapsis/cli
 
 import ./config
 import ../engine/[meta, parser, logging]
 import ../engine/compilers/[html, nimc]
 
+#
+# Tim Engine Setup
+#
 type
   CacheTable = CritBitTree[string]
 
@@ -31,36 +37,23 @@ proc transpileCode(engine: TimEngine, tpl: TimTemplate,
   ## Transpile `tpl` TimTemplate to a specific target source
   var p: Parser = engine.newParser(tpl, refreshAst = refreshAst)
   if likely(not p.hasError):
-    case config.target
-    of tsHtml:
-      # When `HTML` is the preferred target source
-      # Tim Engine will run as a microservice app in background
-      # powered by Zero MQ. The pre-compiled templates are stored
-      # in a Cache table for when rendering is needed.
-      # echo engine.getTargetSourcePath(tpl, config.output, $config.target)
-      if tpl.jitEnabled():
-        # if marked as JIT will save the produced
-        # binary AST on disk for runtime computation
-        engine.writeAst(tpl, parser.getAst(p))
-      else:
-        # otherwise, compiles AST to static HTML
-        var c = html.newCompiler(engine, parser.getAst(p), tpl,
-          engine.isMinified, engine.getIndentSize)
-        if likely(not c.hasError):
-          case tpl.getType:
-            of ttView:
-              engine.writeHtml(tpl, c.getHtml)
-            of ttLayout:
-              engine.writeHtml(tpl, c.getHead)
-            else: discard
-        else:
-          c.logger.displayErrors()
-      # Cache[tpl.getHash()] = c.getHtml().strip
-    of tsNim:
-      let c = nimc.newCompiler(parser.getAst(p))
-      writeFile(engine.getTargetSourcePath(tpl, config.output, $config.target), c.exportCode())
-    else: discard
-  else: p.logger.displayErrors()
+    if tpl.jitEnabled():
+      # if marked as JIT will save the produced
+      # binary AST on disk for runtime computation
+      engine.writeAst(tpl, parser.getAst(p))
+    else:
+      # otherwise, compiles AST to static HTML
+      var c = html.newCompiler(engine, parser.getAst(p), tpl,
+        engine.isMinified, engine.getIndentSize)
+      if likely(not c.hasError):
+        case tpl.getType:
+          of ttView:
+            engine.writeHtml(tpl, c.getHtml)
+          of ttLayout:
+            engine.writeHtml(tpl, c.getHead)
+          else: discard
+      else: displayErrors c.logger
+  else: displayErrors p.logger
 
 proc resolveDependants(engine: TimEngine,
     deps: seq[string], config: TimConfig) =
@@ -73,56 +66,55 @@ proc resolveDependants(engine: TimEngine,
     else:
       engine.transpileCode(tpl, config, true)
 
-proc precompile(engine: TimEngine, config: TimConfig, globals: JsonNode) =
+proc precompile(engine: TimEngine, config: TimConfig, globals: JsonNode = newJObject()) =
   ## Pre-compiles available templates
   engine.setGlobalData(globals)
-  proc notify(label, fname: string) =
-    echo label
-    echo indent(fname & "\n", 3)
+  engine.importsHandle = resolver.initResolver()
+  if not config.compilation.release:  
+    proc onFound(file: watchout.File) =
+      # Callback `onFound`
+      # Runs when detecting a new template.
+      let tpl: TimTemplate =
+          engine.getTemplateByPath(file.getPath())
+      case tpl.getType
+      of ttView, ttLayout:
+        engine.transpileCode(tpl, config)
+      else: discard
 
-  # Callback `onFound`
-  proc onFound(file: watchout.File) =
-    # Runs when detecting a new template.
-    echo file.getPath()
-    let tpl: TimTemplate =
-        engine.getTemplateByPath(file.getPath())
-    case tpl.getType
-    of ttView, ttLayout:
-      engine.transpileCode(tpl, config)
-    else: discard
+    proc onChange(file: watchout.File) =
+      # Callback `onChange`
+      # Runs when detecting changes
+      let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+      displayInfo("✨ Changes detected\n   " & file.getName())
+      case tpl.getType()
+      of ttView, ttLayout:
+        engine.transpileCode(tpl, config)
+      else:
+        engine.resolveDependants(tpl.getDeps.toSeq, config)
 
-  # Callback `onChange`
-  proc onChange(file: watchout.File) =
-    # Runs when detecting changes
-    let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-    notify("✨ Changes detected", file.getName())
-    case tpl.getType()
-    of ttView, ttLayout:
-      engine.transpileCode(tpl, config)
-    else:
-      engine.resolveDependants(tpl.getDeps.toSeq, config)
+    proc onDelete(file: watchout.File) =
+      # Callback `onDelete`
+      # Runs when deleting a file
+      displayInfo("Deleted a template\n   " & file.getName())
+      engine.clearTemplateByPath(file.getPath())
 
-  # Callback `onDelete`
-  proc onDelete(file: watchout.File) =
-    # Runs when deleting a file
-    notify("✨ Deleted", file.getName())
-    engine.clearTemplateByPath(file.getPath())
-
-  var watcher =
-    newWatchout(
-      @[engine.getSourcePath() / "*"],
-      onChange, onFound, onDelete,
-      recursive = true,
-      ext = @[".timl"],
-      delay = config.sync.delay,
-      browserSync =
-        WatchoutBrowserSync(
-          port: config.sync.port,
-          delay: config.sync.delay
+    var watcher =
+      newWatchout(
+        @[engine.getSourcePath() / "*"],
+        onChange, onFound, onDelete,
+        recursive = true,
+        ext = @[".timl"],
+        delay = config.browser_sync.delay,
+        browserSync =
+          WatchoutBrowserSync(
+            port: config.browser_sync.port,
+            delay: config.browser_sync.delay
+          )
         )
-      )
-  # watch for file changes in a separate thread
-  watcher.start() # config.target != tsHtml
+    # watch for file changes in a separate thread
+    watcher.start() # config.target != tsHtml
+  else:
+    discard
 
 proc jitCompiler(engine: TimEngine,
     tpl: TimTemplate, data: JsonNode): HtmlCompiler =
@@ -157,7 +149,7 @@ template layoutWrapper(getViewBlock) {.dirty.} =
       jitLayout.logger.displayErrors()
   add result, layoutTail
 
-proc render(engine: TimEngine, viewName, layoutName: string, local = newJObject()): string =
+proc render*(engine: TimEngine, viewName: string, layoutName = "base", local = newJObject()): string =
   # Renders a `viewName`
   if likely(engine.hasView(viewName)):
     var
@@ -182,52 +174,24 @@ proc render(engine: TimEngine, viewName, layoutName: string, local = newJObject(
   else:
     raise newException(TimError, "View not found")
 
-# import pkg/netty
-# proc run*(engine: var TimEngine, config: TimConfig) =
-#   var server = newReactor("127.0.0.1", 1999)
-#   case config.target
-#   of tsHtml:
-#     display("Tim Engine is running at udp://127.0.0.1:1999")
-#     while true:
-#       server.tick()
-#       for msg in server.messages:
-#         echo msg.data
-#         server.send(msg.conn, msg.data)
-#       sleep(5)
-#   else: discard
+#
+# Tim Engine - Server handle
+#
+from std/httpcore import HttpCode
+proc startServer(engine: TimEngine) =
+  proc onRequest(req: Request): Future[void] =
+    {.gcsafe.}:
+      req.send(200.HttpCode, engine.render("index"), "Content-Type: text/html")
+  
+  httpbeast.run(onRequest, initSettings(numThreads = 1))
 
 proc run*(engine: var TimEngine, config: TimConfig) =
-  config.output = normalizedPath(engine.getBasePath / config.output)
-  case config.target
-  of tsHtml:
-    display("Tim Engine is running at " & address)
-    var rep = listen(address, mode = REP)
-    var hasGlobalStorage: bool
-    defer: rep.close()
-    while true:
-      let req = rep.receiveAll()
-      try:
-        let command = req[0]
-        case command
-        of "render":
-          let local = req[3].fromJson
-          let output = engine.render(req[1], req[2], local)
-          rep.send(output)
-        of "global.storage": # runs once
-          if not hasGlobalStorage:
-            let globals = req[1].fromJson
-            engine.precompile(config, globals)
-            hasGlobalStorage = true
-            rep.send("")
-          else:
-            rep.send("")
-        else: discard # unknown command error ?
-      except TimError as e:
-        rep.send(e.msg)
-      sleep(10)
-  else:
-    discard existsOrCreateDir(config.output / "views")
-    discard existsOrCreateDir(config.output / "layouts")
-    discard existsOrCreateDir(config.output / "partials")
-    display("Tim Engine is running Source-to-Source")
-    engine.precompile(config, newJObject())
+  ## Tim can serve the HTTP service with TCP or Unix socket.
+  ## 
+  ## **Note** By default, Unix socket would only be available to same user.
+  ## If you want access it from Nginx, you need to loosen permissions.
+  displayInfo("Preloading templates...")
+  let globals = %*{} # todo
+  engine.precompile(config, globals)
+  displayInfo("Tim Engine Server is up & running")
+  engine.startServer()

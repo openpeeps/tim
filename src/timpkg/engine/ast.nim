@@ -4,13 +4,13 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import ./tokens
-import std/[tables, json, macros, hashes]
-
-import pkg/sorta
-import pkg/kapsis/cli
+import std/[tables, strutils, json,
+  macros, options, hashes]
 
 from std/htmlparser import tagToStr, htmlTag, HtmlTag
 export tagToStr, htmlTag, HtmlTag
+
+import pkg/kapsis/cli
 
 when not defined release:
   import std/jsonutils
@@ -63,10 +63,12 @@ type
     ntJavaScriptSnippet = "JavaScriptSnippet"
     ntYamlSnippet = "YAMLSnippet"
     ntJsonSnippet = "JsonSnippet"
+    ntMarkdownSnippet = "MarkdownSnippet"
     ntClientBlock = "ClientSideStatement"
     ntStmtList = "StatementList"
     ntRuntimeCode = "Runtime"
     ntReference = "Reference"
+    ntStaticStmt = "StaticStatement"
 
   FunctionType* = enum
     fnImportLocal
@@ -341,13 +343,14 @@ type
         ## the return type of a function
         ## if a function has no return type, then `ntUnknown`
         ## is used as default (void)
+      fnReturnDataType*: DataType
       fnReturnHtmlElement*: HtmlTag
       fnFwdDecl*, fnExport*, fnAnon*: bool
       fnType*: FunctionType
       fnSource*: string
-      fnLazyScope*: ScopeTable
     of ntJavaScriptSnippet,
-      ntYamlSnippet, ntJsonSnippet:
+      ntYamlSnippet, ntJsonSnippet,
+      ntMarkdownSnippet:
         snippetId*, snippetCode*: string
         snippetCodeAttrs*: seq[(string, Node)]
           ## string-based snippet code for either
@@ -389,21 +392,12 @@ type
       runtimeCode*: string
     of ntReference:
       refNode*, refValue*: Node
+    of ntStaticStmt:
+      staticStmt*: Node
     else: discard
     meta*: Meta
 
   Meta* = array[3, int]
-  
-  ScopeTable* = ref object
-    ## ScopeTable is used to store variables,
-    ## functions and blocks
-    data*: OrderedTable[Hash, seq[Node]]
-    variables*: OrderedTable[Hash, Node]
-      ## an ordered table of Node, here
-      ## we'll store variable declarations
-    functions*, blocks*: OrderedTable[Hash, Node]
-      ## an ordered table of seq[Node] where we store 
-      ## all functions and blocks.
 
   TimPartialsTable* = TableRef[string, (Ast, seq[cli.Row])]
   TimModulesTable* = TableRef[string, Ast]
@@ -659,6 +653,10 @@ when not defined release:
   proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
     {.gcsafe.}:
       echo pretty(toJson(nodes), 2)
+
+  proc debugEcho*(typedNode: TypeDefinition) {.gcsafe.} =
+    {.gcsafe.}:
+      echo pretty(toJson(typedNode), 2)
 else:
   proc debugEcho*(node: Node) {.gcsafe.} =
     static:
@@ -667,6 +665,40 @@ else:
   proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
     static:
       warning("`debugEcho` has no effect when building with `release` flag")
+
+proc getDataType*(node: Node): DataType =
+  # Get `DataType` from `NodeType`
+  case node.nt
+  of ntLitVoid:   typeVoid
+  of ntLitInt:    typeInt
+  of ntLitString: typeString
+  of ntLitFloat:  typeFloat
+  of ntLitBool:   typeBool
+  of ntLitArray:  typeArray
+  of ntLitObject: typeObject
+  of ntFunction:  typeFunction
+  of ntStream:    typeStream
+  of ntBlock, ntStmtList:
+    typeBlock
+  of ntHtmlElement: typeHtmlElement
+  else: typeNil
+
+proc getDataType*(nt: NodeType): DataType =
+  # Get `DataType` from `NodeType`
+  case nt
+  of ntLitVoid:   typeVoid
+  of ntLitInt:    typeInt
+  of ntLitString: typeString
+  of ntLitFloat:  typeFloat
+  of ntLitBool:   typeBool
+  of ntLitArray:  typeArray
+  of ntLitObject: typeObject
+  of ntFunction:  typeFunction
+  of ntStream:    typeStream
+  of ntBlock, ntStmtList:
+    typeBlock
+  of ntHtmlElement: typeHtmlElement
+  else: typeNil
 
 #
 # AST Generators
@@ -757,6 +789,37 @@ proc newFunction*(tk: TokenTuple): Node =
   ## Create a new anonymous function definition Node
   result = newNode(ntFunction, tk)
   result.fnAnon = true
+
+# proc newFunction*(returnType: NodeType = ntUnknown): Node =
+#   ## Create a new anonymous function definition Node
+#   result = newNode(ntFunction, tk)
+#   result.fnAnon = true
+
+macro createFunction*(fnDef: untyped): untyped =
+  result = newStmtList()
+  var fnReturnDataType = newDotExpr(ident"DataType", ident"typeVoid")
+  var fnStmtBody = newCall(ident"newNode", ident"ntStmtList")
+  for def in fnDef:
+    if def.kind == nnkAsgn:
+      if def[0].eqIdent("returnType"):
+        if def[1].eqIdent"typeIdentifier":
+          discard # todo handle custom identifiers
+        else:
+          let returnType = parseEnum[DataType](def[1].strVal[4..^1].toLowerAscii)
+          fnReturnDataType = ident(def[1].strVal)
+        # echo def.repr
+  add result, quote do:
+    (
+      block:
+        let fnNode = newNode(ntFunction)
+        fnNode.fnReturnDataType = `fnReturnDataType`
+        fnNode.fnAnon = true
+        fnNode.fnExport = true
+        fnNode.fnBody = `fnStmtBody`
+        # fnNode.fnType = fnImportSystem
+        fnNode
+    )
+  # echo result.repr
 
 proc newCall*(tk: TokenTuple): Node =
   ## Create a new function call Node

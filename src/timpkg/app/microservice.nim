@@ -4,16 +4,41 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[osproc, os]
-import pkg/flatty
-import pkg/kapsis/[runtime, cli]
+import std/[os, osproc, strutils]
+import pkg/[nyml, flatty]
+import pkg/kapsis/[cli, runtime] 
+
+import ../server/[app, config]
+import ../engine/meta
+
+proc newCommand*(v: Values) =
+  ## Initialize a new Tim Engine configuration
+  ## using current working directory
+  discard
+
+proc runCommand*(v: Values) =
+  ## Runs Tim Engine as a microservice front-end application.
+  let path = absolutePath(v.get("config").getPath.path)
+  let config = fromYaml(path.readFile, TimConfig)
+  var timEngine =
+    newTim(
+      config.compilation.source,
+      config.compilation.output,
+      path.parentDir
+    )
+  app.run(timEngine, config)
+
+proc buildCommand*(v: Values) =
+  ## Initialize a new Tim Engine configuration
+  ## using current working directory
+  discard
 
 import ../engine/[parser, ast]
 import ../engine/compilers/nimc
 import ../server/dynloader
-
 proc bundleCommand*(v: Values) =
-  ## Execute Just-in-Time compilation of the specifie
+  ## Bundle Tim templates to shared libraries
+  ## for fast plug & serve.
   let
     cachedPath = v.get("ast").getPath.path
     cachedAst = readFile(cachedPath)

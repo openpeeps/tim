@@ -59,9 +59,9 @@ handlers:
 
   proc handleMagics(lex: var Lexer, kind: TokenKind) =
     template collectSnippet(tKind: TokenKind) =
-      if tKind in {tkSnippetJson, tkSnippetJs, tkSnippetYaml}:
-        # first, check if snippet has an identifier that
-        # stats with `#` tag
+      if tKind in {tkSnippetJson, tkSnippetJs, tkSnippetYaml, tkSnippetMarkdown}:
+        # first, check if snippet has an
+        # identifier prefixed by `#` tag
         if lex.buf[lex.bufpos] == '#':
           inc lex.bufpos
           var scriptName = "#"
@@ -136,6 +136,10 @@ handlers:
       let pos = lex.getColNumber(lex.bufpos)
       inc lex.bufpos, 5
       collectSnippet(tkSnippetYaml)
+    elif lex.next("md"):
+      let pos = lex.getColNumber(lex.bufpos)
+      inc lex.bufpos, 3
+      collectSnippet(tkSnippetMarkdown)
     elif lex.next("placeholder"):
       let pos = lex.getColNumber(lex.bufpos)
       inc lex.bufpos, 12
@@ -245,6 +249,7 @@ registerTokens toktokSettings:
     eq   = '='
   colon  = ':'
   comma  = ','
+  scolon = ';'
   gt     = '>':
     gte  = '='
   lt     = '<':
@@ -284,6 +289,7 @@ registerTokens toktokSettings:
   snippetJs
   snippetYaml
   snippetJson
+  snippetMarkdown
   placeholder
   viewLoader
   client
@@ -305,3 +311,4 @@ registerTokens toktokSettings:
   assertCmd = "assert"
   identVar = tokenize(handleVar, '$')
   identVarSafe
+  `static` = "static"

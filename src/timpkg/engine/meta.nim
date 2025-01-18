@@ -13,7 +13,7 @@ import pkg/importer/resolver
 export getProjectPath
 
 from ./ast import Ast
-# from ./package/manager import Packager, loadPackages
+from ./package/manager import Packager, loadPackages
 
 var placeholderLocker*: Lock
 
@@ -58,7 +58,7 @@ type
     policy: TimPolicy
     globals: JsonNode = newJObject()
     importsHandle*: Resolver
-    # packager*: Packager
+    packager*: Packager
 
   TimEngineSnippets* = TableRef[string, seq[Ast]]
   TimError* = object of CatchableError
@@ -375,9 +375,9 @@ proc newTim*(src, output, basepath: string, minify = true,
       minify: minify,
       indentSize: indent,
       htmlErrors: showHtmlError,
-      # packager: Packager()
+      packager: Packager()
     )
-  # result.packager.loadPackages()
+  result.packager.loadPackages()
   for sourceDir in [ttLayout, ttView, ttPartial]:
     if not dirExists(result.src / $sourceDir):
       raise newException(TimError, "Missing $1 directory: \n$2" % [$sourceDir, result.src / $sourceDir])

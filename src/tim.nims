@@ -4,8 +4,8 @@
 --deepcopy:on
 --define:nimPreviewHashRef
 --define:ssl
---define:"ThreadPoolSize=16"
---define:"FixedChanSize=32"
+--define:"ThreadPoolSize=1"
+--define:"FixedChanSize=2"
 
 when defined napibuild:
   --define:napiOrWasm
@@ -15,6 +15,7 @@ when defined napibuild:
 
 when isMainModule:
   --define:timStandalone
+  --define:watchoutBrowserSync
   when defined release:
     --opt:speed
     --define:danger

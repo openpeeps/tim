@@ -4,11 +4,12 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[os, json, strutils]
-import pkg/jsony
-import pkg/kapsis/[cli, runtime] 
+import std/[os, json, monotimes, times, strutils]
 
-import ../engine/parser
+import pkg/[jsony, flatty]
+import pkg/kapsis/[cli, runtime] 
+import ../engine/[parser, ast]
+
 import ../engine/logging
 import ../engine/compilers/[html, nimc]
 
@@ -23,12 +24,14 @@ proc srcCommand*(v: Values) =
     hasDataFlag = v.has("--data")
     hasJsonFlag = v.has("--json-errors")
     outputPath = if v.has("-o"): v.get("-o").getStr else: ""
+    enableBenchmark = v.has("--bench")
     # enableWatcher = v.has("w")
   let jsonData: JsonNode =
     if hasDataFlag: v.get("--data").getJson
     else: nil
   let name = fpath
   let timlCode = readFile(getCurrentDir() / fpath)
+  let t = getMonotime()
   let p = parseSnippet(name, timlCode, flagNoCache, flagRecache)
   if likely(not p.hasErrors):
     if ext == "html":
@@ -38,10 +41,13 @@ proc srcCommand*(v: Values) =
         data = jsonData
       )
       if likely(not c.hasErrors):
+        let benchTime = getMonotime() - t
         if outputPath.len > 0:
           writeFile(outputPath, c.getHtml.strip)
         else:
           display c.getHtml().strip
+        if enableBenchmark:
+          displayInfo("Done in " & $benchTime)
       else:
         if not hasJsonFlag:
           for err in c.logger.errors:
@@ -52,15 +58,46 @@ proc srcCommand*(v: Values) =
           for err in c.logger.errorsStr:
             add outputJsonErrors, err
           display jsony.toJson(outputJsonErrors)
+        if enableBenchmark:
+          displayInfo("Done in " & $(getMonotime() - t))
         quit(1)
     elif ext == "nim":
       let c = nimc.newCompiler(parser.getAst(p))
       display c.exportCode()
+      if enableBenchmark:
+        displayInfo("Done in " & $(getMonotime() - t))
     else:
       displayError("Unknown target `" & ext & "`")
+      if enableBenchmark:
+        displayInfo("Done in " & $(getMonotime() - t))
       quit(1)
   else:
     for err in p.logger.errors:
       display(err)
     displayInfo p.logger.filePath
+    if enableBenchmark:
+      displayInfo("Done in " & $(getMonotime() - t))
+    quit(1)
+
+proc astCommand*(v: Values) =
+  ## Build binary AST from a `timl` file
+  let fpath = v.get("timl").getPath.path
+  let opath = normalizedPath(getCurrentDir() / v.get("output").getFilename)
+  let p = parseSnippet(fpath, readFile(getCurrentDir() / fpath))
+  if likely(not p.hasErrors):
+    writeFile(opath, flatty.toFlatty(parser.getAst(p)))
+
+proc reprCommand*(v: Values) =
+  ## Read a binary AST to target source
+  let fpath = v.get("ast").getPath.path
+  let ext = v.get("ext").getStr
+  let pretty = v.has("pretty")
+  if ext == "html":
+    let c = html.newCompiler(flatty.fromFlatty(readFile(fpath), Ast), pretty == false)
+    display c.getHtml().strip
+  elif ext == "nim":
+    let c = nimc.newCompiler(flatty.fromFlatty(readFile(fpath), Ast))
+    display c.exportCode()
+  else:
+    displayError("Unknown target `" & ext & "`")
     quit(1)

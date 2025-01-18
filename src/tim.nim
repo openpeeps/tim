@@ -12,12 +12,13 @@ import pkg/watchout
 import pkg/importer/resolver
 import pkg/kapsis/cli
 
-import timpkg/engine/[meta, parser, logging, std]
+import timpkg/engine/[meta, parser, logging]
 import timpkg/engine/compilers/html
 
 from timpkg/engine/ast import `$`
 
-# from std/strutils import `%`, indent, split, parseInt, join
+when not isMainModule:
+  import timpkg/engine/stdlib
 
 const
   DOCKTYPE = "<!DOCKTYPE html>"
@@ -353,23 +354,23 @@ proc render*(engine: TimEngine, viewName: string,
       if not view.jitEnabled:
         # render a pre-compiled HTML
         layoutWrapper:
-          add result, view.getHtml()
-          # add result,
-          #   if engine.isMinified:
-          #     view.getHtml()
-          #   else:
-          #     indent(view.getHtml(), layout.getViewIndent)
+          # add result, view.getHtml()
+          add result,
+            if engine.isMinified:
+              view.getHtml()
+            else:
+              indent(view.getHtml(), layout.getViewIndent)
       else:
         # compile and render template at runtime
         layoutWrapper:
           var jitView = engine.jitCompiler(view, data, placeholders)
           if likely(not jitView.hasError):
-            add result, jitView.getHtml
-            # add result,
-            #   if engine.isMinified:
-            #     jitView.getHtml()
-            #   else:
-            #     indent(jitView.getHtml(), layout.getViewIndent)
+            # add result, jitView.getHtml
+            add result,
+              if engine.isMinified:
+                jitView.getHtml()
+              else:
+                indent(jitView.getHtml(), layout.getViewIndent)
           else:
             jitView.logger.displayErrors()
             hasError = true
@@ -491,10 +492,28 @@ when defined napibuild:
         let c = newCompiler(parser.getAst(p), true)
         return %*c.getHtml()
 
+elif defined timSwig:
+  # Generate C API for generating SWIG wrappers
+  # import pkg/genny
+  
+  # proc init*(src, output: string; minifyOutput = false; indentOutput = 2): TimEngine =
+  #   ## Initialize TimEngine
+  #   result = newTim(src, output, "", minifyOutput, indentOutput)
+  
+  # exportRefObject TimEngine:
+  #   procs:
+  #     init
+  #     precompile
+
+  # writeFiles("bindings/generated", "tim")
+  # include genny/internal
+  # todo
+  discard
+
 elif not isMainModule:
   # Expose Tim Engine API for Nim development
   # as a Nimble library
-  import std/enumutils
+  import std/[hashes, enumutils]
   import timpkg/engine/ast
   
   export ast, parser, html, json, stdlib
@@ -511,12 +530,15 @@ elif not isMainModule:
         case m.kind
         of nnkProcDef:
           let id = m[0]
+          var hashKey = stdlib.getHashedIdent(id.strVal)
           var fn = "fn " & $m[0] & "*("
           var fnReturnType: NodeType
           var params: seq[string]
+          var paramsType: seq[DataType]
           if m[3][0].kind != nnkEmpty:
             for p in m[3][1..^1]:
               add params, $p[0] & ":" & $p[1]
+              hashKey = hashKey !& hashIdentity(parseEnum[DataType]($p[1]))
             add fn, params.join(",")
             add fn, "): "
             fnReturnType = ast.getType(m[3][0])
@@ -546,12 +568,11 @@ elif not isMainModule:
           add lambda, newEmptyNode()
           add lambda, newEmptyNode()
           add lambda, m[6]
-          let callableName = id.strVal
-          let callableId = callableName[0] & toLowerAscii(callableName[1..^1])
           add result, 
             newAssignment(
               nnkBracketExpr.newTree(
-                ident"localModule", newLit(callableId)
+                ident"localModule",
+                newLit hashKey
               ),
               lambda
             )
@@ -576,36 +597,47 @@ else:
   # Build Tim Engine as a standalone CLI application
   import pkg/kapsis
   import pkg/kapsis/[runtime, cli]
-  import timpkg/app/[astCmd, srcCmd, reprCmd]
-  #import timpkg/app/[jitCmd, pkgCmd, vmCmd]
+  import timpkg/app/[source, microservice, manage]
 
   commands:
     -- "Source-to-Source"
+    # Transpile timl code to a specific target source.
+    # For now only `-t:html` works. S2S targets planned:
+    # JavaScript, Nim, Python, Ruby and more
     src string(-t), path(`timl`), string(-o),
       ?json(--data),    # pass data to global/local scope
-      bool(--pretty),   # pretty print output HTML
-      bool(--nocache),  # tells Tim to not cache packages
+      bool(--pretty),   # pretty print output HTML (still buggy)
+      bool(--nocache),  # tells Tim to import modules and rebuild cache
+      bool(--bench), # benchmark operations
       bool("--json-errors"):
         ## Transpile `timl` to a target source
 
     ast path(`timl`), filename(`output`):
-      ## Generate binary AST from a `timl` file
+      ## Serialize template to binary AST
 
     repr path(`ast`), string(`ext`), bool(--pretty):
-      ## Read from a binary AST to target source
+      ## Deserialize binary AST to target source
 
-    # -- "Microservice"
-    # # run path(`config`):
-    # #   ## Run Tim as a Microservice application
-    # # bundle path(`ast`):
-    # #   ## Produce binary dynamic templates (dll) from AST. Requires Nim
-    # analyze path(`timl`):
-    #   ## Performs a static analyze
-    # run:
-    #   ## Run a Tim Engine Virtual Machine through a UNIX socket
+    -- "Microservice"
+    new path(`config`):
+      ## Initialize a new config file
 
-    # -- "Development"
-    # install url(`pkg`):
-    #   ## Install a package from remote source
-    # uninstall string(`pkg`):
-    #   ## Uninstall a package from local source
+    run path(`config`):
+      ## Run Tim as a Microservice application
+
+    build path(`ast`):
+      ## Build pluggable templates `dll` from `.timl` files. Requires Nim
+
+    bundle path(`config`):
+      ## Bundle a standalone front-end app from project. Requires Nim
+
+    -- "Development"
+    # The built-in package manager store installed packages
+    init:
+      ## Initializes a new Tim Engine package
+
+    install url(`pkg`):
+      ## Install a package from remote source
+
+    uninstall string(`pkg`):
+      ## Uninstall a package from local source

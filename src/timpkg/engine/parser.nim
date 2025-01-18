@@ -5,11 +5,11 @@
 #          https://github.com/openpeeps/tim
 
 {.warning[ImplicitDefaultValue]:off.}
-import std/[macros, macrocache, streams, lexbase,
+import std/[macros, macrocache, lexbase,
   strutils, sequtils, re, tables, os, with, options]
 
-import ./meta, ./tokens, ./ast, ./logging, ./std
-# import  ./package/manager
+import ./meta, ./tokens, ./ast, ./logging, ./stdlib
+import  ./package/manager
 
 import pkg/kapsis/cli
 import pkg/importer
@@ -44,7 +44,7 @@ type
   InfixFunction = proc(p: var Parser, lhs: Node): Node {.gcsafe.}
 
 const
-  tkCompSet = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE, tkAmp, tkAndAnd}
+  tkCompSet = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE, tkAndAnd}
   tkMathSet = {tkPlus, tkMinus, tkAsterisk, tkDivide}
   tkAssignableSet = {
     tkString, tkBacktick, tkBool, tkFloat, tkIdentifier,
@@ -127,10 +127,10 @@ proc isChild(tk, parent: TokenTuple): bool {.inline.} =
   tk.pos > parent.pos and (tk.line > parent.line and tk.kind != tkEOF)
 
 proc isInfix(p: var Parser): bool {.inline.} =
-  p.curr.kind in tkCompSet + tkMathSet + {tkAssign}
+  p.curr.kind in tkCompSet + tkMathSet + {tkAssign, tkAmp}
 
 proc isInfix(tk: TokenTuple): bool {.inline.} =
-  tk.kind in tkCompSet + tkMathSet + {tkAssign}
+  tk.kind in tkCompSet + tkMathSet + {tkAssign, tkAmp}
 
 proc `isnot`(tk: TokenTuple, kind: TokenKind): bool {.inline.} =
   tk.kind != kind
@@ -300,9 +300,14 @@ prefixHandle pString:
   result = ast.newString(p.curr)
   walk p
 
-prefixHandle pStringConcat:
+proc pStringConcat(p: var Parser, lhs: Node): Node {.gcsafe.} =
+  result = ast.newNode(ntInfixExpr, p.curr)
+  result.infixOp = getInfixOp(p.curr.kind, true)
+  result.infixLeft = lhs
   walk p # tkAmp
-  result = p.getPrefixOrInfix()
+  let rhs = p.getPrefixOrInfix()
+  caseNotNil rhs:
+    result.infixRight = rhs
 
 prefixHandle pBacktick:
   # parse template literals enclosed by backticks
@@ -525,13 +530,18 @@ prefixHandle pIdentOrAssignment:
   #   result.identSafe = ident.kind == tkIdentVarSafe
 
 template getAssignedValue(typedNode: TypeDefinition = nil, identTypeName = ""): Node {.dirty.} = 
-  # case p.curr.kind:
-  # of tkAssignableSet:
   var varDef = p.parseVarDef(identToken, varType)
   caseNotNil varDef:
     let varValue = p.getPrefixOrInfix()
     caseNotNil varValue:
-      varDef.varValue = varvalue
+      if p.curr is tkDot:
+        let exprVarValue = p.parseDotExpr(varValue)
+        varDef.varValue = exprVarValue
+      elif p.curr is tkLB:
+        let exprVarValue = p.parseBracketExpr(varValue)
+        varDef.varValue = exprVarValue
+      else:
+        varDef.varValue = varvalue
       caseNotNil typedNode:
         varDef.varValueType = typedNode
         if varDef.varValueType.datatype == typeIdentifier:
@@ -563,9 +573,8 @@ prefixHandle pAssignment:
         return getAssignedValue(varValueType, typeName.value)
       result = p.parseVarDef(identToken, varType)
       result.varValueType = varValueType
-      if result.varValue == nil:
-        result.varValue =
-          ast.getDefaultValue(result.varValueType.datatype)
+      if result.varImmutable:
+        errorWithArgs(varImmutableValue, identToken, [identToken.value])
     else: discard # `unexpectedToken`
   else: discard # `unexpectedToken`
 
@@ -694,10 +703,21 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node],
           ast.newHtmlAttribute("id", ast.newString(p.curr), p.curr)
         walk p
       else: return
+    of tkLP:
+      let exprNode = p.pGroupExpr()
+      caseNotNil exprNode:
+        add attrs, exprNode
+      do: return
     else:
       if anyAttrIdent():
-        let attrKey = p.curr; walk p
+        var attrKey = p.curr; walk p
         var emptyAttr: bool
+        if p.curr is tkColon:
+          add attrKey.value, ":"
+          walk p
+          if p.curr isnot tkAssign:
+            add attrKey.value, p.curr.value
+            walk p
         if p.curr is tkAssign:
           walk p
         else:
@@ -714,7 +734,8 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node],
           walk p
           if p.curr is tkAmp:
             while p.curr is tkAmp:
-              let attrNode = p.pStringConcat()
+              walk p
+              let attrNode = p.getPrefixOrInfix()
               caseNotNil attrNode:
                 add attrs[^1].attrValue.sVals, attrNode
               do: return
@@ -771,21 +792,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node],
           do: break
         else: break
 
-prefixHandle pElement:
-  # parse HTML Element
-  let this = p.curr
-  let tag = htmlTag(this.value)
-  result = ast.newHtmlElement(tag, this)
-  walk p
-  if result.meta[1] != 0:
-    # set real indentation size
-    result.meta[1] = p.lvl * 4
-  if p.parentNode.len == 0:
-    add p.parentNode, result
-  else:
-    if result.meta[0] > p.parentNode[^1].meta[0]:
-      add p.parentNode, result
-  # parse HTML attributes
+template parseElementAttributes =
   case p.curr.kind
   of tkDot, tkID, tkIdentifier, tkType:
     p.parseAttributes(result.htmlAttributes, this)
@@ -808,6 +815,10 @@ prefixHandle pElement:
       result.htmlMultiplyBy = p.pIdent()
       caseNotNil result.htmlMultiplyBy:
         discard
+    of tkIdentifier:
+      result.htmlMultiplyBy = p.getPrefixOrInfix()
+      caseNotNil result.htmlMultiplyBy:
+        discard
     else: return nil
   else:
     if p.curr is tkLP and
@@ -817,6 +828,21 @@ prefixHandle pElement:
     # if p.curr.line == this.line:
     #   result.attrs = HtmlAttributes()
     #   p.parseAttributes(result, this)
+
+prefixHandle pElement:
+  # parse HTML Element
+  let this = p.curr
+  let tag = htmlTag(this.value)
+  result = ast.newHtmlElement(tag, this)
+  walk p
+  if result.meta[1] != 0:
+    result.meta[1] = p.lvl * 4 # set real indent size
+  if p.parentNode.len == 0:
+    add p.parentNode, result
+  else:
+    if result.meta[0] > p.parentNode[^1].meta[0]:
+      add p.parentNode, result
+  parseElementAttributes()
   case p.curr.kind
   of tkColon:
     walk p
@@ -848,18 +874,17 @@ prefixHandle pElement:
         p.curr.pos = p.lvl
         node = p.pElement()
         caseNotNil node:
-          if p.curr.kind != tkEOF and p.curr.pos != 0:
+          if p.curr isnot tkEOF and p.curr.pos > 0:
             if p.curr.line > node.meta[0]:
               let currentParent = p.parentNode[^1]
-              while p.curr.pos > currentParent.meta[2]:
-                if p.curr.kind == tkEOF: break
+              while p.curr.pos > currentParent.meta[1]:
+                if p.curr is tkEOF: break
                 var subNode = p.parsePrefix()
                 caseNotNil subNode:
                   add node.nodes, subNode
-                # if p.hasError(): break
-                if p.curr.pos < currentParent.meta[2]:
+                if p.curr.pos < currentParent.meta[1]:
                   try:
-                    dec p.lvl, currentParent.meta[2] div p.curr.pos
+                    dec p.lvl, currentParent.meta[1] div p.curr.pos
                   except DivByZeroDefect:
                     discard
                   delete(p.parentNode, p.parentNode.high)
@@ -875,23 +900,34 @@ prefixHandle pElement:
           add result.nodes, node
       else: return
   else: discard
-  # parse nested nodes
-  let currentParent = p.parentNode[^1]
-  if p.curr.pos > currentParent.meta[2]:
-    inc p.lvl
-  while p.curr.pos > currentParent.meta[2]:
-    if p.curr is tkEOF: break
-    var subNode = p.parsePrefix()
-    caseNotNil subNode:
-      add result.nodes, subNode
-    if p.curr is tkEOF or p.curr.pos == 0: break # prevent division by zero
-    if p.curr.pos < currentParent.meta[2]:
-      dec p.lvl
-      delete(p.parentNode, p.parentNode.high)
-      break
-    elif p.curr.pos == currentParent.meta[2]:
-      dec p.lvl
-  if p.curr.pos == 0: p.lvl = 0 # reset level
+    # if hasIndentToken:
+    #   inc(p.lvl)
+    #   while p.curr.pos > result.meta[1]:
+    #     if p.curr is tkEOF: break
+    #     var subNode = p.parsePrefix()
+    #     caseNotNil subNode:
+    #       add result.nodes, subNode
+    # else: discard
+
+  # parse multi-line nested nodes
+  var currentParent = p.parentNode[^1]
+  if p.curr.line > currentParent.meta[0]:
+    if p.curr.pos > currentParent.meta[2]:
+      inc p.lvl
+      while p.curr.pos > currentParent.meta[2]:
+        if p.curr is tkEOF: break
+        var subNode = p.parsePrefix()
+        caseNotNil subNode:
+          add result.nodes, subNode
+        if p.curr is tkEOF or p.curr.pos == 0: break # prevent division by zero
+        if p.curr.pos < currentParent.meta[2]:
+          dec p.lvl
+          delete(p.parentNode, p.parentNode.high)
+          break
+        elif p.curr.pos == currentParent.meta[2]:
+          dec p.lvl
+      if p.curr.pos == 0:
+        p.lvl = 0 # reset level
 
 proc parseCondBranch(p: var Parser, tk: TokenTuple): ConditionBranch {.gcsafe.} =
   walk p # `if` or `elif` token
@@ -920,10 +956,10 @@ prefixHandle pCondition:
       let eliftk = p.curr
       let condBranch = p.parseCondBranch(eliftk)
       caseNotNil condBranch.expr:
-        if unlikely(condBranch.body.stmtList.len == 0):
-          return nil
-        add result.condElifBranch, condBranch
-
+        caseNotNil condBranch.body:
+          if unlikely(condBranch.body.stmtList.len == 0):
+            return nil
+          add result.condElifBranch, condBranch
     if p.curr is tkElse and (p.curr.pos == this.pos or p.next is tkLC):
       # parse `else` branch
       let elsetk = p.curr
@@ -1116,21 +1152,18 @@ prefixHandle pImport:
           p.engine.parseModule(p.curr.value, std(p.curr.value)[1])
         p.tree.modules[p.curr.value].src = p.curr.value
       elif p.curr.value.startsWith("pkg/"):
-        # if likely(p.engine.packager.hasPackage(p.curr.value[4..^1].split("/")[0])):
-        #   # var moduleAst: Ast
-        #   # if likely(p.engine.packager.flagNoCache == false):
-        #   #   moduleAst = p.engine.packager.getCachedModule(p.curr.value)
-        #   # if moduleAst != nil:
-        #   #   p.tree.modules[p.curr.value] = moduleAst
-        #   # else:
-        #   let moduleCode = p.engine.packager.loadModule(p.curr.value)
-        #   let moduleAst = p.engine.parseModule(p.curr.value, SourceCode(moduleCode))
-        #   p.tree.modules[p.curr.value] = moduleAst
-        #   # if p.engine.packager.flagNoCache == false:
-        #     # p.engine.packager.cacheModule(p.curr.value, moduleAst)
-        # else:
-        #   errorWithArgs(importError, p.curr, [p.curr.value.addFileExt(".timl")])
-        discard
+        if likely(p.engine.packager.hasPackage(p.curr.value[4..^1].split("/")[0])):
+          var moduleAst: Ast
+          if likely(p.engine.packager.flagNoCache == false):
+            moduleAst = p.engine.packager.getCachedModule(p.curr.value)
+          if moduleAst.isNil:
+            let moduleCode = p.engine.packager.loadModule(p.curr.value)
+            moduleAst = p.engine.parseModule(p.curr.value, SourceCode(moduleCode))
+          p.tree.modules[p.curr.value] = moduleAst
+          if p.engine.packager.flagNoCache: # rebuild cache
+            p.engine.packager.cacheModule(p.curr.value, moduleAst)
+        else:
+          errorWithArgs(importError, p.curr, [p.curr.value.addFileExt(".timl")])
       else:
         let path = 
           (if not isAbsolute(p.curr.value):
@@ -1166,6 +1199,9 @@ prefixHandle pSnippet:
       if p.curr.attr[0].startsWith("#"):
         result.snippetId = p.curr.attr[0][1..^1]
     result.snippetCode = p.curr.value    
+  of tkSnippetMarkdown:
+    result = ast.newNode(ntMarkdownSnippet, p.curr)
+    result.snippetCode = p.curr.value
   else: discard
   walk p
 
@@ -1297,7 +1333,7 @@ prefixHandle pFunction:
             (paramName.value, ntUnknown, nil, typeNil, nil, "", false, [0, 0, 0])
           handleImplicitDefaultValue()
           result.fnParams[paramName.value].meta = implNode.meta
-        if p.curr is tkComma and p.next isnot tkRP:
+        if p.curr in {tkComma, tkSColon} and p.next isnot tkRP:
           walk p
         elif not isTypedOrDefault and p.next isnot tkIdentifier:
           return nil
@@ -1376,6 +1412,8 @@ prefixHandle pBlockCall:
   walk p # tkAt
   expect tkIdentifier:
     result = ast.newBlockIdent(p.curr)
+    result.meta[1] = tk.pos
+    result.meta[2] = tk.col
     walk p
     # todo fix block calls with parentheses
     var isPar =
@@ -1403,8 +1441,9 @@ prefixHandle pBlockCall:
       #     add result.identArgs, argNode
       of tkGT:
         walk p # tkGT
+        add p.parentNode, result
         let stmtNode = ast.newNode(ntStmtList)
-        let childNode = p.getPrefixOrInfix(indentToken = some(tk))
+        let childNode = p.pElement(indentToken = some(tk))
         caseNotNil childNode:
           add stmtNode.stmtList, childNode
         add result.identArgs, stmtNode
@@ -1423,8 +1462,8 @@ prefixHandle pBlockCall:
       of tkDot, tkID:
         p.parseAttributes(result.identArgs, tk)
       else:
-        if p.curr is tkEOF or
-           tk.pos >= p.curr.pos: break
+        if p.curr is tkEOF or tk.pos >= p.curr.pos:
+          break
         if p.next is tkAssign:
           p.parseAttributes(result.identArgs, tk)
         else:
@@ -1435,6 +1474,7 @@ prefixHandle pBlockCall:
               add stmtNode.stmtList, childNode
           add result.identArgs, stmtNode
 
+
 #
 # Infix Main Handlers
 #
@@ -1443,7 +1483,7 @@ proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
   let op = getInfixOp(p.curr.kind, false)
   walk p
   let rhstk = p.curr
-  let rhs = p.parsePrefix(includes = tkComparable)
+  let rhs = p.getPrefixOrInfix(#[includes = tkComparable]#)
   caseNotNil rhs:
     result = ast.newNode(ntInfixExpr, rhstk)
     result.infixLeft = lhs
@@ -1453,7 +1493,17 @@ proc parseCompExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
     else:
       result.infixRight = rhs
     case p.curr.kind
-    of tkOr, tkOrOr, tkAnd, tkAndAnd, tkAmp:
+    # of tkAmp:
+    #   let infixNode = ast.newNode(ntInfixExpr, p.curr)
+    #   infixNode.infixOp = getInfixOp(p.curr.kind, true)
+    #   infixNode.infixLeft = rhs
+    #   result.infixRight = infixNode
+    #   walk p
+    #   let infixRight = p.getPrefixOrInfix()
+    #   caseNotNil infixRight:
+    #     infixNode.infixRight = infixRight
+    #     return # result
+    of tkOr, tkOrOr, tkAnd, tkAndAnd:
       let infixNode = ast.newNode(ntInfixExpr, p.curr)
       infixNode.infixLeft = result
       infixNode.infixOp = getInfixOp(p.curr.kind, true)
@@ -1476,15 +1526,16 @@ proc parseTernaryExpr(p: var Parser, infixExpr: Node): Node {.gcsafe.} =
   caseNotNil condBody:
     condBranch.body = ast.newNode(ntStmtList, ifToken)
     add condBranch.body.stmtList, ast.newCommand(cmdReturn, condBody, ifToken)
-  expectWalk tkOrOr # ||
   let elseToken = p.prev
-  var condNode = ast.newCondition(condBranch, elseToken)
-  let node = p.getPrefixOrInfix()
-  caseNotNil node:
-    condNode.condElseBranch = ast.newNode(ntStmtList, elseToken)
-    add condNode.condElseBranch.stmtList, ast.newCommand(cmdReturn, node, elseToken)
-  result = newStmtList(ifToken)
-  result.stmtList.add(condNode)
+  result = ast.newCondition(condBranch, elseToken)
+  if p.curr is tkOrOr:
+    walk p # || else is optional
+    let node = p.getPrefixOrInfix()
+    caseNotNil node:
+      result.condElseBranch = ast.newNode(ntStmtList, elseToken)
+      add result.condElseBranch.stmtList, ast.newCommand(cmdReturn, node, elseToken)
+  # result = newStmtList(ifToken)
+  # result.stmtList.add(condNode)
 
 proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse math expressions with symbols (+, -, *, /)
@@ -1508,6 +1559,8 @@ proc parseMathExp(p: var Parser, lhs: Node): Node {.gcsafe.} =
       result = p.parseMathExp(result)
     else:
       result.infixMathRight = rhs
+      if p.curr is tkAmp:
+        return p.pStringConcat(result)
 
 proc parseAssignExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
   # parse assignment expression
@@ -1526,12 +1579,13 @@ proc parseRangeExpr(p: var Parser, lhs: Node): Node {.gcsafe.} =
 
 proc getInfixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): InfixFunction {.gcsafe.} =
   case p.curr.kind
-  of tkCompSet: parseCompExp
-  of tkMathSet: parseMathExp
-  of tkAssign: parseAssignExpr
   of tkDot:
     if isRange(): parseRangeExpr
     else: nil
+  of tkCompSet: parseCompExp
+  of tkMathSet: parseMathExp
+  of tkAssign: parseAssignExpr
+  of tkAmp: pStringConcat
   else: nil
 
 proc parseInfix(p: var Parser, lhs: Node): Node {.gcsafe.} =
@@ -1574,7 +1628,7 @@ proc getPrefixFn(p: var Parser, excludes, includes: set[TokenKind] = {}): Prefix
     of tkIdentVar, tkIdentVarSafe: pIdentOrAssignment
     of tkViewLoader: pViewLoader
     of tkSnippetJS, tkSnippetJSON,
-       tkSnippetYaml: pSnippet
+       tkSnippetYaml, tkSnippetMarkdown: pSnippet
     of tkInclude: pInclude
     of tkImport: pImport
     of tkClient: pClientSide
@@ -1693,6 +1747,15 @@ prefixHandle pTypeDefinition:
     else:
       result = nil
 
+prefixHandle pStaticStatement:
+  result = ast.newNode(ntStaticStmt)
+  result.meta = p.curr.trace
+  walk p # tkStatic
+  expectWalk tkColon
+  let stmtNode: Node = p.getPrefixOrInfix()
+  caseNotNil stmtNode:
+    result.staticStmt = stmtNode
+
 proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.gcsafe.} =
   # Parse elements declared at root-level
   result =
@@ -1715,9 +1778,8 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
       elif p.curr.value[0] in IdentChars:
         p.pElement()
       else: nil
-    of tkSnippetJS,
-        tkSnippetJSON,
-        tkSnippetYaml: p.pSnippet()
+    of tkSnippetJS, tkSnippetJSON,
+      tkSnippetYaml, tkSnippetMarkdown: p.pSnippet()
     of tkInclude:     p.pInclude()
     of tkImport:      p.pImport()
     of tkLB:          p.pAnoArray()
@@ -1731,7 +1793,8 @@ proc parseRoot(p: var Parser, excludes, includes: set[TokenKind] = {}): Node {.g
     of tkDiscardCmd:  p.pDiscardCommand()
     of tkPlaceholder: p.pPlaceholder()
     of tkAt:          p.pBlockCall()
-    of tkAssertCmd:    p.pAssertCommand()
+    of tkAssertCmd:   p.pAssertCommand()
+    of tkStatic:      p.pStaticStatement()
     else: nil
   if unlikely(result == nil):
     let tk = if p.curr isnot tkEOF: p.curr else: p.prev
@@ -1836,7 +1899,7 @@ proc parseModule(engine: TimEngine, moduleName: string,
       let node = p.parseRoot()
       if node != nil:
         add p.tree.nodes, node
-    p.lex.close()
+    # p.lex.close()
     result = p.tree
 
 proc initSystemModule(p: var Parser) =
@@ -1877,8 +1940,8 @@ proc newParser*(engine: TimEngine, tpl: TimTemplate,
     {.gcsafe.}:
       if partials.len > 0:
         p.handle.tree.partials = partials
-      if jitMainParser:
-        p.handle.tpl.jitEnable
+      # if jitMainParser:
+        # p.handle.tpl.jitEnable
     # for path, notification in engine.importsHandle.notifications:
       # echo path
       # echo notification
@@ -1895,13 +1958,13 @@ proc parseSnippet*(id, code: string,
     logger: Logger(filePath: id),
     engine: TimEngine(
       `type`: TimEngineRuntime.runtimePassAndExit,
-      # packager: Packager(
-      #   flagNoCache: noCache,
-      #   flagRecache: reCache
-      # )
+      packager: Packager(
+        flagNoCache: noCache,
+        flagRecache: reCache
+      )
     ),
   )
-  # p.engine.packager.loadPackages()
+  p.engine.packager.loadPackages()
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   initModuleSystem()
@@ -1930,9 +1993,9 @@ proc parseSnippet*(snippetPath: string): Parser {.gcsafe.} =
     logger: Logger(filePath: snippetPath),
     engine: TimEngine(
       `type`: TimEngineRuntime.runtimePassAndExit,
-      # packager: Packager(
-      #   flagNoCache: true
-      # )
+      packager: Packager(
+        flagNoCache: true
+      )
     ),
   )
   p.curr = p.lex.getToken()
