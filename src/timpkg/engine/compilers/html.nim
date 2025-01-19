@@ -1827,28 +1827,29 @@ template loopEvaluator(kv, items: Node, xel: string) =
   of ntStream:
     case kv.nt
     of ntVariableDef:
-      case items.streamContent.kind
-      of JObject:
-        for k, v in items.streamContent:
-          node.loopItem.varValue = ast.newStream(v)
-          newScope(scopetables)
-          c.varExpr(node.loopItem, scopetables)
-          let resNode = c.walkNodes(node.loopBody.stmtList,
+      notnil items.streamContent:
+        case items.streamContent.kind
+        of JObject:
+          for k, v in items.streamContent:
+            node.loopItem.varValue = ast.newStream(v)
+            newScope(scopetables)
+            c.varExpr(node.loopItem, scopetables)
+            let resNode = c.walkNodes(node.loopBody.stmtList,
+                scopetables, xel = xel, parentNodeType = ntLoopStmt)
+            clearScope(scopetables)
+            node.loopItem.varValue = nil
+            handleBreakContinue(resNode)
+        of JArray:
+          for v in items.streamContent:
+            node.loopItem.varValue = ast.newStream(v)
+            newScope(scopetables)
+            c.varExpr(node.loopItem, scopetables)
+            let resNode = c.walkNodes(node.loopBody.stmtList,
               scopetables, xel = xel, parentNodeType = ntLoopStmt)
-          clearScope(scopetables)
-          node.loopItem.varValue = nil
-          handleBreakContinue(resNode)
-      of JArray:
-        for v in items.streamContent:
-          node.loopItem.varValue = ast.newStream(v)
-          newScope(scopetables)
-          c.varExpr(node.loopItem, scopetables)
-          let resNode = c.walkNodes(node.loopBody.stmtList,
-            scopetables, xel = xel, parentNodeType = ntLoopStmt)
-          clearScope(scopetables)
-          node.loopItem.varValue = nil
-          handleBreakContinue(resNode)
-      else: discard # todo handle iterable array/objects from Json
+            clearScope(scopetables)
+            node.loopItem.varValue = nil
+            handleBreakContinue(resNode)
+        else: discard # todo handle iterable array/objects from Json
     of ntIdentPair:
       for k, v in items.streamContent:
         newScope(scopetables)
