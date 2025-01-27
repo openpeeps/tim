@@ -7,7 +7,7 @@ import ./tokens
 import std/[tables, strutils, json,
   macros, options, hashes]
 
-from std/htmlparser import tagToStr, htmlTag, HtmlTag
+from pkg/htmlparser import tagToStr, htmlTag, HtmlTag
 export tagToStr, htmlTag, HtmlTag
 
 import pkg/kapsis/cli
@@ -452,10 +452,9 @@ proc getInfixMathOp*(kind: TokenKind, isInfixInfix: bool): MathOp =
     of tkMod: mMod
     else: invalidCalcOp
 
-proc getTag*(x: Node): string =
-  # todo use pkg/htmlparser
+proc getHtmlTag*(tag: HtmlTag, customTag: string = newStringOfCap(0)): string =
   result =
-    case x.tag
+    case tag
     of tagA: "a"
     of tagAbbr: "abbr"
     of tagAcronym: "acronym"
@@ -579,7 +578,10 @@ proc getTag*(x: Node): string =
     of tagVar: "var"
     of tagVideo: "video"
     of tagWbr: "wbr"
-    else: x.stag # tagUnknown
+    else: 
+      customTag # non-standard HTML tag / custom tag
+
+proc getTag*(x: Node): string = getHtmlTag(x.tag, x.stag)
 
 proc getType*(x: NimNode): NodeType {.compileTime.} = 
   # Compile-time proc to transform x `NimNode` to `NodeType`

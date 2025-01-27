@@ -1415,15 +1415,14 @@ prefixHandle pBlockCall:
     result.meta[1] = tk.pos
     result.meta[2] = tk.col
     walk p
-    # todo fix block calls with parentheses
-    var isPar =
+    var callsWithPars = 
       if p.curr is tkLP:
         walk p; true
       else: false
     while true:
       case p.curr.kind
       of tkRP:
-        if isPar:
+        if callsWithPars:
           walk p; break
         else: return nil
       of tkComma:
@@ -1435,19 +1434,26 @@ prefixHandle pBlockCall:
           let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
           caseNotNil argNode:
             add result.identArgs, argNode
-      # of tkAssignableSet:
-      #   let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
-      #   caseNotNil argNode:
-      #     add result.identArgs, argNode
       of tkGT:
         walk p # tkGT
-        add p.parentNode, result
-        let stmtNode = ast.newNode(ntStmtList)
-        let childNode = p.pElement(indentToken = some(tk))
-        caseNotNil childNode:
-          add stmtNode.stmtList, childNode
-        add result.identArgs, stmtNode
-        break
+        if p.curr is tkAt:
+          inc(p.lvl)
+          add p.parentNode, result
+          let childNode = p.pBlockCall(indentToken = some(tk))
+          caseNotNil childNode:
+            let stmtNode = ast.newNode(ntStmtList)
+            add stmtNode.stmtList, childNode
+            add result.identArgs, stmtNode
+          dec(p.lvl)
+          break
+        else:
+          add p.parentNode, result
+          let stmtNode = ast.newNode(ntStmtList)
+          let childNode = p.pElement(indentToken = some(tk))
+          caseNotNil childNode:
+            add stmtNode.stmtList, childNode
+            add result.identArgs, stmtNode
+          break
       of tkColon:
         if p.next.isChild(tk):
           let stmtNode = p.parseStatement(tk)
@@ -1467,12 +1473,17 @@ prefixHandle pBlockCall:
         if p.next is tkAssign:
           p.parseAttributes(result.identArgs, tk)
         else:
-          let stmtNode = ast.newNode(ntStmtList)
-          while p.curr.isChild(tk):
-            let childNode = p.getPrefixOrInfix()
-            caseNotNil childNode:
-              add stmtNode.stmtList, childNode
-          add result.identArgs, stmtNode
+          if not callsWithPars:
+            let stmtNode = ast.newNode(ntStmtList)
+            while p.curr.isChild(tk):
+              let childNode = p.getPrefixOrInfix()
+              caseNotNil childNode:
+                add stmtNode.stmtList, childNode
+            add result.identArgs, stmtNode
+          else:
+            let argNode = p.getPrefixOrInfix(includes = tkAssignableSet)
+            caseNotNil argNode:
+              add result.identArgs, argNode
 
 
 #

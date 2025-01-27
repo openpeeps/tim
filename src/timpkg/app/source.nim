@@ -8,8 +8,8 @@ import std/[os, json, monotimes, times, strutils]
 
 import pkg/[jsony, flatty]
 import pkg/kapsis/[cli, runtime] 
-import ../engine/[parser, ast]
 
+import ../engine/[parser, ast]
 import ../engine/logging
 import ../engine/compilers/[html, nimc]
 
@@ -101,3 +101,86 @@ proc reprCommand*(v: Values) =
   else:
     displayError("Unknown target `" & ext & "`")
     quit(1)
+
+import std/[xmltree, ropes, strtabs, sequtils]
+import pkg/htmlparser
+
+proc htmlCommand*(v: Values) =
+  ## Transpile HTML code to Tim code
+  let filepath = $(v.get("html_file").getPath)
+  displayWarning("Work in progress. Unstable results")
+  var indentSize = 0
+  var timldoc: Rope
+  var inlineNest: bool
+  proc parseHtmlNode(node: XmlNode, toInlineNest: var bool = inlineNest) =
+    var isEmbeddable: bool
+    case node.kind
+    of xnElement:
+      let tag: HtmlTag = node.htmlTag()
+      if not toInlineNest:
+        add timldoc, indent(ast.getHtmlTag(tag), 2 * indentSize)
+      else:
+        add timldoc, " > " & ast.getHtmlTag(tag)
+        inlineNest = false
+      isEmbeddable =
+        if tag in {tagScript, tagStyle}: true
+        else: false
+      # handle node attributes
+      if node.attrsLen > 0:
+        var attrs: Rope
+        for k, v in node.attrs():
+          if k == "class":
+            add attrs, rope("." & join(v.split(), "."))
+          elif k == "id":
+            add attrs, rope("#" & v.strip)
+          else:
+            add attrs, rope(" " & k & "=\"" & v & "\"")
+        add timldoc, attrs
+      # handle child nodes
+      let subNodes = node.items.toSeq()
+      if subNodes.len > 1:
+        if subNodes[0].kind == xnText:
+          if subNodes[0].innerText.strip().len == 0:
+            if subNodes[1].kind != xnText:
+              if subNodes.len == 3:
+                inlineNest = true
+                for subNode in subNodes: 
+                  parseHtmlNode(subNode, inlineNest)
+                return
+              else:
+                add timldoc, "\n"
+        else:
+          add timldoc, "\n"
+        inc indentSize
+        for subNode in subNodes: 
+          parseHtmlNode(subNode)
+        dec indentSize
+      elif subNodes.len == 1:
+        let subNode = subNodes[0]
+        case subNode.kind
+        of xnText:
+          if not isEmbeddable:
+            add timlDoc, ": \"" & subNode.innerText.strip() & "\"\n"
+          else:
+            add timlDoc, ": \"\"\"" & subNode.innerText.strip() & "\"\"\"\n"
+        else: discard
+      else:
+        add timldoc, "\n" # self-closing tags requires new line at the end
+        inlineNest = false
+    of xnText:
+      let innerText = node.innerText
+      if innerText.strip().len > 0:
+        if not isEmbeddable:
+          add timlDoc, ": \"" & innerText.strip() & "\"\n"
+        else:
+          add timlDoc, ": \"\"\"" & innerText.strip() & "\"\"\"\n"
+    else: discard
+
+  let htmldoc = htmlparser.loadHtml(getCurrentDir() / filepath)
+  for node in htmldoc:
+    case node.kind
+    of xnElement:
+      parseHtmlNode(node)
+    else: discard
+
+  echo timldoc

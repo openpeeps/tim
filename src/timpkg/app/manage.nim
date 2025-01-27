@@ -1,3 +1,9 @@
+# A super fast template engine for cool kids
+#
+# (c) 2025 George Lemon | LGPL License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim
+
 import std/[os, osproc, strutils, sequtils, uri, httpclient]
 import ../engine/package/[manager, remote]
 import ../server/config
@@ -28,9 +34,10 @@ requires:
   createDir(currDir / "src")
   writeFile(configPath, config)
 
-proc developCommand*(v: Values) =
-  ## Set an alias of a local package in order
-  ## to be discovered as an installed Tim Engine package
+proc aliasCommand*(v: Values) =
+  ## Creates an alias of a local package.
+  ## This command allows to import the local project
+  ## using the pkg prefix `@import 'pkg/mypackage'`
   # if walkFiles(getCurrentDir() / "*.config.yaml"):
     # echo "?"
   # execCmdEx("ln -s")
@@ -67,7 +74,20 @@ proc installCommand*(v: Values) =
             displayError("Tim projects cannot be installed via Packager. Use git instead")
       else: discard # todo prompt error
 
-proc uninstallCommand*(v: Values) =
-  ## Uninstall a package from the local source
-  let pkgName = v.get("pkg").getStr()
-  echo pkgName
+proc removeCommand*(v: Values) =
+  ## Removes an installed package by name and version (if provided)
+  let input = v.get("pkg").getStr.split("@")
+  var hasVersion: bool
+  let pkgName = input[0]
+  let pkgVersion =
+    if input.len == 2:
+      hasVersion = true; parseVersion(input[1])
+    else: newVersion(0,1,0)
+  displayInfo("Finding package `" & pkgName & "`")
+  let pkgr = manager.initPackageRemote()
+  pkgr.loadPackages() # load database of existing packages
+  if pkgr.hasPackage(pkgName):
+    displaySuccess("Delete package `" & pkgName & "`")
+    pkgr.deletePackage(pkgName)
+  else:
+    displayError("Package `" & pkgName & "` not found")

@@ -240,7 +240,7 @@ proc resolveDependants(engine: TimEngine, x: seq[string]) =
 
 proc precompile*(engine: TimEngine, flush = true,
     waitThread = false, browserSyncPort = Port(6502),
-    browserSyncDelay = 200, global: JsonNode = newJObject(), watchoutNotify = true) =
+    browserSyncDelay = 100, global: JsonNode = newJObject(), watchoutNotify = true) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
   ## 
@@ -621,6 +621,9 @@ else:
     repr path(`ast`), string(`ext`), bool(--pretty):
       ## Deserialize binary AST to target source
 
+    html path(`html_file`):
+      ## Transpile HTML to Tim code
+
     -- "Microservice"
     new path(`config`):
       ## Initialize a new config file
@@ -642,5 +645,5 @@ else:
     install url(`pkg`):
       ## Install a package from remote source
 
-    uninstall string(`pkg`):
-      ## Uninstall a package from local source
+    remove string(`pkg`):
+      ## Remove an installed package@0.1.0 by name and version

@@ -14,18 +14,25 @@ binDir        = "bin"
 
 requires "nim >= 2.0.0"
 requires "toktok#head"
-requires "sorta"
-requires "jsony"
 requires "https://github.com/openpeeps/importer"
+# requires "importer#head"
 requires "watchout#head"
 requires "kapsis#head"
 requires "denim#head"
 requires "checksums"
+requires "jsony"
 requires "flatty#head"
 requires "nyml >= 0.1.8"
+# requires "marvdown#head"
 requires "urlly >= 1.1.1"
 requires "semver >= 1.2.2"
 requires "dotenv"
+requires "genny >= 0.1.0"
+requires "htmlparser"
+
+# Required for running Tim Engine as a
+# microservice frontend application
+requires "httpbeast#head"
 
 task node, "Build a NODE addon":
   exec "denim build src/tim.nim --cmake --yes"
@@ -44,17 +51,14 @@ task example, "example httpbeast + tim":
 task examplep, "example httpbeast + tim release":
   exec "nim c -d:timStaticBundle -d:release --threads:on --mm:arc -o:./bin/example_httpbeast example/example_httpbeast.nim"
 
-task bench, "run some benchmarks":
-  exec "nim c --threads:on -d:danger --opt:speed --mm:arc -o:./bin/bench example/benchmark.nim"
-
 task dev, "build a dev cli":
-  exec "nimble build -f -d:timStandalone"
+  exec "nimble build -d:timStandalone"
 
 task prod, "build a prod cli":
   exec "nimble build -d:release -d:timStandalone"
 
-task fastparser, "testing a parser":
-  exec "nimble --mm:arc -d:release c src/timpkg/engine/fastparser.nim -o:./bin/fastparser"
+task staticlib, "Build Tim Engine as Static Library":
+  exec "nimble c --app:staticlib -d:release"
 
-task client, "build udp client":
-  exec "nimble c src/timpkg/server/client.nim"
+task swig, "Build C sources from Nim":
+  exec "nimble --noMain --noLinking -d:timHotCode --threads:on -d:watchoutBrowserSync -d:timSwig --deepcopy:on --mm:arc --header:tim.h --nimcache:./bindings/_source cc -c src/tim.nim"
