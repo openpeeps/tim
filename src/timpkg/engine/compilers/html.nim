@@ -1205,10 +1205,17 @@ proc infixEvaluator(c: var HtmlCompiler, lhs, rhs: Node,
           return lhs.streamContent.fnum == toFloat(rhs.iVal)
         else: discard
       of ntLitBool:
-        case lhs.streamContent.kind
-        of JBool:
-          return lhs.streamContent.bval == rhs.bVal
-        else: discard
+        notnil lhs.streamContent:
+          case lhs.streamContent.kind
+          of JBool:
+            return lhs.streamContent.bval == rhs.bVal
+          of JString:
+            return true #fixme
+            # todo
+            # find a better way to handle conditional
+            # expressions that don't contain a rhs node.
+            # maybe we should not use a default rhs node in this case
+          else: discard
       else: discard
     else: discard
   of NE:
@@ -1970,6 +1977,18 @@ proc typeCheck(c: var HtmlCompiler, node: Node, expect: NodeType,
   if unlikely(node.nt != expect):
     if node.nt == ntStmtList and expect == ntBlock:
       return true
+    elif node.nt == ntStream:
+      notnil node.streamContent:
+        case expect:
+        of ntLitString:
+          return node.streamContent.kind == JString
+        of ntLitInt:
+          return node.streamContent.kind == JInt
+        of ntLitFloat:
+          return node.streamContent.kind == JFloat
+        of ntLitBool:
+          return node.streamContent.kind == JBool
+        else: discard
     compileErrorWithArgs(typeMismatch, [$(node.nt), $(expect)], meta)
   result = true
 
