@@ -257,10 +257,24 @@ macro initStandardLibrary() =
     boolNode.bVal = re.match(args[0].value.sVal, re(args[1].value.sVal))
     boolNode
 
+  template strStartsWithStream = 
+    let boolNode = ast.newNode(ntLitBool)
+    if args[1].value.streamContent.kind == JString:
+      boolNode.bVal = strutils.startsWith(args[0].value.sVal, args[1].value.streamContent.str)
+    boolNode
+
+  template strStreamStartsWith = 
+    let boolNode = ast.newNode(ntLitBool)
+    if args[0].value.streamContent.kind == JString:
+      boolNode.bVal = strutils.startsWith(args[0].value.streamContent.str, args[1].value.sVal)
+    boolNode
+
   let
     fnStrings = @[
       fwd("endsWith", ntLitBool, [(ntLitString, "s"), (ntLitString, "suffix")]),
       fwd("startsWith", ntLitBool, [(ntLitString, "s"), (ntLitString, "prefix")]),
+      fwd("startsWith", ntLitBool, [(ntLitString, "s"), (ntStream, "prefix")], wrapper = getAst(strStartsWithStream())),
+      fwd("startsWith", ntLitBool, [(ntStream, "s"), (ntLitString, "prefix")], wrapper = getAst(strStreamStartsWith())),
       fwd("capitalizeAscii", ntLitString, [(ntLitString, "s")], "capitalize"),
       fwd("replace", ntLitString, [(ntLitString, "s"), (ntLitString, "sub"), (ntLitString, "by")]),
       fwd("toLowerAscii", ntLitString, [(ntLitString, "s")], "toLower"),
