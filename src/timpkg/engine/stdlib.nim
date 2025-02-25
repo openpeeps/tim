@@ -120,6 +120,16 @@ macro initStandardLibrary() =
     except JsonParsingError as e:
       raise newException(SystemModule, e.msg)
 
+  template systemStreamString: untyped =
+    var res: Node
+    if args[0].value.nt == ntLitString:
+      res = ast.newStream(jsony.fromJson(args[0].value.sVal, JsonNode))
+    elif args[0].value.nt == ntStream:
+      if args[0].value.streamContent.kind == JString:
+        res = ast.newStream(jsony.fromJson(args[0].value.streamContent.str, JsonNode))
+      else: discard # todo conversion error
+    res
+
   template systemJsonUrlStream =
     # retrieve JSON content from remote source
     # parse and return it as a Stream node
@@ -210,6 +220,8 @@ macro initStandardLibrary() =
   let
     fnSystem = @[
       fwd("json", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
+      fwd("parseJsonString", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamString())),
+      fwd("parseJsonString", ntStream, [(ntStream, "path")], wrapper = getAst(systemStreamString())),
       fwd("remoteJson", ntStream, [(ntLitString, "path")], wrapper = getAst(systemJsonUrlStream())),
       fwd("remoteJson", ntStream, [(ntLitString, "path"), (ntLitObject, "headers")], wrapper = getAst(systemJsonUrlStream())),
       fwd("yaml", ntStream, [(ntLitString, "path")], wrapper = getAst(systemStreamFunction())),
