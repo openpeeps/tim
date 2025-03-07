@@ -688,7 +688,6 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node],
     of tkDot:
       walk p
       if likely(anyAttrIdent()):
-        let attrKey = "class"
         let attrValueToken = p.curr
         let attrValue = p.getAttributeValue(attrValueToken)
         add attrs,

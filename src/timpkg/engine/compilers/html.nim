@@ -1858,12 +1858,12 @@ template loopEvaluator(kv, items: Node, xel: string) =
             handleBreakContinue(resNode)
         else: discard # todo handle iterable array/objects from Json
     of ntIdentPair:
-      for k, v in items.streamContent:
+      for k, v in pairs(items.streamContent):
         newScope(scopetables)
         let kvar = ast.newNode(ntLitString)
         kvar.sVal = k
         node.loopItem.identPairs[0].varValue = kvar
-        node.loopItem.identPairs[1].varValue = toTimNode(v)
+        node.loopItem.identPairs[1].varValue = ast.newStream(v)
         c.varExpr(node.loopItem.identPairs[0], scopetables)
         c.varExpr(node.loopItem.identPairs[1], scopetables)
         let resNode = c.walkNodes(node.loopBody.stmtList,
