@@ -291,6 +291,8 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
           attrs.add(attrNode)
           p.classCacheAttr[p.curr.value] = attrNode
         walk p
+        # todo support class attributes containing colons
+        # example `size:sm` 
       elif p.curr is tkIdentVar:
         let identNode = p.parseExpression()
         caseNotNil identNode:

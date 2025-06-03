@@ -611,32 +611,6 @@ proc add*(scope: Scope, sym: Sym, lookupName: Node = nil, fromOtherModule: stati
       #   scope.exportTypeDefs[lookupName.ident] = sym
       return true
   else: discard # todo
-  
-  # echo sym.kind
-
-  # if not scope.syms.hasKey(name):
-  #   # if the symbol hasn't been overloaded,
-  #   # just add it to the symbol table
-  #   scope.syms[name] = sym
-  #   if sym.canExport():
-  #     # add the symbol to the export table so it can be used
-  #     # in other modules that import this module
-  #     scope.exportSyms[name] = sym
-  #   return true
-
-  # # otherwise, add it to a shared 'choice' symbol
-  # # if an overload with the same name doesn't already exist
-  # let other = scope.syms[name]
-  # if other.kind != skChoice:
-  #   var choice = newSym(skChoice, other.name)
-  #   choice.choices.add(other)
-  #   scope.syms[name] = choice
-
-  # if scope.syms[name].canAdd(sym):
-  #   scope.syms[name].choices.add(sym)
-  #   result = true
-  # else:
-  #   result = false
 
 proc `$`*(scope: Scope): string =
   ## Stringifies a scope.
