@@ -1,8 +1,9 @@
 # A super fast template engine for cool kids
 #
-# (c) 2024 George Lemon | LGPL License
+# (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim
+#          https://github.com/openpeeps/tim | https://tim-engine.com
+
 import std/oids
 import pkg/toktok
 
@@ -273,15 +274,15 @@ registerTokens toktokSettings:
   `bool` = ["true", "false"]
 
   # literals
-  litBool = "bool"
-  litInt = "int"
-  litString = "string"
-  litFloat = "float"
+  # litBool = "bool"
+  # litInt = "int"
+  # litString = "string"
+  # litFloat = "float"
   litObject = "object"
-  litArray = "array"
-  litFunction = "function"
-  litStream = "stream"
-  litVoid = "void"
+  # litArray = "array"
+  # litFunction = "function"
+  # litStream = "stream"
+  # litVoid = "void"
   
   # magics
   at = tokenize(handleMagics, '@')
@@ -298,13 +299,14 @@ registerTokens toktokSettings:
   `do` = "do"
   fn = "fn"
   `func` = "func" # alias `fn`
-  `block` = "block"
+  `macro` = "macro"
+  `iterator` = "iterator"
+  `yield` = "yield"
   component = "component"
   `var` = "var"
   `const` = "const"
   `type` = "type"
   returnCmd = "return"
-  echoCmd = "echo"
   discardCmd = "discard"
   breakCmd = "break"
   continueCmd = "continue"
@@ -312,3 +314,4 @@ registerTokens toktokSettings:
   identVar = tokenize(handleVar, '$')
   identVarSafe
   `static` = "static"
+  `echo` = "echo"
