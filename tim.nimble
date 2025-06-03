@@ -19,6 +19,10 @@ requires "kapsis#head"
 requires "htmlparser"
 requires "jsony"
 requires "flatty"
+requires "checksums"
+requires "nyml#head"
+requires "semver"
+requires "dotenv"
 
 # requires "microparsec"
 
