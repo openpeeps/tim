@@ -13,9 +13,12 @@ when isMainModule:
   import ./tim/app/[build, dev]
   
   commands:
+    #
+    # Source to Source commands
+    # Used to transpile `timl` code to a specific target source
+    # Planning to support: HTML, Nim, JS, PHP, Python, Ruby and more
+    #
     -- "Source to Source"
-    # transpile `timl` code to a specific target source.
-    # Default `html`
     src path(`timl`),
       string(-t),       # choose a target (default target `html`)
       string(-o),       # save output to file
@@ -26,9 +29,13 @@ when isMainModule:
       bool(--watch):    # enable browser sync on live changes
         ## Transpile `timl` to specific target source
     
-    # -- "VM"
-    # Runs the `timl` code in a virtual machine.
+    ast path(`timl`):
+      ## Transpile timl code to AST representation
 
+    #
+    # Development commands
+    # Used to manage Tim Engine packages locally
+    #
     -- "Development"
     init:
       ## Initializes a new Tim Engine package

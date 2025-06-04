@@ -46,8 +46,6 @@ proc initSystemOps(script: Script, module: Module) =
   # number type operators
 
   for T in [(tyInt, tyFloat), (tyFloat, tyInt)]:
-    # XXX: this is perhaps a bit inefficient, optimizing this could help
-
     script.addProc(module, "+", @[paramDef("a", T[0])], T[0])
     script.addProc(module, "-", @[paramDef("a", T[0])], T[0])
     
@@ -79,16 +77,6 @@ proc modSystem*(script: Script): Module =
   result = newModule("system", some"system.timl")
   result.initSystemTypes()
   script.initSystemOps(result)
-
-  # discard result.add(genType(tyHtmlElement, "h1"))
-
-  # script.addProc(result, ">", @[paramDef("a", tyHtmlElement, kindStr = "div"), paramDef("b", tyHtmlElement, kindStr = "div")], tyString,
-  #   proc (args: StackView): Value =
-  #     result = initValue("ayayay"))
-
-  # script.addProc(result, "h1", @[], tyString,
-  #   proc (args: StackView): Value =
-  #     result = initValue("<h1></h1>"))
 
   # string operators
   script.addProc(result, "==", @[paramDef("a", tyString), paramDef("b", tyString)], tyBool,

@@ -54,7 +54,7 @@ proc srcCommand*(v: Values) =
   var compiler = codegen.initCodeGen(script, module, mainChunk)
   
   try:
-    compiler.genScript(program)
+    compiler.genScript(program, isMainScript = true)
     let vmInstance = newVm()
     let output = vmInstance.interpret(script, mainChunk)
     
@@ -71,3 +71,17 @@ proc srcCommand*(v: Values) =
   except TimCompileError as e:
     echo e.msg
     
+
+
+#
+# AST 
+#
+proc astCommand*(v: Values) =
+  ## Generate the AST representation of a `timl` script
+  let
+    srcPath = getCurrentDir() / $(v.get("timl").getPath)
+    timlCode = readFile(srcPath)
+  
+  var program: Ast # the AST representation of the script
+  parser.parseScript(program, timlCode)
+  writeFile(srcPath & ".ast", toFlatty(program))
