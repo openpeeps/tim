@@ -621,27 +621,49 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
   # parse identifier definitions
   result = newNode(nkIdentDefs)
   if p.curr.kind == tkIdentifier:
-    result.add(p.getVarIdent(varIdent))
+    let identNode = p.getVarIdent(varIdent)
     var
       ty = newEmpty()
-      value = newEmpty()
-    # parse a type definition
-    if p.curr is tkColon:
-      walk p # tkColon
-      if p.curr is tkIdentifier:
-        ty = p.parseIdent()
-        if p.curr is tkLB:
-          ty = p.parseGenericType(ty)
-      elif p.curr is tkVar:
-        ty = ast.newNode(nkVarTy)
+      val = newEmpty()
+      vars: seq[Node]
+    vars.add(identNode)
+    while true:
+      case p.curr.kind
+      of tkColon:
+        walk p # tkColon
+        if p.curr is tkIdentifier:
+          ty = p.parseIdent()
+          if p.curr is tkLB:
+            ty = p.parseGenericType(ty)
+        elif p.curr is tkVar:
+          ty = ast.newNode(nkVarTy)
+          if p.next is tkIdentifier:
+            ty.varType = ast.newIdent(p.next.value)
+            walk p, 2
+        # if p.curr is tkAssign:
+        #   walk p # tkAssign
+        #   vars[^1] = p.parseExpression()
+        #   break
+        # elif p.curr is tkSColon:
+        #   # parse a type definition without an assignment
+        #   walk p # tkSColon
+        #   break
+        # else: break
+      of tkAssign:
+        # parse an implicit assignment
+        walk p # tkAssign
+        val = p.parseExpression()
+        break
+      of tkComma:
+        # parse a comma separated list of identifiers
         if p.next is tkIdentifier:
-          ty.varType = ast.newIdent(p.next.value)
-          walk p, 2
-    # parse an implicit assignment
-    if p.curr.kind == tkAssign:
-      walk p # tkAssign
-      value = p.parseExpression()
-    result.add([ty, value])
+          walk p # tkComma
+          # parse another variable separated by a comma
+          vars.add(p.parseExpression())
+        else: break
+      else: break
+    vars.add(ty); vars.add(val)
+    result.add(vars)
 
 prefixHandle parseVar:
   # parse a variable definition
