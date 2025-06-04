@@ -251,6 +251,11 @@ proc `$`*(sym: Sym): string =
         if sym.genericInstArgs.isSome:
           result.add(sym.genericInstArgs.get()[0].name.render)
       result.add("]")
+    of tyObject:
+      result = "{"
+      for name, field in sym.objectFields:
+        result.add(" " & name & ": (...);")
+      result.add("}")
     else:
       result = sym.name.render
       if sym.genericInstArgs.isSome:

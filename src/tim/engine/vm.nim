@@ -188,7 +188,10 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       stack.push(initValue(false))
     of opcPushNil:
       let id = pc.read[:uint16](0).TypeId
-      stack.push(initObject(id, nilObject))
+      if id == 11:
+        stack.push(initValue(newJObject())) # or maybe it should init a JNull?
+      else:
+        stack.push(initObject(id, nilObject))
       inc(pc, sizeof(uint16))
     of opcPushI:  # push int
       let i = pc.read[:int](0)
@@ -292,19 +295,18 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
         obj = stack.pop()
       stack.push(obj.objectVal.fields[index.intVal])
       # inc(pc, sizeof(uint8))
+
     of opcConstrObj:
-      # construct a `key: value` object
-      let
-        id = pc.read[:uint16](0)
-        fieldCount = pc[sizeof(uint16)].int
-      var obj: Value = initObject(id, fieldCount)
+      # construct an object
+      let fieldCount = pc.read[:uint16](0).int
+      var obj: Value = initObject(14, fieldCount)
       if fieldCount > 0:
         let fields = stack{^fieldCount}
         for i in 0..<fieldCount:
           obj.objectVal.fields[i] = fields[i]
         stack.setLen(stack.len - fieldCount)
       stack.push(obj)
-      inc(pc, sizeof(uint16) + sizeof(uint8))
+      inc(pc, sizeof(uint16))
     of opcGetF:  # push field
       let
         field = pc[0]

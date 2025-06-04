@@ -305,14 +305,18 @@ proc declareVar(gen: var CodeGen, name: Node, kind: SymKind, ty: Sym,
     result.varExport = varExport
   gen.addSym(result) # add the symbol to the current scope
 
-proc genScript*(program: Ast) {.codegen.}
 proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym
+
+proc genScript*(program: Ast, isMainScript: static bool = false) {.codegen.}
+proc genExpr(node: Node): Sym {.codegen.}
+
 proc genBlock(node: Node, isStmt: bool): Sym {.codegen.}
 proc genStmt(node: Node) {.codegen.}
 proc genProc(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.}
-proc genObject(node: Node, isInstantiation = false): Sym {.codegen.}
+# proc genObject(node: Node, isInstantiation = false): Sym {.codegen.}
+proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genArray(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genTypeDef(node: Node): Sym {.codegen.}
 proc htmlConstr(node: Node): Sym {.codegen.}
@@ -346,7 +350,8 @@ proc instantiate(gen: var CodeGen, sym: Sym, args: seq[Sym],
       # instantiations are only special for object types,
       # if we don't have any generic generic args
       if not hasGenericGenericArgs and sym.tyKind == tyObject:
-        result = gen.genObject(sym.impl, isInstantiation = true)
+        # result = gen.genObject(sym.impl, isInstantiation = true)
+        result = gen.genObjectStorage(sym.impl, isInstantiation = true)
       # anything else creates a copy that makes a given
       # type distinct for the given generic arguments
       else:
@@ -595,6 +600,9 @@ proc pushDefault(gen: var CodeGen, ty: Sym) =
   of tyObject:
     gen.chunk.emit(opcPushNil)
     gen.chunk.emit(uint16(tyFirstObject + ty.objectId))
+  of tyJson:
+    gen.chunk.emit(opcPushNil)
+    gen.chunk.emit(uint16(tyJsonStorage))
   # of tyNil:
   #   gen.chunk.emit(opcNoop)
   else: discard  # unreachable
@@ -609,8 +617,6 @@ proc getDefaultSym*(gen: var CodeGen, kind: NodeKind): Sym =
   of nkArray:  result = gen.module.sym"array"
   of nkObject: result = gen.module.sym"object"
   else: discard
-
-proc genExpr(node: Node): Sym {.codegen.}
 
 proc pushConst(node: Node): Sym {.codegen.} =
   ## Generate a push instruction for a constant value.
@@ -1391,27 +1397,13 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
       var varType = if isMut: skVar else: skLet
       let param = procGen.declareVar(name, varType, ty)
       param.varSet = true  # arguments are not assignable
-      # echo ty.name
-
-      # if implValTy != nil:
-      #   assert implValTy.kind in {skType} + skVars
-      #   if not ty.sameType(implValTy):
-      #     node[0].error(ErrTypeMismatch % [$ty.name, $implValTy.name])
-        # gen.declareVar(name, varType, ty)
-        # gen.popVar(name)
-        # if ty.name == implSym.ty:
-        #   # if the variable's type matches the
-        #   # type of the value, we're ok
-        #   gen.popVar(name)
-        # else:
-        #   node.error(ErrTypeMismatch % [$ty.name, $implSym.name])
-      # echo implSym == nil
-      # echo implVal == nil
-
+    # todo
     # let stmtVar = procGen.declareVar(ast.newIdent("stmt"), skLet, gen.module.sym"any")
     # stmtVar.varSet = true
     # procGen.pushDefault(gen.module.sym"string")
     
+    # define default `blockAttributes` variable
+    # this is used to store the attributes of the block.
     let blockAttributes = newIdent("blockAttributes")
     procGen.declareVar(blockAttributes, skVar, gen.module.sym"string")
     procGen.pushDefault(gen.module.sym"string")
@@ -1564,7 +1556,8 @@ proc genExpr(node: Node): Sym {.codegen.} =
   of nkArray:
     result = gen.genArray(node)        # array declaration
   of nkObject:
-    result = gen.objConstr(node, gen.lookup(node[0]), constructFromIdent = true)
+    result = gen.genObjectStorage(node)
+    # result = gen.objConstr(node, gen.lookup(node[0]), constructFromIdent = true)
   else:
     node.error(ErrValueIsVoid)
 
@@ -1776,42 +1769,56 @@ proc genArray(node: Node, isInstantiation = false): Sym {.codegen.} =
   gen.chunk.emit(opcConstrArray)
   gen.chunk.emit(uint16(result.arrayItems.len))
 
-proc genObject(node: Node, isInstantiation = false): Sym {.codegen.} =
-  # Process an object declaration, and add the new type into the current
-  # module or scope.
+proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.} =
+  # Generate code for an object storage
+  result = newType(tyObject, name = nil, impl = node)
+  for n in node.children:
+    let valTy = gen.genExpr(n[1])
+    result.objectFields[n[0].ident] = (
+      id: result.objectFields.len,
+      name: n[0],
+      ty: valTy,
+      implVal: valTy
+    )
+  gen.chunk.emit(opcConstrObj)
+  gen.chunk.emit(uint16(result.objectFields.len))
 
-  # create a new type for the object
-  result = newType(tyObject, name = node[0], impl = node)
-  # result.impl = node
+# proc genObject(node: Node, isInstantiation = false): Sym {.codegen.} =
+#   # Process an object declaration, and add the new type into the current
+#   # module or scope.
 
-  # check if the object is generic
-  if not isInstantiation and node[1].kind != nkEmpty:
-    # if so, create a new scope for its generic params and collect them
-    gen.pushScope()
-    result.genericParams = gen.collectGenericParams(node[1])
+#   # create a new type for the object
+#   result = newType(tyObject, name = node[0], impl = node)
+#   # result.impl = node
 
-  # process the object's fields
-  result.objectId = gen.script.typeCount
-  inc(gen.script.typeCount)
-  for fields in node[2]:
-    # get the fields' type
-    let
-      fieldsTy = gen.lookup(fields[^2])
-      implValSym = gen.genExpr(fields[^1])
+#   # check if the object is generic
+#   if not isInstantiation and node[1].kind != nkEmpty:
+#     # if so, create a new scope for its generic params and collect them
+#     gen.pushScope()
+#     result.genericParams = gen.collectGenericParams(node[1])
+
+#   # process the object's fields
+#   result.objectId = gen.script.typeCount
+#   inc(gen.script.typeCount)
+#   for fields in node[2]:
+#     # get the fields' type
+#     let
+#       fieldsTy = gen.lookup(fields[^2])
+#       implValSym = gen.genExpr(fields[^1])
         
-    # create all the fields with the given type
-    for name in fields[0..^3]:
-      result.objectFields[name.ident] = (
-        id: result.objectFields.len,
-        name: name,
-        ty: fieldsTy,
-        implVal: implValSym
-      )
+#     # create all the fields with the given type
+#     for name in fields[0..^3]:
+#       result.objectFields[name.ident] = (
+#         id: result.objectFields.len,
+#         name: name,
+#         ty: fieldsTy,
+#         implVal: implValSym
+#       )
 
-  # if the object had generic params, pop their scope
-  if not isInstantiation and result.isGeneric:
-    gen.popScope()
-  gen.addSym(result)
+#   # if the object had generic params, pop their scope
+#   if not isInstantiation and result.isGeneric:
+#     gen.popScope()
+#   gen.addSym(result)
 
 proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.} =
   ## Process an iterator declaration, and add it into the current module or
@@ -1861,21 +1868,42 @@ proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.} =
 proc genVar(node: Node) {.codegen.} =
   # handle variable declarations
   for decl in node:
-    if decl[^1].kind == nkEmpty and node.kind != nkVar:
-      # TODO: if the type was specified, set the
-      # value to the default value of the given type
+    let implNode = decl[^1]
+    if implNode.kind == nkEmpty and node.kind != nkVar:
       decl[^1].error(ErrVarMustHaveValue)
-    var valTy: Sym
+    var valTy: Sym            # the type of the value
+    var valTyImpl: Sym        # the specified type of the variable (if any)
     for name in decl[0..^3]:
       # generate the value
-      valTy = gen.genExpr(decl[^1])
+      if implNode.kind != nkEmpty:
+        # if the implicit value is not empty
+        # generate the value and check its type
+        valTy = gen.genExpr(implNode)
+        # if both the type and the value are specified
+        if decl[^2].kind != nkEmpty:
+          valTyImpl = gen.lookup(decl[^2])
+      elif decl[^2].kind != nkEmpty:
+        # otherwise, use the provided type
+        # to generate the default value
+        valTyImpl = gen.lookup(decl[^2])
+        gen.pushDefault(valTyImpl)
+      else:
+        # if neither the value nor the type is specified,
+        # we emit error that the variable must have a value
+        decl[^1].error(ErrTypeMismatch % ["none", "none"])
+      
+      # determine the variable's type based on the declaration kind
+      # if the variable is declared as `var`, it is mutable
+      # otherwise, it is immutable (cannot be reassigned and requires
+      # an implicit value to be set)
       let varTy =
         case node.kind
         of nkVar: skVar
         of nkLet: skLet
         else: skConst
+      
       # declare the variable
-      var varExport: bool
+      var varExport: bool # whether the variable is exported
       let name = 
         if name.kind == nkPostfix and name[0].ident == "*":
           # when the variable is suffixed with a '*', it is a
@@ -1884,20 +1912,21 @@ proc genVar(node: Node) {.codegen.} =
         else:
           # otherwise, we can declare it as a let or const
           name
+      if valTy != nil and valTyImpl != nil:
+        # before declaring the variable, we need to check if
+        # the variable's type matches the expected type
+        if not valTy.sameType(valTyImpl):
+          decl[^1].error(ErrTypeMismatch % [$valTy.name, $valTyImpl.name])
+      else:
+        # if the variable's type is not specified, we can use the
+        # implicit value's type as the variable's type
+        valTy = valTyImpl
+
+      # declare the variable in the current scope
       gen.declareVar(name, varTy, valTy, varExport = varExport)
-      # and pop the value into it
-      gen.popVar(name)
-    case decl[^2].kind:
-    of nkEmpty: discard
-    else:
-      # if an explicit type was specified,
-      # check if the value's type matches
-      let expectedTy = gen.lookup(decl[^2])
-      if valTy != expectedTy:
-        decl[^1].error(ErrTypeMismatch % [$valTy.name, $expectedTy.name])
+      gen.popVar(name) # and pop the value into it
 
 import ./parser
-
 proc genImport(node: Node) {.codegen.} =
   # handle import statements
   for pathNode in node.children:
@@ -1964,6 +1993,14 @@ proc genImport(node: Node) {.codegen.} =
         gen.genStmt(n)
     else: discard
 
+proc genComment(node: Node) {.codegen.} =
+  ## Generate an HTML comment.
+  # this is a no-op, because comments are not compiled
+  # into the final code, but they are useful for documentation
+  # and debugging purposes
+  # gen.chunk.emit(opcComment)
+  gen.chunk.emit(gen.chunk.getString(node.comment))
+
 proc genStmt(node: Node) {.codegen.} =
   ## Generate code for a statement.
   case node.kind
@@ -1979,13 +2016,15 @@ proc genStmt(node: Node) {.codegen.} =
   of nkProc: discard gen.genProc(node)          # procedure declaration
   of nkMacro: discard gen.genMacro(node)        # macro declaration
   of nkIterator: discard gen.genIterator(node)  # iterator declaration
-  of nkObject: discard gen.genObject(node)      # object declaration
+  of nkObject: discard gen.genObjectStorage(node)      # object declaration
   of nkTypeDef: discard gen.genTypeDef(node)    # type definition
   of nkHtmlElement: discard gen.htmlConstr(node) # HTML element construction
   of nkJavaScriptSnippet:
     discard gen.storeJavaScript(node) # JavaScript snippet
   of nkImport, nkInclude:
     gen.genImport(node) # import statement
+  of nkDocComment:
+    gen.genComment(node) # generate HTML comment
   else:                                         # expression statement
     let ty = gen.genExpr(node)
     if ty != gen.module.sym"void":
@@ -2021,8 +2060,16 @@ proc genBlock(node: Node, isStmt: bool): Sym {.codegen.} =
     # all the time, but it should warn when node has no 
     node.warn(WarnEmptyStmt)
 
-proc genScript*(program: Ast) {.codegen.} =
+proc genScript*(program: Ast, isMainScript: static bool = false) {.codegen.} =
   ## Generates the code for a full script.
+  when isMainScript == true:
+    # when is the main script, we need to predefine
+    # tim engine's global variables, `$app` and `$this`
+    for id in ["app", "this"]:
+      let varNode = newIdent(id)
+      gen.declareVar(varNode, skLet, gen.module.sym"json")
+      gen.pushDefault(gen.module.sym"json")
+      gen.popVar(varNode)
   for node in program.nodes:
     gen.genStmt(node)
   gen.chunk.emit(opcHalt)

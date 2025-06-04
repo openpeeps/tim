@@ -77,6 +77,7 @@ type
     nkIterator       # iterator declaration - iterator i(a: s, ...) -> t {...}
     nkBlock          # block statement - block {...}
     nkJavaScriptSnippet
+    nkDocComment     # doc comment - <!-- ... -->
 
   HtmlAttributeType* = enum
     htmlAttrClass, htmlAttrId, htmlAttrIdent, htmlAttr
@@ -115,6 +116,8 @@ type
     of nkJavaScriptSnippet:
       snippetCode*: string
       snippetCodeAttrs*: seq[(string, Node)]
+    of nkDocComment:
+      comment*: string
     else:
       children*: seq[Node]
 
@@ -317,6 +320,8 @@ proc render*(node: Node): string =
       ) & (node[0].render & node[1].render & node[2].render & ' ' & node[3].render)
     if node[0].kind != nkEmpty:
       result.add('\n')
+  of nkDocComment:
+    result = "<!-- " & node[0].render & " -->"
 
 proc newNode*(kind: NodeKind): Node =
   ## Construct a new node.
