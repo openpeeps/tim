@@ -9,12 +9,13 @@ import pkg/toktok
 
 handlers:
   proc handleDocBlock(lex: var Lexer, kind: TokenKind) =
+    inc lex.bufpos, 2
     while true:
       case lex.buf[lex.bufpos]
       of '*':
-        add lex
+        inc lex.bufpos
         if lex.current == '/':
-          add lex
+          inc lex.bufpos
           break
       of NewLines:
         inc lex.lineNumber
@@ -22,6 +23,7 @@ handlers:
       of EndOfFile: break
       else: add lex
     lex.kind = kind
+    lex.token = lex.token.strip()
 
   proc handleInlineComment(lex: var Lexer, kind: TokenKind) =
     inc lex.bufpos
