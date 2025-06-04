@@ -197,25 +197,29 @@ proc parseCommaList(p: var Parser, start, term: static TokenKind,
   walk p # start
   if p.curr isnot term:
     while p.curr isnot tkEOF:
-      let lhs: Node = p.parseExpression()
-      caseNotNil lhs:
-        when infixList == true:
-          # the comma list is a list of infix expressions
-          # usually representing a list of key-value pairs
+      when infixList == true:
+        # handle colon expressions
+        # a list of `key: value` pairs
+        # where `key` is an identifier or a string
+        if p.curr in {tkString, tkIdentifier, tkType}:
+          let nodeKey: Node = p.createIdentNode()
           expectWalk tkColon:
-            let rhs: Node = p.parseExpression()
-            caseNotNil rhs:
-              results.add(ast.newInfix(nil, lhs, rhs))
-            do: return false
-        else:
-          # it's a normal array list
-          results.add(lhs)
-      do: return false
-      case p.curr.kind
-      of tkComma:
+            let nodeVal: Node = p.parseExpression()
+            caseNotNil nodeVal:
+              let colonExpr = ast.newNode(nkColon)
+              colonExpr.add([nodeKey, nodeVal])
+              results.add(colonExpr)
+            do: return
+        else: return
+      else:
+        let lhs: Node = p.parseExpression()
+        caseNotNil lhs:
+          results.add(lhs) # it's a normal array list
+        do: return
+      if p.curr is tkComma:
         walk p # skip commas
-      of term: walk p; break
-      else: return
+      if p.curr is term:
+        walk p; break
   else: walk p # skip term, we have an empty list
   result = true
 
@@ -599,10 +603,13 @@ proc parseGenericType(p: var Parser, lhs: Node): Node =
       result = p.parseGenericType(result)
     expectWalk(tkRB) # expect a right bracket
 
-proc getVarIdent(p: var Parser, varIdent: bool): Node {.rule.} =
-  # get the identifier name from the current token
+proc createIdentNode(p: var Parser): Node {.rule.} = 
   result = ast.newIdent(p.curr.value)
   walk p # tkIdentifier
+
+proc getVarIdent(p: var Parser, varIdent: bool): Node {.rule.} =
+  # get the identifier name from the current token
+  result = p.createIdentNode()
   if varIdent:
     # variable definitions can be suffixed with an asterisk
     # to mark them as exported (public)
@@ -870,6 +877,13 @@ prefixHandle parseEcho:
     result.add(exprNode)
     p.walkOpt(tkSColon) # optional semicolon
 
+prefixHandle parseDocComment:
+  # parse a documentation comment
+  # this will be transpiled to a HTML block comment <!-- doc comment -->
+  result = ast.newNode(nkDocComment)
+  result.comment = p.curr.value
+  walk p
+
 prefixHandle parseObject:
   # parse an object
   result = ast.newTree(nkObject)
@@ -936,6 +950,7 @@ proc getPrefixFn(p: var Parser): PrefixFunction =
     of tkSnippetJs: parseJavaScript
     of tkYield: parseYield
     of tkEcho: parseEcho
+    of tkDoc: parseDocComment
     else: nil
 
 proc parsePrefix(p: var Parser): Node =
@@ -1004,7 +1019,7 @@ proc parseInfix(p: var Parser, lhs: Node): Node {.rule.} =
       caseNotNil rhs:
         return ast.newCall(ast.newIdent"..", lhs, rhs)
     let opLit = infixTokenTable[op.kind]
-    let rhs = p.parseExpression()
+    let rhs = p.parsePrefix()
     caseNotNil rhs:
       return newTree(nkDot, lhs, rhs)
   of tkLB:
@@ -1034,7 +1049,7 @@ proc parseExpression(p: var Parser): Node =
     if infixTokenTable.hasKey(p.curr.kind):
       result = p.parseInfix(lhs)
       caseNotNil result:
-        if p.curr in LogicalOperators:
+        if p.curr in LogicalOperators + {tkEQ}:
           result = p.parseInfix(result)
         return # result
     return lhs
@@ -1062,6 +1077,7 @@ proc parseStmt(p: var Parser): Node =
     of tkIterator: parseIterator
     of tkStatic: parseStaticStmt
     of tkEcho: parseEcho
+    of tkDoc: parseDocComment
     else: parseExpression
   if prefixFn != nil:
     return prefixFn(p)
