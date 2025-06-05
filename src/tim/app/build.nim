@@ -4,13 +4,15 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[os, monotimes, times, strutils, options]
+import std/[os, monotimes, times, strutils, options, ropes]
 
 import pkg/[flatty, jsony]
 import pkg/kapsis/[cli, runtime]
 
 import ../engine/[ast, parser, codegen, chunk, vm, sym]
 import ../engine/stdlib/[libsystem, libtimes, libstrings]
+
+import ../engine/transpilers/javascript/jscodegen
 
 proc srcCommand*(v: Values) =
   ## Transpiles `timl` code to a target source
@@ -32,7 +34,12 @@ proc srcCommand*(v: Values) =
     t = getMonotime()
   
   var program: Ast # the AST representation of the script
-  parser.parseScript(program, timlCode)
+  try:
+    parser.parseScript(program, timlCode)
+  except TimParserError as e:
+    echo e.msg
+    quit(1)
+    
   # writeFile("test.ast", toFlatty(program))
 
   var
@@ -51,26 +58,28 @@ proc srcCommand*(v: Values) =
 
   # let timesModule = script.initTimes(systemModule)
   # module.load(timesModule)
-  var compiler = codegen.initCodeGen(script, module, mainChunk)
-  
-  try:
-    compiler.genScript(program, isMainScript = true)
-    let vmInstance = newVm()
-    let output = vmInstance.interpret(script, mainChunk)
-    
-    # if the output path is specified, write the output to the file
-    # todo
 
-    # otherwise, print the output to the console
-    echo output
-    
-    # display the time taken for compilation
-    if withBenchtime:
-      displayInfo("Done in " & $(getMonotime() - t))
-  
-  except TimCompileError as e:
-    echo e.msg
-    
+  if ext == "html":
+    try:
+      var compiler = codegen.initCodeGen(script, module, mainChunk)
+      compiler.genScript(program, isMainScript = true)
+      let vmInstance = newVm()
+      let output = vmInstance.interpret(script, mainChunk)
+      
+      # if the output path is specified, write the output to the file
+      # todo
+
+      # otherwise, print the output to the console
+      echo output
+      # display the time taken for compilation
+      if withBenchtime:
+        displayInfo("Done in " & $(getMonotime() - t))    
+    except TimCompileError as e:
+      echo e.msg
+      quit(1)
+  elif ext == "js":
+    var jst = jscodegen.initCodeGen(script, module, mainChunk)
+    echo jst.genScript(program, isMainScript = true)
 
 
 #

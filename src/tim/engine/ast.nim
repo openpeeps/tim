@@ -331,9 +331,6 @@ proc newEmpty*: Node =
   ## Construct a new empty node.
   newNode(nkEmpty)
 
-let defaultNil* = newNode(nkNil)
-  # Used to represent `nil` in the AST
-
 proc newNil*: Node =
   ## Construct a new nil node.
   newNode(nkNil)
@@ -549,3 +546,6 @@ const voidHtmlElements* = [tagArea, tagBase, tagBr, tagCol,
   tagEmbed, tagHr, tagImg, tagInput, tagLink, tagMeta,
   tagParam, tagSource, tagTrack, tagWbr, tagCommand,
   tagKeygen, tagFrame]
+
+let defaultNil* = newIdent("nil")
+  # Used to represent `nil` in the AST

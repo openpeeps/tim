@@ -81,6 +81,11 @@ type
       # special representation in the VM
     tyHtmlElement = "HtmlElement"
 
+  ProcType* = enum
+    ## The type of a procedure (function)
+    procTypeFunction
+    procTypeMacro
+
   Sym* {.acyclic.} = ref object
     ## A symbol. This represents an ident that can be looked up.
     name*: Node  ## the name of the symbol
@@ -126,6 +131,7 @@ type
       procId*: uint16              ## the unique number of the proc
       procParams*: seq[ProcParam]  ## the proc's parameters
       procReturnTy*: Sym           ## the return type of the proc
+      procType*: ProcType
       procExport*: bool
         ## whether the proc is exported or not
     of skIterator:
@@ -268,10 +274,12 @@ proc `$`*(sym: Sym): string =
   of skCallable:
     result =
       if sym.kind == skProc:
-        if sym.name.ident.startsWith("@"): "block "
-        else: $skProc & " "
-      else: "iterator "
-    result.add(sym.name.render)
+        if sym.name.ident.startsWith("@"):
+          "macro " & sym.name.ident[1..^1]
+        else:
+          $skProc & " " & sym.name.render
+      else:
+        $skIterator & " " & sym.name.render
     if sym.genericParams.isSome or sym.genericInstArgs.isSome:
       # let genericParams =
       #   sym.genericParams.get(otherwise = sym.genericInstArgs.get)
@@ -666,4 +674,7 @@ proc initSystemTypes*(module: Module) =
   let genArrayType = newSym(skGenericParam, genT, impl = genT)
   genArrayType.constraint = module.sym"any"
   module.add(genType(tyArray, "array", true, some(@[genArrayType])))
+
+  module.add(genType(tyNil, "nil", true))
+  module.add(genType(tyAny, "stmt", true))
   module.add(genType(tyJson, "json", true))

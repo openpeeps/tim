@@ -470,6 +470,7 @@ proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym =
       return gen.lookup(symName[0], quiet)  # generic instantiation
     name = symName[0]  # generic instantiation
   else: discard
+  # debugecho name == nil or name.kind != nkIdent
   if name == nil or name.kind != nkIdent:
     symName.error(ErrInvalidSymName % symName.render)
   let id = 
@@ -652,16 +653,25 @@ proc findOverload(sym: Sym, args: seq[Sym],
     # if we don't have multiple choices, we just
     # check if the param lists are compatible
     result =
-      if sym.sameParams(args): sym
-      else: nil
+      if sym.procType == ProcType.procTypeMacro:
+        if sym.sameParams(args[0..^2]): sym
+        else: nil
+      else:
+        if sym.sameParams(args): sym
+        else: nil
   elif sym.kind == skChoice:
     # otherwise, we find a matching overload by iterating through the list of
     # choices. this isn't the most efficient solution and can be optimized to use
     # a table for O(1) lookups, but time will tell if that's necessary.
     for choice in sym.choices:
-      if choice.kind in skCallable and choice.sameParams(args):
-        result = choice
-        break
+      if choice.procType == ProcType.procTypeMacro:
+        if choice.kind in skCallable and choice.sameParams(args[0..^2]):
+          result = choice
+          break
+      else:
+        if choice.kind in skCallable and choice.sameParams(args):
+          result = choice
+          break
 
   # if we failed to find an appropriate overload,
   # we give a nice error message to the user
@@ -722,8 +732,8 @@ proc resolveGenerics*(gen: var CodeGen, callable: var Sym,
                       callArgTypes: seq[Sym], errorNode: Node) =
   ## Helper used to resolve generic parameters via inference.
   if callable.isGeneric:
-    let genericArgs = gen.inferGenericArgs(callable, callArgTypes, errorNode)
-      .mapIt do:
+    let genericArgs =
+      gen.inferGenericArgs(callable, callArgTypes, errorNode).mapIt do:
         if it.isSome: it.get
         else:
           errorNode.error(ErrCouldNotInferGeneric % errorNode.render)
@@ -742,6 +752,7 @@ proc callProc(procSym: Sym, argTypes: seq[Sym],
   
     # resolve generic params
     gen.resolveGenerics(theProc, argTypes, errorNode)
+    
     # call the proc
     gen.chunk.emit(opcCallD)
     gen.chunk.emit(theProc.procId)
@@ -1002,10 +1013,24 @@ proc procCall(node: Node, procSym: Sym): Sym {.codegen.} =
   ## Generate code for a procedure call.
   # we simply push all the arguments onto the stack
   var argTypes: seq[Sym]
-  for arg in node[1..^1]:
-    let argSym: Sym = gen.genExpr(arg)
-    assert argSym != nil, "Expression must return a symbol"
-    argTypes.add(argSym)
+  if node[^1].kind in {nkHtmlElement, nkIf, nkFor, nkCall}:
+    # if the last argument is an HTML element
+    # it is a macro call, so we need to
+    # push the HTML element onto the stack
+    for arg in node[1..^2]:
+      let argSym: Sym = gen.genExpr(arg)
+      assert argSym != nil, "Expression must return a symbol"
+      argTypes.add(argSym)
+    # the last argument is a HTML element, so we need to
+    # create a symbol for it and add it to the argument types
+    let anyStmt = gen.module.sym"stmt" # gen.genExpr(node[^1])
+    anyStmt.impl = node[^1]
+    argTypes.add(anyStmt)
+  else:
+    for arg in node[1..^1]:
+      let argSym: Sym = gen.genExpr(arg)
+      assert argSym != nil, "Expression must return a symbol"
+      argTypes.add(argSym)
   # ...and delegate the call to callProc
   result = gen.callProc(procSym, argTypes, errorNode = node)
 
@@ -1341,8 +1366,6 @@ proc genProc(node: Node, isInstantiation = false): Sym {.codegen.} =
       procGen.chunk.emit(opcReturnVal)
     else:
       procGen.chunk.emit(opcReturnVoid)
-    # if params.len > 0:
-    #   procGen.popScope()
   else:
     # add the proc into the script
     gen.script.procs.add(theProc)
@@ -1376,7 +1399,8 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
         gen.script.newProc(name, impl = node,
                     params, returnTy, kind = pkNative)
   sym.genericParams = genericParams
-
+  sym.procType = ProcType.procTypeMacro
+  
   # add the proc into the declaration scope
   # we need to do this here, otherwise recursive calls will be broken
   gen.addSym(sym, scopeOffset = ord(sym.genericParams.isSome))
@@ -1397,23 +1421,25 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
       var varType = if isMut: skVar else: skLet
       let param = procGen.declareVar(name, varType, ty)
       param.varSet = true  # arguments are not assignable
+    
     # todo
     # let stmtVar = procGen.declareVar(ast.newIdent("stmt"), skLet, gen.module.sym"any")
     # stmtVar.varSet = true
     # procGen.pushDefault(gen.module.sym"string")
     
-    # define default `blockAttributes` variable
+    # define the default `blockAttributes` variable
     # this is used to store the attributes of the block.
     let blockAttributes = newIdent("blockAttributes")
-    procGen.declareVar(blockAttributes, skVar, gen.module.sym"string")
+    procGen.declareVar(blockAttributes, skVar, gen.module.sym"string", isMagic = true)
     procGen.pushDefault(gen.module.sym"string")
     procGen.popVar(blockAttributes)
-
-    # declare ``result`` if applicable
-    # if returnTy.tyKind != tyVoid:
-    #   procGen.declareVar(newIdent("result"), skVar, returnTy, isMagic = true)
-    #   procGen.pushDefault(returnTy)
-    #   procGen.popVar(newIdent("result"))
+    
+    # defines the default `blockStmt` variable
+    # this is used to store any additional statements
+    # provided at call time
+    let blockStmt = newIdent("blockStmt")
+    procGen.declareVar(blockStmt, skVar, gen.module.sym"any", isMagic = true)
+    procGen.popVar(blockStmt)
 
     # add the proc into the script
     gen.script.procs.add(theProc)
@@ -1422,6 +1448,10 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
 
     # compile the proc's body
     discard procGen.genBlock(body, isStmt = true)
+
+    # if the macro has any deferred code to be executed,
+    # we need to emit it now.
+    # procGen.chunk.emit(opcLoadDeferred)
 
     # finally, return ``result`` if applicable
     if returnTy.tyKind != tyVoid:
@@ -1504,17 +1534,6 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
       else:
         gen.chunk.emit(opcInnerHtml)
         gen.genStmt(subNode)
-        # let ty = gen.genExpr(subNode)
-        # if ty.kind == skHtmlType:
-          # else:
-          # if ty.tyKind notin {tyBool..tyArray}:
-          #   # todo support constructed objects
-          #   subNode.error(ErrTypeMismatch % [$ty.name, "string"])
-          # else:
-          #   # procGen.chunk.emit(opcPushL)
-          #   # procGen.chunk.emit(resultSym.varStackPos.uint8)
-          #   # gen.chunk.emit(opcReturnVal)
-          #   # gen.chunk.emit(opcTextHtml)
     gen.popScope()
   
   # add the generated symbol to the module

@@ -66,3 +66,6 @@ const
   WarnEmptyStmt* = "Empty statement is redundant"
   WarnModuleAlreadyImported* = "Module '$1' is already imported"
   ErrTypeNotConcrete* = "type `$1` is not concrete"
+  
+  ErrBadIndentation* = "Bad indentation"
+  ErrUnexpectedToken* = "Unexpected token: `$1`"

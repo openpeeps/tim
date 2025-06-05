@@ -6,7 +6,7 @@
 
 import std/[macros, lexbase, tables, strutils, critbits]
 
-import ./[tokens, ast]
+import ./[tokens, errors, ast]
 
 type
   Parser* = object
@@ -21,12 +21,25 @@ type
       # A critbit tree used to cache `key=value` HTML attributes
     lvl: int
 
+  TimParserError* = object of ValueError
+    file*: string
+    ln*, col*: int
+
 const
   MathOperators = {tkPlus, tkMinus, tkAsterisk, tkDivide}
   LogicalOperators = {tkAnd, tkAndAnd, tkOr, tkOrOr}
   ComparisonOperators = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE}
   Operators = ComparisonOperators + MathOperators + {tkAmp, tkAssign}
   Assignables = {tkBool, tkString, tkInteger, tkFloat, tkIdentifier}
+
+proc error(tk: TokenTuple, msg: string) =
+  ## Raise a parsing error on the given node.
+  raise (ref TimParserError)(
+          # file: node.file,
+          ln: tk.line,
+          col: tk.col,
+          msg: ErrorFmt % ["", $tk.line, $tk.col, msg])
+
 #
 # Parser utility functions
 #
@@ -759,13 +772,6 @@ proc parseMacroFunctionHead(p: var Parser, isAnon: bool;
   if p.curr is tkLP:
     var params: seq[Node]
     if p.parseCommaIdentList(tkLP, tkRP, params):
-      # @block functions instantiate with a default
-      # parameter type of `stmt` which allows for
-      # any statement to be passed (including other functions and block calls)
-      # let stmtp = newNode(nkIdentDefs)
-      # stmtp.add(ast.newIdent"stmt")
-      # stmtp.add([ast.newIdent"any", defaultNil])
-      # params.add(stmtp)
       formalParams.add(params)  
 
 prefixHandle parseMacroFunction:
@@ -815,9 +821,20 @@ prefixHandle parseBlockCall:
         break
       of Assignables + {tkIdentVar}:
         if not expectRP and p.curr.pos <= tokenAt.pos: break
+        elif p.curr.line > tokenAt.line and p.curr.pos > tokenAt.pos: break
+        # elif p.curr.pos > tokenAt.pos and p.curr.line > tokenAt.line:
+        #   p.curr.error(ErrBadIndentation)
         let arg = p.parseExpression()
         caseNotNil arg:
           result.add(arg)
+      of tkColon:
+        # parse a statement
+        walk p # tkColon
+        let stmtNode: Node = p.parseStmt()
+        caseNotNil stmtNode:
+          result.add(stmtNode)
+          break # break the loop after adding the statement
+        do: break
       else: break # nothing to add
 
 prefixHandle parseCall:
@@ -1116,5 +1133,4 @@ proc parseScript*(astProgram: var Ast, code: string) =
     caseNotNil node:
       astProgram.nodes.add(node)
     do:
-      echo "Unexpected token: ", p.curr.kind, " at ", p.curr.pos
-      break
+      p.curr.error(ErrUnexpectedToken % $p.curr.kind)
