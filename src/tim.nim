@@ -90,117 +90,10 @@ proc toAst*(name, code: string): string =
   if likely(not p.hasErrors):
     return ast.printAstNodes(parser.getAst(p))
 
-when not defined release:
-  when not defined napibuild:
-    proc showHtmlError(msg: var string, engine: TimEngine, l: Logger) =
-      var timErrorScreen = """
-    style: "
-    #timEngineErrorScreenWrapper {
-      font-family: system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue','Noto Sans','Liberation Sans',Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji';
-      background-color: #111;
-      color: #fff;
-      position: fixed;
-      top:0;
-      left:0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-    }
-
-    #timEngineErrorScreenWrapper * {
-      box-sizing: border-box;
-    }
-
-    header.timEngineErrorScreenHeader {
-      background: #111;
-      padding: 25px
-    }
-
-    header.timEngineErrorScreenHeader h1 {
-      font-size: 48px;
-      margin: 0;
-    }
-
-    .tim--error-container {
-      width: 100%;
-      padding:0 1.5rem;
-      margin: auto;
-      align-self: center;
-    }
-
-    .tim--error-row {
-      display: flex;
-      flex-wrap: wrap;
-      margin:0 -1.5rem
-    }
-
-    .tim--error-row>* {
-      flex-shrink: 0;
-      width: 100%;
-      max-width: 100%;
-    }
-
-    .tim-error-preview-code {
-      background: #212121;
-      overflow-x: auto;
-      font-size: 16px;
-      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
-    }
-    .tim-error-preview-code li:before {
-      content: attr(data-lineno)
-    }
-    .tim-error-preview-code li {
-      list-style: none;
-      min-height: 29px;
-      line-height: 29px;
-      text-wrap: nowrap;
-    }
-
-    .tim--error-li-msg {
-      font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,monospace;
-      font-size: 16px;
-      list-style: decimal;
-      background-color: #ea4444a1;
-      border-radius: 5px;
-      padding: 2px 10px;
-      margin-bottom: 10px;
-      text-align: left;
-    }
-
-    .tim-error-preview-code li:last-child {
-      border-bottom: 0
-    }
-    "
-    section#timEngineErrorScreenWrapper > div.tim--error-container
-      div.tim--error-row style="align-items: center"
-        div style="text-align:center; align-self:center; max-width:650px; margin:auto;"
-          img width="200" height="200"
-              alt="Tim Engine"
-              src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png"
-          header.timEngineErrorScreenHeader
-            h1 style="font-weight:bold;margin-bottom:20px": "Oups! Something broke"
-  """
-      var errmsgs: string
-      for e in l.errors:
-        let lc = e[1].text[1..^2].split(":")
-        var ln = parseInt(lc[0])
-        var txt = e[1].text
-        add txt, e[2].text.indent(1)
-        add txt, indent(e[3..^1].mapIt(it.text).join(" "), 1)
-        add errmsgs, indent("li.tim--error-li-msg: \"$1\"", 10)
-        errmsgs = errmsgs % [txt]
-      add timErrorscreen, errmsgs
-      msg = toHtml("tim-engine-error", timErrorScreen)
-    var htmlerror: string
-
 template displayErrors(l: Logger) =
   for err in l.errors:
     display(err)
   display(l.filePath)
-  when not defined release:
-    when not defined napibuild:
-      if engine.showHtmlErrors:
-        htmlerror.showHtmlError(engine, l)
 
 proc compileCode(engine: TimEngine, tpl: TimTemplate,
     refreshAst = false) =
@@ -238,9 +131,32 @@ proc resolveDependants(engine: TimEngine, x: seq[string]) =
     else:
       engine.compileCode(tpl, refreshAst = true)
 
+# initialize Browser Sync & Reload using
+# libdatachannel WebSocket server and Watchout
+# for handling file monitoring and changes
+import pkg/libdatachannel/bindings
+import pkg/libdatachannel/websockets
+
+# needs to be global
+var
+  watcher: Watchout
+  wsServerConfig = initWebSocketConfig()
+  hasChanges: bool
+
+proc connectionCallback(wsserver: cint, ws: cint, userPtr: pointer) {.cdecl.} =
+  proc wsMessageCallback(ws: cint, msg: cstring, size: cint, userPtr: pointer) =
+    if hasChanges:
+      ws.message("1")
+      hasChanges = false
+    else:
+      ws.message("0")
+    
+  discard rtcSetMessageCallback(ws, wsMessageCallback)
+
 proc precompile*(engine: TimEngine, flush = true,
     waitThread = false, browserSyncPort = Port(6502),
-    browserSyncDelay = 100, global: JsonNode = newJObject(), watchoutNotify = true) =
+    browserSyncDelay = 100, global: JsonNode = newJObject(),
+    watchoutNotify = true) =
   ## Precompiles available templates inside `layouts` and `views`
   ## directories to either static `.html` or binary `.ast`.
   ## 
@@ -264,7 +180,6 @@ proc precompile*(engine: TimEngine, flush = true,
     proc onFound(file: watchout.File) =
       # Runs when detecting a new template.
       let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-      # if not tpl.isUsed(): return # prevent compiling tpl if not in use
       case tpl.getType
       of ttView, ttLayout:
         engine.compileCode(tpl)
@@ -282,6 +197,7 @@ proc precompile*(engine: TimEngine, flush = true,
       else:
         # engine.importsHandle.excl(file.getPath())
         engine.resolveDependants(engine.importsHandle.dependencies(file.getPath).toSeq)
+      hasChanges = true
 
     # Callback `onDelete`
     proc onDelete(file: watchout.File) =
@@ -289,23 +205,22 @@ proc precompile*(engine: TimEngine, flush = true,
       notify("✨ Deleted", file.getName())
       engine.clearTemplateByPath(file.getPath())
 
+    wsServerConfig.port = browserSyncPort.uint16
+    websockets.startServer(addr(wsServerConfig), connectionCallback)
+    sleep(100) # give some time for the web socket server to start
+
     let basepath = engine.getSourcePath()
-    let watcher =
-      newWatchout(
-        dirs = @[basepath / "layouts" / "*",
-                basepath / "views" / "*",
-                basepath / "partials" / "*"],
-        onChange, onFound, onDelete,
-        recursive = true,
-        ext = @[".timl"],
-        delay = browserSyncDelay,
-        browserSync =
-          WatchoutBrowserSync(
-            port: browserSyncPort,
-            delay: browserSyncDelay
-          )
-        )
-    watcher.start() # watch for file changes in a separate thread
+    # Setup the filesystem monitor
+    watcher =
+      newWatchout(@[
+        basepath / "layouts" / "*",
+        basepath / "views" / "*",
+        basepath / "partials"  / "*"
+      ], "*.timl")
+    watcher.onChange = onChange
+    watcher.onFound = onFound
+    watcher.onDelete = onDelete
+    watcher.start()
   else:
     for tpl in engine.getViews():
       engine.compileCode(tpl)
@@ -331,11 +246,6 @@ template layoutWrapper(getViewBlock) {.dirty.} =
     else:
       hasError = true
       jitLayout.logger.displayErrors()
-  when not defined release:
-    if engine.showHtmlErrors and hasError:
-      when not defined napibuild:
-        add result, htmlerror
-        htmlerror = ""
   add result, layoutTail
 
 proc render*(engine: TimEngine, viewName: string,

@@ -33,6 +33,7 @@ requires "htmlparser"
 # Required for running Tim Engine as a
 # microservice frontend application
 requires "httpbeast#head"
+requires "libdatachannel"
 
 task node, "Build a NODE addon":
   exec "denim build src/tim.nim --cmake --yes"
