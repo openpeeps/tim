@@ -150,7 +150,7 @@ proc connectionCallback(wsserver: cint, ws: cint, userPtr: pointer) {.cdecl.} =
       hasChanges = false
     else:
       ws.message("0")
-    
+
   discard rtcSetMessageCallback(ws, wsMessageCallback)
 
 proc precompile*(engine: TimEngine, flush = true,
@@ -206,7 +206,7 @@ proc precompile*(engine: TimEngine, flush = true,
       engine.clearTemplateByPath(file.getPath())
 
     wsServerConfig.port = browserSyncPort.uint16
-    websockets.startServer(addr(wsServerConfig), connectionCallback)
+    startServer(addr(wsServerConfig), connectionCallback)
     sleep(100) # give some time for the web socket server to start
 
     let basepath = engine.getSourcePath()
