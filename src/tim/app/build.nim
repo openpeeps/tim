@@ -62,7 +62,7 @@ proc srcCommand*(v: Values) =
   if ext == "html":
     try:
       var compiler = codegen.initCodeGen(script, module, mainChunk)
-      compiler.genScript(program, isMainScript = true)
+      compiler.genScript(program, none(string), isMainScript = true)
       let vmInstance = newVm()
       let output = vmInstance.interpret(script, mainChunk)
       
@@ -79,8 +79,7 @@ proc srcCommand*(v: Values) =
       quit(1)
   elif ext == "js":
     var jst = jscodegen.initCodeGen(script, module, mainChunk)
-    echo jst.genScript(program, isMainScript = true)
-
+    echo jst.genScript(program, none(string), isMainScript = true)
 
 #
 # AST 

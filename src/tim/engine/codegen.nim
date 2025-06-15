@@ -39,6 +39,8 @@ type
   
   CodeGen* {.acyclic.} = object
     ## a code generator for a module or proc.
+    includePath: Option[string]
+      ## the base path for including partials
     script: Script              # the script all procs go into
     module: Module              # the global scope
     chunk: Chunk                # the chunk of code we're generating
@@ -307,7 +309,7 @@ proc declareVar(gen: var CodeGen, name: Node, kind: SymKind, ty: Sym,
 
 proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym
 
-proc genScript*(program: Ast, isMainScript: static bool = false) {.codegen.}
+proc genScript*(program: Ast, includePath: Option[string], isMainScript: static bool = false) {.codegen.}
 proc genExpr(node: Node): Sym {.codegen.}
 
 proc genBlock(node: Node, isStmt: bool): Sym {.codegen.}
@@ -470,7 +472,6 @@ proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym =
       return gen.lookup(symName[0], quiet)  # generic instantiation
     name = symName[0]  # generic instantiation
   else: discard
-  # debugecho name == nil or name.kind != nkIdent
   if name == nil or name.kind != nkIdent:
     symName.error(ErrInvalidSymName % symName.render)
   let id = 
@@ -488,7 +489,7 @@ proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym =
   # try find the symbol in the functions table
   if result == nil:
     result = gen.funcLookup(id)
-  
+
   if result == nil:
     if not quiet:
       name.error(ErrUndefinedReference % $name)
@@ -1013,24 +1014,24 @@ proc procCall(node: Node, procSym: Sym): Sym {.codegen.} =
   ## Generate code for a procedure call.
   # we simply push all the arguments onto the stack
   var argTypes: seq[Sym]
-  if node[^1].kind in {nkHtmlElement, nkIf, nkFor, nkCall}:
-    # if the last argument is an HTML element
-    # it is a macro call, so we need to
-    # push the HTML element onto the stack
-    for arg in node[1..^2]:
-      let argSym: Sym = gen.genExpr(arg)
-      assert argSym != nil, "Expression must return a symbol"
-      argTypes.add(argSym)
-    # the last argument is a HTML element, so we need to
-    # create a symbol for it and add it to the argument types
-    let anyStmt = gen.module.sym"stmt" # gen.genExpr(node[^1])
-    anyStmt.impl = node[^1]
-    argTypes.add(anyStmt)
-  else:
-    for arg in node[1..^1]:
-      let argSym: Sym = gen.genExpr(arg)
-      assert argSym != nil, "Expression must return a symbol"
-      argTypes.add(argSym)
+  # if node[^1].kind in {nkHtmlElement, nkIf, nkFor, nkCall}:
+  #   # if the last argument is an HTML element
+  #   # it is a macro call, so we need to
+  #   # push the HTML element onto the stack
+  #   for arg in node[1..^2]:
+  #     let argSym: Sym = gen.genExpr(arg)
+  #     assert argSym != nil, "Expression must return a symbol"
+  #     argTypes.add(argSym)
+  #   # the last argument is a HTML element, so we need to
+  #   # create a symbol for it and add it to the argument types
+  #   let anyStmt = gen.module.sym"stmt" # gen.genExpr(node[^1])
+  #   anyStmt.impl = node[^1]
+  #   argTypes.add(anyStmt)
+  # else:
+  for arg in node[1..^1]:
+    let argSym: Sym = gen.genExpr(arg)
+    assert argSym != nil, "Expression must return a symbol"
+    argTypes.add(argSym)
   # ...and delegate the call to callProc
   result = gen.callProc(procSym, argTypes, errorNode = node)
 
@@ -1123,7 +1124,6 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
     # todo raise an error if the index is out of bounds
     # node[1].error(ErrTypeMismatch % [$indexTy.name, "int"])
     gen.chunk.emit(opcGetI)
-    # echo arrayTy.arrayItems.len
     result = arrayTy.arrayTy
     # result = gen.module.sym"int" # TODO: fix this, we need to know the type of the array items
   else: discard # todo error?
@@ -1315,13 +1315,12 @@ proc genProc(node: Node, isInstantiation = false): Sym {.codegen.} =
   # if we're in an instantiation or the proc is
   # not generic, generate its code
   if not sym.isGeneric or isInstantiation:
-    # echo gen.varLookup("aaa") == nil
     var
       chunk = newChunk()
       procGen = initCodeGen(gen.script, gen.module, chunk, gkProc,
-        # ctxAllocator =
-        #   if gen.kind == gkToplevel: nil
-        #   else: gen.ctxAllocator
+        ctxAllocator =
+          if gen.kind == gkToplevel: nil
+          else: gen.ctxAllocator
       )
     theProc.chunk = chunk
     chunk.file = gen.chunk.file
@@ -1732,8 +1731,6 @@ proc genReturn(node: Node) {.codegen.} =
   else:
     let valTy = gen.genExpr(node[0])
     if valTy != gen.procReturnTy:
-      # echo node[0]
-      # debugEcho valTy.constraint
       node[0].error(ErrTypeMismatch % [$valTy.name, $gen.procReturnTy.name])
 
   # hayago uses two different opcodes for
@@ -1901,6 +1898,8 @@ proc genVar(node: Node) {.codegen.} =
         # if both the type and the value are specified
         if decl[^2].kind != nkEmpty:
           valTyImpl = gen.lookup(decl[^2])
+        else:
+          valTyImpl = valTy
       elif decl[^2].kind != nkEmpty:
         # otherwise, use the provided type
         # to generate the default value
@@ -1951,14 +1950,14 @@ proc genImport(node: Node) {.codegen.} =
   for pathNode in node.children:
     var moduleProgram: Ast
     # todo expose a custom extension for the import
-    let path = 
+    var path = 
       if pathNode.stringVal.endsWith".timl":
         pathNode.stringVal
       else:
         pathNode.stringVal & ".timl"
-    parser.parseScript(moduleProgram, readFile(path))
     case node.kind
     of nkImport:
+      parser.parseScript(moduleProgram, readFile(path))
       # initialize a new code generator for the import
       # this is a new script, so we need to initialize
       # the code generator with the new script and module
@@ -1979,7 +1978,7 @@ proc genImport(node: Node) {.codegen.} =
       
       # generate the module's script based
       # on the parsed module AST program
-      moduleGen.genScript(moduleProgram)
+      moduleGen.genScript(moduleProgram, gen.includePath)
       
       # once the module is generated, we can load it
       # into the current module
@@ -1995,19 +1994,14 @@ proc genImport(node: Node) {.codegen.} =
 
     of nkInclude:
       # include the module into the current script
+      if gen.includePath.isSome:
+        # if the include path is set, we can use it to resolve the module
+        path = gen.includePath.get() / path
+      parser.parseScript(moduleProgram, readFile(path))
       var
         importChunk = newChunk()
         importScript = newScript(importChunk)
         importModule = newModule(path.extractFilename, some(path))
-      # initialize the code generator
-      # we don't need to load the system module here,
-      # because the current module is going to be included
-      # so we can use the current module's code generator
-      var moduleGen: CodeGen = initCodeGen(importScript, importModule, importChunk)
-      gen.chunk.emit(opcImportModule)
-      gen.chunk.emit(gen.chunk.getString(pathNode.stringVal))
-      # walk through the module's nodes
-      # and generate code for each node
       for n in moduleProgram.nodes:
         gen.genStmt(n)
     else: discard
@@ -2079,8 +2073,10 @@ proc genBlock(node: Node, isStmt: bool): Sym {.codegen.} =
     # all the time, but it should warn when node has no 
     node.warn(WarnEmptyStmt)
 
-proc genScript*(program: Ast, isMainScript: static bool = false) {.codegen.} =
+proc genScript*(program: Ast, includePath: Option[string],
+                  isMainScript: static bool = false) {.codegen.} =
   ## Generates the code for a full script.
+  gen.includePath = includePath
   when isMainScript == true:
     # when is the main script, we need to predefine
     # tim engine's global variables, `$app` and `$this`

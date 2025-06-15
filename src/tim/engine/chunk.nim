@@ -94,7 +94,6 @@ type
     opcHalt = "halt"              ## halt the VM
 
   Script* = ref object
-    ## A complete hayago script.
     stdpos*: int
     procs*: seq[Proc]
       ## all procs declared in this script

@@ -446,8 +446,6 @@ proc sameType*(a, b: Sym): bool =
     # if not a.isInstantiation and b.isInstantiation or
     #    a.isInstantiation and not b.isInstantiation:
     #   return false
-    # echo a
-    # echo b.isInstantiation
     if a.isInstantiation and b.isInstantiation == false:
       if b.genericInstArgs.isSome:
         if a.kind == b.kind:
@@ -466,10 +464,6 @@ proc sameType*(a, b: Sym): bool =
         return # result
     
     if a.genericInstArgs.isNone and b.genericInstArgs.isSome:
-      # echo a
-      # echo b
-      # echo a.genericInstArgs.isSome()
-      # echo b.genericInstArgs.isSome()
       return false
 
     # likewise, both types have to have the same amount of generic arguments
@@ -539,7 +533,8 @@ proc canExport(sym: Sym): bool =
       sym.iterExport
     else: false
 
-proc addVariable*(scope: Scope, sym: Sym, lookupName: Node, fromOtherModule: static bool = false): bool {.discardable.} =
+proc addVariable*(scope: Scope, sym: Sym, lookupName: Node,
+                fromOtherModule: static bool = false): bool {.discardable.} =
   ## Add a variable to the given scope.
   if not scope.variables.hasKey(lookupName.ident):
     scope.variables[lookupName.ident] = sym
@@ -592,7 +587,8 @@ proc addType*(scope: Scope, sym: Sym, lookupName: Node, fromOtherModule: static 
         scope.exportTypeDefs[lookupName.ident] = sym
     return true
 
-proc add*(scope: Scope, sym: Sym, lookupName: Node = nil, fromOtherModule: static bool = false): bool {.discardable.} =
+proc add*(scope: Scope, sym: Sym,
+    lookupName: Node = nil, fromOtherModule: static bool = false): bool {.discardable.} =
   ## Add a symbol to the given scope. If a symbol under the given name already
   ## exists, it's added into an skChoice. The rules for overloading are:
   ## - there may only be one skVar or skLet under a given skChoice,

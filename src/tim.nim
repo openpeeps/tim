@@ -1,13 +1,41 @@
 # A super fast template engine for cool kids
 #
-# (c) iLiquid, 2019-2020
-#     https://github.com/liquidev/
-#
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-when isMainModule:
+when defined napi_build:
+  # Importing Tim Engine as a NAPI module
+  import std/[strutils, json]
+  import pkg/[denim, jsony, watchout]
+  
+  import ./tim/pm/init
+  
+  var timjs: TimEngine
+  init proc(module: Module) =
+    proc init(src: string, output: string, basepath: string) {.export_napi.} =
+      ## Initialize Tim Engine
+      timjs = newTim(
+        args.get("src").getStr,
+        args.get("output").getStr,
+        args.get("basepath").getStr
+      )
+
+      timjs.precompile(firstRun = true)
+
+    # proc precompile(opts: object) {.export_napi.} =
+    #   ## Precompile Tim Engine templates
+    #   var globals: JsonNode
+    #   var opts: JsoNNode = jsony.fromJson($(args.get"opts"))
+      
+    #   # extract optional data from opts and expose it to globals
+    #   # this data will be available in the template under `$app.` object
+    #   if opts.hasKey"data":
+    #     globals = opts["data"]
+      
+
+elif isMainModule:
+  # Building Tim Engine as a CLI application
   import pkg/kapsis
   import pkg/kapsis/[runtime, cli]
   import ./tim/app/[build, dev]
@@ -43,3 +71,7 @@ when isMainModule:
       ## Install a package from remote source
     remove string(`pkg`):
       ## Remove a package from local source
+else:
+  # Importing Tim Engine as a Nimble library
+  # so it can be used in other Nim projects
+  discard # todo

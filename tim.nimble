@@ -23,11 +23,16 @@ requires "checksums"
 requires "nyml#head"
 requires "semver"
 requires "dotenv"
+requires "denim#head"
+requires "libdatachannel"
 
 # requires "microparsec"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"
+
+task napi, "build a dev version":
+  exec "denim build src/tim.nim --cmake -y"
 
 task devlog, "build a dev version":
   exec "nimble build --mm:arc -d:hayaVmWriteStackOps -d:hayaVmWritePcFlow -d:timLogCodeGen -d:useMalloc"

@@ -43,6 +43,7 @@ type
   CompilationSettings* = object
     target*: TargetSource
     source*, output*: string
+    layoutsPath*, viewsPath*, partialsPath*: string
     policy*: CompilationPolicy
     release*: bool
 

@@ -21,7 +21,7 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
   var
     codeChunk = newChunk()
     gen = initCodeGen(script, module, codeChunk)
-  gen.genScript(astProgram)
+  gen.genScript(astProgram, none(string))
 
 const
   InlineCode* = """
