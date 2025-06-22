@@ -1093,14 +1093,14 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
   # Generate code for array access.
   # This is used for both arrays and JSON nodes (json arrays and objects)
   let
-    arrayTy = gen.genExpr(node[0])
+    valty = gen.genExpr(node[0])
     indexTy = gen.genExpr(node[1])
 
   # check if the array is actually an array
-  if arrayTy.tyKind notin {tyArray, tyJson}:
-    node[0].error(ErrTypeMismatch % [$arrayTy.name, "array"])
+  if valty.tyKind notin {tyArray, tyObject, tyJson}:
+    node[0].error(ErrTypeMismatch % [$valty.name, "array"])
   
-  case arrayTy.tyKind
+  case valty.tyKind
   of tyJson:
     # generate the code for accessing a JSON array
     if indexTy.tyKind notin {tyInt, tyString}:
@@ -1108,23 +1108,30 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
       # because both JSON arrays and objects can be accessed
       # using the bracket notation
       node[1].error(ErrTypeMismatch % [$indexTy.name, "int|string"])
-    
     gen.chunk.emit(opcGetJ)
-    result = arrayTy
+    result = valty
+  of tyObject:
+    if indexTy.tyKind != tyString:
+      # check if the index is actually an int
+      node[1].error(ErrTypeMismatch % [$indexTy.name, "string"])
+    # todo support getting fields from objects using the bracket notation
+    # this is not supported yet, so we just raise an error
+    echo "not implemented yet: accessing object fields using the bracket notation"
+    result = valty
   of tyArray:
     # generate the code to access the array
     if indexTy.tyKind != tyInt:
       # check if the index is actually an int
       node[1].error(ErrTypeMismatch % [$indexTy.name, "int"])
     
-    # if arrayTy.arrayItems.len > 0:
+    # if valty.arrayItems.len > 0:
       # todo maybe we can handle multi type arrays?
-      # arrayTy.arrayTy = arrayTy.arrayItems[0]
+      # valty.arrayTy = valty.arrayItems[0]
     
     # todo raise an error if the index is out of bounds
     # node[1].error(ErrTypeMismatch % [$indexTy.name, "int"])
     gen.chunk.emit(opcGetI)
-    result = arrayTy.arrayTy
+    result = valty.arrayTy
     # result = gen.module.sym"int" # TODO: fix this, we need to know the type of the array items
   else: discard # todo error?
 

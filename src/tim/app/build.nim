@@ -51,8 +51,8 @@ proc srcCommand*(v: Values) =
   let systemModule = modSystem(script)
   module.load(systemModule)
 
-  let stringsLib = initStrings(script, systemModule)
-  module.load(stringsLib)
+  # let stringsLib = initStrings(script, systemModule)
+  # module.load(stringsLib)
 
   script.stdpos = script.procs.high
 
@@ -71,6 +71,7 @@ proc srcCommand*(v: Values) =
 
       # otherwise, print the output to the console
       echo output
+      
       # display the time taken for compilation
       if withBenchtime:
         displayInfo("Done in " & $(getMonotime() - t))    

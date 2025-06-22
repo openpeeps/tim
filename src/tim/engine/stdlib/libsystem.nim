@@ -191,11 +191,9 @@ proc modSystem*(script: Script): Module =
     proc (args: StackView): Value =
       echo "nil")
 
-  # script.addProc(result, "echo", @[paramDef("x", tyHtmlElement, kindStr = "div")], tyVoid,
+  # script.addProc(result, "echo", @[paramDef("x", tyObject)], tyVoid,
   #   proc (args: StackView): Value =
-  #     debugecho args[0].objectVal.fields
-  #     # echo "<div>"
-  #   )
+  #     echo "nil")
 
   script.addProc(result, "echo", @[paramDef("x", tyArray)], tyVoid,
     proc (args: StackView): Value =
