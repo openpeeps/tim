@@ -337,8 +337,8 @@ proc instantiate(gen: var CodeGen, sym: Sym, args: seq[Sym],
     result = sym.genericInstCache[args]
   # otherwise, we need to create the instantiation from scratch
   else:
-    # we need to create a temporary scope for the resulting instantiation and
-    # the generic arguments
+    # we need to create a temporary scope for the
+    # resulting instantiation and the generic arguments
     gen.pushScope()
     # and of course, in that scope, we add those generic arguments
     if args.len != sym.genericParams.get.len:
@@ -365,10 +365,8 @@ proc instantiate(gen: var CodeGen, sym: Sym, args: seq[Sym],
       result = gen.genIterator(sym.impl, isInstantiation = true)
     else:
       errorNode.error(ErrNotGeneric % $errorNode)
-
     # after we're done, we can remove the instantiation scope
     gen.popScope()
-
   result.genericInstArgs = some(args)
   result.genericBase = some(sym)
 
@@ -526,50 +524,6 @@ proc popVar(gen: var CodeGen, name: Node) =
     gen.chunk.emit(gen.chunk.getString(id))
   # mark the variable as set
   sym.varSet = true
-
-# proc popVar(gen: var CodeGen, name: Node) =
-#   ## Pop the value at the top of the stack to the variable ``name``.
-
-#   # first of all, look the variable up
-#   var
-#     sym: Sym
-#     scopeIndex: int
-#     isLocal = false
-
-#   block findVar: # TODO: I'm 100% certain lookup() can handle this
-#     # try to find a local
-#     if gen.scopes.len > 0:
-#       for i in countdown(gen.scopes.len - 1, 0):
-#         if name.ident in gen.scopes[i].variables and
-#            gen.scopes[i].variables[name.ident].kind in skVars:
-#           sym = gen.scopes[i].variables[name.ident]
-#           scopeIndex = i
-#           isLocal = true
-#           break findVar
-#     # if there's no local by that name, try to find a global
-#     if name.ident in gen.module.variables and
-#        gen.module.variables[name.ident].kind in skVars:
-#       sym = gen.module.variables[name.ident]
-#       isLocal = false
-#       break findVar
-#     # if no variable was found, error out
-#     name.error(ErrUndefinedReference % $name)
-#   if sym.kind in {skLet, skConst} and sym.varSet:
-#     # if the variable is 'let' or `const` and it's already set, error out
-#     name.error(ErrImmutableReassignment % $name)
-#   else:
-#     if isLocal:
-#       # if it's a local and it's already been set, use popL, otherwise, just
-#       # leave the variable on the stack
-#       if sym.varSet:
-#         gen.chunk.emit(opcPopL)
-#         gen.chunk.emit(sym.varStackPos.uint8)
-#     else:
-#       # if it's a global, always use popG
-#       gen.chunk.emit(opcPopG)
-#       gen.chunk.emit(gen.chunk.getString(name.ident))
-#     # mark the variable as set
-#     sym.varSet = true
 
 proc pushVar(gen: var CodeGen, sym: Sym) =
   ## Push the variable represented by ``sym`` to the top of the stack.
@@ -1481,18 +1435,14 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
   # Constructs a new HTML element from Html object
   if gen.kind == gkProc:
     node.error(ErrOnlyUsableInAMacro % "HTML")
-
-  let
-    tag = node.getTag()
-    tagIdent = ast.newIdent(tag & "_" & $(gen.counter))
-  
+  let tag = node.getTag()
+  let tagIdent = ast.newIdent(tag & "_" & $(gen.counter))
+  let tagPos = gen.chunk.getString(tag)
   result = Sym(
     name: tagIdent,
     kind: skHtmlType,
     isVoidElement: node.tag in voidHtmlElements
   )
-  
-  let tagPos = gen.chunk.getString(tag)
   if node.attributes.len > 0:
     gen.chunk.emit(opcBeginHtmlWithAttrs)
     gen.chunk.emit(tagPos)
