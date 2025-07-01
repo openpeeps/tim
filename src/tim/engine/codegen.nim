@@ -1484,7 +1484,7 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
       of nkBool, nkInt, nkFloat, nkString:
         discard gen.pushConst(subNode)
         gen.chunk.emit(opcTextHtml)
-      of nkIdent, nkInfix:
+      of nkIdent, nkCall, nkDot, nkInfix:
         discard gen.genExpr(subNode)
         gen.chunk.emit(opcTextHtml)
       else:
