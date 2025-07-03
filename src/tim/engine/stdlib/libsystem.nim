@@ -7,7 +7,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[strutils, options, os, json]
+import std/[strutils, options, os, json, httpclient, httpcore, tables]
 import pkg/jsony
 
 import ../[chunk, codegen, ast, parser, sym, value]
@@ -302,6 +302,22 @@ proc modSystem*(script: Script): Module =
     proc (args: StackView): Value =
       let jsonContent = readFile(args[0].stringVal[])
       result = initValue(jsony.fromJson(jsonContent))
+    )
+  
+  script.addProc(result, "remoteJSON", @[paramDef("url", tyString)], tyJson,
+    proc (args: StackView): Value =
+      ## Fetch a remote JSON file from the given URL.
+      var client = newHttpClient()
+      try:
+        let res = client.get(args[0].stringVal[])
+        var resp = %*{
+          "status": res.status,
+          "headers": jsony.toJson(res.headers.table).fromJson(),
+          "content": jsony.fromJson(res.body)
+        }
+        result = initValue(resp)
+      finally:
+        client.close()
     )
 
   script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", tyJson)], tyBool,

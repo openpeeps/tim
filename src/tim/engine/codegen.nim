@@ -614,12 +614,13 @@ proc findOverload(sym: Sym, args: seq[Sym],
     # if we don't have multiple choices, we just
     # check if the param lists are compatible
     result =
-      if sym.procType == ProcType.procTypeMacro:
-        if sym.sameParams(args[0..^2]): sym
-        else: nil
-      else:
-        if sym.sameParams(args): sym
-        else: nil
+      # todo
+      # if sym.procType == ProcType.procTypeMacro:
+      #   if sym.sameParams(args[0..^2]): sym
+      #   else: nil
+      # else:
+      if sym.sameParams(args): sym
+      else: nil
   of skIterator:
     # same as above, but for iterators
     result =
