@@ -262,10 +262,17 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       inc(pc, sizeof(uint16))
     
     of opcTextHtml:
-      # let id = pc.read[:uint16](0)
-      # let innerText = chunk.strings[id]
-      result.add(stack.pop().stringVal[])
-      # inc(pc, sizeof(uint16))
+      let val = stack.pop()
+      case val.typeId
+      of tyString:
+        result.add(val.stringVal[])
+      of tyInt:
+        result.add($val.intVal)
+      of tyFloat:
+        result.add($val.floatVal)
+      of tyBool:
+        result.add(if val.boolVal: "true" else: "false")
+      else: discard # todo
     of opcInnerHtml:
       discard
 
@@ -342,7 +349,10 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
     # other
     of opcDiscard:
       let n = pc[0].int
-      stack.setLen(stack.len - n)
+      if stack.len > 0:
+        stack.setLen(stack.len - n)
+      else:
+        stack.setLen(0)
       inc(pc, sizeof(uint8))
 
     #--

@@ -12,7 +12,7 @@ import pkg/jsony
 
 import ../[chunk, codegen, ast, parser, sym, value]
 
-proc compileCode*(script: Script, module: Module, filename, code: string) =
+proc compileCode(script: Script, module: Module, filename, code: string) =
   ## Compile some hayago code to the given script and module.
   ## Any generated toplevel code is discarded. This should only be used for
   ## declarations of hayago-side things, eg. iterators.
@@ -26,12 +26,22 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
 const
   InlineCode* = """
 iterator `..`*(min: int, max: int): int {
-  var i = min
-  while $i <= max {
+  var i = $min
+  while $i <= $max {
     yield($i)
-    $i = $i + 1
+    inc($i)
   }
 }
+
+iterator items*[T](arr: array[T]): T {
+  var i = 0
+  const total = high($arr)
+  while $i <= $total {
+    yield($arr[$i])
+    inc($i)
+  }
+}
+
   """
 
 proc initSystemOps(script: Script, module: Module) =
@@ -200,9 +210,16 @@ proc modSystem*(script: Script): Module =
       debugEcho args[0]
     )
 
-  script.addProc(result, "len", @[paramDef("x", tyArray)], tyInt,
+  let genT = ast.newIdent("T")
+  let genArrayType = newSym(skGenericParam, genT, impl = genT)
+  genArrayType.constraint = result.sym"any"
+  script.addProc(result, "len", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
     proc (args: StackView): Value =
       result = initValue(len(args[0].objectVal.fields)))
+
+  script.addProc(result, "high", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
+    proc (args: StackView): Value =
+      result = initValue(high(args[0].objectVal.fields)))
 
   # script.addProc(result, "len", @[paramDef("x", tyObject)], tyInt,
   #   proc (args: StackView): Value =

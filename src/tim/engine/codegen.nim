@@ -65,7 +65,6 @@ type
     pName: string
     pKind: TypeKind
     pKindIdent: string
-    # pImplVal: Value
     pImplSym: Sym
     isMut, isOpt: bool
 
@@ -192,6 +191,11 @@ proc addSym(gen: var CodeGen, sym: Sym,
     if not gen.module.add(sym, name):
       name.error(ErrGlobalRedeclaration % [$name])
 
+#
+# Forward declarations
+#
+proc genGetField(node: Node): Sym {.codegen.}
+
 proc newProc*(script: Script, name, impl: Node,
         params: seq[ProcParam], returnTy: Sym,
         kind: ProcKind, exported = false,
@@ -241,8 +245,7 @@ const currentContext = Context(high(uint16))
 proc pushFlowBlock(gen: var CodeGen, kind: FlowBlockKind,
                    context = currentContext) =
   ## Push a new flow block. This creates a new scope for the flow block.
-  let fblock = FlowBlock(kind: kind,
-                         bottomScope: gen.scopes.len)
+  let fblock = FlowBlock(kind: kind, bottomScope: gen.scopes.len)
   if context == currentContext:
     fblock.context = gen.context
   else:
@@ -420,11 +423,14 @@ proc inferGenericArgs(gen: var CodeGen, sym: Sym,
     result.add(if genericParam in types: some(types[genericParam])
                else: Sym.none)
 
+template sameScope(): untyped =
+  (gen.scopes[i].context == gen.context or gen.scopes[i].context == gen.iterForCtx)
+
 proc varLookup(gen: var CodeGen, id: string): Sym =
   # Look up the symbol with the given `name`.
   if gen.scopes.len > 0:
     for i in countdown(gen.scopes.high, 0):
-      if gen.scopes[i].context == gen.context and id in gen.scopes[i].variables:
+      if sameScope() and id in gen.scopes[i].variables:
         return gen.scopes[i].variables[id]
 
   # try to find a global symbol if no local symbol was found
@@ -435,7 +441,7 @@ proc funcLookup(gen: var CodeGen, id: string): Sym =
   # Look up the symbol with the given `name`.
   if gen.scopes.len > 0:
     for i in countdown(gen.scopes.high, 0):
-      if gen.scopes[i].context == gen.context and id in gen.scopes[i].functions:
+      if sameScope() and id in gen.scopes[i].functions:
         return gen.scopes[i].functions[id]
 
   # try to find a global symbol if no local symbol was found
@@ -446,8 +452,7 @@ proc typeLookup(gen: var CodeGen, id: string): Sym =
   # Look up the symbol with the given `name`.
   if gen.scopes.len > 0:
     for i in countdown(gen.scopes.high, 0):
-      if gen.scopes[i].context == gen.context and
-         id in gen.scopes[i].typeDefs:
+      if sameScope() and id in gen.scopes[i].typeDefs:
         return gen.scopes[i].typeDefs[id]
 
   # try to find a global symbol if no local symbol was found
@@ -604,7 +609,8 @@ proc pushConst(node: Node): Sym {.codegen.} =
 proc findOverload(sym: Sym, args: seq[Sym],
           errorNode: Node = nil, quiet = false): Sym {.codegen.} =
   ## Finds the correct overload for ``sym``, given the parameter types.
-  if sym.kind in skCallable:
+  case sym.kind:
+  of skProc:
     # if we don't have multiple choices, we just
     # check if the param lists are compatible
     result =
@@ -614,7 +620,12 @@ proc findOverload(sym: Sym, args: seq[Sym],
       else:
         if sym.sameParams(args): sym
         else: nil
-  elif sym.kind == skChoice:
+  of skIterator:
+    # same as above, but for iterators
+    result =
+      if sym.sameParams(args): sym
+      else: nil
+  of skChoice:
     # otherwise, we find a matching overload by iterating through the list of
     # choices. this isn't the most efficient solution and can be optimized to use
     # a table for O(1) lookups, but time will tell if that's necessary.
@@ -627,6 +638,7 @@ proc findOverload(sym: Sym, args: seq[Sym],
         if choice.kind in skCallable and choice.sameParams(args):
           result = choice
           break
+  else: discard
 
   # if we failed to find an appropriate overload,
   # we give a nice error message to the user
@@ -648,11 +660,10 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
   ## Splits any call node (prefix, infix, call, dot access, dot call) into a
   ## callee (the thing being called) and parameters. The callee is resolved to a
   ## symbol.
-  var
-    callee: Node
-    args: seq[Node]
-  assert ast.kind in {nkPrefix, nkInfix,
-            nkCall, nkDot, nkIdent, nkString, nkArray}
+  var callee: Node
+  var args: seq[Node]
+  assert ast.kind in {nkPrefix, nkInfix, nkCall,
+                        nkDot, nkIdent, nkString, nkArray}
   case ast.kind
   of nkPrefix:
     callee = ast[0]
@@ -670,8 +681,13 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
       callee = ast[0]
       args = ast[1..^1]
   of nkDot:
-    callee = ast[1]
-    args = @[ast[0]]
+    let calleeLookup = gen.lookup(ast[0])
+    assert calleeLookup.kind in skVars, "Expected a variable, got " & $calleeLookup.kind
+    if calleeLookup.varTy.tyKind == tyObject:
+      return (calleeLookup.varTy, @[ast])
+    else:
+      callee = ast[1]
+      args = @[ast[0]]
   of nkString:
     callee = ast
   of nkIdent:
@@ -1019,17 +1035,15 @@ proc call(node: Node): Sym {.codegen.} =
 
 proc genGetField(node: Node): Sym {.codegen.} =
   # Generate code for field access.
-
   # all fields must be idents, so we check for that.
   if node[1].kind != nkIdent:
     node[1].error(ErrInvalidField % $node[1])
-
   let
     typeSym = gen.genExpr(node[0])  # generate the left-hand side
     fieldName = node[1].ident       # get the field's name
   # only objects have fields. we also check if the given object *does* have the
   # field in question, and generate an error if not
-  if typeSym.tyKind == tyObject and fieldName in typeSym.objectFields:
+  if typeSym.tyKind == tyObject and typeSym.objectFields.hasKey(fieldName):
     # we use the getF opcode to push fields onto the stack.
     let field = typeSym.objectFields[fieldName]
     result = field.ty
@@ -1176,7 +1190,9 @@ proc genParam(name: Node, ty: Sym, sym: Sym = nil,
               isMut, isOpt = false): ProcParam =
   (name, ty, sym, isMut, isOpt)
 
-proc collectParams(formalParams: Node): seq[ProcParam] {.codegen.} =
+proc collectParams(formalParams: Node,
+        genericParams: Option[seq[Sym]] = none(seq[Sym])
+  ): seq[ProcParam] {.codegen.} =
   # Helper used to collect parameters from an
   # `nkFormalParams` to a `seq[ProcParam]`
   for defs in formalParams[1..^1]:
@@ -1198,11 +1214,16 @@ proc collectParams(formalParams: Node): seq[ProcParam] {.codegen.} =
       case ty.tyKind
       of tyArray:
         if ty.arrayTy == nil and defs[^2].kind == nkIndex:
-          # if the array type is known
+          # getting the type of the array using the generic `T`
           let identSym: Sym = gen.typeLookup(defs[^2][1].ident)
-          let genericParam: Sym = newSym(skGenericParam, defs[^2][1], nil)
-          genericParam.constraint = identSym
           ty.arrayTy = identSym
+          if identSym == nil and genericParams.isSome():
+            let genParams = genericParams.get()
+            for genParam in genParams:
+              if genParam.name.ident == defs[^2][1].ident:
+                # we found the generic parameter, so we use it
+                ty.arrayTy = genParam.constraint
+                break
         if implSym != nil:
           # otherwise, we assume the array is of
           # the same type as the implementation symbol
@@ -1257,7 +1278,7 @@ proc genProc(node: Node, isInstantiation = false): Sym {.codegen.} =
         gen.collectGenericParams(node[1])
       else:
         seq[Sym].none
-    params = gen.collectParams(formalParams)
+    params = gen.collectParams(formalParams, genericParams)
     returnTy = # empty return type == void
       if formalParams[0].kind != nkEmpty:
         gen.lookup(formalParams[0])
@@ -1348,7 +1369,7 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
     genericParams =
       if not isInstantiation: gen.collectGenericParams(node[1])
       else: seq[Sym].none
-    params = gen.collectParams(formalParams)
+    params = gen.collectParams(formalParams, genericParams)
     returnTy = # empty return type == void
       if formalParams[0].kind != nkEmpty:
         gen.lookup(formalParams[0])
@@ -1471,7 +1492,6 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
   else:
     gen.chunk.emit(opcBeginHtml)
     gen.chunk.emit(tagPos)
-
   # gen.addSym(result)
   inc(gen.counter)
 
@@ -1626,7 +1646,7 @@ proc genFor(node: Node) {.codegen.} =
   # generate the arguments passed to the iterator
   # the context is switched only *after* the loop's outer flow block is pushed,
   # so that the loop can be ``break`` properly
-  iterGen.pushFlowBlock(fbLoopOuter, gen.context)
+  iterGen.pushFlowBlock(fbLoopOuter)
   var argTypes: seq[Sym]
   for arg in iterParams:
     argTypes.add(iterGen.genExpr(arg))
@@ -1817,7 +1837,7 @@ proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.} =
   # get some metadata about its params
   let
     formalParams = node[2]
-    params = gen.collectParams(formalParams)
+    params = gen.collectParams(formalParams, result.genericParams)
 
   # get the yield type
   if formalParams[0].kind == nkEmpty:
@@ -2066,16 +2086,20 @@ proc addProc*(script: Script, module: Module, name: string,
       add nodeParams, (
         newIdent(param.pName),
         module.sym(param.pKindIdent),
-        # param.pImplVal,
         param.pImplSym,
         param.isMut,
         param.isOpt
       )
     else:
+      let paramSym = 
+        if param.pImplSym != nil:
+          # if the parameter has an implementation value, use its type
+          param.pImplSym
+        else:
+          module.sym($param.pKind)
       add nodeParams, (
         newIdent(param.pName),
-        module.sym($(param.pKind)),
-        # param.pImplVal,
+        paramSym,
         param.pImplSym,
         param.isMut,
         param.isOpt
