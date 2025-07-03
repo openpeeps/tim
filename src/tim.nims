@@ -1,3 +1,3 @@
-# --deepcopy:on
-# --define:ssl
+--deepcopy:on
+--define:ssl
 --threads:on
