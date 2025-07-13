@@ -1505,9 +1505,16 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
       of nkBool, nkInt, nkFloat, nkString:
         discard gen.pushConst(subNode)
         gen.chunk.emit(opcTextHtml)
-      of nkIdent, nkCall, nkDot, nkInfix:
+      of nkIdent, nkDot, nkInfix:
         discard gen.genExpr(subNode)
         gen.chunk.emit(opcTextHtml)
+      of nkCall:
+        if subNode[0].ident[0] == '@':
+          gen.chunk.emit(opcInnerHtml)
+          gen.genStmt(subNode)
+        else:
+          discard gen.genExpr(subNode)
+          gen.chunk.emit(opcTextHtml)
       else:
         gen.chunk.emit(opcInnerHtml)
         gen.genStmt(subNode)
