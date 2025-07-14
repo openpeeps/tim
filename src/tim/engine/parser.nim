@@ -242,12 +242,15 @@ proc parseCommaIdentList(p: var Parser, start,
   walk p # start
   if p.curr isnot term:
     while p.curr isnot tkEOF:
-      let defNode: Node = p.parseIdentDefs()
-      caseNotNil defNode:
-        results.add(defNode)
+      let def: Node = p.parseIdentDefs()
+      caseNotNil def:
+        results.add(def)
       do: return false
+      # checking for the next token
+      # to determine if we have a comma separated list
+      # or is the end of the list
       case p.curr.kind
-      of tkComma:
+      of tkComma, tkSColon:
         walk p # skip commas
       of term:
         walk p
@@ -653,15 +656,6 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
           if p.next is tkIdentifier:
             ty.varType = ast.newIdent(p.next.value)
             walk p, 2
-        # if p.curr is tkAssign:
-        #   walk p # tkAssign
-        #   vars[^1] = p.parseExpression()
-        #   break
-        # elif p.curr is tkSColon:
-        #   # parse a type definition without an assignment
-        #   walk p # tkSColon
-        #   break
-        # else: break
       of tkAssign:
         # parse an implicit assignment
         walk p # tkAssign
@@ -669,13 +663,14 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
         break
       of tkComma:
         # parse a comma separated list of identifiers
-        if p.next is tkIdentifier:
+        if ty.kind == nkEmpty and p.next is tkIdentifier:
           walk p # tkComma
           # parse another variable separated by a comma
           vars.add(p.parseExpression())
         else: break
       else: break
-    vars.add(ty); vars.add(val)
+    vars.add(ty)
+    vars.add(val)
     result.add(vars)
 
 prefixHandle parseVar:
