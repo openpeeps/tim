@@ -220,6 +220,24 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
     result.add(ind & "    :returns: " & retType & "\n")
     result.add(ind & "    \"\"\"\n")
     result.add(gen.genStmt(node[3], indent + 1))
+  of nkMacro:
+    let fnName = node[0].ident[1..^1]
+    let params = node[2]
+    result.add(ind & "def " & fnName & "(")
+    result.add(params[1..^1].mapIt(it[0].render).join(", "))
+    result.add("):\n")
+    # Docstring (same as for functions)
+    result.add(ind & "    \"\"\"\n")
+    for param in params[1..^1]:
+      if param.kind == nkIdentDefs:
+        let pname = param[0].render
+        let ptype = if param[1].kind != nkEmpty: param[1].render else: "Any"
+        result.add(ind & "    :param " & pname & ": " & ptype & "\n")
+    result.add(ind & "    :returns: str (HTML)\n")
+    result.add(ind & "    \"\"\"\n")
+    result.add(ind & "    html = ''\n")
+    result.add(gen.genStmt(node[3], indent + 1))
+    result.add(ind & "    return html\n")
   of nkHtmlElement:
     result.add(gen.writeHtml(node, indent))
   of nkIf:
