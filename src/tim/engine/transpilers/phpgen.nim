@@ -91,7 +91,7 @@ proc getImplValue(node: Node, unquoted = true): string =
   of nkInt:     $node.intVal
   of nkFloat:   $node.floatVal
   of nkString: 
-    if unquoted: "'" & node.stringVal & "'"
+    if unquoted: "\"" & node.stringVal & "\""
     else: node.stringVal
   of nkBool:
     $node.boolVal
@@ -112,11 +112,12 @@ proc getImplValue(node: Node, unquoted = true): string =
 
 proc writeVar(node: Node) {.codegen.} =
   # Write variable declaration (PHP $var)
-  case node.kind
-  of nkVar, nkLet:
-    discard # PHP uses $ for all variables
-  else:
-    result.add(phpConst & " ")
+  # var prefix: string
+  # case node.kind
+  # of nkVar, nkLet:
+  #   prefix = phpVar
+  # else:
+    # result.add(phpConst & " ")
   for decl in node:
     result.add(phpVar & decl[0].ident & " = " & decl[^1].getImplValue & ";\n")
 
@@ -132,7 +133,11 @@ proc renderHandle(node: Node): string =
   of nkBool:
     $node.boolVal
   of nkIdent:
-    "$" & node.ident
+    if node.ident notin ["==", "!=", ">", "<", ">=", "<="]:
+      phpVar & node.ident
+    else:
+      # For operators, just return the ident
+      node.ident
   of nkPrefix:
     node[0].renderHandle & node[1].renderHandle
   of nkPostfix:
@@ -182,14 +187,14 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
         discard
   let ind = repeatStr("  ", indent)
   result.add(ind & "{\n")
-  result.add(ind & "  $html .= '<" & tag)
+  result.add(ind & "  $html .= \"<" & tag)
   if classNames.len > 0:
-    result.add(" class=\"" & classNames.join(" ") & "\"")
+    result.add(" class=\\\"" & classNames.join(" ") & "\\\"")
   if idVal.len > 0:
-    result.add(" id=\"" & idVal & "\"")
+    result.add(" id=\\\"" & idVal & "\\\"")
   for (key, value) in customAttrs:
-    result.add(" " & key & "=\"" & value & "\"")
-  result.add(">';\n")
+    result.add(" " & key & "=\\\"" & value & "\\\"")
+  result.add(">\";\n")
   for child in node.childElements:
     case child.kind
     of nkBool, nkInt, nkFloat, nkString:
@@ -199,9 +204,13 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
         discard
       else:
         result.add(gen.genStmt(child, indent + 2))
+    of nkInfix:
+      # Handle infix expressions
+      result.add(ind & "  $html .= " & child.renderHandle() & ";\n")
     else:
       result.add(gen.genStmt(child, indent + 2))
-  result.add(ind & "  $html .= '</" & tag & ">';\n")
+  if node.tag notin voidHtmlElements:
+    result.add(ind & "  $html .= \"</" & tag & ">\";\n")
   result.add(ind & "}\n")
 
 proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
@@ -245,7 +254,7 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
     result.add(ind & "function " & fnName & "(")
     result.add(params[1..^1].mapIt("$" & it[0].render).join(", "))
     result.add(") {\n")
-    result.add(ind & "  $html = '';\n")
+    result.add(ind & "  $html = \";\n")
     result.add(gen.genStmt(node[3], indent + 1))
     result.add(ind & "  return $html;\n")
     result.add(ind & "}\n")
@@ -275,7 +284,7 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
       result.add(gen.genStmt(node[2], indent + 1))
       result.add(ind & "}\n")
     else:
-      result.add(ind & "foreach (" & iterable.render & " as $" & varName & ") {\n")
+      result.add(ind & "foreach (" & iterable.renderHandle & " as $" & varName & ") {\n")
       result.add(gen.genStmt(node[2], indent + 1))
       result.add(ind & "}\n")
   of nkCall:

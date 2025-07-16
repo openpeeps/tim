@@ -75,7 +75,7 @@ macro codegen(theProc: untyped): untyped =
 proc genStmt(node: Node, indent: int = 0) {.codegen.}
 
 #
-# Ruby Transpiler
+# Python Transpiler
 #
 
 proc repeatStr(s: string, n: int): string =
@@ -83,18 +83,15 @@ proc repeatStr(s: string, n: int): string =
   for i in 0..<n:
     result.add(s)
 
-
 proc getImplValue(node: Node, unquoted = true): string =
-  # Helper to render Ruby values from AST nodes
+  # Helper to render Python values from AST nodes
   case node.kind
   of nkInt:     $node.intVal
   of nkFloat:   $node.floatVal
-  of nkString:
-    if unquoted: "\"" & node.stringVal & "\""
-    else: node.stringVal
+  of nkString:  "\"" & node.stringVal & "\""
   of nkBool:
-    if node.boolVal: "true"
-    else: "false"
+    if node.boolVal: "True"
+    else: "False"
   of nkArray:
     "[" & node.children.mapIt(getImplValue(it)).join(", ") & "]"
   of nkObject:
@@ -108,26 +105,27 @@ proc getImplValue(node: Node, unquoted = true): string =
     ).join(", ") & "}"
   else: ""
 
-
 proc writeVar(node: Node, indent: int = 0): string {.codegen.} =
-  # Write variable declaration (Ruby is dynamically typed, but we can emit comments)
-  let ind = repeatStr("  ", indent)
+  # Write variable declaration with type comment
+  let ind = repeatStr("    ", indent)
   for decl in node:
     let varName = decl[0].ident
+    let varType = if decl[1].kind != nkEmpty: decl[1].render else: "Any"
     let value = decl[^1].getImplValue
-    result.add(ind & varName & " = " & value & "\n")
+    result.add(ind & varName & " = " & value & "  # type: " & varType & "\n")
 
-proc renderHandle(node: Node): string =
-  # Render a node as a Ruby expression for HTML/text output
+proc renderHandle(node: Node, unquoted = true): string =
+  # Render a node as a Python expression for HTML/text output
   case node.kind
   of nkString:
-    node.stringVal
+    if not unquoted: "\"" & node.stringVal & "\""
+    else: node.stringVal
   of nkInt:
     $node.intVal
   of nkFloat:
     $node.floatVal
   of nkBool:
-    $node.boolVal
+    capitalizeAscii($node.boolVal)
   of nkIdent:
     node.ident
   of nkPrefix:
@@ -141,14 +139,12 @@ proc renderHandle(node: Node): string =
   else:
     ""
 
-
 proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
   # Write HTML as string concatenation
   let tag = node.getTag()
-  var
-    classNames: seq[string] = @[]
-    idVal: string = ""
-    customAttrs: seq[(string, string)] = @[]
+  var classNames: seq[string] = @[]
+  var idVal: string = ""
+  var customAttrs: seq[(string, string)] = @[]
   for attr in node.attributes:
     if attr.kind == nkHtmlAttribute:
       case attr.attrType
@@ -169,105 +165,139 @@ proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
         else:
           discard
       of htmlAttr:
-        assert attr.attrNode.kind == nkInfix, "attribute node must be an infix. Got " & $(attr.attrNode.kind)
-        let key = attr.attrNode[1].renderHandle
-        let value = attr.attrNode[2].renderHandle
-        customAttrs.add((key, value))
+        if attr.attrNode.kind == nkInfix:
+          if attr.attrNode[2].kind == nkInfix:
+            if attr.attrNode[2][0].ident == "&":
+              # Tim string concatenation for attribute value
+              let left = attr.attrNode[2][1]
+              let right = attr.attrNode[2][2]
+              var leftPy =
+                if left.kind == nkString:
+                  left.stringVal & "'"
+                else:
+                  "' + str(" & left.renderHandle(false) & ")"
+              var rightPy =
+                if right.kind == nkIdent and right.ident.len > 0 and right.ident[0] == '$':
+                  right.ident[1..^1] & " + '"
+                else:
+                  (if right.kind == nkString: "'" & right.stringVal
+                                        else: "str(" & right.renderHandle(false) & ") + '")
+              customAttrs.add((attr.attrNode[1].renderHandle(true), leftPy & " + " & rightPy))
+          else:
+            customAttrs.add((attr.attrNode[1].renderHandle, attr.attrNode[2].renderHandle))
+        elif attr.attrNode.kind == nkString:
+          customAttrs.add((attr.attrNode.stringVal, ""))
       else:
         discard
-  let ind = repeatStr("  ", indent)
+  let ind = repeatStr("    ", indent)
   result.add(ind & "html += '<" & tag)
   if classNames.len > 0:
     result.add(" class=\"" & classNames.join(" ") & "\"")
   if idVal.len > 0:
     result.add(" id=\"" & idVal & "\"")
   for (name, value) in customAttrs:
-    result.add(" " & name & "=\"" & value & "\"")
+    if value.len > 0: 
+      # If value is present, add it as an attribute
+      result.add(" " & name & "=\"" & value & "\"")
+    else:
+      # If no value, just add the attribute
+      # This is common for boolean attributes like `checked`, `disabled`, etc.
+      result.add(" " & name)
   result.add(">'\n")
   for child in node.childElements:
     case child.kind
-    of nkBool, nkInt, nkFloat, nkString:
+    of nkInt, nkFloat, nkBool:
       result.add(ind & "html += '" & child.renderHandle & "'\n")
+    of nkString:
+      result.add(ind & "html += '" & child.renderHandle(true) & "'\n")
     of nkCall:
       # handle function calls
       if child[0].ident[0] == '@':
         discard
       else:
-        result.add(gen.genStmt(child, indent + 2))
+        result.add(gen.genStmt(child, indent))
     else:
-      result.add(gen.genStmt(child, indent + 2))
-  result.add(ind & "html += '</" & tag & ">'\n")
+      result.add(gen.genStmt(child, indent))
+  if node.tag notin voidHtmlElements:
+    result.add(ind & "html += '</" & tag & ">'\n")
 
 proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
-  # Generate Ruby code for a statement node
   result = Rope()
-  let ind = repeatStr("  ", indent)
+  let ind = repeatStr("    ", indent)
   case node.kind
   of nkVar, nkLet, nkConst:
-    result.add(gen.writeVar(node, indent))
+    for decl in node:
+      let varName = decl[0].ident
+      let varType = if decl[1].kind != nkEmpty: decl[1].render else: "Any"
+      result.add(ind & "# type: " & varName & ": " & varType & "\n")
+      result.add(gen.writeVar(node, indent))
   of nkProc:
     let fnName = node[0].render
     let params = node[2]
+    let retType = if params[0].kind != nkEmpty: params[0].render else: "Any"
     result.add(ind & "def " & fnName & "(")
     result.add(params[1..^1].mapIt(it[0].render).join(", "))
-    result.add(")\n")
-    # Ruby docstring (RDoc style)
-    result.add(ind & "  # " & fnName & " function\n")
+    result.add("):\n")
+    # Docstring
+    result.add(ind & "    \"\"\"\n")
     for param in params[1..^1]:
       if param.kind == nkIdentDefs:
         let pname = param[0].render
-        result.add(ind & "  # @param " & pname & "\n")
+        let ptype = if param[1].kind != nkEmpty: param[1].render else: "Any"
+        result.add(ind & "    :param " & pname & ": " & ptype & "\n")
+    result.add(ind & "    :returns: " & retType & "\n")
+    result.add(ind & "    \"\"\"\n")
     result.add(gen.genStmt(node[3], indent + 1))
-    result.add(ind & "end\n")
   of nkMacro:
     let fnName = node[0].ident[1..^1]
     let params = node[2]
     result.add(ind & "def " & fnName & "(")
     result.add(params[1..^1].mapIt(it[0].render).join(", "))
-    result.add(")\n")
-    # Ruby docstring (RDoc style)
-    result.add(ind & "  # " & fnName & " macro\n")
+    result.add("):\n")
+    # Docstring (same as for functions)
+    result.add(ind & "    \"\"\"\n")
     for param in params[1..^1]:
       if param.kind == nkIdentDefs:
         let pname = param[0].render
-        result.add(ind & "  # @param " & pname & "\n")
-    result.add(ind & "  # @return [String] HTML\n")
-    result.add(ind & "  html = ''\n")
+        let ptype = if param[1].kind != nkEmpty: param[1].render else: "Any"
+        result.add(ind & "    :param " & pname & ": " & ptype & "\n")
+    result.add(ind & "    :returns: str (HTML)\n")
+    result.add(ind & "    \"\"\"\n")
+    result.add(ind & "    html = ''\n")
     result.add(gen.genStmt(node[3], indent + 1))
-    result.add(ind & "  html\n")
-    result.add(ind & "end\n")
+    result.add(ind & "    return html\n")
   of nkHtmlElement:
     result.add(gen.writeHtml(node, indent))
   of nkIf:
-    result.add(ind & "if " & node[0].render & "\n")
+    result.add(ind & "if " & node[0].renderHandle & ":\n")
     result.add(gen.genStmt(node[1], indent + 1))
     let hasElse = node.children.len mod 2 == 1
     let elifBranches = if hasElse: node[2..^2] else: node[2..^1]
     for i in countup(0, elifBranches.len - 1, 2):
-      result.add(ind & "elsif " & elifBranches[i].render & "\n")
+      result.add(ind & "elif " & elifBranches[i].render & ":\n")
       result.add(gen.genStmt(elifBranches[i + 1], indent + 1))
     if hasElse:
-      result.add(ind & "else\n")
+      result.add(ind & "else:\n")
       result.add(gen.genStmt(node[^1], indent + 1))
-    result.add(ind & "end\n")
   of nkFor:
     let varName = node[0].render
     let iterable = node[1]
     if iterable.kind == nkInfix and iterable[0].kind == nkIdent and iterable[0].ident == "..":
       let startVal = iterable[1].render
       let endVal = iterable[2].render
-      result.add(ind & "(" & startVal & ".." & endVal & ").each do |" & varName & "|\n")
+      result.add(ind & "for " & varName & " in range(" & startVal & ", " & endVal & "+1):\n")
       result.add(gen.genStmt(node[2], indent + 1))
-      result.add(ind & "end\n")
     else:
-      result.add(ind & iterable.render & ".each do |" & varName & "|\n")
+      result.add(ind & "for " & varName & " in " & iterable.render & ":\n")
       result.add(gen.genStmt(node[2], indent + 1))
-      result.add(ind & "end\n")
+  of nkWhile:
+    result.add(ind & "while " & node[0].render & ":\n")
+    result.add(gen.genStmt(node[1], indent + 1))
   of nkCall:
-    if node[0].ident == "echo":
-      result.add(ind & "puts " & node[1..^1].mapIt(it.render).join(", ") & "\n")
+    if node[0].kind == nkIdent and node[0].ident == "echo":
+      result.add(ind & "print(" & node[1..^1].mapIt(it.render).join(", ") & ")\n")
     else:
-      result.add(ind & node[1..^1].mapIt(it.render).join(", ") & "\n")
+      discard
   of nkBlock:
     for i, s in node:
       result.add(gen.genStmt(s, indent))
@@ -279,18 +309,13 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
   of nkBreak:
     result.add(ind & "break\n")
   of nkContinue:
-    result.add(ind & "next\n")
-  of nkWhile:
-    result.add(ind & "while " & node[0].render & "\n")
-    result.add(gen.genStmt(node[1], indent + 1))
-    result.add(ind & "end\n")
+    result.add(ind & "continue\n")
   else: discard
 
 proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
             isSnippet: static bool = false) {.codegen.} =
-  # Generate the Ruby script from the AST
   result.add("html = ''\n")
   for node in program.nodes:
     result.add(gen.genStmt(node, 0))
-  result.add("puts html\n")
+  result.add("print(html)\n")

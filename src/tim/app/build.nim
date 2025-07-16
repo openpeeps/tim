@@ -6,20 +6,20 @@
 
 import std/[os, monotimes, times, strutils, options, ropes]
 
-import pkg/[flatty, jsony]
+import pkg/flatty
 import pkg/kapsis/[cli, runtime]
 
 import ../engine/[ast, parser, codegen, chunk, vm, sym]
-import ../engine/stdlib/[libsystem, libtimes, libstrings]
+import ../engine/stdlib/[libsystem]
 
-import ../engine/transpilers/javascript/jscodegen
+import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen]
 
 proc srcCommand*(v: Values) =
   ## Transpiles `timl` code to a target source
   # parse the script
   let
     srcPath = getCurrentDir() / $(v.get("timl").getPath)
-    ext = v.get("-t").getStr
+    ext = v.get("--ext").getStr
     pretty = v.has("--pretty")
     flagNoCache = v.has("--nocache")
     flagRecache = v.has("--recache")
@@ -79,8 +79,17 @@ proc srcCommand*(v: Values) =
       echo e.msg
       quit(1)
   elif ext == "js":
-    var jst = jscodegen.initCodeGen(script, module, mainChunk)
+    var jst = jsgen.initCodeGen(script, module, mainChunk)
     echo jst.genScript(program, none(string), isMainScript = true)
+  elif ext == "py":
+    var pyt = pygen.initCodeGen(script, module, mainChunk)
+    echo pyt.genScript(program, none(string), isMainScript = true)
+  elif ext == "rb":
+    var rbt = rbgen.initCodeGen(script, module, mainChunk)
+    echo rbt.genScript(program, none(string), isMainScript = true)
+  elif ext == "php":
+    var phpt = phpgen.initCodeGen(script, module, mainChunk)
+    echo phpt.genScript(program, none(string), isMainScript = true)
 
 #
 # AST 
