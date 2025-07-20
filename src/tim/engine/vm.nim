@@ -243,9 +243,24 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
     of opcAttr:
       # let len = pc.read[:uint8](0).int
       result.add(stack.pop().stringVal[] & "=\"") # key
-      result.add(stack.pop().stringVal[] & "\"") # value
+      let value = stack.pop()
+      case value.typeId
+      of tyString:
+        result.add(value.stringVal[])
+      of tyInt:
+        result.add($value.intVal)
+      of tyFloat:
+        result.add($value.floatVal)
+      of tyBool:
+        result.add($(value.boolVal))
+      else: discard # todo?
+      result.add("\"")
       # inc(pc, sizeof(uint8))
-
+    of opcAttrKey:
+      # handle an attribute key without value
+      # this is used for boolean attributes like `checked`
+      # or `disabled`
+      result.add(stack.pop().stringVal[]) # key
     of opcBeginHtmlWithAttrs:
       # render the HTML object
       let tag = chunk.strings[pc.read[:uint16](0)]
@@ -271,7 +286,7 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       of tyFloat:
         result.add($val.floatVal)
       of tyBool:
-        result.add(if val.boolVal: "true" else: "false")
+        result.add($(val.boolVal))
       else: discard # todo
     of opcInnerHtml:
       discard

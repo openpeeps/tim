@@ -69,3 +69,5 @@ const
   
   ErrBadIndentation* = "Bad indentation"
   ErrUnexpectedToken* = "Unexpected token: `$1`"
+
+  ErrImportError* = "$1"
