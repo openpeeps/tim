@@ -323,7 +323,7 @@ proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
             isSnippet: static bool = false) {.codegen.} =
   # Generate the Ruby script from the AST
-  result.add("class Homepage\n")
+  result.add("class $1\n" % [gen.module.getModuleName()])
   result.add("""
   # @param args [Array] Additional arguments (not used in this method).
   # @return [String] The generated HTML for the homepage.

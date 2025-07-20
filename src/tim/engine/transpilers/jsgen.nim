@@ -354,14 +354,16 @@ proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
             isSnippet: static bool = false) {.codegen.} =
   # Generate the JS script from the AST
-  when isSnippet == true:
-    let baseCode =
-      utilsJS.replace(re(r"^\s*//.*$", {reStudy, reMultiLine}))
-            .replace(re"/\*[\s\S]*?\*/")
-            .replace(re"\s{2,}", "")
-            .replace(re"\n+")
-    echo baseCode
-  result.add("let html = \"\";\n")
+  # when isSnippet == true:
+  #   let baseCode =
+  #     utilsJS.replace(re(r"^\s*//.*$", {reStudy, reMultiLine}))
+  #           .replace(re"/\*[\s\S]*?\*/")
+  #           .replace(re"\s{2,}", "")
+  #           .replace(re"\n+")
+  result.add("export default class $1 {\n" % [gen.module.getModuleName()])
+  result.add("  static render() {\n")
+  result.add("    let html = \"\";\n")
   for node in program.nodes:
-    result.add(gen.genStmt(node, 0))
-  result.add("console.log(html);\n")
+    result.add(gen.genStmt(node, 2))
+  result.add("    return html;\n")
+  result.add("  }\n}")

@@ -314,7 +314,11 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
 proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
             isSnippet: static bool = false) {.codegen.} =
-  result.add("html = ''\n")
+  ## Generates a Python script from the given AST `program`.
+  result.add("class $1:\n" % [gen.module.getModuleName()])
+  result.add("    @staticmethod\n")
+  result.add("    def render(args):\n")
+  result.add("        html = ''\n")
   for node in program.nodes:
-    result.add(gen.genStmt(node, 0))
-  result.add("print(html)\n")
+    result.add(gen.genStmt(node, 2))
+  result.add("        return html\n")

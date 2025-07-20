@@ -7,7 +7,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[tables, json, hashes, options, sequtils, strutils]
+import std/[tables, json, hashes, options,
+              sequtils, strutils, os]
 import ./[ast, value]
 
 type
@@ -674,3 +675,24 @@ proc initSystemTypes*(module: Module) =
   module.add(genType(tyNil, "nil", true))
   module.add(genType(tyAny, "stmt", true))
   module.add(genType(tyJson, "json", true))
+
+proc getModuleName*(module: Module): string =
+  ## Get the module name for the JS export
+  ## This proc will transform the file name into a valid JS identifier
+  assert module.name.len > 0
+  let name = module.name.splitFile().name
+  # Remove any non-alphanumeric characters and replace with underscores
+  var i = 0
+  while i < name.len:
+    case name[i]
+    of 'a'..'z', 'A'..'Z', '0'..'9':
+      result.add(name[i])
+    of '-', '_':
+      # skip dashes and underscores
+      # and convert the next character to uppercase
+      if i + 1 < name.high and name[i + 1].isAlphaAscii:
+        result.add(name[i + 1].toUpperAscii())
+      inc(i)
+    else: continue
+    inc(i)
+  result = result.capitalizeAscii()
