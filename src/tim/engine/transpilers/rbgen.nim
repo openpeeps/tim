@@ -170,14 +170,31 @@ proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
           discard
       of htmlAttr:
         if attr.attrNode.kind == nkInfix:
-          let key = attr.attrNode[1].renderHandle
-          let value =
-            case attr.attrNode[2].kind
-            of nkIdent, nkCall:
-              "#{" & attr.attrNode[2].renderHandle & "}"
-            else: 
-              attr.attrNode[2].renderHandle
-          customAttrs.add((key, value))
+          if attr.attrNode[2].kind == nkInfix:
+            if attr.attrNode[2][0].ident == "&":
+              let left = attr.attrNode[2][1]
+              let right = attr.attrNode[2][2]
+              let leftVal =
+                if left.kind == nkString:
+                  left.stringVal
+                else:
+                  "#{" & left.renderHandle(false) & "}"
+              let rightVal =
+                if right.kind == nkIdent and right.ident.len > 0 and right.ident[0] == '$':
+                  "#{" & right.ident[1..^1] & "}"
+                else:
+                  (if right.kind == nkString: right.stringVal
+                                        else: "#{" & right.renderHandle(false) & "}")
+              customAttrs.add((attr.attrNode[1].renderHandle(true), leftVal & rightVal))
+          else:
+            let key = attr.attrNode[1].renderHandle
+            let value =
+              case attr.attrNode[2].kind
+              of nkIdent, nkCall:
+                "#{" & attr.attrNode[2].renderHandle & "}"
+              else: 
+                attr.attrNode[2].renderHandle
+            customAttrs.add((key, value))
         elif attr.attrNode.kind == nkString:
           customAttrs.add((attr.attrNode.stringVal, ""))
       else:
@@ -306,7 +323,14 @@ proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
             isSnippet: static bool = false) {.codegen.} =
   # Generate the Ruby script from the AST
-  result.add("html = ''\n")
+  result.add("class Homepage\n")
+  result.add("""
+  # @param args [Array] Additional arguments (not used in this method).
+  # @return [String] The generated HTML for the homepage.
+""")
+  result.add("  def self.render(*args)\n")
+  result.add("    html = ''\n")
   for node in program.nodes:
-    result.add(gen.genStmt(node, 0))
-  result.add("puts html\n")
+    result.add(gen.genStmt(node, 2))
+  result.add("    html\n")
+  result.add("  end\nend\n")

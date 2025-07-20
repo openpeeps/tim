@@ -85,6 +85,7 @@ type
     opcAttrClass = "attrClass"    ## adds class to HTML object
     opcAttrId = "attrId"          ## adds id to HTML object
     opcAttr = "attr"
+    opcAttrKey = "attrKey"        ## adds a key to HTML object attribute
     opcWSpace = "space"           ## adds whitespace to HTML result
 
     opcImportModule = "importModule"  ## import a module

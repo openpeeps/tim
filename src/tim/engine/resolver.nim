@@ -56,6 +56,6 @@ proc resolveFile*(resolver: var FileResolver, aFile, bFile: string) =
     if bFile == aFile:
       raise newException(ResolverError, "Self-import detected: " & aFile)
     elif bFile in resolver.resolvedFiles[aFile]:
-      raise newException(ResolverError, "Circular import detected: " & aFile & " <-> " & bFile)
-
+      raise newException(ResolverError,
+        "Circular import detected: " & aFile & " <-> " & bFile)
   resolver.markResolved(aFile, bFile)

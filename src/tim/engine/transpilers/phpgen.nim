@@ -121,11 +121,12 @@ proc writeVar(node: Node) {.codegen.} =
   for decl in node:
     result.add(phpVar & decl[0].ident & " = " & decl[^1].getImplValue & ";\n")
 
-proc renderHandle(node: Node): string =
+proc renderHandle(node: Node, unquoted = true): string =
   # Render a node as a PHP expression for HTML/text output
   case node.kind
   of nkString:
-    node.stringVal
+    if not unquoted: "\"" & node.stringVal & "\""
+    else: node.stringVal
   of nkInt:
     $node.intVal
   of nkFloat:
@@ -179,10 +180,34 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
         else:
           discard
       of htmlAttr:
-        assert attr.attrNode.kind == nkInfix, "attribute node must be an infix. Got " & $(attr.attrNode.kind)
-        let key = attr.attrNode[1].renderHandle
-        let value = attr.attrNode[2].renderHandle
-        customAttrs.add((key, value))
+        if attr.attrNode.kind == nkInfix:
+          if attr.attrNode[2].kind == nkInfix:
+            if attr.attrNode[2][0].ident == "&":
+              let left = attr.attrNode[2][1]
+              let right = attr.attrNode[2][2]
+              let leftVal =
+                if left.kind == nkString:
+                  left.stringVal
+                else:
+                  "\" . " & left.renderHandle(false) & " . \""
+              let rightVal =
+                if right.kind == nkIdent and right.ident.len > 0 and right.ident[0] == '$':
+                  "\" . " & right.ident[1..^1] & " . \""
+                else:
+                  (if right.kind == nkString: right.stringVal
+                                        else: "\" . " & right.renderHandle(false) & " . \"")
+              customAttrs.add((attr.attrNode[1].renderHandle(true), leftVal & rightVal))
+          else:
+            let key = attr.attrNode[1].renderHandle
+            let value =
+              case attr.attrNode[2].kind
+              of nkIdent, nkCall:
+                "\" . " & attr.attrNode[2].renderHandle & " . \""
+              else: 
+                attr.attrNode[2].renderHandle
+            customAttrs.add((key, value))
+        elif attr.attrNode.kind == nkString:
+          customAttrs.add((attr.attrNode.stringVal, ""))
       else:
         discard
   let ind = repeatStr("  ", indent)

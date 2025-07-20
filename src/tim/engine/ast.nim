@@ -9,10 +9,7 @@
 
 import std/[hashes, strutils, json, sequtils, options]
 
-when not defined release:
-  import std/jsonutils
-else:
-  import pkg/jsony
+import pkg/voodoo/parsers/json
 
 from pkg/htmlparser import tagToStr, htmlTag, HtmlTag
 export htmlTag, tagToStr, HtmlTag
@@ -129,19 +126,11 @@ const LeafNodes = {nkEmpty..nkIdent}
 when not defined release:
   proc debugEcho*(node: Node) {.gcsafe.} =
     {.gcsafe.}:
-      echo pretty(toJson(node), 2)
+      echo pretty(toJson(node).fromJson)
 
   proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
     {.gcsafe.}:
-      echo pretty(toJson(nodes), 2)
-# else:
-#   proc debugEcho*(node: Node) {.gcsafe.} =
-#     static:
-#       warning("`debugEcho` has no effect when building with `release` flag")
-
-#   proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
-#     static:
-#       warning("`debugEcho` has no effect when building with `release` flag")
+      echo pretty(toJson(nodes).fromJson)
 
 proc len*(node: Node): int =
   result = node.children.len
@@ -228,7 +217,6 @@ proc render*(node: Node): string =
       result.add(node.render)
       if i != nodes.len - 1:
         result.add(delimiter)
-
   case node.kind
   of nkEmpty: result = ""
   of nkNil: result = "nil"
@@ -407,7 +395,8 @@ proc newHtmlAttribute*(attrType: static HtmlAttributeType, attrNode: Node): Node
   result = Node(
     kind: nkHtmlAttribute,
     attrType: attrType,
-    attrNode: attrNode)
+    attrNode: attrNode
+  )
 
 proc `$`*(tag: HtmlTag): string =
   result = case tag

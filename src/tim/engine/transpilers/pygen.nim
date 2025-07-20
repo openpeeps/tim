@@ -168,7 +168,6 @@ proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
         if attr.attrNode.kind == nkInfix:
           if attr.attrNode[2].kind == nkInfix:
             if attr.attrNode[2][0].ident == "&":
-              # Tim string concatenation for attribute value
               let left = attr.attrNode[2][1]
               let right = attr.attrNode[2][2]
               var leftPy =

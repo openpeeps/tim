@@ -198,7 +198,14 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
                                         else: "${" & right.renderHandle(false) & ".toString()}")
               customAttrs.add((attr.attrNode[1].renderHandle(true), leftVal & rightVal))
           else:
-            customAttrs.add((attr.attrNode[1].renderHandle, attr.attrNode[2].renderHandle))
+            let key = attr.attrNode[1].renderHandle
+            let value =
+              case attr.attrNode[2].kind
+              of nkIdent, nkCall:
+                "#{" & attr.attrNode[2].renderHandle & "}"
+              else: 
+                attr.attrNode[2].renderHandle
+            customAttrs.add((key, value))
         elif attr.attrNode.kind == nkString:
           customAttrs.add((attr.attrNode.stringVal, ""))
       else:

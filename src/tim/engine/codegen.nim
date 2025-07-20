@@ -10,7 +10,7 @@
 import std/[macros, options, os, hashes,
         sequtils, strutils, ropes, tables]
 
-import ./[ast, chunk, errors, sym, value]
+import ./[ast, chunk, errors, sym, value, resolver]
 
 type
   ContextAllocator {.acyclic.} = ref object
@@ -32,6 +32,7 @@ type
     gkProc
     gkBlockProc
     gkIterator
+    gkHtmlNest
   
   # CachedChunks* = CritBitTree[string]
     ## A tree of cached html attributes
@@ -51,7 +52,7 @@ type
       # the codegen's scope context. this is used to achieve \
       # scope hygiene with iterators
     case kind: GenKind          # what this generator generates
-    of gkToplevel: discard
+    of gkToplevel, gkHtmlNest: discard
     of gkProc, gkBlockProc:
       procReturnTy: Sym         # the proc's return type
     of gkIterator:
@@ -60,6 +61,7 @@ type
       iterForVar: Node          # the for loop variable's name
       iterForCtx: Context       # the for loop's context
     counter: uint16
+    resolver: FileResolver
 
   TempParamDef* = tuple
     pName: string
@@ -102,6 +104,7 @@ proc initCodeGen*(script: Script, module: Module, chunk: Chunk,
   if ctxAllocator == nil:
     result.ctxAllocator = ContextAllocator()
     result.context = result.ctxAllocator.allocCtx()
+  result.resolver = initResolver()
   # else:
   #   result.ctxAllocator = ctxAllocator
   #   result.context = ctxAllocator.allocCtx()
@@ -1379,7 +1382,8 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
   # create a new proc
   var (sym, theProc) =
         gen.script.newProc(name, impl = node,
-                    params, returnTy, kind = pkNative)
+                    params, returnTy, kind = pkNative, 
+                    genKind = gen.kind)
   sym.genericParams = genericParams
   sym.procType = ProcType.procTypeMacro
   
@@ -1391,7 +1395,11 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
   if not sym.isGeneric or isInstantiation:
     var
       chunk = newChunk()
-      procGen = initCodeGen(gen.script, gen.module, chunk, gkBlockProc)
+      procGen = initCodeGen(gen.script, gen.module, chunk, gkBlockProc,
+        ctxAllocator =
+          if gen.kind == gkToplevel: nil
+          else: gen.ctxAllocator
+      )
     theProc.chunk = chunk
     chunk.file = gen.chunk.file
     procGen.procReturnTy = returnTy
@@ -1478,11 +1486,16 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
         gen.chunk.emit(opcAttrId)
         gen.chunk.emit(gen.chunk.getString(attr.attrNode.stringVal))
       of htmlAttr:
-        assert attr.attrNode.kind == nkInfix, "attribute node must be an infix. Got " & $(attr.attrNode.kind)
-        gen.chunk.emit(opcWSpace) # add a space before the attribute
-        discard gen.genExpr(attr.attrNode[2]) # value
-        discard gen.genExpr(attr.attrNode[1]) # key
-        gen.chunk.emit(opcAttr) # emit the attribute opcode
+        if attr.attrNode.kind == nkInfix:
+          gen.chunk.emit(opcWSpace) # add a space before the attribute
+          discard gen.genExpr(attr.attrNode[2]) # value
+          discard gen.genExpr(attr.attrNode[1]) # key
+          gen.chunk.emit(opcAttr) # emit the attribute opcode
+        else:
+          # if the attribute is a simple identifier, we just emit it
+          gen.chunk.emit(opcWSpace)
+          discard gen.genExpr(attr.attrNode)
+          gen.chunk.emit(opcAttrKey)
       else: discard
     if classAttributes.len > 0:
       # if there are any classes, we emit them as a single attribute
@@ -1495,6 +1508,9 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
     gen.chunk.emit(tagPos)
   # gen.addSym(result)
   inc(gen.counter)
+
+  if gen.kind == gkToplevel:
+    gen.kind = gkHtmlNest
 
   # if the node has any subnodes, we need to
   # generate code for them and push them onto the stack
@@ -1521,8 +1537,9 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
     gen.popScope()
   
   # add the generated symbol to the module
-  gen.chunk.emit(opcCloseHtml)
-  gen.chunk.emit(tagPos)
+  if not result.isVoidElement:
+    gen.chunk.emit(opcCloseHtml)
+    gen.chunk.emit(tagPos)
 
 proc genExpr(node: Node): Sym {.codegen.} =
   # Generates code for an expression.
@@ -1936,10 +1953,18 @@ proc genImport(node: Node) {.codegen.} =
     var moduleProgram: Ast
     # todo expose a custom extension for the import
     var path = 
-      if pathNode.stringVal.endsWith".timl":
-        pathNode.stringVal
-      else:
-        pathNode.stringVal & ".timl"
+      absolutePath(
+        if pathNode.stringVal.endsWith".timl":
+          pathNode.stringVal
+        else:
+          pathNode.stringVal & ".timl"
+      )
+    let aFile = absolutePath(gen.module.src.get())
+    try:
+      gen.resolver.resolveFile(aFile, path)
+    except ResolverError as e:
+      pathNode.error(ErrImportError % [e.msg])
+
     case node.kind
     of nkImport:
       parser.parseScript(moduleProgram, readFile(path))
@@ -1990,6 +2015,13 @@ proc genImport(node: Node) {.codegen.} =
       for n in moduleProgram.nodes:
         gen.genStmt(n)
     else: discard
+
+    # except ParseError as e:
+    #   # if the module could not be parsed, emit an error
+    #   pathNode.error(ErrModuleParseError % [path, e.msg])
+    # except IOError as e:
+    #   # if the module could not be read, emit an error
+    #   pathNode.error(ErrModuleIOError % [path, e.msg])
 
 proc genComment(node: Node) {.codegen.} =
   ## Generate an HTML comment.
