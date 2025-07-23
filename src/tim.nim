@@ -20,7 +20,6 @@ when defined napi_build:
         args.get("output").getStr,
         args.get("basepath").getStr
       )
-
       timjs.precompile(firstRun = true)
 
     # proc precompile(opts: object) {.export_napi.} =
@@ -48,13 +47,11 @@ elif isMainModule:
     #
     -- "Source to Source"
     src path(`timl`),
-      string(-t),       # choose a target (default target `html`)
+      string(--ext),       # choose a target (default target `html`)
       string(-o),       # save output to file
       ?json(--data),    # pass data to global/local scope
       bool(--nocache),  # tells Tim to import modules and rebuild cache
-      bool(--lib),      # wrap template as a dynamic library
-      bool(--bench),    # benchmark operations
-      bool(--watch):    # enable browser sync on live changes
+      bool(--bench):    # benchmark operations
         ## Transpile `timl` to specific target source
     
     ast path(`timl`):
@@ -65,8 +62,8 @@ elif isMainModule:
     # Used to manage Tim Engine packages locally
     #
     -- "Development"
-    init:
-      ## Initializes a new Tim Engine package
+    init ?string(`pkg`):
+      ## Initializes a new package
     install string(`pkg`):
       ## Install a package from remote source
     remove string(`pkg`):

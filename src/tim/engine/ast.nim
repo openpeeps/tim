@@ -9,7 +9,8 @@
 
 import std/[hashes, strutils, json, sequtils, options]
 
-import pkg/voodoo/parsers/json
+import pkg/jsony
+# import pkg/voodoo/parsers/voojson
 
 from pkg/htmlparser import tagToStr, htmlTag, HtmlTag
 export htmlTag, tagToStr, HtmlTag
@@ -126,11 +127,11 @@ const LeafNodes = {nkEmpty..nkIdent}
 when not defined release:
   proc debugEcho*(node: Node) {.gcsafe.} =
     {.gcsafe.}:
-      echo pretty(toJson(node).fromJson)
+      echo pretty(jsony.toJson(node).fromJson)
 
   proc debugEcho*(nodes: seq[Node]) {.gcsafe.} =
     {.gcsafe.}:
-      echo pretty(toJson(nodes).fromJson)
+      echo pretty(jsony.toJson(nodes).fromJson)
 
 proc len*(node: Node): int =
   result = node.children.len

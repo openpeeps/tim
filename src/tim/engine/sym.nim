@@ -7,8 +7,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[tables, json, hashes, options,
-              sequtils, strutils, os]
+import std/[tables, json, hashes,
+        options, sequtils, strutils, os]
 import ./[ast, value]
 
 type
@@ -107,8 +107,13 @@ type
         ## can be used in other modules or not.
       case tyKind*: TypeKind
       of tyNil: discard # nil is a special case
-      of tyVoid..tyJson:
+      of tyVoid..tyString:
         isMutable*: bool
+      of tyJson:
+        jsonTy*: JsonNodeKind
+          ## the type of the JSON value, used for type checking
+        jsonNode*: JsonNode
+          ## a statically defined JSON node (when available)
       of tyArray:
         arrayTy*: Sym
           ## the type of the array
@@ -353,7 +358,6 @@ proc isInstantiation*(sym: Sym): bool =
 
 proc hash*(sym: Sym): Hash =
   ## Hashes a sym (for use in Tables).
-
   # we don't do any special hashing, just hash it by instance to make sure that
   # even if there are two symbols named the same, they'll stay different when
   # used in table lookups
@@ -547,7 +551,8 @@ proc addVariable*(scope: Scope, sym: Sym, lookupName: Node,
         scope.exportVariables[lookupName.ident] = sym
     return true
 
-proc addCallable*(scope: Scope, sym: Sym, lookupName: Node, fromOtherModule: static bool = false): bool {.discardable.} =
+proc addCallable*(scope: Scope, sym: Sym, lookupName: Node,
+            fromOtherModule: static bool = false): bool {.discardable.} =
   ## Add a callable to the given scope.
   if not scope.functions.hasKey(lookupName.ident):
     scope.functions[lookupName.ident] = sym
@@ -646,12 +651,16 @@ proc load*(module: Module, other: Module, fromOtherModule: static bool = false):
   let otherModulePath = other.src.get()
   if module.modules.hasKey(otherModulePath):
     return # false
+  
   for k, sy in other.exportTypeDefs:
     discard module.addType(sy, sy.name, fromOtherModule)
+  
   for k, sy in other.exportVariables:
     discard module.addVariable(sy, sy.name, fromOtherModule)
+
   for k, sy in other.exportFunctions:
     discard module.addCallable(sy, sy.name, fromOtherModule)
+  
   module.modules[otherModulePath] = other
   result = true
 

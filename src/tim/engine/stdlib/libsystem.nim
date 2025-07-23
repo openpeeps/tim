@@ -7,23 +7,38 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[strutils, options, os, json, httpclient, httpcore, tables]
+import std/[strutils, options, os, httpclient,
+          httpcore, json, tables]
+
 import pkg/jsony
+# import pkg/voodoo/parsers/voojson
 
 import ../[chunk, codegen, ast, parser, sym, value]
 
-proc compileCode(script: Script, module: Module, filename, code: string) =
+proc compileCode*(script: Script, module: Module, filename, code: string) =
   ## Compile some hayago code to the given script and module.
   ## Any generated toplevel code is discarded. This should only be used for
   ## declarations of hayago-side things, eg. iterators.
   var astProgram: Ast
-  parser.parseScript(astProgram, code)
-  var
-    codeChunk = newChunk()
-    gen = initCodeGen(script, module, codeChunk)
-  gen.genScript(astProgram, none(string))
+  try:
+    parser.parseScript(astProgram, code)
+  except TimParserError as e:
+    echo e.msg
+    quit(1)
+  
+  try:
+    var codeChunk = newChunk()
+    var gen = initCodeGen(script, module, script.mainChunk)
+    gen.genScript(astProgram, none(string), emitHalt = false)
+  except TimCompileError as e:
+    echo e.msg
+    quit(1)
 
 const
+  Globals* = """
+const app* = parseJSON('$globalData')
+const this* = parseJSON('$localData')
+"""
   InlineCode* = """
 iterator `..`*(min: int, max: int): int {
   var i = $min
@@ -41,7 +56,6 @@ iterator items*[T](arr: array[T]): T {
     inc($i)
   }
 }
-
   """
 
 proc initSystemOps(script: Script, module: Module) =
@@ -80,7 +94,7 @@ proc initSystemOps(script: Script, module: Module) =
   script.addProc(module, "==", @[paramDef("a", tyBool), paramDef("b", tyBool)], tyBool)
   script.addProc(module, "!=", @[paramDef("a", tyBool), paramDef("b", tyBool)], tyBool)
 
-proc modSystem*(script: Script): Module =
+proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
   ## Create and initialize the ``system`` module.
 
   # foreign stuff
@@ -112,7 +126,31 @@ proc modSystem*(script: Script): Module =
   script.addProc(result, "isnot", @[paramDef("a", tyBool), paramDef("b", tyBool)], tyBool,
     proc (args: StackView): Value =
       result = initValue(args[0].stringVal[] != args[1].stringVal[]))
+
+  #
+  # JSON operators between JSON and other types
+  #
   
+  script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", tyBool)], tyBool,
+    proc (args: StackView): Value =
+      assert args[0].jsonVal.kind == JBool
+      result = initValue(args[0].jsonVal.getBool == args[1].boolVal))
+
+  script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", tyString)], tyBool,
+    proc (args: StackView): Value =
+      assert args[0].jsonVal.kind == JString
+      result = initValue(args[0].jsonVal.getStr() == args[1].stringVal[]))
+
+  script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", tyInt)], tyBool,
+    proc (args: StackView): Value =
+      assert args[0].jsonVal.kind == JInt
+      result = initValue(args[0].jsonVal.getInt() == args[1].intVal))
+
+  script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", tyFloat)], tyBool,
+    proc (args: StackView): Value =
+      assert args[0].jsonVal.kind == JFloat
+      result = initValue(args[0].jsonVal.getFloat() == args[1].floatVal))
+
   script.addProc(result, "type", @[paramDef("x", tyAny)], tyString,
     proc (args: StackView): Value =
       let valueType =
@@ -126,13 +164,6 @@ proc modSystem*(script: Script): Module =
         of tyHtmlObject: "html"
         else: "object"
       result = initValue(valueType))
-
-  # logical operators
-  # script.addProc(result, "and", @[paramDef("x", tyBool), paramDef("y", tyBool)], tyBool,
-  #   proc (args: StackView): Value =
-  #     debugEcho args[0]
-  #     debugEcho args[1]
-  #     result = initValue(args[0].boolVal and args[1].boolVal))
 
   # converters
   script.addProc(result, "toInt", @[paramDef("f", tyFloat)], tyInt,
@@ -194,7 +225,7 @@ proc modSystem*(script: Script): Module =
       of JString:
         echo args[0].jsonVal.getStr()
       else:
-        echo jsony.toJson(args[0].jsonVal)
+        echo toJson(args[0].jsonVal)
     )
 
   script.addProc(result, "echo", @[paramDef("x", tyNil)], tyVoid,
@@ -264,7 +295,7 @@ proc modSystem*(script: Script): Module =
 
   # script.addProc(result, "$", @[paramDef("x", tyJson)], tyString,
   #   proc (args: StackView): Value =
-  #     result = initValue(jsony.toJson(args[0].jsonVal)))
+  #     result = initValue(toJson(args[0].jsonVal)))
 
   #
   # Content Length
@@ -295,13 +326,13 @@ proc modSystem*(script: Script): Module =
   #
   script.addProc(result, "parseJSON", @[paramDef("content", tyString)], tyJson,
     proc (args: StackView): Value =
-      result = initValue(jsony.fromJson(args[0].stringVal[]))
+      result = initValue(fromJson(args[0].stringVal[]))
     )
 
   script.addProc(result, "loadJSON", @[paramDef("path", tyString)], tyJson,
     proc (args: StackView): Value =
       let jsonContent = readFile(args[0].stringVal[])
-      result = initValue(jsony.fromJson(jsonContent))
+      result = initValue(fromJson(jsonContent))
     )
   
   script.addProc(result, "remoteJSON", @[paramDef("url", tyString)], tyJson,
@@ -312,8 +343,8 @@ proc modSystem*(script: Script): Module =
         let res = client.get(args[0].stringVal[])
         var resp = %*{
           "status": res.status,
-          "headers": jsony.toJson(res.headers.table).fromJson(),
-          "content": jsony.fromJson(res.body)
+          "headers": toJson(res.headers.table).fromJson(),
+          "content": fromJson(res.body)
         }
         result = initValue(resp)
       finally:
@@ -328,4 +359,6 @@ proc modSystem*(script: Script): Module =
     proc (args: StackView): Value =
       result = initValue(false == (args[0].jsonVal == args[1].jsonVal)))
 
-  script.compileCode(result, "system", InlineCode)
+  var inlineCode = Globals % ["globalData", toJson(globalData), "localData", toJson(localData)]
+  inlineCode.add(InlineCode)
+  script.compileCode(result, "system", inlineCode)

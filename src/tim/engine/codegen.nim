@@ -8,7 +8,7 @@
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
 import std/[macros, options, os, hashes,
-        sequtils, strutils, ropes, tables]
+        sequtils, strutils, ropes, tables, json]
 
 import ./[ast, chunk, errors, sym, value, resolver]
 
@@ -110,15 +110,15 @@ proc initCodeGen*(script: Script, module: Module, chunk: Chunk,
   #   result.context = ctxAllocator.allocCtx()
 
 proc clone(gen: CodeGen, kind: GenKind): CodeGen =
-  ## Clone a code generator, using a different kind for the new one.
+  # Clone a code generator, using a different kind for the new one.
   result = CodeGen(script: gen.script, module: gen.module, chunk: gen.chunk,
                    scopes: gen.scopes, flowBlocks: gen.flowBlocks,
                    ctxAllocator: gen.ctxAllocator, context: gen.context,
                    kind: kind)
 
 template genGuard(body) =
-  ## Wraps ``body`` in a "guard" used for code generation. The guard sets the
-  ## line information in the target chunk. This is a helper used by {.codegen.}.
+  # Wraps ``body`` in a "guard" used for code generation. The guard sets the
+  # line information in the target chunk. This is a helper used by {.codegen.}.
   when declared(node):
     let
       oldFile = gen.chunk.file
@@ -134,7 +134,7 @@ template genGuard(body) =
     gen.chunk.col = oldCol
 
 macro codegen(theProc: untyped): untyped =
-  ## Wrap ``theProc``'s body in a call to ``genGuard``.
+  # Wrap ``theProc``'s body in a call to ``genGuard``.
   theProc.params.insert(1,
     newIdentDefs(ident"gen", nnkVarTy.newTree(ident"CodeGen")))
   if theProc[6].kind != nnkEmpty:
@@ -144,28 +144,24 @@ macro codegen(theProc: untyped): untyped =
 let callBuiltinEcho = ast.newCall(ast.newIdent"echo")
 
 proc varCount(scope: Scope): int =
-  ## Count the number of variables in a scope.
-  for _, sym in scope.variables:
-    if sym.kind in skVars:
-      inc(result)
-  # scope.variables.len
+  # Count the number of variables in a scope.
+  len(scope.variables)
 
 proc varCount(gen: CodeGen, bottom = 0): int =
-  ## Count the number of variables in all of the codegen's scopes.
+  # Count the number of variables in all of the codegen's scopes.
   for scope in gen.scopes[bottom..^1]:
     result += scope.varCount
-    # result += scope.variables.len
 
 proc currentScope(gen: CodeGen): Scope =
-  ## Returns the current scope.
+  # Returns the current scope.
   result = gen.scopes[^1]
 
 proc pushScope(gen: var CodeGen) =
-  ## Push a new scope.
+  # Push a new scope.
   gen.scopes.add(Scope(context: gen.context))
 
 proc popScope(gen: var CodeGen) =
-  ## Pop the top scope, discarding its variables.
+  # Pop the top scope, discarding its variables.
   if gen.currentScope.varCount > 0:
     gen.chunk.emit(opcDiscard)
     gen.chunk.emit(gen.currentScope.varCount.uint8)
@@ -282,7 +278,7 @@ proc findFlowBlock(gen: var CodeGen, kinds: set[FlowBlockKind]): FlowBlock =
     if fblock.context == gen.context and fblock.kind in kinds:
       return fblock
 
-proc declareVar(gen: var CodeGen, name: Node, kind: SymKind, ty: Sym,
+proc declareVar*(gen: var CodeGen, name: Node, kind: SymKind, ty: Sym,
                 isMagic = false, varExport = false): Sym {.discardable.} =
   ## Declare a new variable with the given ``name``, of the given ``kind``, with
   ## the given type ``ty``.
@@ -315,7 +311,9 @@ proc declareVar(gen: var CodeGen, name: Node, kind: SymKind, ty: Sym,
 
 proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym
 
-proc genScript*(program: Ast, includePath: Option[string], isMainScript: static bool = false) {.codegen.}
+proc genScript*(program: Ast, includePath: Option[string],
+              emitHalt: static bool = true) {.codegen.}
+
 proc genExpr(node: Node): Sym {.codegen.}
 
 proc genBlock(node: Node, isStmt: bool): Sym {.codegen.}
@@ -609,6 +607,12 @@ proc pushConst(node: Node): Sym {.codegen.} =
     result = gen.module.sym"string"
   else: discard
 
+# proc pushJsonConst(node: JsonNode): Sym {.codegen.} =
+  ## Generate a push instruction for a JSON constant.
+  # gen.chunk.emit(opcPushJ)
+  # gen.chunk.emit(gen.chunk.getJson(node))
+  # result = gen.module.sym"json"
+
 proc findOverload(sym: Sym, args: seq[Sym],
           errorNode: Node = nil, quiet = false): Sym {.codegen.} =
   ## Finds the correct overload for ``sym``, given the parameter types.
@@ -840,7 +844,8 @@ proc infix(node: Node): Sym {.codegen.} =
           sym = gen.lookup(receiver) # look the variable up
           valTy = gen.genExpr(value) # generate the value
         if valTy == sym.varTy:
-          # if the variable's type matches the type of the value, we're ok
+          # if the variable's type matches the type of
+          # the value, we're ok
           gen.popVar(receiver)
         else:
           node.error(ErrTypeMismatch % [$valTy.name, $sym.varTy.name])
@@ -1928,10 +1933,10 @@ proc genVar(node: Node) {.codegen.} =
         if name.kind == nkPostfix and name[0].ident == "*":
           # when the variable is suffixed with a '*', it is a
           # public variable declared in the global scope
-          varExport = true; name[1]
+          varExport = true
+          name[1]
         else:
-          # otherwise, we can declare it as a let or const
-          name
+          name # otherwise, it's a private variable
       if valTy != nil and valTyImpl != nil:
         # before declaring the variable, we need to check if
         # the variable's type matches the expected type
@@ -2015,7 +2020,7 @@ proc genImport(node: Node) {.codegen.} =
       for n in moduleProgram.nodes:
         gen.genStmt(n)
     else: discard
-
+    # todo handle errors
     # except ParseError as e:
     #   # if the module could not be parsed, emit an error
     #   pathNode.error(ErrModuleParseError % [path, e.msg])
@@ -2091,20 +2096,13 @@ proc genBlock(node: Node, isStmt: bool): Sym {.codegen.} =
     node.warn(WarnEmptyStmt)
 
 proc genScript*(program: Ast, includePath: Option[string],
-                  isMainScript: static bool = false) {.codegen.} =
+                  emitHalt: static bool = true) {.codegen.} =
   ## Generates the code for a full script.
   gen.includePath = includePath
-  when isMainScript == true:
-    # when is the main script, we need to predefine
-    # tim engine's global variables, `$app` and `$this`
-    for id in ["app", "this"]:
-      let varNode = newIdent(id)
-      gen.declareVar(varNode, skLet, gen.module.sym"json")
-      gen.pushDefault(gen.module.sym"json")
-      gen.popVar(varNode)
   for node in program.nodes:
     gen.genStmt(node)
-  gen.chunk.emit(opcHalt)
+  when emitHalt == true:
+    gen.chunk.emit(opcHalt)
 
 #--
 # system

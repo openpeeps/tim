@@ -630,8 +630,8 @@ proc getVarIdent(p: var Parser, varIdent: bool): Node {.rule.} =
     # variable definitions can be suffixed with an asterisk
     # to mark them as exported (public)
     if p.curr is tkAsterisk:
-      walk p # tkAsterisk
-      result = ast.newNode(nkPostfix).add([ast.newIdent("*"), result])
+      walk p
+      return ast.newNode(nkPostfix).add([ast.newIdent("*"), result])
 
 proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
   # parse identifier definitions

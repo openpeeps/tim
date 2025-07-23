@@ -4,15 +4,16 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[os, monotimes, times, strutils, options, ropes]
+import std/[os, monotimes, times, strutils,
+          json, options, ropes]
 
-import pkg/flatty
+import pkg/[flatty, jsony]
 import pkg/kapsis/[cli, runtime]
 
 import ../engine/[ast, parser, codegen, chunk, vm, sym]
 import ../engine/stdlib/[libsystem]
 
-import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen]
+import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen]
 
 proc srcCommand*(v: Values) =
   ## Transpiles `timl` code to a target source
@@ -23,7 +24,6 @@ proc srcCommand*(v: Values) =
     pretty = v.has("--pretty")
     flagNoCache = v.has("--nocache")
     flagRecache = v.has("--recache")
-    hasDataFlag = v.has("--data")
     hasJsonFlag = v.has("--json-errors")
     outputPath = if v.has("-o"): v.get("-o").getStr else: ""
     withBenchtime = v.has("--bench")
@@ -32,15 +32,30 @@ proc srcCommand*(v: Values) =
   let
     timlCode = readFile(srcPath)
     t = getMonotime()
-  
+    data =
+      if v.has("--data"):
+        v.get("--data").getJson
+      else:
+        newJObject()
+    globalData =
+      if data != nil:
+        if data.hasKey"app":
+          data["app"]
+        else: newJObject()
+      else: newJObject()
+    localData =
+      if data != nil:
+        if data.hasKey"this":
+          data["this"]
+        else: newJObject()
+      else: newJObject()
+
   var program: Ast # the AST representation of the script
   try:
     parser.parseScript(program, timlCode)
   except TimParserError as e:
     echo e.msg
     quit(1)
-    
-  # writeFile("test.ast", toFlatty(program))
 
   var
     mainChunk = newChunk()
@@ -48,7 +63,7 @@ proc srcCommand*(v: Values) =
     module = newModule(srcPath.extractFilename, some(srcPath))
 
   # load standard library modules
-  let systemModule = modSystem(script)
+  let systemModule = modSystem(script, globalData, localData)
   module.load(systemModule)
 
   # let stringsLib = initStrings(script, systemModule)
@@ -62,7 +77,8 @@ proc srcCommand*(v: Values) =
   if ext == "html":
     try:
       var compiler = codegen.initCodeGen(script, module, mainChunk)
-      compiler.genScript(program, none(string), isMainScript = true)
+      compiler.genScript(program, none(string))
+
       let vmInstance = newVm()
       let output = vmInstance.interpret(script, mainChunk)
       
@@ -71,10 +87,6 @@ proc srcCommand*(v: Values) =
 
       # otherwise, print the output to the console
       echo output
-      
-      # display the time taken for compilation
-      if withBenchtime:
-        displayInfo("Done in " & $(getMonotime() - t))    
     except TimCompileError as e:
       echo e.msg
       quit(1)
@@ -90,6 +102,14 @@ proc srcCommand*(v: Values) =
   elif ext == "php":
     var phpt = phpgen.initCodeGen(script, module, mainChunk)
     echo phpt.genScript(program, none(string), isMainScript = true)
+  elif ext == "lua":
+    var lut = luagen.initCodeGen(script, module, mainChunk)
+    echo lut.genScript(program, none(string), isMainScript = true)
+
+
+  # display the time taken for compilation
+  if withBenchtime:
+    displayInfo("Done in " & $(getMonotime() - t))
 
 #
 # AST 
