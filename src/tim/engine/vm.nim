@@ -266,7 +266,6 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       let tag = chunk.strings[pc.read[:uint16](0)]
       result.add("<"& tag)
       inc(pc, sizeof(uint16))
-    
     of opcBeginHtml:
       # render the HTML object
       let
@@ -287,6 +286,8 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
         result.add($val.floatVal)
       of tyBool:
         result.add($(val.boolVal))
+      of tyJsonStorage:
+        result.add(val.jsonVal.toString())
       else: discard # todo
     of opcInnerHtml:
       discard
@@ -360,7 +361,7 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       else: discard
         # raise newException(ValueError, "Invalid key type for JSON object: " & $key.typeId)
       stack.push(initValue(jsonValue))
-    of opcSetJ: discard # not implemented
+    of opcSetJ: discard # not implemented yet
     # other
     of opcDiscard:
       let n = pc[0].int
@@ -476,9 +477,7 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       assert stack.len == 0,
         "stack was not completely emptied. remaining values: " & $stack
       if vm.lvl == 0:
-        # if we are at the top level,
-        # we can exit the VM
-        break
+        break # if we are at the top level, we can exit the VM
       else:
         # otherwise, we just restore the frame
         restoreFrame()

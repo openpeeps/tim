@@ -88,6 +88,17 @@ proc `$`*(value: Value): string =
     result.add("]")
   else: result = "<object>"
 
+proc toString*(value: JsonNode): string =
+  ## Converts a JSON node to a string.
+  case value.kind
+  of JNull: "null"
+  of JBool: $value.bVal
+  of JInt: $value.num
+  of JFloat: $value.fnum
+  of JString: value.str
+  of JArray: toJson(value)
+  of JObject: toJson(value)
+
 proc initValue*(v: bool): Value =
   ## Initializes a bool value.
   result = Value(typeId: tyBool, boolVal: v)
