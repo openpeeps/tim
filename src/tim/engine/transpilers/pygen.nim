@@ -4,10 +4,10 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[macros, options, os, hashes,
-        sequtils, strutils, ropes, tables, re]
+import std/[macros, options, os, sequtils,
+      strutils, ropes, tables]
 
-import ../[ast, chunk, errors, sym, value]
+import ../[ast, chunk, errors, sym]
 
 type
   GenKind = enum

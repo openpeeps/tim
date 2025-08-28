@@ -4,10 +4,10 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[macros, options, os, hashes,
-        sequtils, strutils, ropes, tables, re]
+import std/[macros, options, os, sequtils,
+      strutils, ropes, tables]
 
-import ../[ast, chunk, errors, sym, value]
+import ../[ast, chunk, errors, sym]
 
 type
   GenKind = enum
@@ -82,7 +82,6 @@ proc repeatStr(s: string, n: int): string =
   # Helper to repeat a string n times (for indentation)
   for i in 0..<n:
     result.add(s)
-
 
 proc getImplValue(node: Node, unquoted = true): string =
   # Helper to render Ruby values from AST nodes
