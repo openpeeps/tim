@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/tim
 
 import std/[tables, httpcore, httpclient, strutils, base64]
-import pkg/[jsony, dotenv]
+import pkg/[dotenv]
 
 from std/os import existsEnv, getEnv
 export base64
@@ -64,7 +64,6 @@ proc getRemotePath*(rs: RemoteSource, path: string,
     return GitHubRemoteEndpoints[path]
   else: discard
 
-
 proc httpGet*(client: RemoteSource,
     path: string, args: seq[string] = @[]
 ): Response =
@@ -73,7 +72,8 @@ proc httpGet*(client: RemoteSource,
   result = client.client.request(uri, HttpGet)
 
 proc getFileContent*(client: RemoteSource, res: Response): GithubFileResponse =
-  jsony.fromJson(res.body, GithubFileResponse)
+  # jsony.fromJson(res.body, GithubFileResponse)
+  discard
 
 proc download*(client: RemoteSource,
     path, tmpPath: string, args: seq[string] = @[]): bool =

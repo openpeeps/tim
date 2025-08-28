@@ -5,11 +5,13 @@
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
 when defined napi_build:
-  # Importing Tim Engine as a NAPI module
+  # Building Tim Engine as a NAPI module
+  # This allows Tim Engine to be used in Node.js/Bun.js applications
+
   import std/[strutils, json]
   import pkg/[denim, jsony, watchout]
   
-  import ./tim/pm/init
+  import ./tim/pm/initalizer
   
   var timjs: TimEngine
   init proc(module: Module) =
@@ -22,16 +24,16 @@ when defined napi_build:
       )
       timjs.precompile(firstRun = true)
 
-    # proc precompile(opts: object) {.export_napi.} =
-    #   ## Precompile Tim Engine templates
-    #   var globals: JsonNode
-    #   var opts: JsoNNode = jsony.fromJson($(args.get"opts"))
-      
-    #   # extract optional data from opts and expose it to globals
-    #   # this data will be available in the template under `$app.` object
-    #   if opts.hasKey"data":
-    #     globals = opts["data"]
-      
+    proc render(view: string, layout: string = "base"): string {.export_napi.} =
+      ## Render a Tim Engine template based on the view and layout paths
+      let
+        layoutPath = args.get("layout").getStr
+        layout = timjs.getLayout(layoutPath)
+        
+        viewPath = args.get("view").getStr
+        view = timjs.getView(viewPath)
+
+      return bindings.`%*`(evaluate(view, layout))
 
 elif isMainModule:
   # Building Tim Engine as a CLI application
@@ -63,9 +65,11 @@ elif isMainModule:
     #
     -- "Development"
     init ?string(`pkg`):
-      ## Initializes a new package
+      ## Init a new package
     install string(`pkg`):
       ## Install a package from remote source
+    develop string(`pkg`):
+      ## Create a symlink to a package in local source
     remove string(`pkg`):
       ## Remove a package from local source
 else:

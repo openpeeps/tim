@@ -312,7 +312,6 @@ registerTokens toktokSettings:
   discardCmd = "discard"
   breakCmd = "break"
   continueCmd = "continue"
-  assertCmd = "assert"
   identVar = tokenize(handleVar, '$')
   identVarSafe
   `static` = "static"

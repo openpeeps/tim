@@ -7,7 +7,9 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[strutils, tables, critbits, json, options]
+import std/[strutils, tables, critbits,
+        json, options, hashes]
+
 import ./chunk, ./value
 
 type
@@ -16,9 +18,11 @@ type
   #   ## such as class, id, etc.
 
   Vm* {.acyclic.} = ref object
+    lvl: int
+      # Used to track the call stack depth.
     globals*: CritBitTree[Value]
       ## a critbit tree of global values
-    lvl: int
+    cache: Table[string, Value]
 
   CallFrame = tuple
     chunk: Chunk
@@ -64,7 +68,21 @@ template inc[T](point: ptr UncheckedArray[T], offset = 1) =
 template dec[T](point: ptr UncheckedArray[T], offset = 1) =
   point = cast[ptr UncheckedArray[T]](cast[int](point) - offset)
 
-proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
+
+#
+# Memoization
+#
+proc cacheSet*(vm: Vm, key: string, value: Value) =
+  # Set a value in the cache
+  vm.cache[key] = value
+
+proc cacheGet*(vm: Vm, key: string): Option[Value] =
+  # Get a value from the cache (returns Option[Value])
+  if key in vm.cache: some(vm.cache[key])
+  else: none(Value)
+
+proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
+              staticString: Option[string] = none(string)): string =
   ## Interpret a chunk of code.
 
   # VM state
@@ -238,10 +256,9 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
         attrValue = chunk.strings[id]
       result.add("id=\"" & attrValue & "\"")
       inc(pc, sizeof(uint16))
-    of opcWSpace:  result.add(" ") # add whitespace
-    of opcAttrEnd: result.add(">") # end of attributes
+    of opcWSpace: #[add whitespace]#      result.add(" ")
+    of opcAttrEnd: #[end of attributes]#  result.add(">")
     of opcAttr:
-      # let len = pc.read[:uint8](0).int
       result.add(stack.pop().stringVal[] & "=\"") # key
       let value = stack.pop()
       case value.typeId
@@ -255,7 +272,6 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
         result.add($(value.boolVal))
       else: discard # todo?
       result.add("\"")
-      # inc(pc, sizeof(uint8))
     of opcAttrKey:
       # handle an attribute key without value
       # this is used for boolean attributes like `checked`
@@ -324,6 +340,7 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       let fieldCount = pc.read[:uint16](0).int
       var obj: Value = initObject(14, fieldCount)
       if fieldCount > 0:
+        echo fieldCount
         let fields = stack{^fieldCount}
         for i in 0..<fieldCount:
           obj.objectVal.fields[i] = fields[i]
@@ -473,12 +490,18 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk): string =
       stack.push(retVal)
     of opcReturnVoid:
       restoreFrame()
+    of opcViewLoader:
+      # load the generated output of a view
+      result.add(staticString.get())
     of opcHalt:
+      # halt the VM
+      when defined(hayaVmWritePcFlow):
+        echo "VM halted"
       assert stack.len == 0,
         "stack was not completely emptied. remaining values: " & $stack
       if vm.lvl == 0:
         break # if we are at the top level, we can exit the VM
       else:
-        # otherwise, we just restore the frame
+        # otherwise restore the frame
         restoreFrame()
         dec(vm.lvl)

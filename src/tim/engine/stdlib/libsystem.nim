@@ -15,6 +15,8 @@ import pkg/jsony
 
 import ../[chunk, codegen, ast, parser, sym, value]
 
+type TimRuntime* = object of CatchableError
+
 proc compileCode*(script: Script, module: Module, filename, code: string) =
   ## Compile some hayago code to the given script and module.
   ## Any generated toplevel code is discarded. This should only be used for
@@ -39,16 +41,30 @@ const
 const app* = parseJSON('$globalData')
 const this* = parseJSON('$localData')
 """
+
   InlineCode* = """
 iterator `..`*(min: int, max: int): int {
   var i = $min
-  while $i <= $max {
-    yield($i)
+  if $i >= $max {
+    yield($min)
+  } else {
+    while $i <= $max {
+      yield($i)
+      inc($i)
+    }
+  }
+}
+
+iterator items*(arr: json): json {
+  var i = 0
+  const total = high($arr)
+  while $i <= $total {
+    yield($arr[$i])
     inc($i)
   }
 }
 
-iterator items*[T](arr: array[T]): T {
+iterator items*(arr: array[string]): string {
   var i = 0
   const total = high($arr)
   while $i <= $total {
@@ -130,7 +146,6 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
   #
   # JSON operators between JSON and other types
   #
-  
   script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", tyBool)], tyBool,
     proc (args: StackView): Value =
       assert args[0].jsonVal.kind == JBool
@@ -179,6 +194,12 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
     proc (args: StackView): Value =
       ## Convert an int to a float
       result = initValue(toFloat(args[0].intVal)))
+
+  script.addProc(result, "assert", @[paramDef("condition", tyBool)], tyVoid,
+    proc (args: StackView): Value =
+      ## Assert that the given condition is true.
+      if not args[0].boolVal:
+        raise newException(TimRuntime, "Assertion failed: " & $args[0].boolVal))
 
   #
   # String conversion
@@ -232,9 +253,14 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
     proc (args: StackView): Value =
       echo "nil")
 
-  # script.addProc(result, "echo", @[paramDef("x", tyObject)], tyVoid,
-  #   proc (args: StackView): Value =
-  #     echo "nil")
+  script.addProc(result, "echo", @[paramDef("x", tyObject)], tyVoid,
+    proc (args: StackView): Value =
+      case args[0].objectVal.isForeign
+      of false:
+        echo args[0].objectVal.fields
+      else:
+        echo "{...}"
+    )
 
   script.addProc(result, "echo", @[paramDef("x", tyArray)], tyVoid,
     proc (args: StackView): Value =
@@ -244,13 +270,23 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
   let genT = ast.newIdent("T")
   let genArrayType = newSym(skGenericParam, genT, impl = genT)
   genArrayType.constraint = result.sym"any"
+
   script.addProc(result, "len", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
     proc (args: StackView): Value =
       result = initValue(len(args[0].objectVal.fields)))
 
-  script.addProc(result, "high", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
+  # script.addProc(result, "high", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
+  #   proc (args: StackView): Value =
+  #     result = initValue(high(args[0].objectVal.fields)))
+
+  script.addProc(result, "high", @[paramDef("x", tyJson)], tyInt,
     proc (args: StackView): Value =
-      result = initValue(high(args[0].objectVal.fields)))
+      let len =
+        if args[0].jsonVal.len > 0:
+          len(args[0].jsonVal) - 1
+        else: 0
+      result = initValue(len)
+    )
 
   # script.addProc(result, "len", @[paramDef("x", tyObject)], tyInt,
   #   proc (args: StackView): Value =
@@ -273,6 +309,30 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
   script.addProc(result, "&", @[paramDef("x", tyString), paramDef("y", tyString)], tyString,
     proc (args: StackView): Value =
       result = initValue(args[0].stringVal[] & args[1].stringVal[]))
+
+  script.addProc(result, "&", @[paramDef("x", tyString), paramDef("y", tyInt)], tyString,
+    proc (args: StackView): Value =
+      result = initValue(args[0].stringVal[] & $(args[1].intVal)))
+
+  script.addProc(result, "&", @[paramDef("x", tyInt), paramDef("y", tyString)], tyString,
+    proc (args: StackView): Value =
+      result = initValue($(args[0].intVal) & args[1].stringVal[]))
+
+  script.addProc(result, "&", @[paramDef("x", tyString), paramDef("y", tyFloat)], tyString,
+    proc (args: StackView): Value =
+      result = initValue(args[0].stringVal[] & $(args[1].floatVal)))
+
+  script.addProc(result, "&", @[paramDef("x", tyFloat), paramDef("y", tyString)], tyString,
+    proc (args: StackView): Value =
+      result = initValue($(args[1].floatVal) & args[0].stringVal[]))
+
+  script.addProc(result, "&", @[paramDef("x", tyString), paramDef("y", tyBool)], tyString,
+    proc (args: StackView): Value =
+      result = initValue(args[0].stringVal[] & $(args[1].boolVal)))
+
+  script.addProc(result, "&", @[paramDef("x", tyBool), paramDef("y", tyString)], tyString,
+    proc (args: StackView): Value =
+      result = initValue($(args[0].boolVal) & args[1].stringVal[]))
 
   #
   # Echo `$` operator

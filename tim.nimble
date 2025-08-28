@@ -25,6 +25,7 @@ requires "semver"
 requires "dotenv"
 requires "denim#head"
 requires "libdatachannel"
+requires "voodoo"
 
 # requires "microparsec"
 

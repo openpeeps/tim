@@ -4,7 +4,11 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 from std/net import Port, `$`
+
 import pkg/[nyml, semver]
+
+when not defined napibuild:
+  import pkg/voodoo/parsers/voojson
 
 export `$`
 
@@ -49,29 +53,39 @@ type
 
   TimConfig* = ref object
     name*: string
+      ## Name of the package or project
+      ## This must be a valid identifier
     version*: string
-    license*, description*: string
+      ## The version of the package
+    description*: string
+      ## A short description of the package
+    license*: string
+      ## The license of the package
+      ## See https://spdx.org/licenses/ for more information
     requires*: seq[string]
+      ## A list of requirements for the package
+      ## Each requirement must be a valid identifier
+      ## and can be a version range, e.g. "tim >= 0.1.0"
     case `type`*: ConfigType
-    of typeProject:
+    of ConfigType.typeProject:
       compilation*: CompilationSettings
+      browser_sync*: BrowserSync
     else: discard
-    browser_sync*: BrowserSync
 
-proc `$`*(c: TimConfig): string = 
-  jsony.toJson(c)
+when not defined napibuild:
+  proc generateYaml*(c: TimConfig): string =
+    ## Generate a YAML representation of the TimConfig
+    ## This is used to generate the `tim.yml` file
+    let str =
+      if c.`type` == ConfigType.typePackage:
+        voojson.toJson(c, JsonOptions(
+          skipFields: @["type", "compilation", "browser_sync"]
+        ))
+      else:
+        toJson(c)
+    dump(voojson.fromJson(str))
 
-# when isMainModule:
-#   const sample = """
-# name: "bootstrap"
-# type: package
-# version: 0.1.0
-# author: OpenPeeps
-# license: MIT
-# description: "Bootstrap v5.x components for Tim Engine"
-# git: "https://github.com/openpeeps/bootstrap.timl"
-
-# requires:
-#   - tim >= 0.1.4
-#   """
-#   echo fromYaml(sample, TimConfig)
+  proc `$`*(c: TimConfig): string = 
+    ## Generate a string representation of the TimConfig
+    ## using `pkg/voodoo`
+    voojson.toJson(c)

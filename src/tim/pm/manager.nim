@@ -5,7 +5,7 @@
 #          https://github.com/openpeeps/tim
 
 import std/[tables, strutils, os, osproc, options, sequtils]
-import pkg/[jsony, flatty, nyml, semver, checksums/md5]
+import pkg/[flatty, nyml, semver, checksums/md5]
 
 import ../engine/ast
 

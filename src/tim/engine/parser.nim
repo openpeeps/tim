@@ -4,8 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://tim-engine.com
 
-import std/[macros, lexbase, tables, strutils, critbits]
-
+import std/[macros, lexbase, tables, strutils, critbits, options]
 import ./[tokens, errors, ast]
 
 type
@@ -39,6 +38,46 @@ proc error(tk: TokenTuple, msg: string) =
           ln: tk.line,
           col: tk.col,
           msg: ErrorFmt % ["", $tk.line, $tk.col, msg])
+
+const
+  infixTokenTable = {
+    tkPlus: "+",
+    tkMinus: "-",
+    tkAsterisk: "*",
+    tkDivide: "/",
+    tkGT: ">",
+    tkGTE: ">=",
+    tkLT: "<",
+    
+    tkLTE: "<=",
+    tkEQ: "==",
+    tkNE: "!=",
+    tkAmp: "&",
+    tkAssign: "=",
+    tkDot: ".",
+    tkLB: "["
+  }.toTable
+
+  logicalOperators = {
+    tkAnd: "and",
+    tkAndAnd: "&&",
+    tkOr: "or",
+    tkOrOr: "||",
+    tkAmp: "&"
+  }.toTable
+
+  OperatorPrecedence = {
+    "+": 10, "-": 10,
+    "*": 20, "/": 20,
+    ".": 30,
+    "[": 40,
+    ".": 45,
+    "==": 5, "!=": 5,
+    ">": 5, "<": 5, ">=": 5, "<=": 5,
+    "and": 3, "&&": 3,
+    "or": 2, "||": 2,
+    "&": 2
+  }.toTable
 
 #
 # Parser utility functions
@@ -74,7 +113,7 @@ macro rule(pc) =
   pc
 
 type
-  PrefixFunction* = proc (p: var Parser): Node
+  PrefixFunction* = proc (p: var Parser, minPrec = 0): Node
 
 macro prefixHandle(name: untyped, body: untyped) =
   # Create a new prefix procedure with `name` and `body`
@@ -87,6 +126,11 @@ macro prefixHandle(name: untyped, body: untyped) =
           ident"Parser"
         ),
         newEmptyNode()
+      ),
+      nnkIdentDefs.newTree(
+        ident"minPrec",
+        ident"int",
+        newLit(0)
       )
     ],
     body,
@@ -109,6 +153,14 @@ proc walkOpt(p: var Parser, kind: TokenKind) =
   # in the current context.
   if p.curr.kind == kind:
     walk(p)
+
+proc walkOptSemiColon(p: var Parser) =
+  # This is used to skip over the optional semicolon
+  # at the end of a statement.
+  if p.curr.kind == tkSColon:
+    walk(p)
+  elif p.curr.line <= p.prev.line:
+    p.curr.error(ErrBadIndentation)
 
 template expectWalk(k: TokenKind) =
   if likely(p.curr.kind == k):
@@ -159,12 +211,12 @@ proc `notin`(tk: TokenTuple, kind: set[TokenKind]): bool {.inline.} =
 #
 # Parse handlers - forward declarations
 #
-proc parseStmt(p: var Parser): Node
-proc parsePrefix(p: var Parser): Node
-proc parseExpression(p: var Parser): Node
-proc parseIdent(p: var Parser): Node
-proc parseCall(p: var Parser): Node
-proc parseBlockCall(p: var Parser): Node
+proc parseStmt(p: var Parser, minPrec = 0): Node
+proc parsePrefix(p: var Parser, minPrec = 0): Node
+proc parseExpression(p: var Parser, minPrec = 0): Node
+proc parseIdent(p: var Parser, minPrec = 0): Node
+proc parseCall(p: var Parser, minPrec = 0): Node
+proc parseBlockCall(p: var Parser, minPrec = 0): Node
 
 #
 # Parse handlers
@@ -502,12 +554,12 @@ proc parseBlock(p: var Parser, indentPos = 0,
     walk p # tkLC
   elif p.curr is (
       when parseFnBlock == true: tkAssign
-                else: tkColon
+                            else: tkColon
       ): walk p
   while p.curr isnot tkEOF:
     if closingBlock and p.curr is tkRC:
-      walk p; break
-    elif p.curr.pos <= indentPos: break
+      walk p; break # tkRC
+    elif not closingBlock and p.curr.pos <= indentPos: break
     let subNode = p.parseStmt()
     caseNotNil subNode:
       stmts.add(subNode)
@@ -575,7 +627,6 @@ prefixHandle parseStaticStmt:
   let stmtNode: Node = p.parseStmt()
   caseNotNil stmtNode:
     result.add(stmtNode)
-  # debugEcho result
 
 prefixHandle parseIdent:
   # parse an identifier
@@ -591,10 +642,6 @@ prefixHandle parseIdentVar:
   #   of tkLB:
   #   else: break
 
-prefixHandle parseType:
-  if p.curr is tkIdentifier:
-    return parseIdent(p)
-
 prefixHandle parseJavaScript:
   result = ast.newNode(nkJavaScriptSnippet)
   result.snippetCode = p.curr.value
@@ -604,7 +651,6 @@ prefixHandle parseJavaScript:
     identNode.ident = id[1]
     add result.snippetCodeAttrs, (attr, identNode)
   walk p
-
 
 #
 # Identifier & Variable Definitions
@@ -659,7 +705,7 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
       of tkAssign:
         # parse an implicit assignment
         walk p # tkAssign
-        val = p.parseExpression()
+        val = p.parseExpression(minPrec = 45)
         break
       of tkComma:
         # parse a comma separated list of identifiers
@@ -733,7 +779,6 @@ prefixHandle parseFunction:
     let fnBlock: Node = p.parseBlock(fnpos, parseFnBlock = true)
     caseNotNil fnBlock:
       result = ast.newTree(nkProc, name, genericParams, formalParams, fnBlock)
-  # debugEcho result
 
 prefixHandle parseIterator:
   # parse an iterator
@@ -868,7 +913,7 @@ prefixHandle parseArray:
 
 prefixHandle parseObjectStorage:
   # parse an object storage
-  result = ast.newTree(nkObject)
+  result = ast.newTree(nkObjectStorage)
   discard p.parseCommaList(tkLC, tkRC, result.children, infixList = true)
 
 prefixHandle parseParExpr:
@@ -923,13 +968,17 @@ prefixHandle parseObject:
   result = ast.newTree(nkObject)
   if p.next is tkIdentifier:
     walk p # tkLitObject
-    let objectIdent = ast.newIdent(p.curr.value)
-    walk p # tkIdentifier
+    var id = ast.newIdent(p.curr.value)
+    if p.next is tkAsterisk:
+      id = ast.newNode(nkPostfix).add([ast.newIdent("*"), id])
+      walk p, 2
+    else:
+      walk p # tkIdentifier
     expectWalk(tkLC) # expect a left curly brace
     # add the object identifier to the result
     # the empty node is used to define generic
     # parameters (todo)
-    result.add([objectIdent, ast.newEmpty()])
+    result.add([id, ast.newEmpty()])
     # parse the object fields
     var fields = newNode(nkRecFields)
     while true:
@@ -951,7 +1000,12 @@ prefixHandle parseObject:
       else: break # todo error
     result.add(fields)
 
-proc getPrefixFn(p: var Parser): PrefixFunction =
+prefixHandle parseViewPlaceholder:
+  ## Parse a view placeholder
+  result = ast.newNode(nkViewLoader)
+  walk p
+
+proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
   # Get the prefix function for the current token
   # This is used to parse the current token
   # and return the corresponding node
@@ -965,11 +1019,13 @@ proc getPrefixFn(p: var Parser): PrefixFunction =
     of tkIf: parseIf
     of tkLitObject: parseObject
     of tkIdentifier, tkType:
-      # if p.next.line == p.curr.line and p.next in Assignables + {tkIdentVar, tkType}:
-      #   parseCall
       if p.next.line == p.curr.line and p.next is tkLP:
         parseCall
-      else: parseIdent
+      else:
+        if minPrec < 45:
+          parseElement
+        else:
+          parseIdent
     of tkAt: parseBlockCall
     of tkLP:  parseParExpr
     of tkWhile: parseWhileLoop
@@ -985,110 +1041,148 @@ proc getPrefixFn(p: var Parser): PrefixFunction =
     of tkYield: parseYield
     of tkEcho: parseEcho
     of tkDoc: parseDocComment
+    of tkViewLoader: parseViewPlaceholder
     else: nil
 
-proc parsePrefix(p: var Parser): Node =
-  let parseFn = p.getPrefixFn()
+prefixHandle parsePrefix:
+  let parseFn = p.getPrefixFn(minPrec)
   if parseFn != nil: 
     return parseFn(p)
 
 #
 # Infix Handlers
 #
-const infixTokenTable ={
-  tkPlus: "+",
-  tkMinus: "-",
-  tkAsterisk: "*",
-  tkDivide: "/",
-  tkGT: ">",
-  tkGTE: ">=",
-  tkLT: "<",
-  
-  tkLTE: "<=",
-  tkEQ: "==",
-  tkNE: "!=",
-  tkAmp: "&",
-  tkAssign: "=",
-  tkDot: ".",
-  # tkColon: ":"
-  tkLB: "["
-}.toTable
+proc getPrecedence(op: string): int =
+  # Get the precedence of an operator
+  # Returns 0 if the operator is not found
+  if op in OperatorPrecedence: OperatorPrecedence[op]
+  else: 0
 
-const logicalOperators = {
-  tkAnd: "and",
-  tkAndAnd: "&&",
-  tkOr: "or",
-  tkOrOr: "||"  
-}.toTable
+proc isInfix(kind: TokenKind, minPrec = 0): (bool, int, Option[string]) =
+  # Check if the token kind is an infix operator
+  var opStr: string
+  if infixTokenTable.hasKey(kind):
+    opStr = infixTokenTable[kind]
+  elif logicalOperators.hasKey(kind):
+    opStr = logicalOperators[kind]
+  else: return # default
+  let prec = getPrecedence(opStr)
+  result = (prec > minPrec, prec, some(opStr))
 
-proc parseInfix(p: var Parser, lhs: Node): Node {.rule.} =
-  # parse an infix expression
-  let op = p.curr
-  walk p # operator token
-  case op.kind
-  of MathOperators, {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE} + {tkAmp}:
-    # parse math and comparison operators
-    let opLit = infixTokenTable[op.kind]
-    let rhs: Node = p.parseExpression()
-    caseNotNil rhs:
-      return ast.newInfix(ast.newIdent(opLit), lhs, rhs)
-  of LogicalOperators:
-    # parse logical operators
-    assert lhs.kind == nkInfix
-    let rhs: Node = p.parseExpression()
-    caseNotNil rhs:
-      let opLit = logicalOperators[op.kind]
-      return ast.newInfix(ast.newIdent(opLit), lhs, rhs)
-  of tkAssign:
-    # parse an assignment expression
-    assert lhs.kind == nkIdent
-    let rhs: Node = p.parseExpression()
-    caseNotNil rhs:
-      return ast.newInfix(ast.newIdent("="), lhs, rhs)
-  of tkDot:
-    # parse a dot-access expression
-    if p.curr is tkDot and p.curr.wsno == 0:
-      walk p
-      let rhs = p.parseExpression()
-      caseNotNil rhs:
-        return ast.newCall(ast.newIdent"..", lhs, rhs)
-    let opLit = infixTokenTable[op.kind]
-    let rhs = p.parsePrefix()
-    caseNotNil rhs:
-      return newTree(nkDot, lhs, rhs)
-  of tkLB:
-    # parse a bracket access expression
-    # assert lhs.kind in {nkIdent, nkInfix}
-    let indexNode: Node = p.parseExpression()
-    caseNotNil indexNode:
-      result = ast.newNode(nkBracket)
-      result.add([lhs, indexNode])
-      expectWalk(tkRB) # expect a right bracket
-      case p.curr.kind
-      of tkLB:
-        if likely(p.curr.line == indexNode.ln and p.curr.wsno == 0):
-          return p.parseInfix(result)
-      else:
-        if infixTokenTable.hasKey(p.curr.kind):
-          # if the next token is an infix operator, parse it
-          # as an infix expression
-          return p.parseInfix(result)
-  else: discard # returns nil
-
-proc parseExpression(p: var Parser): Node =
-  # parse an expression and return
-  # the corresponding node
-  let lhs = p.parsePrefix()
+proc parseExpression(p: var Parser, minPrec = 0): Node =
+  var lhs = p.parsePrefix(minPrec)
   caseNotNil lhs:
-    if infixTokenTable.hasKey(p.curr.kind):
-      result = p.parseInfix(lhs)
-      caseNotNil result:
-        if p.curr in LogicalOperators + {tkEQ}:
-          result = p.parseInfix(result)
-        return # result
-    return lhs
+    while true:
+      # 1. Handle infix operators (including dot and bracket)
+      var opStr: string
+      var prec: int
+      var isBracket = false
+      var isDot = false
 
-proc parseStmt(p: var Parser): Node =
+      # Check for infix, dot, or bracket
+      case p.curr.kind
+      of Operators, LogicalOperators:
+        let inf = p.curr.kind.isInfix(minPrec)
+        if not inf[0]: break
+        opStr = inf[2].get()
+        prec = inf[1]
+      of tkDot:
+        opStr = "."
+        prec = getPrecedence(".")
+        isDot = true
+      of tkLB:
+        opStr = "["
+        prec = getPrecedence("[")
+        isBracket = true
+      else: break
+
+      # Only continue if precedence is high enough
+      if prec < minPrec: break
+
+      walk p # consume operator
+
+      if isBracket:
+        # Parse bracket access: lhs[index]
+        let indexNode = p.parseExpression(minPrec = prec)
+        expectWalk tkRB
+        lhs = ast.newNode(nkBracket).add([lhs, indexNode])
+      elif isDot:
+        # Parse dot access: lhs.rhs
+        if p.curr is tkDot and p.curr.wsno == 0:
+          # Handle double dot access `..`
+          walk p # tkDot
+          let rhs = p.parseExpression(minPrec = prec + 1)
+          caseNotNil rhs:
+            return ast.newCall(ast.newIdent(".."), lhs, rhs)
+        let rhs = p.parseExpression(minPrec = prec + 1)
+        lhs = ast.newTree(nkDot, lhs, rhs)
+      else:
+        # Normal infix operator
+        let rhs = p.parseExpression(minPrec = prec)
+        lhs = ast.newInfix(ast.newIdent(opStr), lhs, rhs)
+    result = lhs
+
+# proc parseExpression(p: var Parser, minPrec = 0): Node =
+#   # parse an expression and return
+#   # the corresponding node
+#   var lhs = p.parsePrefix(minPrec)
+#   caseNotNil lhs:
+#     while true:
+#       case p.curr.kind
+#       of Operators:
+#         let prec = p.curr.kind.isInfix(minPrec)
+#         if not prec[0]:
+#           break # not an infix operator
+#         walk p # consume operator
+#         # precedence climbing for right-hand side
+#         var rhs = p.parsePrefix()
+#         caseNotNil rhs:
+#           while true:
+#             let nextPrec = p.curr.kind.isInfix(minPrec)
+#             if not nextPrec[0]:
+#               break # not an infix operator
+#             walk p # consume next operator
+#             if nextPrec[1] > prec[1]:
+#               rhs = p.parsePrefix(nextPrec[1])
+#             else: break
+#           lhs = ast.newInfix(ast.newIdent(prec[2].get()), lhs, rhs)
+#       of tkDot:
+#         # parse dot-access expressions
+#         if p.curr.wsno > 0 or minPrec > 40: break
+#         if p.next is tkDot and p.next.wsno == 0:
+#           # parse a double dot-access expression
+#           # this is used for range access `..`
+#           walk p
+#           let rhs = p.parseExpression(minPrec = 45) # TODO add prec for `..`
+#           caseNotNil rhs:
+#             return ast.newCall(ast.newIdent"..", lhs, rhs)
+#         walk p # tkDot
+#         let rhs = p.parseExpression(minPrec = 45)
+#         caseNotNil rhs:
+#           lhs = newTree(nkDot, lhs, rhs)
+#       of tkLB:
+#         # parse a bracket access expression
+#         walk p # tkLB
+#         let indexNode: Node = p.parseExpression(minPrec = 40)
+#         caseNotNil indexNode:
+#           result = ast.newNode(nkBracket)
+#           result.add([lhs, indexNode])
+#           expectWalk tkRB
+#           case p.curr.kind
+#           of tkLB:
+#             if likely(p.curr.line == indexNode.ln and p.curr.wsno == 0):
+#               walk p #
+#               let rhs = p.parseExpression(minPrec = 40)
+#               lhs = ast.newNode(nkBracket).add([result, rhs])
+#               expectWalk tkRB
+#             else: return # result
+#           else:
+#             lhs = result
+#       else: break
+#     result = lhs
+#   debugEcho result
+
+prefixHandle parseStmt:
   # Parse a statement node
   let prefixFn: PrefixFunction = 
     case p.curr.kind
@@ -1111,7 +1205,9 @@ proc parseStmt(p: var Parser): Node =
     of tkIterator: parseIterator
     of tkStatic: parseStaticStmt
     of tkEcho: parseEcho
+    of tkLitObject: parseObject
     of tkDoc: parseDocComment
+    of tkViewLoader: parseViewPlaceholder
     else: parseExpression
   if prefixFn != nil:
     return prefixFn(p)

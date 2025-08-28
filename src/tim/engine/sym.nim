@@ -415,6 +415,10 @@ proc sameType*(a, b: Sym): bool =
   if a.kind == skGenericParam: a = a.constraint
   if b.kind == skGenericParam: b = b.constraint
 
+  # echo "---"
+  # debugEcho a
+  # debugEcho b
+
   # ``any`` is a special case: it matches literally any type
   case a.kind
   of skType:
@@ -429,27 +433,28 @@ proc sameType*(a, b: Sym): bool =
   # as for other types: if they're not generic,
   # we simply check if the symbols are equal
   if not a.isInstantiation and not b.isInstantiation:
+    # debugEcho a
+    # debugEcho b
     case a.kind
     of skHtmlType:
       return b.kind == skHtmlType
     else:
       return a.tyKind == b.tyKind
-
   else:
     # otherwise, we check the base type,
     # and the generic params for equivalence
     
     # an generic type referenced somewhere in code cannot possibly pass
     # ``isGeneric``, because all symbols are instantiated on lookup
-    # echo a
-    # echo b
+
     # assert not a.isGeneric and not b.isGeneric,
     #   "type somehow is generic even though it was instantiated"
 
     # both types have to be instantiations to be
     # equivalent, but this limitation may be lifted at some point
-    # if not a.isInstantiation and b.isInstantiation or
-    #    a.isInstantiation and not b.isInstantiation:
+
+    # if a.isInstantiation == false and b.isInstantiation or
+    #    a.isInstantiation and b.isInstantiation == false:
     #   return false
     if a.isInstantiation and b.isInstantiation == false:
       if b.genericInstArgs.isSome:
@@ -462,25 +467,33 @@ proc sameType*(a, b: Sym): bool =
           return result
         return false
       else:
+        # debugEcho b
         result = true
         for i, arg in a.genericInstArgs.get:
           result = result and arg.sameType(b)
           if result == false: break
         return # result
     
-    if a.genericInstArgs.isNone and b.genericInstArgs.isSome:
-      return false
+    # if a.genericInstArgs.isNone and b.genericInstArgs.isSome:
+    #   return false
 
-    # likewise, both types have to have the same amount of generic arguments
+    # # likewise, both types have to have the same amount of generic arguments
     # if a.genericInstArgs.get.len != b.genericInstArgs.get.len:
+    #   return false
+
+    # ...existing code...
+    # if a.isInstantiation and not b.isInstantiation:
+    #   return false
+    # if not a.isInstantiation and b.isInstantiation:
     #   return false
 
     # in the end, we check if the base types are
     # equivalent and the parameters are equivalent
-    result = a.genericBase.get.sameType(b.genericBase.get)
-    for i, arg in a.genericInstArgs.get:
-      result = result and arg.sameType(b.genericInstArgs.get[i])
-      if result == false: break
+    if a.genericBase.isSome() and b.genericBase.isSome():
+      result = a.genericBase.get.sameType(b.genericBase.get)
+      for i, arg in a.genericInstArgs.get:
+        result = result and arg.sameType(b.genericInstArgs.get[i])
+        if result == false: break
 
 proc sameParams*(sym: Sym, args: seq[Sym]): bool =
   ## Returns ``true`` if both ``a`` and ``b`` are called with the same
@@ -491,11 +504,9 @@ proc sameParams*(sym: Sym, args: seq[Sym]): bool =
   
   for i, param in sym.params:
     try:
-      if not param.ty.sameType(args[i]):
-        return false
+      if not param.ty.sameType(args[i]): return
     except IndexDefect:
-      if param.isOpt == false:
-        return false
+      if param.isOpt == false: return
         
   result = true
   # if param.isMut and args[i].kind != skVar:
@@ -684,6 +695,7 @@ proc initSystemTypes*(module: Module) =
   module.add(genType(tyNil, "nil", true))
   module.add(genType(tyAny, "stmt", true))
   module.add(genType(tyJson, "json", true))
+  module.add(genType(tyObject, "object", true))
 
 proc getModuleName*(module: Module): string =
   ## Get the module name for the JS export

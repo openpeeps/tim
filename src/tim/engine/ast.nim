@@ -76,6 +76,9 @@ type
     nkBlock          # block statement - block {...}
     nkJavaScriptSnippet
     nkDocComment     # doc comment - <!-- ... -->
+    nkViewLoader     # view loader using `@view` placeholder
+
+    nkObjectStorage  # object storage - used to store JSON-like objects
 
   HtmlAttributeType* = enum
     htmlAttrClass, htmlAttrId, htmlAttrIdent, htmlAttr
@@ -301,6 +304,8 @@ proc render*(node: Node): string =
   of nkObject:
     result = "object " & node[0].render & node[1].render & " {\n" &
              node[2].render.indent(2) & "\n}\n"
+  of nkObjectStorage:
+    discard # todo
   of nkProc, nkIterator:
     result = (
         if node.kind == nkProc:
@@ -311,6 +316,8 @@ proc render*(node: Node): string =
       result.add('\n')
   of nkDocComment:
     result = "<!-- " & node[0].render & " -->"
+  of nkViewLoader:
+    result = "@view\n"
 
 proc newNode*(kind: NodeKind): Node =
   ## Construct a new node.

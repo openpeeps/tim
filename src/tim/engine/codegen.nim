@@ -203,24 +203,29 @@ proc newProc*(script: Script, name, impl: Node,
   ## object. This does not add the procedure to the script!
   var
     exported = exported
-    name =
-      if name.kind == nkIdent: name
-      else:
-        exported = true; # marks the proc as exported
-        assert name.kind == nkPostfix, "Invalid postfix node for function identifier"
-        name[1] # returns the function ident name
-  if name.ident.len > 0:
-    name.ident = name.ident[0] & name.ident[1..^1].toLowerAscii()
+    identName: Node
+  if name.kind == nkIdent:
+    # when name is nkIdent we create a named proc
+    identName = name
+  elif name.kind == nkEmpty:
+    # when name is nkEmpty we create an anonymous proc
+    identName = ast.newNode(nkIdent)
+    identName.ident = "anonymous:" & $script.procs.len
+  else:
+    # when name is a postfix node, we create a named proc
+    # and mark it as exported if the name is a postfix node
+    exported = true
+    assert name.kind == nkPostfix, "Invalid postfix node for function identifier"
+    identName = name[1] # returns the function ident name
+
+  if identName.ident.len > 0:
+    identName.ident = identName.ident[0] & identName.ident[1..^1].toLowerAscii()
   
   if genKind != gkToplevel and exported:
     # if the proc is not a top-level proc, it cannot be exported
-    name.error(ErrExportOnlyTopLevel)
-    
+    identName.error(ErrExportOnlyTopLevel)
   let
     id = script.procs.len.uint16
-    strName =
-      if name.kind == nkEmpty: ":anonymous"
-      else: name.ident
     hasReturnType =
       if returnTy.kind == skType:
         returnTy.tyKind != tyVoid
@@ -228,11 +233,11 @@ proc newProc*(script: Script, name, impl: Node,
         returnTy.kind == skGenericParam
     theProc =
       Proc(
-        name: strName, kind: kind,
+        name: identName.ident, kind: kind,
         paramCount: params.len,
         hasResult: hasReturnType
       )
-    sym = newSym(skProc, name, impl)
+    sym = newSym(skProc, identName, impl)
   sym.procId = id
   sym.procParams = params
   sym.procReturnTy = returnTy
@@ -321,7 +326,7 @@ proc genStmt(node: Node) {.codegen.}
 proc genProc(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.}
-# proc genObject(node: Node, isInstantiation = false): Sym {.codegen.}
+proc genObject(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genArray(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genTypeDef(node: Node): Sym {.codegen.}
@@ -401,10 +406,11 @@ proc inferGenericArgs(gen: var CodeGen, sym: Sym,
     # as for generic types: we take all their arguments and recursively walk
     # through them. we know that ``callTy`` is compatible with this, because
     # overload resolution is done before generic param inference.
-    elif procTy.genericInstArgs.isSome:
-      for i, procArg in procTy.genericInstArgs.get:
-        let callArg = callTy.genericInstArgs.get[i]
-        walkType(types, procArg, callArg)
+    elif procTy.genericInstArgs.isSome():
+      for i, procArg in procTy.genericInstArgs.get():
+        if callTy.genericInstArgs.isSome():
+          let callArg = callTy.genericInstArgs.get()[i]
+          walkType(types, procArg, callArg)
 
     # we don't care about any other types, as they're not related to generic
     # types inference.
@@ -420,7 +426,7 @@ proc inferGenericArgs(gen: var CodeGen, sym: Sym,
     walkType(types, procTy, callTy)
 
   # after we walk the types, we'll collect them into our resulting seq.
-  for genericParam in sym.genericParams.get:
+  for genericParam in sym.genericParams.get():
     result.add(if genericParam in types: some(types[genericParam])
                else: Sym.none)
 
@@ -533,15 +539,20 @@ proc popVar(gen: var CodeGen, name: Node) =
 
 proc pushVar(gen: var CodeGen, sym: Sym) =
   ## Push the variable represented by ``sym`` to the top of the stack.
-  assert sym.kind in skVars, "The symbol must represent a variable. Got " & $sym.kind
-  if sym.varLocal:
-    # if the variable is a local, use pushL
-    gen.chunk.emit(opcPushL)
-    gen.chunk.emit(sym.varStackPos.uint8)
-  else:
-    # if it's a global, use pushG
-    gen.chunk.emit(opcPushG)
-    gen.chunk.emit(gen.chunk.getString(sym.name.ident))
+  # assert sym.kind in skVars, "The symbol must represent a variable. Got " & $sym.kind
+  case sym.kind
+  of skVars:
+    if sym.varLocal:
+      # if the variable is a local, use pushL
+      gen.chunk.emit(opcPushL)
+      gen.chunk.emit(sym.varStackPos.uint8)
+    else:
+      # if it's a global, use pushG
+      gen.chunk.emit(opcPushG)
+      gen.chunk.emit(gen.chunk.getString(sym.name.ident))
+  of skProc:
+    debugEcho sym
+  else: discard
 
 proc pushDefault(gen: var CodeGen, ty: Sym) =
   ## Push the default value for the type ``ty`` onto the stack.
@@ -577,7 +588,7 @@ proc getDefaultSym*(gen: var CodeGen, kind: NodeKind): Sym =
   of nkFloat:  result = gen.module.sym"float"
   of nkString: result = gen.module.sym"string"
   of nkArray:  result = gen.module.sym"array"
-  of nkObject: result = gen.module.sym"object"
+  of nkObjectStorage: result = gen.module.sym"object"
   else: discard
 
 proc pushConst(node: Node): Sym {.codegen.} =
@@ -607,12 +618,6 @@ proc pushConst(node: Node): Sym {.codegen.} =
     result = gen.module.sym"string"
   else: discard
 
-# proc pushJsonConst(node: JsonNode): Sym {.codegen.} =
-  ## Generate a push instruction for a JSON constant.
-  # gen.chunk.emit(opcPushJ)
-  # gen.chunk.emit(gen.chunk.getJson(node))
-  # result = gen.module.sym"json"
-
 proc findOverload(sym: Sym, args: seq[Sym],
           errorNode: Node = nil, quiet = false): Sym {.codegen.} =
   ## Finds the correct overload for ``sym``, given the parameter types.
@@ -638,14 +643,21 @@ proc findOverload(sym: Sym, args: seq[Sym],
     # choices. this isn't the most efficient solution and can be optimized to use
     # a table for O(1) lookups, but time will tell if that's necessary.
     for choice in sym.choices:
-      if choice.procType == ProcType.procTypeMacro:
-        if choice.kind in skCallable and choice.sameParams(args[0..^2]):
-          result = choice
-          break
-      else:
+      case choice.kind:
+      of skProc:
+        if choice.procType == ProcType.procTypeMacro:
+          if choice.kind in skCallable and choice.sameParams(args[0..^2]):
+            result = choice
+            break
+        else:
+          if choice.kind in skCallable and choice.sameParams(args):
+            result = choice
+            break
+      of skIterator:
         if choice.kind in skCallable and choice.sameParams(args):
           result = choice
           break
+      else: discard
   else: discard
 
   # if we failed to find an appropriate overload,
@@ -670,8 +682,8 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
   ## symbol.
   var callee: Node
   var args: seq[Node]
-  assert ast.kind in {nkPrefix, nkInfix, nkCall,
-                        nkDot, nkIdent, nkString, nkArray}
+  assert ast.kind in {nkPrefix, nkInfix, nkCall, nkBracket,
+              nkDot, nkIdent, nkString, nkArray}
   case ast.kind
   of nkPrefix:
     callee = ast[0]
@@ -693,9 +705,25 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
     assert calleeLookup.kind in skVars, "Expected a variable, got " & $calleeLookup.kind
     if calleeLookup.varTy.tyKind == tyObject:
       return (calleeLookup.varTy, @[ast])
+    elif calleeLookup.varTy.tyKind == tyJson:
+      # if the callee is a json storage we'll emit an error
+      # because json fields/items cannot be called using dot notation
+      ast[1].error("Use bracket notation to access JSON fields or items")
     else:
       callee = ast[1]
       args = @[ast[0]]
+  of nkBracket:
+    # this is an array access, so we return the array and the index
+    # as the callee and the argument, respectively
+    assert ast[0].kind == nkIdent, "Expected an identifier for array access"
+    let calleeLookup = gen.lookup(ast[0])
+    assert calleeLookup.kind in skVars, "Expected a variable, got " & $calleeLookup.kind
+    if calleeLookup.varTy.tyKind in {tyArray, tyJson}:
+      callee = newIdent("items") # the built-in items() iterator
+      args = @[ast]  # the index is the only argument
+    else:
+      callee = ast[0]
+      args = @[ast[1]]  # the index is the only argument
   of nkString:
     callee = ast
   of nkIdent:
@@ -708,12 +736,12 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
   result = (gen.lookup(callee), args)
 
 proc resolveGenerics*(gen: var CodeGen, callable: var Sym,
-                      callArgTypes: seq[Sym], errorNode: Node) =
+                    callArgTypes: seq[Sym], errorNode: Node) =
   ## Helper used to resolve generic parameters via inference.
   if callable.isGeneric:
     let genericArgs =
       gen.inferGenericArgs(callable, callArgTypes, errorNode).mapIt do:
-        if it.isSome: it.get
+        if it.isSome(): it.get()
         else:
           errorNode.error(ErrCouldNotInferGeneric % errorNode.render)
           nil
@@ -928,7 +956,6 @@ proc infix(node: Node): Sym {.codegen.} =
 
 proc objConstr(node: Node, ty: Sym, constructFromIdent = false): Sym {.codegen.} =
   ## Generate code for an object constructor.
-
   # find the object type that's being constructed
   result =
     if not constructFromIdent: 
@@ -948,10 +975,10 @@ proc objConstr(node: Node, ty: Sym, constructFromIdent = false): Sym {.codegen.}
 
   # collect the initialized fields into a seq with their values and the fields
   # themselves
-  var fields: seq[tuple[node: Node, field: ObjectField]]
+  # var fields: seq[tuple[node: Node, field: ObjectField]]
 
-  if not constructFromIdent:
-    fields.setLen(result.objectFields.len)
+  # if not constructFromIdent:
+  #   fields.setLen(result.objectFields.len)
 
   # for f in node[1..^1]:
   #   # all fields are initialized using the a: b syntax, no exceptions
@@ -967,27 +994,37 @@ proc objConstr(node: Node, ty: Sym, constructFromIdent = false): Sym {.codegen.}
   #   let field = result.objectFields[name]
   #   fields[field.id] = (node: f[1], field: field)
 
-  if not constructFromIdent:
-    var explicitFields: Table[string, Node]
-    for f in node[1..^1]:
-      explicitFields[f[0].ident] = f[1]
-    
-    for k, v in result.objectFields:
-      if explicitFields.hasKey(k):
-        discard
-      else:
-        fields[v.id] = (node: v.name, field: v)
+  # if not constructFromIdent:
+  var explicitFields: Table[string, Node]
+  for f in node[1..^1]:
+    # debugEcho f[]
+    explicitFields[f[1].ident] = f[2]
+
+  for k, field in result.objectFields:
+    if explicitFields.hasKey(k):
+      # Use the value from the object constructor
+      let valTy = gen.genExpr(explicitFields[k])
+      if not valTy.sameType(field.ty):
+        node.error(ErrTypeMismatch % [$valTy.name, $field.ty.name])
+    elif field.implVal != nil:
+      # Use the field's default value from the object definition
+      discard gen.genExpr(field.implVal.impl)
+    else:
+      # Use the default value for the field's type
+      gen.pushDefault(field.ty)
 
   # iterate the fields and values, and push them onto the stack.
   # for (value, field) in fields:
-    # let ty = gen.genExpr(value)
-    # if ty != field.ty:
-    #   node.error(ErrTypeMismatch % [$ty, $field])
+    # debugEcho value
+    # debugEcho field
+  #   let ty = gen.genExpr(value)
+  #   if ty != field.ty:
+  #     node.error(ErrTypeMismatch % [$ty, $field])
 
   # construct the object
   gen.chunk.emit(opcConstrObj)
-  gen.chunk.emit(uint16(tyFirstObject + ty.objectId))
-  gen.chunk.emit(uint8(fields.len))
+  # gen.chunk.emit(uint16(tyFirstObject + ty.objectId))
+  gen.chunk.emit(uint16(result.objectFields.len))
 
 proc procCall(node: Node, procSym: Sym): Sym {.codegen.} =
   ## Generate code for a procedure call.
@@ -1045,11 +1082,19 @@ proc call(node: Node): Sym {.codegen.} =
 proc genGetField(node: Node): Sym {.codegen.} =
   # Generate code for field access.
   # all fields must be idents, so we check for that.
-  if node[1].kind != nkIdent:
+  if node[1].kind notin {nkIdent, nkBracket}:
     node[1].error(ErrInvalidField % $node[1])
-  let
-    typeSym = gen.genExpr(node[0])  # generate the left-hand side
-    fieldName = node[1].ident       # get the field's name
+  let typeSym = gen.genExpr(node[0])  # generate the left-hand side
+  
+  # get the field's name
+  var fieldName: string
+  if node[1].kind == nkIdent:
+    fieldName = node[1].ident
+  elif node[1].kind == nkBracket and node[1][0].kind == nkIdent:
+    # if the field is accessed using the bracket notation, we use the ident
+    # inside the brackets as the field name
+    fieldName = node[1][0].ident
+
   # only objects have fields. we also check if the given object *does* have the
   # field in question, and generate an error if not
   if typeSym.tyKind == tyObject and typeSym.objectFields.hasKey(fieldName):
@@ -1074,8 +1119,8 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
     indexTy = gen.genExpr(node[1])
 
   # check if the array is actually an array
-  if valty.tyKind notin {tyArray, tyObject, tyJson}:
-    node[0].error(ErrTypeMismatch % [$valty.name, "array"])
+  # if valty.tyKind notin {tyArray, tyObject, tyJson}:
+    # node[0].error(ErrTypeMismatch % [$valty.name, "array"])
   
   case valty.tyKind
   of tyJson:
@@ -1110,7 +1155,10 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
     gen.chunk.emit(opcGetI)
     result = valty.arrayTy
     # result = gen.module.sym"int" # TODO: fix this, we need to know the type of the array items
-  else: discard # todo error?
+  else:
+    # TODO: a better handling of this
+    gen.chunk.emit(opcGetI)
+    result = valty
 
 proc genIf(node: Node, isStmt: bool): Sym {.codegen.} =
   ## Generate code for an if expression/statement.
@@ -1206,9 +1254,8 @@ proc collectParams(formalParams: Node,
   # `nkFormalParams` to a `seq[ProcParam]`
   for defs in formalParams[1..^1]:
     var implSym: Sym
-    if defs[^1].kind == nkEmpty:
-      implSym = nil
-    else:
+    if defs[^1].kind != nkEmpty:
+      # checking if we have an implicit value
       let n = defs[^1]
       case n.kind
       of nkBool, nkInt, nkFloat, nkString:
@@ -1216,46 +1263,62 @@ proc collectParams(formalParams: Node,
         implSym.impl = n
       else:
         implSym = gen.lookup(n)
-    let ty: Sym =
-      if implSym == nil: gen.lookup(defs[^2])
-      else: implSym
-    for name in defs[0..^3]:
-      case ty.tyKind
-      of tyArray:
-        if ty.arrayTy == nil and defs[^2].kind == nkIndex:
-          # getting the type of the array using the generic `T`
-          let identSym: Sym = gen.typeLookup(defs[^2][1].ident)
-          ty.arrayTy = identSym
-          if identSym == nil and genericParams.isSome():
-            let genParams = genericParams.get()
-            for genParam in genParams:
-              if genParam.name.ident == defs[^2][1].ident:
-                # we found the generic parameter, so we use it
-                ty.arrayTy = genParam.constraint
-                break
-        if implSym != nil:
-          # otherwise, we assume the array is of
-          # the same type as the implementation symbol
-          ty.arrayTy = implSym
-        elif ty.arrayTy == nil:
-          # well, we don't know the type of the array.
-          # so we emit an error that the array type is not concrete
-          name.error(ErrTypeNotConcrete % ["array"])
-        result.add(genParam(name, ty, implSym,
-            # determine if the parameter is marked as `var` mutable
-            isMut = defs[^2].kind == nkVarTy,
-            # implicit values marks the parameter as optional
-            isOpt = defs[^1].kind != nkEmpty
-          )
-        )
+    
+    var sym: Sym =
+      if implSym == nil:
+        gen.lookup(defs[^2])
       else:
-        result.add(genParam(name, ty, implSym,
-            # determine if the parameter is marked as `var` mutable
-            isMut = defs[^2].kind == nkVarTy,
-            # implicit values marks the parameter as optional
-            isOpt = defs[^1].kind != nkEmpty
-          )
+        implSym
+    
+    for name in defs[0..^3]:
+      # debugEcho sym
+      # if sym.kind == skType:
+        # case ty.tyKind
+        # of tyArray:
+          # if ty.arrayTy == nil and defs[^2].kind == nkIndex:
+          #   # getting the type of the array using the generic `T`
+          #   let identSym: Sym = gen.typeLookup(defs[^2][1].ident)
+          #   ty.arrayTy = identSym
+          #   if identSym == nil and genericParams.isSome():
+          #     let genParams = genericParams.get()
+          #     debugEcho genParams
+          #     for genParam in genParams:
+          #       if genParam.name.ident == defs[^2][1].ident:
+          #         # we found the generic parameter, so we use it
+          #         ty.arrayTy = genParam.constraint
+          #         break
+          # if implSym != nil:
+          #   # otherwise, we assume the array is of
+          #   # the same type as the implementation symbol
+          #   ty.arrayTy = implSym
+          # elif ty.arrayTy == nil:
+          #   # well, we don't know the type of the array.
+          #   # so we emit an error that the array type is not concrete
+          #   name.error(ErrTypeNotConcrete % ["array"])
+          # result.add(
+          #   genParam(name, ty, implSym,
+          #     # determine if the parameter is marked as `var` mutable
+          #     isMut = defs[^2].kind == nkVarTy,
+          #     # implicit values marks the parameter as optional
+          #     isOpt = defs[^1].kind != nkEmpty
+          #   )
+          # )
+        # else:
+        # before adding the parameter, we check if the type is generic
+        # if genericParams.isSome():
+        #   let genParams = genericParams.get()
+        #   for genParam in genParams:
+        #     if genParam.name.ident == defs[^2][1].ident:
+        #       # sym.genericBase = some(genParam)
+        #       break
+      result.add(
+        genParam(name, sym, implSym,
+          # determine if the parameter is marked as `var` mutable
+          isMut = defs[^2].kind == nkVarTy,
+          # implicit values marks the parameter as optional
+          isOpt = defs[^1].kind != nkEmpty
         )
+      )
 
 proc collectGenericParams(genericParams: Node): Option[seq[Sym]] {.codegen.} =
   # Helper used to collect and declare
@@ -1264,8 +1327,10 @@ proc collectGenericParams(genericParams: Node): Option[seq[Sym]] {.codegen.} =
   result = some[seq[Sym]](@[])
   for defs in genericParams:
     let constraint =
-      if defs[^2].kind == nkEmpty: gen.module.sym"any"
-      else: gen.lookup(defs[^2])
+      if defs[^2].kind == nkEmpty:
+        gen.module.sym"any"
+      else:
+        gen.lookup(defs[^2])
     for name in defs[0..^3]:
       let sym = newSym(skGenericParam, name, impl = name)
       sym.constraint = constraint
@@ -1503,7 +1568,9 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
           gen.chunk.emit(opcAttrKey)
       else: discard
     if classAttributes.len > 0:
-      # if there are any classes, we emit them as a single attribute
+      # if there are any classes, we emit them as a stringified value
+      # TODO `--optimize` should enable deduplication of classes
+      classAttributes = classAttributes.deduplicate()
       gen.chunk.emit(opcWSpace)
       gen.chunk.emit(opcAttrClass)
       gen.chunk.emit(gen.chunk.getString(classAttributes.join(" ")))
@@ -1511,7 +1578,6 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
   else:
     gen.chunk.emit(opcBeginHtml)
     gen.chunk.emit(tagPos)
-  # gen.addSym(result)
   inc(gen.counter)
 
   if gen.kind == gkToplevel:
@@ -1580,9 +1646,15 @@ proc genExpr(node: Node): Sym {.codegen.} =
     result = gen.genIf(node, isStmt = false)
   of nkArray:
     result = gen.genArray(node)        # array declaration
-  of nkObject:
+  of nkObjectStorage:
     result = gen.genObjectStorage(node)
     # result = gen.objConstr(node, gen.lookup(node[0]), constructFromIdent = true)
+  of nkObject:
+    # object literal
+    result = gen.genObject(node)
+  of nkProc:
+    # procedure definition
+    result = gen.genProc(node)
   else:
     node.error(ErrValueIsVoid)
 
@@ -1806,46 +1878,50 @@ proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.} =
   gen.chunk.emit(opcConstrObj)
   gen.chunk.emit(uint16(result.objectFields.len))
 
-# proc genObject(node: Node, isInstantiation = false): Sym {.codegen.} =
-#   # Process an object declaration, and add the new type into the current
-#   # module or scope.
+proc genObject(node: Node, isInstantiation = false): Sym {.codegen.} =
+  # Process an object declaration, and add the new type into the current
+  # module or scope.
+  # create a new type for the object
+  result = newType(tyObject, name = node[0], impl = node)
+  result.impl = node
 
-#   # create a new type for the object
-#   result = newType(tyObject, name = node[0], impl = node)
-#   # result.impl = node
+  # check if the object is generic
+  if not isInstantiation and node[1].kind != nkEmpty:
+    # if so, create a new scope for its generic params and collect them
+    gen.pushScope()
+    result.genericParams = gen.collectGenericParams(node[1])
 
-#   # check if the object is generic
-#   if not isInstantiation and node[1].kind != nkEmpty:
-#     # if so, create a new scope for its generic params and collect them
-#     gen.pushScope()
-#     result.genericParams = gen.collectGenericParams(node[1])
-
-#   # process the object's fields
-#   result.objectId = gen.script.typeCount
-#   inc(gen.script.typeCount)
-#   for fields in node[2]:
-#     # get the fields' type
-#     let
-#       fieldsTy = gen.lookup(fields[^2])
-#       implValSym = gen.genExpr(fields[^1])
+  # process the object's fields
+  result.objectId = gen.script.typeCount
+  inc(gen.script.typeCount)
+  
+  # get the fields' type
+  for fields in node[2]:
+    let
+      fieldsTy = gen.lookup(fields[^2])
+      fieldImplValue =
+        if fields[^1].kind != nkEmpty:
+          gen.genExpr(fields[^1])
+        else:
+          nil
         
-#     # create all the fields with the given type
-#     for name in fields[0..^3]:
-#       result.objectFields[name.ident] = (
-#         id: result.objectFields.len,
-#         name: name,
-#         ty: fieldsTy,
-#         implVal: implValSym
-#       )
+    # create all the fields with the given type
+    for name in fields[0..^3]:
+      result.objectFields[name.ident] = (
+        id: result.objectFields.len,
+        name: name,
+        ty: fieldsTy,
+        implVal: fieldImplValue
+      )
 
-#   # if the object had generic params, pop their scope
-#   if not isInstantiation and result.isGeneric:
-#     gen.popScope()
-#   gen.addSym(result)
+  # if the object had generic params, pop their scope
+  if not isInstantiation and result.isGeneric:
+    gen.popScope()
+  gen.addSym(result)
 
 proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.} =
-  ## Process an iterator declaration, and add it into the current module or
-  ## scope.
+  ## Process an iterator declaration,
+  ## and add it into the current module or scope.
   var iterExport: bool
   let identNode: Node = 
     case node[0].kind
@@ -1855,7 +1931,7 @@ proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.} =
       node[0][1]
     else:
       node[0]
-
+      
   # create a new symbol for the iterator
   result = newSym(skIterator, name = identNode, impl = node)
 
@@ -1872,6 +1948,7 @@ proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.} =
   # get the yield type
   if formalParams[0].kind == nkEmpty:
     node.error(ErrIterMustHaveYieldType)
+
   let yieldTy = gen.lookup(formalParams[0])
   if yieldTy.kind == skType and yieldTy.tyKind == tyVoid:
     node.error(ErrIterMustHaveYieldType)
@@ -1899,11 +1976,10 @@ proc genVar(node: Node) {.codegen.} =
     for name in decl[0..^3]:
       # generate the value
       if implNode.kind != nkEmpty:
-        # if the implicit value is not empty
         # generate the value and check its type
         valTy = gen.genExpr(implNode)
-        # if both the type and the value are specified
         if decl[^2].kind != nkEmpty:
+          # if both the type and the value are specified
           valTyImpl = gen.lookup(decl[^2])
         else:
           valTyImpl = valTy
@@ -2051,8 +2127,9 @@ proc genStmt(node: Node) {.codegen.} =
   of nkProc: discard gen.genProc(node)          # procedure declaration
   of nkMacro: discard gen.genMacro(node)        # macro declaration
   of nkIterator: discard gen.genIterator(node)  # iterator declaration
-  of nkObject: discard gen.genObjectStorage(node)      # object declaration
-  of nkTypeDef: discard gen.genTypeDef(node)    # type definition
+  of nkObjectStorage: discard gen.genObjectStorage(node)      # object declaration
+  of nkObject: discard gen.genObject(node)
+  # of nkTypeDef: discard gen.genTypeDef(node)    # type definition
   of nkHtmlElement: discard gen.htmlConstr(node) # HTML element construction
   of nkJavaScriptSnippet:
     discard gen.storeJavaScript(node) # JavaScript snippet
@@ -2060,6 +2137,8 @@ proc genStmt(node: Node) {.codegen.} =
     gen.genImport(node) # import statement
   of nkDocComment:
     gen.genComment(node) # generate HTML comment
+  of nkViewLoader:
+    gen.chunk.emit(opcViewLoader)
   else:                                         # expression statement
     let ty = gen.genExpr(node)
     if ty != gen.module.sym"void":

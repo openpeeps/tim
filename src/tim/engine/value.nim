@@ -33,7 +33,7 @@ type
 
   Object* = ref object
     ## A hayago object.
-    case isForeign: bool
+    case isForeign*: bool
       of true: data*: pointer
       of false: fields*: seq[Value]
   
