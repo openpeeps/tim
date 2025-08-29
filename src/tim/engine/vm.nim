@@ -340,7 +340,6 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
       let fieldCount = pc.read[:uint16](0).int
       var obj: Value = initObject(14, fieldCount)
       if fieldCount > 0:
-        echo fieldCount
         let fields = stack{^fieldCount}
         for i in 0..<fieldCount:
           obj.objectVal.fields[i] = fields[i]

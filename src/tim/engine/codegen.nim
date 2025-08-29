@@ -319,8 +319,7 @@ proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym
 proc genScript*(program: Ast, includePath: Option[string],
               emitHalt: static bool = true) {.codegen.}
 
-proc genExpr(node: Node): Sym {.codegen.}
-
+proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.}
 proc genBlock(node: Node, isStmt: bool): Sym {.codegen.}
 proc genStmt(node: Node) {.codegen.}
 proc genProc(node: Node, isInstantiation = false): Sym {.codegen.}
@@ -808,9 +807,19 @@ proc infix(node: Node): Sym {.codegen.} =
   if node[0].ident notin ["=", "or", "and"]:
     # primitive operators
     var noBuiltin: bool # is there no built-in operator available?
-    let
+    var
       aTy = gen.genExpr(node[1]) # generate the left operand's code
       bTy = gen.genExpr(node[2]) # generate the right operand's code
+    case aTy.kind
+    of skVars:
+      aTy = aTy.varTy
+    else: discard
+
+    case bTy.kind
+    of skVars:
+      bTy = bTy.varTy
+    else: discard
+
     let numOp = [gen.module.sym"float", gen.module.sym"int"]
     if (aTy in numOp and bTy in numOp):
       # number operators
@@ -997,7 +1006,6 @@ proc objConstr(node: Node, ty: Sym, constructFromIdent = false): Sym {.codegen.}
   # if not constructFromIdent:
   var explicitFields: Table[string, Node]
   for f in node[1..^1]:
-    # debugEcho f[]
     explicitFields[f[1].ident] = f[2]
 
   for k, field in result.objectFields:
@@ -1114,15 +1122,16 @@ proc genGetField(node: Node): Sym {.codegen.} =
 proc genArrayAccess(node: Node): Sym {.codegen.} =
   # Generate code for array access.
   # This is used for both arrays and JSON nodes (json arrays and objects)
-  let
-    valty = gen.genExpr(node[0])
+  var
+    valTy = gen.genExpr(node[0])
     indexTy = gen.genExpr(node[1])
 
-  # check if the array is actually an array
-  # if valty.tyKind notin {tyArray, tyObject, tyJson}:
-    # node[0].error(ErrTypeMismatch % [$valty.name, "array"])
+  case valTy.kind
+  of skVars:
+    valTy = valTy.varTy
+  else: discard
   
-  case valty.tyKind
+  case valTy.tyKind
   of tyJson:
     # generate the code for accessing a JSON array
     if indexTy.tyKind notin {tyInt, tyString}:
@@ -1131,7 +1140,7 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
       # using the bracket notation
       node[1].error(ErrTypeMismatch % [$indexTy.name, "int|string"])
     gen.chunk.emit(opcGetJ)
-    result = valty
+    result = valTy
   of tyObject:
     if indexTy.tyKind != tyString:
       # check if the index is actually an int
@@ -1139,26 +1148,18 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
     # todo support getting fields from objects using the bracket notation
     # this is not supported yet, so we just raise an error
     echo "not implemented yet: accessing object fields using the bracket notation"
-    result = valty
+    result = valTy
   of tyArray:
     # generate the code to access the array
     if indexTy.tyKind != tyInt:
       # check if the index is actually an int
       node[1].error(ErrTypeMismatch % [$indexTy.name, "int"])
-    
-    # if valty.arrayItems.len > 0:
-      # todo maybe we can handle multi type arrays?
-      # valty.arrayTy = valty.arrayItems[0]
-    
-    # todo raise an error if the index is out of bounds
-    # node[1].error(ErrTypeMismatch % [$indexTy.name, "int"])
+    assert valTy.arrayTy != nil, "Array type must have an element type"
     gen.chunk.emit(opcGetI)
-    result = valty.arrayTy
-    # result = gen.module.sym"int" # TODO: fix this, we need to know the type of the array items
+    return valTy.arrayTy
   else:
-    # TODO: a better handling of this
     gen.chunk.emit(opcGetI)
-    result = valty
+    result = valTy
 
 proc genIf(node: Node, isStmt: bool): Sym {.codegen.} =
   ## Generate code for an if expression/statement.
@@ -1243,13 +1244,11 @@ proc storeJavaScript(node: Node): Sym {.codegen.} =
   ## Store a JavaScript snippet into the current module.
   gen.script.jsOutput.add(node.snippetCode)
 
-proc genParam(name: Node, ty: Sym, sym: Sym = nil,
-              isMut, isOpt = false): ProcParam =
+proc genParam(name: Node, ty: Sym, sym: Sym = nil, isMut, isOpt = false): ProcParam =
   (name, ty, sym, isMut, isOpt)
 
 proc collectParams(formalParams: Node,
-        genericParams: Option[seq[Sym]] = none(seq[Sym])
-  ): seq[ProcParam] {.codegen.} =
+      genericParams: Option[seq[Sym]] = none(seq[Sym])): seq[ProcParam] {.codegen.} =
   # Helper used to collect parameters from an
   # `nkFormalParams` to a `seq[ProcParam]`
   for defs in formalParams[1..^1]:
@@ -1263,15 +1262,27 @@ proc collectParams(formalParams: Node,
         implSym.impl = n
       else:
         implSym = gen.lookup(n)
-    
-    var sym: Sym =
-      if implSym == nil:
-        gen.lookup(defs[^2])
+
+    # var sym: Sym =
+    #   if implSym == nil:
+    #     gen.lookup(defs[^2])
+    #   else:
+    #     implSym
+
+    var sym: Sym
+    if implSym == nil:
+      # If the type is an indexed type (e.g. array[string]), instantiate it
+      if defs[^2].kind == nkIndex and defs[^2][0].kind == nkIdent and defs[^2][0].ident == "array":
+        let baseArraySym = gen.lookup(defs[^2][0])
+        let elemTy = gen.lookup(defs[^2][1])
+        sym = gen.instantiate(baseArraySym, @[elemTy], defs[^2])
+        sym.arrayTy = elemTy # set the array's element type
       else:
-        implSym
-    
+        sym = gen.lookup(defs[^2])
+    else:
+      sym = implSym
+
     for name in defs[0..^3]:
-      # debugEcho sym
       # if sym.kind == skType:
         # case ty.tyKind
         # of tyArray:
@@ -1612,7 +1623,7 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
     gen.chunk.emit(opcCloseHtml)
     gen.chunk.emit(tagPos)
 
-proc genExpr(node: Node): Sym {.codegen.} =
+proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.} =
   # Generates code for an expression.
   case node.kind
   of nkBool, nkInt, nkFloat, nkString:  # constants
@@ -1629,7 +1640,8 @@ proc genExpr(node: Node): Sym {.codegen.} =
       else: discard
     else: discard
     gen.pushVar(symNode)
-    return symNode.varTy
+    return (if varUnwrap: symNode.varTy
+      else: symNode)
   of nkPrefix:                    # prefix operators
     result = gen.prefix(node)
   of nkInfix:                     # infix operators
@@ -1848,21 +1860,31 @@ proc genYield(node: Node) {.codegen.} =
   # go back to the iterator's context
   gen.popFlowBlock()
   gen.context = myCtx
-  
+
+
 proc genArray(node: Node, isInstantiation = false): Sym {.codegen.} =
-  # process an array declaration, and add the
-  # new type into the current module or scope.
-  result = newType(tyArray, name = nil, impl = node)
+  ## Generate code for an array literal, instantiating array[T] for the element type.
+  assert node.children.len > 0, "Cannot create an empty array without type inference"
+  # Infer the element type from the first element
+  let elemTy = gen.genExpr(node[0])
+  gen.chunk.emit(opcDiscard)
+  gen.chunk.emit(1'u8)
+
+  # Instantiate array[T] with the element type
+  let arrayTypeSym = gen.typeLookup("array")
+  let instArrayType = gen.instantiate(arrayTypeSym, @[elemTy], node)
+  # Store all items and check their type
   for n in node.children:
-    result.arrayItems.add(gen.genExpr(n))
-  if node.children.len > 0:
-    result.arrayTy = result.arrayItems[0]
-  # result.arrayTy = gen.module.sym"int"
-  # emit the opcode to create an array
-  # result.genericBase = some(gen.module.sym"int")
-  result.genericInstArgs = some(@[result.arrayTy])
+    let itemTy = gen.genExpr(n)
+    if not itemTy.sameType(elemTy):
+      n.error(ErrTypeMismatch % [$itemTy.name, $elemTy.name])
+    instArrayType.arrayItems.add(itemTy)
+  instArrayType.arrayTy = elemTy
+  instArrayType.genericInstArgs = some(@[elemTy])
+  # Emit code to construct the array
   gen.chunk.emit(opcConstrArray)
-  gen.chunk.emit(uint16(result.arrayItems.len))
+  gen.chunk.emit(uint16(node.children.len))
+  result = instArrayType
 
 proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.} =
   # Generate code for an object storage

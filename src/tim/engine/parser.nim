@@ -76,7 +76,7 @@ const
     ">": 5, "<": 5, ">=": 5, "<=": 5,
     "and": 3, "&&": 3,
     "or": 2, "||": 2,
-    "&": 2
+    "&": 6
   }.toTable
 
 #
@@ -1103,7 +1103,7 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
 
       if isBracket:
         # Parse bracket access: lhs[index]
-        let indexNode = p.parseExpression(minPrec = prec)
+        let indexNode = p.parseExpression()
         expectWalk tkRB
         lhs = ast.newNode(nkBracket).add([lhs, indexNode])
       elif isDot:
@@ -1121,66 +1121,6 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
         let rhs = p.parseExpression(minPrec = prec)
         lhs = ast.newInfix(ast.newIdent(opStr), lhs, rhs)
     result = lhs
-
-# proc parseExpression(p: var Parser, minPrec = 0): Node =
-#   # parse an expression and return
-#   # the corresponding node
-#   var lhs = p.parsePrefix(minPrec)
-#   caseNotNil lhs:
-#     while true:
-#       case p.curr.kind
-#       of Operators:
-#         let prec = p.curr.kind.isInfix(minPrec)
-#         if not prec[0]:
-#           break # not an infix operator
-#         walk p # consume operator
-#         # precedence climbing for right-hand side
-#         var rhs = p.parsePrefix()
-#         caseNotNil rhs:
-#           while true:
-#             let nextPrec = p.curr.kind.isInfix(minPrec)
-#             if not nextPrec[0]:
-#               break # not an infix operator
-#             walk p # consume next operator
-#             if nextPrec[1] > prec[1]:
-#               rhs = p.parsePrefix(nextPrec[1])
-#             else: break
-#           lhs = ast.newInfix(ast.newIdent(prec[2].get()), lhs, rhs)
-#       of tkDot:
-#         # parse dot-access expressions
-#         if p.curr.wsno > 0 or minPrec > 40: break
-#         if p.next is tkDot and p.next.wsno == 0:
-#           # parse a double dot-access expression
-#           # this is used for range access `..`
-#           walk p
-#           let rhs = p.parseExpression(minPrec = 45) # TODO add prec for `..`
-#           caseNotNil rhs:
-#             return ast.newCall(ast.newIdent"..", lhs, rhs)
-#         walk p # tkDot
-#         let rhs = p.parseExpression(minPrec = 45)
-#         caseNotNil rhs:
-#           lhs = newTree(nkDot, lhs, rhs)
-#       of tkLB:
-#         # parse a bracket access expression
-#         walk p # tkLB
-#         let indexNode: Node = p.parseExpression(minPrec = 40)
-#         caseNotNil indexNode:
-#           result = ast.newNode(nkBracket)
-#           result.add([lhs, indexNode])
-#           expectWalk tkRB
-#           case p.curr.kind
-#           of tkLB:
-#             if likely(p.curr.line == indexNode.ln and p.curr.wsno == 0):
-#               walk p #
-#               let rhs = p.parseExpression(minPrec = 40)
-#               lhs = ast.newNode(nkBracket).add([result, rhs])
-#               expectWalk tkRB
-#             else: return # result
-#           else:
-#             lhs = result
-#       else: break
-#     result = lhs
-#   debugEcho result
 
 prefixHandle parseStmt:
   # Parse a statement node

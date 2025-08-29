@@ -75,14 +75,16 @@ proc `$`*(value: Value): string =
   of tyBool: result = $value.boolVal
   of tyInt: result = $value.intVal
   of tyFloat: result = $value.floatVal
-  of tyString: result = escape($value.stringVal[])
+  # of tyString: result = escape($value.stringVal[])
+  of tyString:
+    result = value.stringVal[]
   of tyJsonStorage:
     result = toJson(value.jsonVal)
   of tyArrayObject:
     let len = value.objectVal.fields.len
     result.add("[")
     for i in 0 ..< len:
-      result.add($value.objectVal.fields[i])
+      result.add(escape($value.objectVal.fields[i]))
       if i < len - 1:
         result.add(", ")
     result.add("]")

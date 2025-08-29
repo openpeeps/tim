@@ -395,105 +395,66 @@ proc genHtmlType*(kind: TypeKind, tag: HtmlTag): Sym =
   )
 
 proc sameType*(a, b: Sym): bool =
-  ## Returns ``true`` if ``a`` and ``b`` are are compatible types.
-  assert a.kind in skTyped + skVars and b.kind in skTyped + skVars,
-    "type comparison can't be done on non-type symbols"
-
-  # make them mutable for the next segment
+  ## Returns ``true`` if ``a`` and ``b`` are compatible types.
+  # Unwrap variables to their types
   var (a, b) = (a, b)
+  if a.kind in skVars: a = a.varTy
+  if b.kind in skVars: b = b.varTy
 
-  # if b is a variable, we need to check the type of the variable
-  # instead of the variable itself
-  if b.kind in skVars:
-    b = b.varTy
-
-  if a.kind in skVars:
-    a = a.varTy
-
-  # handle generic params as a special case,
-  # because they're a different kind of a symbol
+  # Unwrap generic params to their constraints
   if a.kind == skGenericParam: a = a.constraint
   if b.kind == skGenericParam: b = b.constraint
 
-  # echo "---"
-  # debugEcho a
-  # debugEcho b
+  # Special case: 'any' matches anything
+  if a.kind == skType and a.tyKind == tyAny: return true
+  if b.kind == skType and b.tyKind == tyAny: return true
 
-  # ``any`` is a special case: it matches literally any type
-  case a.kind
-  of skType:
-    case b.kind
-    of skHtmlType:
-      return a.tyKind == tyAny
-    else:
-      if a.tyKind == tyAny or b.tyKind == tyAny:
-        return true
-  else: discard
-
-  # as for other types: if they're not generic,
-  # we simply check if the symbols are equal
-  if not a.isInstantiation and not b.isInstantiation:
-    # debugEcho a
-    # debugEcho b
-    case a.kind
-    of skHtmlType:
-      return b.kind == skHtmlType
-    else:
-      return a.tyKind == b.tyKind
-  else:
-    # otherwise, we check the base type,
-    # and the generic params for equivalence
-    
-    # an generic type referenced somewhere in code cannot possibly pass
-    # ``isGeneric``, because all symbols are instantiated on lookup
-
-    # assert not a.isGeneric and not b.isGeneric,
-    #   "type somehow is generic even though it was instantiated"
-
-    # both types have to be instantiations to be
-    # equivalent, but this limitation may be lifted at some point
-
-    # if a.isInstantiation == false and b.isInstantiation or
-    #    a.isInstantiation and b.isInstantiation == false:
-    #   return false
-    if a.isInstantiation and b.isInstantiation == false:
-      if b.genericInstArgs.isSome:
-        if a.kind == b.kind:
-          result = true
+  # If both are types, compare their kind and details
+  if a.kind == skType and b.kind == skType:
+    if a.tyKind == b.tyKind:
+      case a.tyKind
+      of tyArray:
+        # Compare array item types
+        if a.arrayTy != nil and b.arrayTy != nil:
+          return a.arrayTy.sameType(b.arrayTy)
+        # If generic, compare inst args
+        if a.genericInstArgs.isSome and b.genericInstArgs.isSome:
+          let aArgs = a.genericInstArgs.get
           let bArgs = b.genericInstArgs.get
-          for i, arg in a.genericInstArgs.get:
-            result = result and arg.sameType(bArgs[i])
-            if result == false: break
-          return result
-        return false
+          if aArgs.len != bArgs.len: return false
+          for i in 0..<aArgs.len:
+            if not aArgs[i].sameType(bArgs[i]): return false
+          return true
+        return true # return a == b
+      of tyObject:
+        # Compare object type ids (structural comparison could be added)
+        return a.objectId == b.objectId
       else:
-        # debugEcho b
-        result = true
-        for i, arg in a.genericInstArgs.get:
-          result = result and arg.sameType(b)
-          if result == false: break
-        return # result
-    
-    # if a.genericInstArgs.isNone and b.genericInstArgs.isSome:
-    #   return false
+        return true
+    else:
+      return false
 
-    # # likewise, both types have to have the same amount of generic arguments
-    # if a.genericInstArgs.get.len != b.genericInstArgs.get.len:
-    #   return false
+  # If both are generic instantiations, compare base and args
+  if a.isInstantiation and b.isInstantiation:
+    if a.genericBase.isSome and b.genericBase.isSome:
+      if not a.genericBase.get.sameType(b.genericBase.get): return false
+      let aArgs = a.genericInstArgs.get
+      let bArgs = b.genericInstArgs.get
+      if aArgs.len != bArgs.len: return false
+      for i in 0..<aArgs.len:
+        if not aArgs[i].sameType(bArgs[i]): return false
+      return true
 
-    # ...existing code...
-    # if a.isInstantiation and not b.isInstantiation:
-    #   return false
-    # if not a.isInstantiation and b.isInstantiation:
-    #   return false
+  # If only one is an instantiation, try to compare to the other's base or arg
+  if a.isInstantiation and not b.isInstantiation:
+    if a.genericBase.isSome:
+      return a.genericBase.get.sameType(b)
+  if not a.isInstantiation and b.isInstantiation:
+    if b.genericBase.isSome:
+      return a.sameType(b.genericBase.get)
 
-    # in the end, we check if the base types are
-    # equivalent and the parameters are equivalent
-    if a.genericBase.isSome() and b.genericBase.isSome():
-      result = a.genericBase.get.sameType(b.genericBase.get)
-      for i, arg in a.genericInstArgs.get:
-        result = result and arg.sameType(b.genericInstArgs.get[i])
-        if result == false: break
+  # Fallback: compare by identity
+  return a == b
 
 proc sameParams*(sym: Sym, args: seq[Sym]): bool =
   ## Returns ``true`` if both ``a`` and ``b`` are called with the same
