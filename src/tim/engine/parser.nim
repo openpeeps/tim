@@ -2,10 +2,14 @@
 #
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim | https://tim-engine.com
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[macros, lexbase, tables, strutils, critbits, options]
-import ./[tokens, errors, ast]
+
+import ./tokens
+# import ./lexer
+
+import ./[errors, ast]
 
 type
   Parser* = object
@@ -16,8 +20,6 @@ type
     classCacheAttr: CritBitTree[Node]
       # A critbit tree used to cache static class attributes
       # prefixed with a dot (.) for faster parsing and memory usage optimization.
-    # attrCacheAttr: CritBitTree[Node]
-      # A critbit tree used to cache `key=value` HTML attributes
     lvl: int
 
   TimParserError* = object of ValueError
@@ -645,11 +647,11 @@ prefixHandle parseIdentVar:
 prefixHandle parseJavaScript:
   result = ast.newNode(nkJavaScriptSnippet)
   result.snippetCode = p.curr.value
-  for attr in p.curr.attr:
-    let identNode = ast.newNode(nkIdent)
-    let id = attr.split("_")
-    identNode.ident = id[1]
-    add result.snippetCodeAttrs, (attr, identNode)
+  # for attr in p.curr.attr:
+  #   let identNode = ast.newNode(nkIdent)
+  #   let id = attr.split("_")
+  #   identNode.ident = id[1]
+  #   add result.snippetCodeAttrs, (attr, identNode)
   walk p
 
 #
@@ -1153,8 +1155,8 @@ prefixHandle parseStmt:
     return prefixFn(p)
 
 proc parseScript*(astProgram: var Ast, code: string) =
-  var p = Parser(lex: newLexer(code, allowMultilineStrings = true))
-  defer: p.lex.close()
+  var p = Parser(lex: newLexer(code))
+  # defer: p.lex.close()
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   p.skipComments()

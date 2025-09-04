@@ -5,7 +5,7 @@
 #
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim | https://tim-engine.com
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[strutils, options, os, httpclient,
           httpcore, json, tables]
@@ -41,8 +41,8 @@ const
 const app* = parseJSON('$globalData')
 const this* = parseJSON('$localData')
 """
-
   InlineCode* = """
+
 iterator `..`*(min: int, max: int): int {
   var i = $min
   if $i >= $max {
@@ -284,6 +284,15 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
       let len =
         if args[0].jsonVal.len > 0:
           len(args[0].jsonVal) - 1
+        else: 0
+      result = initValue(len)
+    )
+
+  script.addProc(result, "high", @[paramDef("x", tyArray)], tyInt,
+    proc (args: StackView): Value =
+      let len =
+        if args[0].objectVal.fields.len > 0:
+          len(args[0].objectVal.fields) - 1
         else: 0
       result = initValue(len)
     )

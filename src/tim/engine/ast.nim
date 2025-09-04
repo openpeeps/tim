@@ -5,7 +5,7 @@
 #
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim | https://tim-engine.com
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[hashes, strutils, json, sequtils, options]
 
@@ -186,7 +186,8 @@ proc hash*(node: Node): Hash =
 proc `$`*(node: Node): string =
   ## Stringify a node. This only supports leaf nodes, for trees,
   ## use ``treeRepr``.
-  assert node.kind in LeafNodes, "only leaf nodes can be `$`'ed"
+  assert node.kind in LeafNodes, "only leaf nodes can be `$`'ed. Got " &
+    $node.kind
   case node.kind
   of nkEmpty: result = ""
   of nkBool: result = $node.boolVal

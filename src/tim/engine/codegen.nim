@@ -5,7 +5,7 @@
 #
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim | https://tim-engine.com
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[macros, options, os, hashes,
         sequtils, strutils, ropes, tables, json]
@@ -190,11 +190,6 @@ proc addSym(gen: var CodeGen, sym: Sym,
     if not gen.module.add(sym, name):
       name.error(ErrGlobalRedeclaration % [$name])
 
-#
-# Forward declarations
-#
-proc genGetField(node: Node): Sym {.codegen.}
-
 proc newProc*(script: Script, name, impl: Node,
         params: seq[ProcParam], returnTy: Sym,
         kind: ProcKind, exported = false,
@@ -328,6 +323,7 @@ proc genIterator(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genObject(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.}
 proc genArray(node: Node, isInstantiation = false): Sym {.codegen.}
+proc genGetField(node: Node): Sym {.codegen.}
 proc genTypeDef(node: Node): Sym {.codegen.}
 proc htmlConstr(node: Node): Sym {.codegen.}
 
@@ -473,7 +469,10 @@ proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym =
   # find out the symbol's name
   var name: Node
   case symName.kind
-  of nkIdent: name = symName     # regular ident
+  of nkIdent:
+    name = symName     # regular ident
+  of nkCall:
+    name = symName[0]  # function call
   of nkVarTy: name = symName.varType
   of nkIndex:
     if symName[0].kind == nkIndex:
@@ -710,7 +709,8 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
       ast[1].error("Use bracket notation to access JSON fields or items")
     else:
       callee = ast[1]
-      args = @[ast[0]]
+      args.add(ast[0])
+      args.add(ast[1][1..^1])
   of nkBracket:
     # this is an array access, so we return the array and the index
     # as the callee and the argument, respectively
@@ -1090,10 +1090,24 @@ proc call(node: Node): Sym {.codegen.} =
 proc genGetField(node: Node): Sym {.codegen.} =
   # Generate code for field access.
   # all fields must be idents, so we check for that.
+  case node[1].kind
+  of nkCall:
+    let (fnSym, fnParams) = gen.splitCall(node)
+    var argTypes: seq[Sym]
+    for arg in fnParams:
+      argTypes.add(gen.genExpr(arg))
+    return gen.callProc(fnSym, argTypes, node)
+  else: discard
   if node[1].kind notin {nkIdent, nkBracket}:
     node[1].error(ErrInvalidField % $node[1])
-  let typeSym = gen.genExpr(node[0])  # generate the left-hand side
-  
+  var valTy = gen.genExpr(node[0])  # generate the left-hand side
+  var varTy: SymKind
+  case valTy.kind
+  of skVars:
+    varTy = valTy.kind
+    valTy = valTy.varTy
+  else: discard
+
   # get the field's name
   var fieldName: string
   if node[1].kind == nkIdent:
@@ -1102,12 +1116,11 @@ proc genGetField(node: Node): Sym {.codegen.} =
     # if the field is accessed using the bracket notation, we use the ident
     # inside the brackets as the field name
     fieldName = node[1][0].ident
-
   # only objects have fields. we also check if the given object *does* have the
   # field in question, and generate an error if not
-  if typeSym.tyKind == tyObject and typeSym.objectFields.hasKey(fieldName):
+  if valTy.tyKind == tyObject and valTy.objectFields.hasKey(fieldName):
     # we use the getF opcode to push fields onto the stack.
-    let field = typeSym.objectFields[fieldName]
+    let field = valTy.objectFields[fieldName]
     result = field.ty
     gen.chunk.emit(opcGetF)
     gen.chunk.emit(field.id.uint8)
@@ -1116,8 +1129,8 @@ proc genGetField(node: Node): Sym {.codegen.} =
     # an appropriate proc that will retrieve it for us
     let getter = gen.lookup(node[1])
     if getter == nil:
-      node[1].error(ErrNonExistentField % [fieldName, $typeSym])
-    result = gen.callProc(getter, argTypes = @[typeSym], errorNode = node)
+      node[1].error(ErrNonExistentField % [fieldName, $valTy])
+    result = gen.callProc(getter, argTypes = @[valTy], errorNode = node)
 
 proc genArrayAccess(node: Node): Sym {.codegen.} =
   # Generate code for array access.
@@ -1130,7 +1143,12 @@ proc genArrayAccess(node: Node): Sym {.codegen.} =
   of skVars:
     valTy = valTy.varTy
   else: discard
-  
+
+  case indexTy.kind
+  of skVars:
+    indexTy = indexTy.varTy
+  else: discard
+
   case valTy.tyKind
   of tyJson:
     # generate the code for accessing a JSON array
@@ -1644,7 +1662,8 @@ proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.} =
       else: symNode)
   of nkPrefix:                    # prefix operators
     result = gen.prefix(node)
-  of nkInfix:                     # infix operators
+  of nkInfix:
+    # handle infix expressions
     result = gen.infix(node)
   of nkDot:
     # generate code for object/class field access

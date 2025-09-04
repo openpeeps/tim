@@ -11,23 +11,26 @@ import pkg/[flatty, jsony]
 import pkg/kapsis/[cli, runtime]
 
 import ../engine/[ast, parser, codegen, chunk, vm, sym]
-import ../engine/stdlib/[libsystem]
+import ../engine/stdlib/[libsystem, libarrays]
 
 import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen]
 
 proc srcCommand*(v: Values) =
   ## Transpiles `timl` code to a target source
   # parse the script
+  var srcPath = $(v.get("timl").getPath)
   let
-    srcPath = getCurrentDir() / $(v.get("timl").getPath)
     ext = v.get("--ext").getStr
-    pretty = v.has("--pretty")
+    flagPrettyPrint = v.has("--pretty")
     flagNoCache = v.has("--nocache")
     flagRecache = v.has("--recache")
     hasJsonFlag = v.has("--json-errors")
     outputPath = if v.has("-o"): v.get("-o").getStr else: ""
-    withBenchtime = v.has("--bench")
+    flagBencmarks = v.has("--bench")
     # enableWatcher = v.has("w")
+  
+  if not srcPath.isAbsolute:
+    srcPath = getCurrentDir() / srcPath
 
   let
     timlCode = readFile(srcPath)
@@ -69,6 +72,9 @@ proc srcCommand*(v: Values) =
   # let stringsLib = initStrings(script, systemModule)
   # module.load(stringsLib)
 
+  let arraysLib = initArrays(script, systemModule)
+  module.load(arraysLib)
+
   script.stdpos = script.procs.high
 
   # let timesModule = script.initTimes(systemModule)
@@ -108,7 +114,7 @@ proc srcCommand*(v: Values) =
 
 
   # display the time taken for compilation
-  if withBenchtime:
+  if flagBencmarks:
     displayInfo("Done in " & $(getMonotime() - t))
 
 #

@@ -5,7 +5,7 @@
 #
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim | https://tim-engine.com
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 const
   ErrorFmt* = "$1($2:$3): $4"

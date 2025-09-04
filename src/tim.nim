@@ -2,7 +2,7 @@
 #
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim | https://tim-engine.com
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 when defined napi_build:
   # Building Tim Engine as a NAPI module
@@ -72,6 +72,7 @@ elif isMainModule:
       ## Create a symlink to a package in local source
     remove string(`pkg`):
       ## Remove a package from local source
+
 else:
   # Importing Tim Engine as a Nimble library
   # so it can be used in other Nim projects

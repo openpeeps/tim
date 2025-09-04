@@ -2,7 +2,7 @@
 #
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/tim | https://tim-engine.com
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/oids
 import pkg/toktok
@@ -275,16 +275,8 @@ registerTokens toktokSettings:
   `or`   = "or"
   `bool` = ["true", "false"]
 
-  # literals
-  # litBool = "bool"
-  # litInt = "int"
-  # litString = "string"
-  # litFloat = "float"
   litObject = "object"
-  # litArray = "array"
-  # litFunction = "function"
-  # litStream = "stream"
-  # litVoid = "void"
+
   
   # magics
   at = tokenize(handleMagics, '@')
