@@ -142,16 +142,26 @@ var
   watcher: Watchout
   wsServerConfig = initWebSocketConfig()
   hasChanges: bool
+  wsClients: seq[cint] = @[]
+
+proc notifyAllClients() =
+  for ws in wsClients:
+    ws.message("1")
+  hasChanges = false
 
 proc connectionCallback(wsserver: cint, ws: cint, userPtr: pointer) {.cdecl.} =
-  proc wsMessageCallback(ws: cint, msg: cstring, size: cint, userPtr: pointer) =
-    if hasChanges:
-      ws.message("1")
-      hasChanges = false
-    else:
-      ws.message("0")
+  wsClients.add(ws)
+  # proc wsMessageCallback(ws: cint, msg: cstring, size: cint, userPtr: pointer) =
+    # if hasChanges:
+    #   ws.message("1")
+    #   hasChanges = false
+    # else:
+    #   ws.message("0")
+  proc connectionClosedCallback(ws: cint, userPtr: pointer) =
+    wsClients = wsClients.filterIt(it != ws)
 
-  discard rtcSetMessageCallback(ws, wsMessageCallback)
+  assert rtcSetClosedCallback(ws, connectionClosedCallback) == 0
+  # discard rtcSetMessageCallback(ws, wsMessageCallback)
 
 proc precompile*(engine: TimEngine, flush = true,
     waitThread = false, browserSyncPort = Port(6502),
@@ -198,6 +208,7 @@ proc precompile*(engine: TimEngine, flush = true,
         # engine.importsHandle.excl(file.getPath())
         engine.resolveDependants(engine.importsHandle.dependencies(file.getPath).toSeq)
       hasChanges = true
+      notifyAllClients()
 
     # Callback `onDelete`
     proc onDelete(file: watchout.File) =
