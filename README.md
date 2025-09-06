@@ -37,7 +37,6 @@ or more like a _todo list_
 - 🎉 Spread the word! **Tell your friends about Tim Engine**
 - ⚽️ Play with Tim Engine in your next web-project
 - 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
-- 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
 
 ### 🎩 License
 Tim Engine | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
