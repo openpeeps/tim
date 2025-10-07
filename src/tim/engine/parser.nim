@@ -6,8 +6,8 @@
 
 import std/[macros, lexbase, tables, strutils, critbits, options]
 
-import ./tokens
-# import ./lexer
+# import ./tokens
+import ./lexer
 
 import ./[errors, ast]
 
@@ -31,7 +31,8 @@ const
   LogicalOperators = {tkAnd, tkAndAnd, tkOr, tkOrOr}
   ComparisonOperators = {tkEQ, tkNE, tkGT, tkGTE, tkLT, tkLTE}
   Operators = ComparisonOperators + MathOperators + {tkAmp, tkAssign}
-  Assignables = {tkBool, tkString, tkInteger, tkFloat, tkIdentifier}
+  Strings = {tkSqString, tkString}
+  Assignables = {tkBool, tkInteger, tkFloat, tkIdentifier} + Strings
 
 proc error(tk: TokenTuple, msg: string) =
   ## Raise a parsing error on the given node.
@@ -190,7 +191,7 @@ template caseNotNil(x: Node, body, then): untyped =
   else: then
 
 proc isChild(tk, parent: TokenTuple): bool {.inline.} =
-  tk.pos > parent.pos and (tk.line > parent.line and tk.kind != tkEOF)
+  tk.col > parent.col and (tk.line > parent.line and tk.kind != tkEOF)
 
 proc isInfix(p: var Parser): bool {.inline.} =
   p.curr.kind in Operators
@@ -268,7 +269,7 @@ proc parseCommaList(p: var Parser, start, term: static TokenKind,
         # handle colon expressions
         # a list of `key: value` pairs
         # where `key` is an identifier or a string
-        if p.curr in {tkString, tkIdentifier, tkType}:
+        if p.curr in {tkIdentifier, tkType} + Strings:
           let nodeKey: Node = p.createIdentNode()
           expectWalk tkColon:
             let nodeVal: Node = p.parseExpression()
@@ -338,8 +339,8 @@ prefixHandle parseImportStmt:
 
 template anyAttrIdent: untyped =
   (
-    (p.curr in {tkString, tkIdentifier, tkType, tkIf, tkFor,
-      tkElif, tkElse, tkOr, tkIn} and p.next is tkAssign) or
+    ((p.curr in {tkIdentifier, tkType, tkIf, tkFor,
+      tkElif, tkElse, tkOr, tkIn} + Strings) and p.next is tkAssign) or
     (
       (p.curr is tkIdentifier and p.curr.value[0] in IdentChars) and
       (p.curr.line == el.line or (p.curr.isChild(el) and p.next is tkAssign))
@@ -466,7 +467,7 @@ prefixHandle parseElement:
     # else: return nil
   else:
     if p.curr is tkLP and
-      (p.curr.line == tk.line or p.curr.pos > tk.pos):
+      (p.curr.line == tk.line or p.curr.col > tk.col):
         p.parseAttributes(result.attributes, tk)
     else: discard
   
@@ -477,7 +478,7 @@ prefixHandle parseElement:
     let valNode = p.parseExpression()
     caseNotNil valNode:
       result.childElements.add(valNode)
-  of tkString:
+  of Strings:
     # parse a string value and add it as a child element
     let strNode: Node = p.parseString() 
     result.childElements.add(strNode)  
@@ -494,20 +495,20 @@ prefixHandle parseElement:
       case p.next.kind
       of tkIdentifier:
         walk p
-        p.curr.pos = p.lvl
+        p.curr.col = p.lvl
         node = p.parseElement()
         caseNotNil node:
-          if p.curr isnot tkEOF and p.curr.pos > 0:
+          if p.curr isnot tkEOF and p.curr.col > 0:
             if p.curr.line > node.ln:
               let currentParent = p.parentNode[^1]
-              while p.curr.pos > (currentParent.col - 1):
+              while p.curr.col > currentParent.col:
                 if p.curr is tkEOF: break
                 var subNode = p.parseStmt()
                 caseNotNil subNode:
                   node.childElements.add(subNode)
-                if p.curr.pos < (currentParent.col - 1):
+                if p.curr.col < currentParent.col:
                   try:
-                    dec p.lvl, (currentParent.col - 1) div p.curr.pos
+                    dec p.lvl, currentParent.col div p.curr.col
                   except DivByZeroDefect:
                     discard
                   delete(p.parentNode, p.parentNode.high)
@@ -528,21 +529,23 @@ prefixHandle parseElement:
   if p.curr isnot tkEOF:
     var currentParent = p.parentNode[^1]
     if p.curr.line > currentParent.ln:
-      if p.curr.pos > (currentParent.col - 1):
+      if p.curr.col > currentParent.col:
         inc p.lvl
-        while p.curr.pos > (currentParent.col - 1):
+        while p.curr.col > currentParent.col:
           if p.curr is tkEOF: break
           var subNode = p.parseStmt()
           caseNotNil subNode:
             add result.childElements, subNode
-          if p.curr is tkEOF or p.curr.pos == 0: break # prevent division by zero
-          if p.curr.pos < (currentParent.col - 1):
+          if p.curr is tkEOF or p.curr.pos == 0:
+            # prevent division by zero
+            break
+          if p.curr.col < currentParent.col:
             dec p.lvl
             delete(p.parentNode, p.parentNode.high)
             break
-          elif p.curr.pos == (currentParent.col - 1):
+          elif p.curr.col == currentParent.col:
             dec p.lvl
-        if p.curr.pos == 0:
+        if p.curr.col == 0:
           p.lvl = 0 # reset level
 
 proc parseBlock(p: var Parser, indentPos = 0,
@@ -561,7 +564,7 @@ proc parseBlock(p: var Parser, indentPos = 0,
   while p.curr isnot tkEOF:
     if closingBlock and p.curr is tkRC:
       walk p; break # tkRC
-    elif not closingBlock and p.curr.pos <= indentPos: break
+    elif not closingBlock and p.curr.col <= indentPos: break
     let subNode = p.parseStmt()
     caseNotNil subNode:
       stmts.add(subNode)
@@ -577,7 +580,7 @@ prefixHandle parseForLoop:
     expectWalk(tkIN)
     let iterExpr: Node = p.parseExpression() 
     caseNotNil iterExpr:
-      let body: Node = p.parseBlock(tokenFor.pos)
+      let body: Node = p.parseBlock(tokenFor.col)
       caseNotNil body:
         result = ast.newTree(nkFor, itemVar, iterExpr, body)
 
@@ -587,7 +590,7 @@ prefixHandle parseWhileLoop:
   walk p # tkWhile
   let whileExpr: Node = p.parseExpression()
   caseNotNil whileExpr:
-    let whileBlock: Node = p.parseBlock(tokenWhile.pos)
+    let whileBlock: Node = p.parseBlock(tokenWhile.col)
     caseNotNil whileBlock:
       result = ast.newTree(nkWhile, whileExpr, whileBlock)
 
@@ -598,25 +601,25 @@ prefixHandle parseIf:
   let ifExpr: Node = p.parseExpression()
   caseNotNil ifExpr:
     var children = @[ifExpr]
-    let ifBlock: Node = p.parseBlock(tokenIf.pos)
+    let ifBlock: Node = p.parseBlock(tokenIf.col)
     caseNotNil ifBlock:
       children.add(ifBlock)
     
     # handle elif statements
     while p.curr is tkELIF:
-      # if p.curr.pos != tokenIf.pos: break # todo error
+      # if p.curr.col != tokenIf.col: break # todo error
       let tokenElif = p.curr
       walk p # tkELIF
       let elifExpr: Node = p.parseExpression()
       caseNotNil elifExpr:
-        let elifBlock: Node = p.parseBlock(tokenIf.pos)
+        let elifBlock: Node = p.parseBlock(tokenIf.col)
         caseNotNil elifBlock:
           children.add(@[elifExpr, elifBlock])
     # handle else statement, if available
     if p.curr is tkELSE:
       let tokenElse = p.curr
       walk p # tkELSE
-      let elseBlock: Node = p.parseBlock(tokenIf.pos)
+      let elseBlock: Node = p.parseBlock(tokenIf.col)
       caseNotNil elseBlock:
         children.add(elseBlock)
     result = ast.newTree(nkIf, children)
@@ -625,7 +628,7 @@ prefixHandle parseStaticStmt:
   # parse a statement inside a `static` block
   result = ast.newNode(nkStatic)
   walk p # tkStatic
-  p.curr.pos = 0
+  p.curr.col = 0
   let stmtNode: Node = p.parseStmt()
   caseNotNil stmtNode:
     result.add(stmtNode)
@@ -707,7 +710,7 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
       of tkAssign:
         # parse an implicit assignment
         walk p # tkAssign
-        val = p.parseExpression(minPrec = 45)
+        val = p.parseExpression(minPrec = 0)
         break
       of tkComma:
         # parse a comma separated list of identifiers
@@ -771,7 +774,7 @@ proc parseFunctionHead(p: var Parser, isAnon: bool;
 
 prefixHandle parseFunction:
   # parse a function definition
-  let fnpos = p.curr.pos
+  let fnpos = p.curr.col
   walk p # tkFunction
   var name, genericParams, formalParams: Node
   let isAnon = p.curr.kind != tkIdentifier
@@ -784,7 +787,7 @@ prefixHandle parseFunction:
 
 prefixHandle parseIterator:
   # parse an iterator
-  let tokenIterator = p.curr.pos
+  let tokenIterator = p.curr.col
   walk p # tkIterator
   var name, genericParams, formalParams: Node
   parseFunctionHead(p, isAnon = false, name, genericParams, formalParams)
@@ -818,7 +821,7 @@ proc parseMacroFunctionHead(p: var Parser, isAnon: bool;
 
 prefixHandle parseMacroFunction:
   # parse a block function
-  let fnpos = p.curr.pos
+  let fnpos = p.curr.col
   walk p # tkFunction
   var name, genericParams, formalParams: Node
   let isAnon = p.curr.kind != tkIdentifier
@@ -848,7 +851,7 @@ prefixHandle parseBlockCall:
       # and mark expectRP as true to expect a closing parenthesis
       expectRP = true
       walk p # tkLP
-    elif p.curr.pos <= tokenAt.pos: return # result
+    elif p.curr.col <= tokenAt.col: return # result
 
     # parse arguments separated by comma
     while true:
@@ -858,13 +861,13 @@ prefixHandle parseBlockCall:
       of tkRP:
         if expectRP:
           walk p # the end of comma separated arg list
-          if p.curr.pos > tokenAt.pos:
+          if p.curr.col > tokenAt.col:
             continue
         break
       of Assignables + {tkIdentVar}:
-        if not expectRP and p.curr.pos <= tokenAt.pos: break
-        elif p.curr.line > tokenAt.line and p.curr.pos > tokenAt.pos: break
-        # elif p.curr.pos > tokenAt.pos and p.curr.line > tokenAt.line:
+        if not expectRP and p.curr.col <= tokenAt.col: break
+        elif p.curr.line > tokenAt.line and p.curr.col > tokenAt.col: break
+        # elif p.curr.col > tokenAt.col and p.curr.line > tokenAt.line:
         #   p.curr.error(ErrBadIndentation)
         let arg = p.parseExpression()
         caseNotNil arg:
@@ -892,9 +895,21 @@ prefixHandle parseCall:
     walk p # tkLP
   if p.curr isnot tkRP:
     while true:
-      let arg = p.parseExpression()
-      caseNotNil arg:
-        result.add(arg)
+      if p.curr.kind == tkIdentVar and p.next.kind == tkAssign:
+        # parse a named argument
+        let name = ast.newIdent(p.curr.value)
+        walk p # tkIdentifier
+        walk p # tkAssign
+        let value = p.parseExpression()
+        let namedArg = ast.newTree(nkColon, name, value)
+        result.add(namedArg)
+      else:
+        # parse a normal argument
+        let arg = p.parseExpression()
+        caseNotNil arg:
+          result.add(arg)
+      
+      # checking for the next token
       case p.curr.kind
       of tkComma:
         walk p # skip to next argument
@@ -988,7 +1003,7 @@ prefixHandle parseObject:
       of tkEOF: break
       of tkRC:
         walk p; break # end of the object
-      of tkIdentifier, tkString:
+      of Strings + {tkIdentifier}:
         # parse a field name. it can be either a string or an identifier
         # let fieldName = p.curr
         # walk p # tkIdentifier/tkString
@@ -1007,6 +1022,16 @@ prefixHandle parseViewPlaceholder:
   result = ast.newNode(nkViewLoader)
   walk p
 
+prefixHandle parseClientBlock:
+  ## Parse a client block
+  result = ast.newNode(nkClientBlock)
+  walk p # tkClient
+  let blockNode: Node = p.parseBlock(p.curr.col)
+  caseNotNil blockNode:
+    result.add(blockNode)
+  if p.curr is tkEnd:
+    walk p # tkEnd should not be necessary if 
+
 proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
   # Get the prefix function for the current token
   # This is used to parse the current token
@@ -1016,7 +1041,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkBool: parseBoolean
     of tkInteger: parseInteger
     of tkFloat: parseFloat
-    of tkString: parseString
+    of Strings: parseString
     of tkIdentVar: parseIdentVar
     of tkIf: parseIf
     of tkLitObject: parseObject
@@ -1044,6 +1069,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkEcho: parseEcho
     of tkDoc: parseDocComment
     of tkViewLoader: parseViewPlaceholder
+    of tkClient: parseClientBlock
     else: nil
 
 prefixHandle parsePrefix:
@@ -1075,7 +1101,8 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
   var lhs = p.parsePrefix(minPrec)
   caseNotNil lhs:
     while true:
-      # 1. Handle infix operators (including dot and bracket)
+      # handle infix operators
+      # including dot and bracket access
       var opStr: string
       var prec: int
       var isBracket = false
@@ -1150,17 +1177,19 @@ prefixHandle parseStmt:
     of tkLitObject: parseObject
     of tkDoc: parseDocComment
     of tkViewLoader: parseViewPlaceholder
+    of tkClient: parseClientBlock
     else: parseExpression
   if prefixFn != nil:
     return prefixFn(p)
 
-proc parseScript*(astProgram: var Ast, code: string) =
+proc parseScript*(astProgram: var Ast, code: string, sourcePath: string) =
   var p = Parser(lex: newLexer(code))
   # defer: p.lex.close()
   p.curr = p.lex.getToken()
   p.next = p.lex.getToken()
   p.skipComments()
   astProgram = Ast()
+  astProgram.sourcePath = sourcePath
   while p.curr.kind != tkEOF:
     let node: Node = p.parseStmt()
     caseNotNil node:

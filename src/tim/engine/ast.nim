@@ -77,6 +77,7 @@ type
     nkJavaScriptSnippet
     nkDocComment     # doc comment - <!-- ... -->
     nkViewLoader     # view loader using `@view` placeholder
+    nkClientBlock    # client block using `@client ... @end`
 
     nkObjectStorage  # object storage - used to store JSON-like objects
 
@@ -123,6 +124,7 @@ type
       children*: seq[Node]
 
   Ast* {.acyclic.} = ref object
+    sourcePath*: string
     nodes*: seq[Node]
 
 const LeafNodes = {nkEmpty..nkIdent}
@@ -319,6 +321,8 @@ proc render*(node: Node): string =
     result = "<!-- " & node[0].render & " -->"
   of nkViewLoader:
     result = "@view\n"
+  of nkClientBlock:
+    result = "@client\n" & node[0].render.indent(2) & "\n@end"
 
 proc newNode*(kind: NodeKind): Node =
   ## Construct a new node.
