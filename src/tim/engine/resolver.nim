@@ -7,13 +7,16 @@
 import std/[os, tables]
 
 type
-  ResolvedFiles = TableRef[string, seq[string]]
+  ResolvedFiles = Table[string, seq[string]]
   FileResolver* = object
-    resolvedFiles*: ResolvedFiles
+    ## Manages file resolution for imports/includes
+    resolvedFiles: ResolvedFiles
+      # Tracks which files have been resolved (imported/included)
 
   ResolverError* = object of CatchableError
 
 proc initResolver*(): FileResolver =
+  ## Initialize a new FileResolver
   result.resolvedFiles = ResolvedFiles()
 
 proc fileExists*(resolver: FileResolver, filePath: string): bool =
@@ -51,7 +54,6 @@ proc resolveFile*(resolver: var FileResolver, aFile, bFile: string) =
   ## TODO handle symlinks
   if not resolver.fileExists(bFile):
     raise newException(ResolverError, "File does not exist: " & bFile)
-
   if resolver.resolvedFiles.hasKey(aFile):
     if bFile == aFile:
       raise newException(ResolverError, "Self-import detected: " & aFile)

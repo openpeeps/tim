@@ -7,7 +7,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[tables]
+import std/[tables, hashes, dynlib]
 
 import value
 
@@ -20,6 +20,8 @@ type
     opcPushTrue = "pushTrue"
     opcPushFalse = "pushFalse"
     opcPushNil = "pushNil"
+    opcPushJNil = "pushJNil"      ## push a JSON nil
+    
     opcPushI = "pushI"            ## push int
     opcPushF = "pushF"            ## push float
     opcPushS = "pushS"            ## push string
@@ -27,13 +29,20 @@ type
     opcPopG = "popG"              ## pop global
     opcPushL = "pushL"            ## push local
     opcPopL = "popL"              ## pop local
+
+    opcFFIGetProc = "ffiGetProc"     ## get a symbol from a dynamic library
+    opcPushPointer = "pushPointer"   # push a pointer value onto the stack
+    opcPopPointer = "popPointer"     # pop a pointer value from the stack
     
     opcConstrObj = "constrObj"    ## construct object
 
     opcGetF = "getF"              ## push field
     opcSetF = "setF"              ## pop field
+    
     opcConstrArray = "constrArray"  ## construct array
     opcGetI = "getI"                ## get array item
+    opcSetI = "setI"                ## set array item
+
     opcDiscard = "discard"        ## discard values
 
     # json operations
@@ -95,8 +104,10 @@ type
     opcViewLoader = "viewLoader"  ## load a view
     opcHalt = "halt"              ## halt the VM
 
-  Script* = ref object
+  Script* {.acyclic.} = ref object
     stdpos*: int
+    libs*: Table[string, LibHandle]
+      ## a table of dynamic libraries loaded by this script
     procs*: seq[Proc]
       ## all procs declared in this script
     procsExport*: seq[Proc]
@@ -118,7 +129,7 @@ type
     ln, col: int
     runLength: int
 
-  Chunk* = ref object
+  Chunk* {.acyclic.} = ref object
     ## A chunk of bytecode.
     file*: string            ## the filename of the module this chunk belongs to
     code*: seq[uint8]        ## the raw bytecode
@@ -131,7 +142,7 @@ type
     pkNative   ## a native (bytecode) proc
     pkForeign  ## a foreign (Nim) proc
 
-  Proc* = ref object
+  Proc* {.acyclic.} = ref object
     ## A runtime procedure.
     name*: string
     case kind*: ProcKind
@@ -144,7 +155,6 @@ type
 
 proc addLineInfo*(chunk: var Chunk, n: int) =
   ## Add ``n`` line info entries to the chunk.
-
   if chunk.lineInfo.len > 0:
     if chunk.lineInfo[^1].ln == chunk.ln and
        chunk.lineInfo[^1].col == chunk.col:
@@ -190,6 +200,11 @@ proc emit*(chunk: var Chunk, val: float64) =
   ## Emit a `float`.
   chunk.addLineInfo(ValueSize)
   chunk.code.add(cast[array[sizeof(float64), uint8]](val))
+
+proc emit*(chunk: var Chunk, xptr: pointer) =
+  ## Emit a `pointer`.
+  chunk.addLineInfo(sizeof(pointer))
+  chunk.code.add(cast[array[sizeof(pointer), uint8]](xptr))
 
 proc emitHole*(chunk: var Chunk, size: int): int =
   ## Emit a hole, to be filled later by ``fillHole``.
@@ -261,3 +276,10 @@ proc newScript*(main: Chunk): Script =
   ## Create a new script, with the given main chunk.
   result = Script(mainChunk: main)
 
+proc hash*(x: Chunk): Hash =
+  ## Hashes a Chunk by its address
+  hash(cast[pointer](x))
+
+proc `==`*(a, b: Chunk): bool =
+  ## Compares two Chunks by address
+  hash(a) == hash(b)

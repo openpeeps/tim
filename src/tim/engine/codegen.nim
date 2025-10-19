@@ -7,10 +7,14 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[macros, options, os, hashes,
+import std/[macros, options, os, hashes, ropes,
         sequtils, strutils, ropes, tables, json]
 
 import ./[ast, chunk, errors, sym, value, resolver]
+import ./transpilers/jsgen
+import ./utils
+
+import ../pm/manager
 
 type
   ContextAllocator {.acyclic.} = ref object
@@ -33,10 +37,9 @@ type
     gkBlockProc
     gkIterator
     gkHtmlNest
-  
-  # CachedChunks* = CritBitTree[string]
-    ## A tree of cached html attributes
-    ## such as class, id, etc.
+
+  CodeGenCache* = object
+    cachedAst*: Table[string, Ast]
   
   CodeGen* {.acyclic.} = object
     ## a code generator for a module or proc.
@@ -62,6 +65,7 @@ type
       iterForCtx: Context       # the for loop's context
     counter: uint16
     resolver: FileResolver
+    pkgr: Packager              # the package manager used for resolving packages
 
   TempParamDef* = tuple
     pName: string
@@ -69,6 +73,8 @@ type
     pKindIdent: string
     pImplSym: Sym
     isMut, isOpt: bool
+
+var codegenCache* = CodeGenCache()
 
 proc error*(node: Node, msg: string) =
   ## Raise a compile error on the given node.
@@ -85,6 +91,15 @@ proc warn(node: Node, msg: string) =
   stdout.styledWriteLine(fgYellow, styleBright, "Warning ",
       resetStyle, fgDefault, ErrorFmt % ["", $node.ln, $node.col, msg])
 
+#
+# forward declarations
+#
+proc declareVar*(gen: var CodeGen, name: Node, kind: SymKind, ty: Sym,
+                isMagic = false, varExport = false): Sym {.discardable.}
+
+proc pushDefault(gen: var CodeGen, ty: Sym)
+proc popVar(gen: var CodeGen, name: Node)
+
 proc allocCtx*(allocator: ContextAllocator): Context =
   ## Allocate a new context
   while result in allocator.occupied:
@@ -98,13 +113,20 @@ proc freeCtx*(allocator: ContextAllocator, ctx: Context) =
   allocator.occupied.del(index)
 
 proc initCodeGen*(script: Script, module: Module, chunk: Chunk,
-        kind = gkToplevel, ctxAllocator: ContextAllocator = nil): CodeGen =
-  result = CodeGen(script: script, module: module,
-                    chunk: chunk, kind: kind)
+        kind = gkToplevel, ctxAllocator: ContextAllocator = nil,
+        pkgr: Packager = nil): CodeGen =
+  result = CodeGen(
+    script: script,
+    module: module,
+    chunk: chunk,
+    kind: kind,
+    pkgr: pkgr
+  )
   if ctxAllocator == nil:
     result.ctxAllocator = ContextAllocator()
     result.context = result.ctxAllocator.allocCtx()
   result.resolver = initResolver()
+  
   # else:
   #   result.ctxAllocator = ctxAllocator
   #   result.context = ctxAllocator.allocCtx()
@@ -287,8 +309,7 @@ proc declareVar*(gen: var CodeGen, name: Node, kind: SymKind, ty: Sym,
 
   # check if the variable's name is not ``result`` when in a non-void proc
   if not isMagic and gen.kind == gkProc and gen.procReturnTy.tyKind != tyVoid:
-    if name.ident == "result":
-      name.error(ErrShadowResult)
+    if name.ident == "result": name.error(ErrShadowResult)
 
   # create the symbol for the variable
   assert kind in skVars, "Got " & $(kind) & " expected " & $(skVars)
@@ -314,7 +335,7 @@ proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym
 proc genScript*(program: Ast, includePath: Option[string],
               emitHalt: static bool = true) {.codegen.}
 
-proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.}
+proc genExpr(node: Node, varUnwrap = true): Sym {.codegen.}
 proc genBlock(node: Node, isStmt: bool): Sym {.codegen.}
 proc genStmt(node: Node) {.codegen.}
 proc genProc(node: Node, isInstantiation = false): Sym {.codegen.}
@@ -473,34 +494,38 @@ proc lookup(gen: var CodeGen, symName: Node, quiet = false): Sym =
     name = symName     # regular ident
   of nkCall:
     name = symName[0]  # function call
-  of nkVarTy: name = symName.varType
+  of nkVarTy:
+    name = symName.varType
   of nkIndex:
     if symName[0].kind == nkIndex:
       # todo handle deeply nested generic instantiation
       return gen.lookup(symName[0], quiet)  # generic instantiation
     name = symName[0]  # generic instantiation
   else: discard
+  
   if name == nil or name.kind != nkIdent:
+    # invalid symbol name
     symName.error(ErrInvalidSymName % symName.render)
+  
   let id = 
     if name.ident.len > 1:
       name.ident[0] & name.ident[1..^1].toLowerAscii()
     else:
       name.ident
 
+  # try find the symbol in the types table
   result = gen.typeLookup(id)
   
   # try find the symbol in the variables table
-  if result == nil:
-    result = gen.varLookup(id)
-  
+  if result == nil: result = gen.varLookup(id)
+
   # try find the symbol in the functions table
-  if result == nil:
-    result = gen.funcLookup(id)
+  if result == nil: result = gen.funcLookup(id)
 
   if result == nil:
     if not quiet:
       name.error(ErrUndefinedReference % $name)
+      return
 
   if symName.kind == nkIndex:
     if result.isGeneric:
@@ -572,8 +597,11 @@ proc pushDefault(gen: var CodeGen, ty: Sym) =
     gen.chunk.emit(opcPushNil)
     gen.chunk.emit(uint16(tyFirstObject + ty.objectId))
   of tyJson:
-    gen.chunk.emit(opcPushNil)
+    gen.chunk.emit(opcPushJNil)
     gen.chunk.emit(uint16(tyJsonStorage))
+  of tyPointer:
+    gen.chunk.emit(opcPushPointer)
+    gen.chunk.emit(uint16(tyPointer))
   # of tyNil:
   #   gen.chunk.emit(opcNoop)
   else: discard  # unreachable
@@ -680,8 +708,9 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
   ## symbol.
   var callee: Node
   var args: seq[Node]
-  assert ast.kind in {nkPrefix, nkInfix, nkCall, nkBracket,
-              nkDot, nkIdent, nkString, nkArray}
+  # the AST node must be one of the following kinds
+  assert ast.kind in {nkPrefix, nkInfix,
+          nkCall, nkBracket, nkDot, nkIdent, nkString, nkArray}
   case ast.kind
   of nkPrefix:
     callee = ast[0]
@@ -700,17 +729,23 @@ proc splitCall(ast: Node): tuple[callee: Sym, args: seq[Node]] {.codegen.} =
       args = ast[1..^1]
   of nkDot:
     let calleeLookup = gen.lookup(ast[0])
-    assert calleeLookup.kind in skVars, "Expected a variable, got " & $calleeLookup.kind
-    if calleeLookup.varTy.tyKind == tyObject:
-      return (calleeLookup.varTy, @[ast])
-    elif calleeLookup.varTy.tyKind == tyJson:
-      # if the callee is a json storage we'll emit an error
-      # because json fields/items cannot be called using dot notation
-      ast[1].error("Use bracket notation to access JSON fields or items")
-    else:
-      callee = ast[1]
-      args.add(ast[0])
-      args.add(ast[1][1..^1])
+    assert calleeLookup.kind in skVars,
+      "Expected a variable, got " & $calleeLookup.kind
+    case calleeLookup.varTy.tyKind
+      of tyObject:
+        return (calleeLookup.varTy, @[ast])
+      of tyPointer:
+        # echo "Pointer dot access not implemented yet"
+        # return (calleeLookup.varTy, @[ast])
+        discard
+      of tyJson:
+        # if the callee is a json storage we'll emit an error
+        # because json fields/items cannot be called using dot notation
+        ast[1].error("Use bracket notation to access JSON fields or items")
+      else:
+        callee = ast[1]
+        args.add(ast[0])
+        args.add(ast[1][1..^1])
   of nkBracket:
     # this is an array access, so we return the array and the index
     # as the callee and the argument, respectively
@@ -779,22 +814,27 @@ proc prefix(node: Node): Sym {.codegen.} =
   # TODO: see infix()
   var noBuiltin = false # is no builtin operator available?
   let ty = gen.genExpr(node[1]) # generate the operand's code
+  
+  # number operators
   if ty in [gen.module.sym"int", gen.module.sym"float"]:
-    # number operators
     let isFloat = ty == gen.module.sym"float"
     case node[0].ident
-    of "+": discard # + is a noop
-    of "-": gen.chunk.emit(if isFloat: opcNegF else: opcNegI)
-    else: noBuiltin = true # non-builtin operator
-    result = ty
-  elif ty == gen.module.sym"bool":
-    # bool operators
+      of "+": discard # + is a noop
+      of "-": gen.chunk.emit(if isFloat: opcNegF else: opcNegI)
+      else: noBuiltin = true # non-builtin operator
+    return ty
+  
+  # bool operators
+  if ty == gen.module.sym"bool":
     case node[0].ident
-    of "not": gen.chunk.emit(opcInvB)
-    else: noBuiltin = true # non-builtin operator
-    result = ty
+      of "not": gen.chunk.emit(opcInvB)
+      else: noBuiltin = true # non-builtin operator
+    return ty
   else: noBuiltin = true
+  
   if noBuiltin:
+    # if no builtin operator is available, will try
+    # to call a procedure for the operator
     let procSym = gen.lookup(node[0])
     result = gen.callProc(procSym, argTypes = @[ty], node)
 
@@ -881,8 +921,7 @@ proc infix(node: Node): Sym {.codegen.} =
           sym = gen.lookup(receiver) # look the variable up
           valTy = gen.genExpr(value) # generate the value
         if valTy == sym.varTy:
-          # if the variable's type matches the type of
-          # the value, we're ok
+          # if the variable's type matches the type of the value, we're ok
           gen.popVar(receiver)
         else:
           node.error(ErrTypeMismatch % [$valTy.name, $sym.varTy.name])
@@ -1012,8 +1051,8 @@ proc objConstr(node: Node, ty: Sym, constructFromIdent = false): Sym {.codegen.}
     if explicitFields.hasKey(k):
       # Use the value from the object constructor
       let valTy = gen.genExpr(explicitFields[k])
-      if not valTy.sameType(field.ty):
-        node.error(ErrTypeMismatch % [$valTy.name, $field.ty.name])
+      if not unwrapType(valTy).sameType(field.ty):
+        node.error(ErrTypeMismatch % [$unwrapType(valTy).name, $field.ty.name])
     elif field.implVal != nil:
       # Use the field's default value from the object definition
       discard gen.genExpr(field.implVal.impl)
@@ -1088,89 +1127,104 @@ proc call(node: Node): Sym {.codegen.} =
     assert false, "indirect calls are not implemented yet: " & node.render
 
 proc genGetField(node: Node): Sym {.codegen.} =
-  # Generate code for field access.
-  # all fields must be idents, so we check for that.
-  case node[1].kind
-  of nkCall:
-    let (fnSym, fnParams) = gen.splitCall(node)
-    var argTypes: seq[Sym]
-    for arg in fnParams:
+  # Evaluate the receiver (can be an ident, bracket access, etc.)
+  var recvSym = gen.genExpr(node[0], varUnwrap = false)
+  var valTy: Sym =
+    if recvSym.kind in skVars: recvSym.varTy else: recvSym
+
+  # Pointers go through FFI
+  if valTy.tyKind == tyPointer:
+    if node[1].kind == nkCall:
+      for arg in node[1].children[1..^1]:
+        discard gen.genExpr(arg)
+      gen.chunk.emit(opcFFIGetProc)
+      gen.chunk.emit(gen.chunk.getString(node[1][0].ident))
+      gen.chunk.emit(uint8(node[1].children.len - 1))
+      return valTy
+    else:
+      node[1].error("Pointer member access must be a call")
+
+  # Only objects and JSON can be accessed with dot/bracket
+  if valTy.tyKind notin {tyObject, tyJson}:
+    node[0].error(ErrTypeMismatch % [$valTy.name, "object|json"])
+
+  # If it's JSON, dot notation is not supported
+  if valTy.tyKind == tyJson and node[1].kind != nkBracket:
+    node[1].error("Use bracket notation to access JSON fields or items")
+
+  # Method call on receiver: item.fn(...)
+  if node[1].kind == nkCall:
+    let callee = node[1][0]
+    var fnSym = gen.lookup(callee)
+    var argTypes: seq[Sym] = @[valTy]  # receiver first; it's already on stack
+    for arg in node[1].children[1..^1]:
       argTypes.add(gen.genExpr(arg))
     return gen.callProc(fnSym, argTypes, node)
-  else: discard
+
   if node[1].kind notin {nkIdent, nkBracket}:
     node[1].error(ErrInvalidField % $node[1])
-  var valTy = gen.genExpr(node[0])  # generate the left-hand side
-  var varTy: SymKind
-  case valTy.kind
-  of skVars:
-    varTy = valTy.kind
-    valTy = valTy.varTy
-  else: discard
 
-  # get the field's name
+  # Resolve field name
   var fieldName: string
   if node[1].kind == nkIdent:
     fieldName = node[1].ident
   elif node[1].kind == nkBracket and node[1][0].kind == nkIdent:
-    # if the field is accessed using the bracket notation, we use the ident
-    # inside the brackets as the field name
     fieldName = node[1][0].ident
-  # only objects have fields. we also check if the given object *does* have the
-  # field in question, and generate an error if not
+
+  # Direct object field access
   if valTy.tyKind == tyObject and valTy.objectFields.hasKey(fieldName):
-    # we use the getF opcode to push fields onto the stack.
     let field = valTy.objectFields[fieldName]
     result = field.ty
     gen.chunk.emit(opcGetF)
     gen.chunk.emit(field.id.uint8)
   else:
-    # if the field doesn't actually exist, we find
-    # an appropriate proc that will retrieve it for us
-    let getter = gen.lookup(node[1])
-    if getter == nil:
-      node[1].error(ErrNonExistentField % [fieldName, $valTy])
-    result = gen.callProc(getter, argTypes = @[valTy], errorNode = node)
+    let getter = gen.lookup(node[1], quiet = true)
+    if getter != nil:
+      result = gen.callProc(getter, argTypes = @[valTy], errorNode = node)
+    else:
+      if valTy.tyKind == tyJson:
+        node[1].error("Use bracket notation to access JSON fields or items")
+      else:
+        node[1].error(ErrNonExistentField % [fieldName, $valTy])
 
 proc genArrayAccess(node: Node): Sym {.codegen.} =
-  # Generate code for array access.
-  # This is used for both arrays and JSON nodes (json arrays and objects)
+  # Handle array access using bracket notation.
+  # also handles JSON object/array access using bracket notation.
   var
     valTy = gen.genExpr(node[0])
     indexTy = gen.genExpr(node[1])
 
-  case valTy.kind
-  of skVars:
-    valTy = valTy.varTy
-  else: discard
-
-  case indexTy.kind
-  of skVars:
-    indexTy = indexTy.varTy
-  else: discard
+  # unwrap value type if it's a variable
+  if valTy.kind in skVars:  valTy = valTy.varTy
+  
+  # unwrap index type if it's a variable
+  if indexTy.kind in skVars: indexTy = indexTy.varTy
 
   case valTy.tyKind
   of tyJson:
     # generate the code for accessing a JSON array
     if indexTy.tyKind notin {tyInt, tyString}:
-      # check if the index is actually an int or a string
-      # because both JSON arrays and objects can be accessed
-      # using the bracket notation
       node[1].error(ErrTypeMismatch % [$indexTy.name, "int|string"])
     gen.chunk.emit(opcGetJ)
     result = valTy
   of tyObject:
     if indexTy.tyKind != tyString:
-      # check if the index is actually an int
       node[1].error(ErrTypeMismatch % [$indexTy.name, "string"])
-    # todo support getting fields from objects using the bracket notation
-    # this is not supported yet, so we just raise an error
-    echo "not implemented yet: accessing object fields using the bracket notation"
+    # Allow bracket access for constant string keys
+    if node[1].kind == nkString:
+      let key = node[1].stringVal
+      if valTy.objectFields.hasKey(key):
+        let field = valTy.objectFields[key]
+        gen.chunk.emit(opcGetF)
+        gen.chunk.emit(field.id.uint8)
+        return field.ty
+      else:
+        node[1].error(ErrNonExistentField % [key, $valTy])
+    # dynamic string keys not supported at codegen time yet
+    echo "not implemented yet: accessing object fields using dynamic string keys"
     result = valTy
   of tyArray:
-    # generate the code to access the array
     if indexTy.tyKind != tyInt:
-      # check if the index is actually an int
       node[1].error(ErrTypeMismatch % [$indexTy.name, "int"])
     assert valTy.arrayTy != nil, "Array type must have an element type"
     gen.chunk.emit(opcGetI)
@@ -1202,7 +1256,7 @@ proc genIf(node: Node, isStmt: bool): Sym {.codegen.} =
     let
       cond = branches[i]
       condTy = gen.genExpr(cond)
-    if condTy.tyKind != tyBool:
+    if condTy.tyKind notin {tyBool, tyJson}:
       cond.error(ErrTypeMismatch % [$condTy.name, "bool"])
 
     # if the condition is false, jump past the branch
@@ -1228,7 +1282,7 @@ proc genIf(node: Node, isStmt: bool): Sym {.codegen.} =
     gen.chunk.emit(opcJumpFwd)
     jumpsToEnd.add(gen.chunk.emitHole(2))
 
-    # we also need to fill the previously created jump after the branch
+    # we also need to fill in the previously created jump after the branch
     gen.chunk.patchHole(afterBranch)
     # after the branch, there's another branch or the end of the if statement
 
@@ -1470,8 +1524,10 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
     formalParams = node[2]
     body = node[3]
     genericParams =
-      if not isInstantiation: gen.collectGenericParams(node[1])
-      else: seq[Sym].none
+      if not isInstantiation:
+        # collect generic params if we're not instantiating
+        gen.collectGenericParams(node[1])
+      else: none(seq[Sym])
     params = gen.collectParams(formalParams, genericParams)
     returnTy = # empty return type == void
       if formalParams[0].kind != nkEmpty:
@@ -1516,19 +1572,19 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
     # stmtVar.varSet = true
     # procGen.pushDefault(gen.module.sym"string")
     
-    # define the default `blockAttributes` variable
+    # define the default `attrs` variable
     # this is used to store the attributes of the block.
-    let blockAttributes = newIdent("blockAttributes")
-    procGen.declareVar(blockAttributes, skVar, gen.module.sym"string", isMagic = true)
+    let attrs = newIdent("attrs")
+    procGen.declareVar(attrs, skVar, gen.module.sym"string", isMagic = true)
     procGen.pushDefault(gen.module.sym"string")
-    procGen.popVar(blockAttributes)
+    procGen.popVar(attrs)
     
     # defines the default `blockStmt` variable
     # this is used to store any additional statements
     # provided at call time
-    let blockStmt = newIdent("blockStmt")
-    procGen.declareVar(blockStmt, skVar, gen.module.sym"any", isMagic = true)
-    procGen.popVar(blockStmt)
+    # let blockStmt = newIdent("blockStmt")
+    # procGen.declareVar(blockStmt, skVar, gen.module.sym"any", isMagic = true)
+    # procGen.popVar(blockStmt)
 
     # add the proc into the script
     gen.script.procs.add(theProc)
@@ -1592,7 +1648,6 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
           gen.chunk.emit(opcAttr) # emit the attribute opcode
         else:
           # if the attribute is a simple identifier, we just emit it
-          gen.chunk.emit(opcWSpace)
           discard gen.genExpr(attr.attrNode)
           gen.chunk.emit(opcAttrKey)
       else: discard
@@ -1612,8 +1667,6 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
   if gen.kind == gkToplevel:
     gen.kind = gkHtmlNest
 
-  # if the node has any subnodes, we need to
-  # generate code for them and push them onto the stack
   if node.childElements.len > 0:
     gen.pushScope()
     for subNode in node.childElements:
@@ -1629,8 +1682,12 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
           gen.chunk.emit(opcInnerHtml)
           gen.genStmt(subNode)
         else:
-          discard gen.genExpr(subNode)
-          gen.chunk.emit(opcTextHtml)
+          let returnType: Sym = gen.genExpr(subNode)
+          if returnType.tyKind != tyVoid:
+            # if the return type is not void, we emit it as text
+            # so the returned value is rendered as text
+            # inside the HTML element
+            gen.chunk.emit(opcTextHtml)
       else:
         gen.chunk.emit(opcInnerHtml)
         gen.genStmt(subNode)
@@ -1641,7 +1698,10 @@ proc htmlConstr(node: Node): Sym {.codegen.} =
     gen.chunk.emit(opcCloseHtml)
     gen.chunk.emit(tagPos)
 
-proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.} =
+  if gen.kind == gkHtmlNest:
+    gen.kind = gkToplevel
+
+proc genExpr(node: Node, varUnwrap = true): Sym {.codegen.} =
   # Generates code for an expression.
   case node.kind
   of nkBool, nkInt, nkFloat, nkString:  # constants
@@ -1651,15 +1711,19 @@ proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.} =
   of nkIdent:                     # variables
     var symNode = gen.lookup(node)
     case symNode.kind:
-    of skType:
-      case symNode.tyKind
-      of tyObject:
-        return gen.objConstr(node, symNode, constructFromIdent = true)
+      of skType:
+        case symNode.tyKind
+          of tyObject:
+            # object construction from type identifier
+            return gen.objConstr(node, symNode, constructFromIdent = true)
+          else: discard
       else: discard
-    else: discard
+    # push the variable's value onto the stack
     gen.pushVar(symNode)
-    return (if varUnwrap: symNode.varTy
-      else: symNode)
+    return (
+      if varUnwrap: symNode.varTy
+      else: symNode
+    )
   of nkPrefix:                    # prefix operators
     result = gen.prefix(node)
   of nkInfix:
@@ -1667,6 +1731,9 @@ proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.} =
     result = gen.infix(node)
   of nkDot:
     # generate code for object/class field access
+    # var symNode = gen.lookup(node[0])
+    # echo symNode.name
+    # gen.pushVar(symNode)
     result = gen.genGetField(node)
   of nkBracket:
     # handle array access using square brackets `$a[0]`
@@ -1679,7 +1746,6 @@ proc genExpr(node: Node, varUnwrap = false): Sym {.codegen.} =
     result = gen.genArray(node)        # array declaration
   of nkObjectStorage:
     result = gen.genObjectStorage(node)
-    # result = gen.objConstr(node, gen.lookup(node[0]), constructFromIdent = true)
   of nkObject:
     # object literal
     result = gen.genObject(node)
@@ -1783,12 +1849,26 @@ proc genFor(node: Node) {.codegen.} =
   var argTypes: seq[Sym]
   for arg in iterParams:
     argTypes.add(iterGen.genExpr(arg))
+  
   # resolve the iterator's overload
   var theIter = gen.findOverload(iterSym, argTypes, node[1], quiet = true)
 
   if theIter.kind != skIterator:
     node[1].error(ErrSymKindMismatch % [$skIterator, $theIter.kind])
   gen.resolveGenerics(theIter, argTypes, node[1])
+
+  # If the iterator's yield type is an "empty object", try to adopt the
+  # element shape from the first argument when it's an array of objects.
+  if theIter.iterYieldTy.tyKind == tyObject and theIter.iterYieldTy.objectFields.len == 0:
+    if argTypes.len > 0:
+      var src = argTypes[0]
+      if src.kind in skVars: src = src.varTy
+      let srcTy = unwrapType(src)
+      if srcTy.tyKind == tyArray and srcTy.arrayTy != nil:
+        let elem = unwrapType(srcTy.arrayTy)
+        if elem.tyKind == tyObject and elem.objectFields.len > 0:
+          theIter.iterYieldTy = elem
+
   iterGen.iter = theIter
 
   # declare all the variables passed as the iterator's arguments
@@ -1870,9 +1950,10 @@ proc genYield(node: Node) {.codegen.} =
 
   # create a new iter flow block with the for loop variable
   gen.pushFlowBlock(fbLoopIter)
-  var loopVar = gen.declareVar(gen.iterForVar, skLet, gen.iter.iterYieldTy)
-  loopVar.varSet = true
 
+  let loopVar = gen.declareVar(gen.iterForVar, skLet, gen.iter.iterYieldTy)
+  loopVar.varSet = true
+  
   # run the for loop's body
   discard gen.genBlock(gen.iterForBody, isStmt = true)
 
@@ -1880,10 +1961,10 @@ proc genYield(node: Node) {.codegen.} =
   gen.popFlowBlock()
   gen.context = myCtx
 
-
 proc genArray(node: Node, isInstantiation = false): Sym {.codegen.} =
   ## Generate code for an array literal, instantiating array[T] for the element type.
   assert node.children.len > 0, "Cannot create an empty array without type inference"
+  
   # Infer the element type from the first element
   let elemTy = gen.genExpr(node[0])
   gen.chunk.emit(opcDiscard)
@@ -1892,12 +1973,17 @@ proc genArray(node: Node, isInstantiation = false): Sym {.codegen.} =
   # Instantiate array[T] with the element type
   let arrayTypeSym = gen.typeLookup("array")
   let instArrayType = gen.instantiate(arrayTypeSym, @[elemTy], node)
+  
   # Store all items and check their type
+  let firstItemTy = unwrapType(elemTy)
   for n in node.children:
     let itemTy = gen.genExpr(n)
-    if not itemTy.sameType(elemTy):
-      n.error(ErrTypeMismatch % [$itemTy.name, $elemTy.name])
+    let itemTyUnwrap = unwrapType(itemTy)
+    if not itemTyUnwrap.sameType(firstItemTy):
+      # checking if the other type is the same as the first element's type
+      n.error(ErrTypeMismatch % [$itemTyUnwrap.name, $firstItemTy.name])
     instArrayType.arrayItems.add(itemTy)
+  
   instArrayType.arrayTy = elemTy
   instArrayType.genericInstArgs = some(@[elemTy])
   # Emit code to construct the array
@@ -1906,11 +1992,16 @@ proc genArray(node: Node, isInstantiation = false): Sym {.codegen.} =
   result = instArrayType
 
 proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.} =
-  # Generate code for an object storage
+  # Generate code for an object storage. This creates an anonymous object type
+  # with the given fields, and emits code to construct it.
   result = newType(tyObject, name = nil, impl = node)
   for n in node.children:
+    let key =
+      if n[0].kind == nkIdent: n[0].ident
+      elif n[0].kind == nkString: n[0].stringVal
+      else: n[0].error("Invalid object field key: " & $n[0].kind); ""
     let valTy = gen.genExpr(n[1])
-    result.objectFields[n[0].ident] = (
+    result.objectFields[key] = (
       id: result.objectFields.len,
       name: n[0],
       ty: valTy,
@@ -1935,7 +2026,7 @@ proc genObject(node: Node, isInstantiation = false): Sym {.codegen.} =
   # process the object's fields
   result.objectId = gen.script.typeCount
   inc(gen.script.typeCount)
-  
+
   # get the fields' type
   for fields in node[2]:
     let
@@ -1945,7 +2036,6 @@ proc genObject(node: Node, isInstantiation = false): Sym {.codegen.} =
           gen.genExpr(fields[^1])
         else:
           nil
-        
     # create all the fields with the given type
     for name in fields[0..^3]:
       result.objectFields[name.ident] = (
@@ -1954,7 +2044,6 @@ proc genObject(node: Node, isInstantiation = false): Sym {.codegen.} =
         ty: fieldsTy,
         implVal: fieldImplValue
       )
-
   # if the object had generic params, pop their scope
   if not isInstantiation and result.isGeneric:
     gen.popScope()
@@ -2057,11 +2146,9 @@ proc genVar(node: Node) {.codegen.} =
       if valTy != nil and valTyImpl != nil:
         # before declaring the variable, we need to check if
         # the variable's type matches the expected type
-        if not valTy.sameType(valTyImpl):
-          decl[^1].error(ErrTypeMismatch % [$valTy.name, $valTyImpl.name])
+        if not unwrapType(valTy).sameType(unwrapType(valTyImpl)):
+          decl[^1].error(ErrTypeMismatch % [$unwrapType(valTy).name, $unwrapType(valTyImpl).name])
       else:
-        # if the variable's type is not specified, we can use the
-        # implicit value's type as the variable's type
         valTy = valTyImpl
 
       # declare the variable in the current scope
@@ -2072,15 +2159,30 @@ import ./parser
 proc genImport(node: Node) {.codegen.} =
   # handle import statements
   for pathNode in node.children:
+    var path: string
     var moduleProgram: Ast
-    # todo expose a custom extension for the import
-    var path = 
-      absolutePath(
-        if pathNode.stringVal.endsWith".timl":
-          pathNode.stringVal
+
+    if pathNode.stringVal.startsWith("pkg/") and gen.pkgr != nil:
+      # handle package imports
+      let pkgPath = pathNode.stringVal.split("/")
+      if gen.pkgr.hasPackage(pkgPath[1]):
+        let filePath = if pkgPath.len > 2:
+          pkgPath[2..^1].join("/") # specific file in module, exclude main module
         else:
-          pathNode.stringVal & ".timl"
-      )
+          pkgPath[1..^1].join("/") # default to main module
+        path = gen.pkgr.getModulePath(pkgPath[1], filePath)
+      else:
+        pathNode.error(ErrImportError % pkgPath[1])
+    else:
+      # handle file imports and includes
+      path = absolutePath(
+          if pathNode.stringVal.endsWith".timl":
+            pathNode.stringVal
+          else:
+            pathNode.stringVal & ".timl"
+        )
+
+    # resolve the module's path
     let aFile = absolutePath(gen.module.src.get())
     try:
       gen.resolver.resolveFile(aFile, path)
@@ -2089,10 +2191,16 @@ proc genImport(node: Node) {.codegen.} =
 
     case node.kind
     of nkImport:
-      parser.parseScript(moduleProgram, readFile(path))
-      # initialize a new code generator for the import
-      # this is a new script, so we need to initialize
-      # the code generator with the new script and module
+      if gen.kind != gkToplevel:
+        node.error(ErrImportOnlyTopLevel)
+        return
+      if codegenCache.cachedAst.hasKey(path):
+        # first, check if we have a cached AST for the module
+        moduleProgram = codegenCache.cachedAst[path]
+      else:
+        # parse the module's source code into an AST
+        parser.parseScript(moduleProgram, readFile(path), path)
+
       var
         importChunk = newChunk()
         importScript = newScript(importChunk)
@@ -2107,6 +2215,7 @@ proc genImport(node: Node) {.codegen.} =
 
       # initialize the code generator
       var moduleGen: CodeGen = initCodeGen(importScript, importModule, importChunk)
+      moduleGen.resolver = gen.resolver
       
       # generate the module's script based
       # on the parsed module AST program
@@ -2127,16 +2236,19 @@ proc genImport(node: Node) {.codegen.} =
     of nkInclude:
       # include the module into the current script
       if gen.includePath.isSome:
-        # if the include path is set, we can use it to resolve the module
+        # if the include path is set,
+        # we can use it to resolve the module
         path = gen.includePath.get() / path
-      parser.parseScript(moduleProgram, readFile(path))
-      var
-        importChunk = newChunk()
-        importScript = newScript(importChunk)
-        importModule = newModule(path.extractFilename, some(path))
+      if codegenCache.cachedAst.hasKey(path):
+        moduleProgram = codegenCache.cachedAst[path]
+      else:
+        parser.parseScript(moduleProgram, readFile(path), path)
+      # parser.parseScript(moduleProgram, readFile(path), path)
       for n in moduleProgram.nodes:
         gen.genStmt(n)
     else: discard
+    codegenCache.cachedAst[path] = moduleProgram
+
     # todo handle errors
     # except ParseError as e:
     #   # if the module could not be parsed, emit an error
@@ -2180,14 +2292,18 @@ proc genStmt(node: Node) {.codegen.} =
     gen.genComment(node) # generate HTML comment
   of nkViewLoader:
     gen.chunk.emit(opcViewLoader)
+  of nkClientBlock:
+    # gen.chunk.emit(opcClientBlock)
+    var jst = jsgen.initCodeGen(gen.script, gen.module, gen.chunk)
+    let jsSnippet: Rope = jsgen.genScript(jst, node[0].children)
+    # gen.chunk.emit(opcClientBlockEnd)
   else:                                         # expression statement
     let ty = gen.genExpr(node)
     if ty != gen.module.sym"void":
       # if the expression's type is non-void, discard the result.
-      # TODO: discard statement for clarity and better maintainability
+      node.error(ErrUseOrDiscard % [node.render, $ty.name])
       # gen.chunk.emit(opcDiscard)
       # gen.chunk.emit(1'u8)
-      node.error(ErrUseOrDiscard % [node.render, $ty.name])
 
 proc genBlock(node: Node, isStmt: bool): Sym {.codegen.} =
   # Generate a block of code. Every block creates a new scope
@@ -2286,3 +2402,15 @@ proc paramDef*(name: string, kind: TypeKind, val: Value = nil,
 proc addIterator*(script: Script, module: Module, name: string) =
   ## Add a foreign iterator into the specified module.
   discard # todo
+  ## Add a foreign iterator into the specified module.
+  discard # todo
+
+proc initCompiler*(script: Script, module: Module, chunk: Chunk): CodeGen =
+  ## Initialize a new code generator with a new script and module.
+  result = initCodeGen(script, module, chunk)
+  # declare a predefined variable `this`
+  let this = newIdent("this")
+  result.declareVar(this, skConst, result.module.sym"json", isMagic = true)
+  # result.pushVar(this)
+  # result.pushDefault(result.module.sym"json")
+  # result.popVar(this)

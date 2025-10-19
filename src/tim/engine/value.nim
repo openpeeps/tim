@@ -27,34 +27,41 @@ const
   tyJsonStorage* = 11
   tyArrayObject* = 12
   tyHtmlObject* = 13
+  tyPointer* = 14
 
 type
   TypeId* = range[0..32766]  # max amount of case object branches
 
-  Object* = ref object
+  Object* {.acyclic.} = ref object
     ## A hayago object.
     case isForeign*: bool
-      of true: data*: pointer
-      of false: fields*: seq[Value]
+    of true:
+      data*: pointer
+        ## the foreign data pointer
+      libpath*: string
+        ## the path to the dynamic library this foreign object came from
+    of false:
+      fields*: seq[Value]
+        ## the fields of this object
   
   HtmlObject* = object
 
-  Value* = ref object
+  Value* {.acyclic.} = ref object
     case typeId*: TypeId  ## the type ID, used for dynamic dispatch
-    of tyBool:
-      boolVal*: bool
-    of tyInt:
-      intVal*: int64
-    of tyFloat:
-      floatVal*: float64
-    of tyString:
-      stringVal*: ref string
-    of tyJsonStorage:
-      jsonVal*: JsonNode
-    of tyHtmlObject:
-      htmlObject*: HtmlObject
-    else:
-      objectVal*: Object
+      of tyBool:
+        boolVal*: bool
+      of tyInt:
+        intVal*: int64
+      of tyFloat:
+        floatVal*: float64
+      of tyString:
+        stringVal*: ref string
+      of tyJsonStorage:
+        jsonVal*: JsonNode
+      of tyHtmlObject:
+        htmlObject*: HtmlObject
+      else:
+        objectVal*: Object
 
   ValuePtr* = Value
     ## A pointer to a value.
@@ -88,6 +95,13 @@ proc `$`*(value: Value): string =
       if i < len - 1:
         result.add(", ")
     result.add("]")
+  of tyPointer:
+    case value.objectVal.isForeign:
+    of true:
+      if value.objectVal == nil or value.objectVal.data == nil:
+        result = "pointer<nil>"
+      else: result = "pointer<0x" & $cast[uint](value.objectVal.data) & ">"
+    else: discard
   else: result = "<object>"
 
 proc toString*(value: JsonNode): string =
@@ -123,6 +137,11 @@ proc initValue*(v: JsonNode): Value =
   ## Initializes a JSON value.
   result = Value(typeId: tyJsonStorage)
   result.jsonVal = v
+
+proc initValue*(nptr: pointer, libpath: string): Value =
+  ## Initializes a pointer value.
+  result = Value(typeId: tyPointer)
+  result.objectVal = Object(isForeign: true, data: nptr, libpath: libpath)
 
 proc initValue*[T: tuple | object | ref](id: TypeId, value: T): Value =
   ## Safely initializes a foreign object value.

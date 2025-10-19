@@ -219,7 +219,7 @@ proc parsePrefix(p: var Parser, minPrec = 0): Node
 proc parseExpression(p: var Parser, minPrec = 0): Node
 proc parseIdent(p: var Parser, minPrec = 0): Node
 proc parseCall(p: var Parser, minPrec = 0): Node
-proc parseBlockCall(p: var Parser, minPrec = 0): Node
+proc parseMacroCall(p: var Parser, minPrec = 0): Node
 
 #
 # Parse handlers
@@ -386,6 +386,12 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
           attrs.add(ast.newHtmlAttribute(htmlAttrID, identNode))
         do: return
       else: break
+    of tkIdentVar, tkIdentVarSafe:
+      # parse a variable as an html attribute
+      let identNode = p.parseExpression()
+      caseNotNil identNode:
+        attrs.add(ast.newHtmlAttribute(htmlAttr, identNode))
+      do: return
     else:
       # parse a `key="value"` html attribute
       if anyAttrIdent():
@@ -398,11 +404,17 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
             caseNotNil attrValue:
               let attrNode: Node = newHtmlAttribute(htmlAttrClass, attrValue)
               attrs.add(attrNode)
-              continue # no need to continue
+              continue
             do: break
         elif p.curr.value == "id":
-          # todo handle `id` attribute
-          break
+          walk p # tkIdentifier `id`
+          expectWalk tkAssign:
+            let attrValue: Node = p.parseExpression()
+            caseNotNil attrValue:
+              let attrNode: Node = newHtmlAttribute(htmlAttrID, attrValue)
+              attrs.add(attrNode)
+              continue
+            do: break
         var attr = ast.newStringLit(p.curr.value)
         walk p # tk any attribute name
         if p.curr is tkColon:
@@ -519,7 +531,7 @@ prefixHandle parseElement:
           return result
       of tkAt:
         walk p
-        let blockNode: Node = p.parseBlockCall()
+        let blockNode: Node = p.parseMacroCall()
         caseNotNil blockNode:
           result.childElements.add(blockNode)
       else: return
@@ -832,7 +844,7 @@ prefixHandle parseMacroFunction:
     caseNotNil fnBlock:
       result = ast.newTree(nkMacro, name, genericParams, formalParams, fnBlock)  
 
-prefixHandle parseBlockCall:
+prefixHandle parseMacroCall:
   # parse a block call
   let tokenAt = p.curr
   walk p # tkAt
@@ -867,8 +879,6 @@ prefixHandle parseBlockCall:
       of Assignables + {tkIdentVar}:
         if not expectRP and p.curr.col <= tokenAt.col: break
         elif p.curr.line > tokenAt.line and p.curr.col > tokenAt.col: break
-        # elif p.curr.col > tokenAt.col and p.curr.line > tokenAt.line:
-        #   p.curr.error(ErrBadIndentation)
         let arg = p.parseExpression()
         caseNotNil arg:
           result.add(arg)
@@ -881,6 +891,22 @@ prefixHandle parseBlockCall:
           break # break the loop after adding the statement
         do: break
       else: break # nothing to add
+
+    # Inline nest support: @container() > @container() / @container() > div
+    # Only treat '>' as nesting if followed by an element or another macro.
+    while p.curr is tkGT and (p.next.kind in {tkIdentifier, tkAt}):
+      walk p # consume '>'
+      case p.curr.kind
+      of tkIdentifier:
+        let elNode = p.parseElement()
+        caseNotNil elNode:
+          result.add(elNode)
+      of tkAt:
+        let callNode = p.parseMacroCall()
+        caseNotNil callNode:
+          result.add(callNode)
+      else:
+        break
 
 prefixHandle parseCall:
   # parse a function call
@@ -1053,7 +1079,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
           parseElement
         else:
           parseIdent
-    of tkAt: parseBlockCall
+    of tkAt: parseMacroCall
     of tkLP:  parseParExpr
     of tkWhile: parseWhileLoop
     of tkFor: parseForLoop
@@ -1162,7 +1188,7 @@ prefixHandle parseStmt:
         parseCall
       else: parseElement
     of tkAt:
-      parseBlockCall
+      parseMacroCall
     of tkVar, tkConst: parseVar
     of tkIf: parseIf
     of tkWhile: parseWhileLoop
