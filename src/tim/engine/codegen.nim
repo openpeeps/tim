@@ -793,9 +793,10 @@ proc callProc(procSym: Sym, argTypes: seq[Sym],
   
     # resolve generic params
     gen.resolveGenerics(theProc, argTypes, errorNode)
-    
+
     # call the proc
     gen.chunk.emit(opcCallD)
+    gen.chunk.emit(gen.chunk.getString(gen.chunk.file))
     gen.chunk.emit(theProc.procId)
     result = theProc.procReturnTy
   elif procSym.kind in skVars:
@@ -807,7 +808,8 @@ proc callProc(procSym: Sym, argTypes: seq[Sym],
   #   result = theProc.procReturnTy
   else:
     # anything that is not a proc cannot be called
-    if errorNode != nil: errorNode.error(ErrNotAProc % $procSym.name)
+    if errorNode != nil:
+      errorNode.error(ErrNotAProc % $procSym.name)
 
 proc prefix(node: Node): Sym {.codegen.} =
   ## Generate instructions for a prefix operator.
@@ -1455,7 +1457,7 @@ proc genProc(node: Node, isInstantiation = false): Sym {.codegen.} =
   # not generic, generate its code
   if not sym.isGeneric or isInstantiation:
     var
-      chunk = newChunk()
+      chunk = newChunk(gen.chunk.file)
       procGen = initCodeGen(gen.script, gen.module, chunk, gkProc,
         ctxAllocator =
           if gen.kind == gkToplevel: nil
@@ -1549,7 +1551,7 @@ proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
   # if we're in an instantiation or the proc is not generic, generate its code
   if not sym.isGeneric or isInstantiation:
     var
-      chunk = newChunk()
+      chunk = newChunk(gen.chunk.file)
       procGen = initCodeGen(gen.script, gen.module, chunk, gkBlockProc,
         ctxAllocator =
           if gen.kind == gkToplevel: nil
@@ -2000,13 +2002,21 @@ proc genObjectStorage(node: Node, isInstantiation = false): Sym {.codegen.} =
       if n[0].kind == nkIdent: n[0].ident
       elif n[0].kind == nkString: n[0].stringVal
       else: n[0].error("Invalid object field key: " & $n[0].kind); ""
+
+    # push the key
+    gen.chunk.emit(opcPushS)
+    gen.chunk.emit(gen.chunk.getString(key))
+    
+    # push the field's value
     let valTy = gen.genExpr(n[1])
+
     result.objectFields[key] = (
       id: result.objectFields.len,
       name: n[0],
       ty: valTy,
       implVal: valTy
     )
+
   gen.chunk.emit(opcConstrObj)
   gen.chunk.emit(uint16(result.objectFields.len))
 
@@ -2200,9 +2210,9 @@ proc genImport(node: Node) {.codegen.} =
       else:
         # parse the module's source code into an AST
         parser.parseScript(moduleProgram, readFile(path), path)
-
+      
       var
-        importChunk = newChunk()
+        importChunk = newChunk(moduleProgram.sourcePath)
         importScript = newScript(importChunk)
         importModule = newModule(path.extractFilename, some(path))
 
@@ -2227,11 +2237,11 @@ proc genImport(node: Node) {.codegen.} =
         node.warn(WarnModuleAlreadyImported % pathNode.stringVal)
       
       # add the module to the current script's modules
-      gen.script.scripts[path] = moduleGen.script
+      gen.script.scripts[importChunk.file] = moduleGen.script
 
       # emit the import opcode
       gen.chunk.emit(opcImportModule)
-      gen.chunk.emit(gen.chunk.getString(path))
+      gen.chunk.emit(gen.chunk.getString(importChunk.file))
 
     of nkInclude:
       # include the module into the current script
@@ -2243,12 +2253,13 @@ proc genImport(node: Node) {.codegen.} =
         moduleProgram = codegenCache.cachedAst[path]
       else:
         parser.parseScript(moduleProgram, readFile(path), path)
-      # parser.parseScript(moduleProgram, readFile(path), path)
       for n in moduleProgram.nodes:
         gen.genStmt(n)
     else: discard
+    
+    # cache the parsed AST for future imports
     codegenCache.cachedAst[path] = moduleProgram
-
+    
     # todo handle errors
     # except ParseError as e:
     #   # if the module could not be parsed, emit an error
@@ -2284,14 +2295,10 @@ proc genStmt(node: Node) {.codegen.} =
   of nkObject: discard gen.genObject(node)
   # of nkTypeDef: discard gen.genTypeDef(node)    # type definition
   of nkHtmlElement: discard gen.htmlConstr(node) # HTML element construction
-  of nkJavaScriptSnippet:
-    discard gen.storeJavaScript(node) # JavaScript snippet
-  of nkImport, nkInclude:
-    gen.genImport(node) # import statement
-  of nkDocComment:
-    gen.genComment(node) # generate HTML comment
-  of nkViewLoader:
-    gen.chunk.emit(opcViewLoader)
+  of nkJavaScriptSnippet: discard gen.storeJavaScript(node) # JavaScript snippet
+  of nkImport, nkInclude: gen.genImport(node) # import statement
+  of nkDocComment: gen.genComment(node) # generate HTML comment
+  of nkViewLoader: gen.chunk.emit(opcViewLoader)
   of nkClientBlock:
     # gen.chunk.emit(opcClientBlock)
     var jst = jsgen.initCodeGen(gen.script, gen.module, gen.chunk)
@@ -2310,7 +2317,8 @@ proc genBlock(node: Node, isStmt: bool): Sym {.codegen.} =
   gen.pushScope()
   for i, s in node:
     if isStmt:
-      # if it's a statement block, generate its children normally
+      # if it's a statement block,
+      # generate its children normally
       gen.genStmt(s)
     else:
       # otherwise, treat the last statement as

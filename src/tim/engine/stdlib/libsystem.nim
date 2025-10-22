@@ -23,26 +23,27 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
   ## declarations of hayago-side things, eg. iterators.
   var astProgram: Ast
   try:
-    parser.parseScript(astProgram, code)
+    parser.parseScript(astProgram, code, "std/system/inline")
   except TimParserError as e:
     echo e.msg
     quit(1)
-  
   try:
-    var codeChunk = newChunk()
+    # var codeChunk = newChunk()
     var gen = initCodeGen(script, module, script.mainChunk)
     gen.genScript(astProgram, none(string), emitHalt = false)
   except TimCompileError as e:
     echo e.msg
     quit(1)
 
+
 const
   Globals* = """
 const app* = parseJSON('$globalData')
-const this* = parseJSON('$localData')
-"""
-  InlineCode* = """
+//const this* = parseJSON('$localData')
 
+"""
+
+  InlineCode* = """
 iterator `..`*(min: int, max: int): int {
   var i = $min
   if $i >= $max {
@@ -56,6 +57,15 @@ iterator `..`*(min: int, max: int): int {
 }
 
 iterator items*(arr: json): json {
+  var i = 0
+  const total = len($arr)
+  while $i < $total {
+    yield($arr[$i])
+    inc($i)
+  }
+}
+
+iterator items*(arr: array[object]): object {
   var i = 0
   const total = high($arr)
   while $i <= $total {
@@ -72,7 +82,16 @@ iterator items*(arr: array[string]): string {
     inc($i)
   }
 }
-  """
+
+iterator items*(arr: array[int]): int {
+  var i = 0
+  const total = high($arr)
+  while $i <= $total {
+    yield($arr[$i])
+    inc($i)
+  }
+}
+"""
 
 proc initSystemOps(script: Script, module: Module) =
   ## Add builtin operations into the module.
@@ -106,6 +125,11 @@ proc initSystemOps(script: Script, module: Module) =
     script.addProc(module, "-=", @[paramDef("a", T[0], mut = true), paramDef("b", T[1])], tyVoid)
     script.addProc(module, "*=", @[paramDef("a", T[0], mut = true), paramDef("b", T[1])], tyVoid)
     script.addProc(module, "/=", @[paramDef("a", T[0], mut = true), paramDef("b", T[1])], tyVoid)
+
+    script.addProc(module, ">=", @[paramDef("a", T[0]), paramDef("b", T[1])], tyBool)
+    script.addProc(module, "<=", @[paramDef("a", T[0]), paramDef("b", T[1])], tyBool)
+    script.addProc(module, ">",  @[paramDef("a", T[0]), paramDef("b", T[1])], tyBool)
+    script.addProc(module, "<",  @[paramDef("a", T[0]), paramDef("b", T[1])], tyBool)
   
   script.addProc(module, "==", @[paramDef("a", tyBool), paramDef("b", tyBool)], tyBool)
   script.addProc(module, "!=", @[paramDef("a", tyBool), paramDef("b", tyBool)], tyBool)
@@ -177,6 +201,7 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
         of tyJsonStorage: "json"
         of tyArrayObject: "array"
         of tyHtmlObject: "html"
+        # of tyPointer: "pointer"
         else: "object"
       result = initValue(valueType))
 
@@ -257,7 +282,21 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
     proc (args: StackView): Value =
       case args[0].objectVal.isForeign
       of false:
-        echo args[0].objectVal.fields
+        var res = "{"
+        let obj = args[0].objectVal
+        for i in 0..<obj.keys.len:
+          res.add(obj.keys[i] & ": ")
+          case obj.fields[i].typeId
+          of 4: # string
+            res.add("\"" & obj.fields[i].stringVal[] & "\"")
+          of 15: # object
+            res.add("[Object]")
+          else: # other types
+            res.add($obj.fields[i])
+          if i < obj.keys.len - 1:
+            res.add(", ")
+        res.add("}")
+        echo res
       else:
         echo "{...}"
     )
@@ -267,13 +306,21 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
       debugEcho args[0]
     )
 
+  script.addProc(result, "echo", @[paramDef("x", tyPointer)], tyVoid,
+    proc (args: StackView): Value =
+      if args[0].objectVal == nil or args[0].objectVal.data == nil:
+        echo "pointer(nil)"
+      else:
+        echo "pointer(", $(cast[int64](args[0].objectVal.data)), ")"
+    )
+
   let genT = ast.newIdent("T")
   let genArrayType = newSym(skGenericParam, genT, impl = genT)
   genArrayType.constraint = result.sym"any"
 
-  script.addProc(result, "len", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
-    proc (args: StackView): Value =
-      result = initValue(len(args[0].objectVal.fields)))
+  # script.addProc(result, "len", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
+  #   proc (args: StackView): Value =
+  #     result = initValue(len(args[0].objectVal.fields)))
 
   # script.addProc(result, "high", @[paramDef("x", tyArray, sym = genArrayType)], tyInt,
   #   proc (args: StackView): Value =
@@ -343,6 +390,14 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
     proc (args: StackView): Value =
       result = initValue($(args[0].boolVal) & args[1].stringVal[]))
 
+  script.addProc(result, "&", @[paramDef("x", tyString), paramDef("y", tyJson)], tyString,
+    proc (args: StackView): Value =
+      case args[1].jsonVal.kind
+      of JString:
+        result = initValue(args[0].stringVal[] & args[1].jsonVal.getStr())
+      else: discard # todo error?
+    )
+
   #
   # Echo `$` operator
   #
@@ -372,6 +427,10 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
   script.addProc(result, "len", @[paramDef("x", tyString)], tyInt,
     proc (args: StackView): Value =
       result = initValue(len(args[0].stringVal[])))
+
+  script.addProc(result, "len", @[paramDef("x", tyJson)], tyInt,
+    proc (args: StackView): Value =
+      result = initValue(len(args[0].jsonVal)))
 
   #
   # Built-in OS Operations

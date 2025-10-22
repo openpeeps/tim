@@ -7,7 +7,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[tables, hashes, dynlib]
+import std/[tables, hashes, dynlib, strutils]
 
 import value
 
@@ -133,8 +133,10 @@ type
     ## A chunk of bytecode.
     file*: string            ## the filename of the module this chunk belongs to
     code*: seq[uint8]        ## the raw bytecode
-    ln*, col*: int           ## the current line info, used when emitting \
-                             ## bytecode
+    ln*: int = 1
+      ## the current line number, used when emitting ## bytecode
+    col*: int
+      ## the current column number, used when emitting bytecode
     lineInfo: seq[LineInfo]  ## a list of run-length encoded line info
     strings*: seq[string]    ## seq of strings used in this chunk
 
@@ -264,13 +266,13 @@ proc getLineInfo*(chunk: Chunk, i: int): LineInfo =
   var n = 0
   for li in chunk.lineInfo:
     for r in 1..li.runLength:
-      if n == i:
-        return li
+      if n == i: return li
       inc(n)
 
-proc newChunk*(): Chunk =
+proc newChunk*(file: string): Chunk =
   ## Create a new chunk.
-  result = Chunk(ln: 1, col: 0)
+  # result = Chunk(file: $hash(file), col: 0)
+  result = Chunk(file: file, col: 0)
 
 proc newScript*(main: Chunk): Script =
   ## Create a new script, with the given main chunk.
@@ -283,3 +285,15 @@ proc hash*(x: Chunk): Hash =
 proc `==`*(a, b: Chunk): bool =
   ## Compares two Chunks by address
   hash(a) == hash(b)
+
+proc hash*(x: Script): Hash =
+  ## Hashes a Script by its address
+  hash(cast[pointer](x))
+
+proc `$`*(c: Chunk): string =
+  ## Convert a Chunk to a string (for debugging).
+  result = "<chunk: $1>" % $(hash(c))
+
+proc `$`*(s: Script): string =
+  ## Convert a Script to a string (for debugging).
+  result = "<script: $1>" % $(hash(s))

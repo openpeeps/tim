@@ -27,7 +27,7 @@ const
   tyJsonStorage* = 11
   tyArrayObject* = 12
   tyHtmlObject* = 13
-  tyPointer* = 14
+  tyPointer* = 15
 
 type
   TypeId* = range[0..32766]  # max amount of case object branches
@@ -41,8 +41,12 @@ type
       libpath*: string
         ## the path to the dynamic library this foreign object came from
     of false:
+      keys*: seq[string]
+        ## the field names of this object
+        ## stored in the same order as `fields`
       fields*: seq[Value]
-        ## the fields of this object
+        ## the fields of this object, stored
+        ## in the same order as `keys`
   
   HtmlObject* = object
 

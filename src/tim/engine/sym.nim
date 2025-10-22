@@ -69,6 +69,7 @@ type
     tyInt = "int"        # int64
     tyFloat = "float"    # float64
     tyString = "string"  # ref string
+    tyPointer = "pointer" # a raw pointer type
     tyJson = "json"
     tyArray = "array"
     
@@ -130,23 +131,36 @@ type
       of tyCustom:
         discard # todo
       of tyHtmlElement: discard
+      of tyPointer:
+        pointerTarget*: Sym
+          ## The type this pointer points to (type info only)
     of skHtmlType:
       tag*, innerText*: string
       isVoidElement*: bool
     of skProc:
-      procId*: uint16              ## the unique number of the proc
-      procParams*: seq[ProcParam]  ## the proc's parameters
-      procReturnTy*: Sym           ## the return type of the proc
+      procId*: uint16
+        ## the unique number of the proc
+      procParams*: seq[ProcParam]
+         ## the proc's parameters
+      procReturnTy*: Sym
+        ## the return type of the proc
       procType*: ProcType
+        ## whether the proc is a normal function or a macro
       procExport*: bool
         ## whether the proc is exported or not
+      procMemoize*: bool
+        ## whether the proc is memoized or not.
+        ## todo: implement memoization
     of skIterator:
-      iterParams*: seq[ProcParam]  ## the iterator's parameters
-      iterYieldTy*: Sym            ## the yield type of the iterator
+      iterParams*: seq[ProcParam]
+        ## the iterator's parameters
+      iterYieldTy*: Sym
+        ## the yield type of the iterator
       iterExport*: bool
         ## whether the iterator is exported or not
     of skGenericParam:
-      constraint*: Sym  ## the generic type constraint
+      constraint*: Sym
+        ## the generic type constraint
     of skChoice:
       choices*: seq[Sym]
     genericParams*: Option[seq[Sym]]
@@ -394,12 +408,20 @@ proc genHtmlType*(kind: TypeKind, tag: HtmlTag): Sym =
     isVoidElement: tag in voidHtmlElements
   )
 
+proc unwrapType*(ty: Sym): Sym =
+  ## Unwraps a type from any `skVar` or `skLet` wrappers.
+  if ty.kind in skVars:
+    return ty.varTy
+  return ty
+
 proc sameType*(a, b: Sym): bool =
   ## Returns ``true`` if ``a`` and ``b`` are compatible types.
   # Unwrap variables to their types
   var (a, b) = (a, b)
   if a.kind in skVars: a = a.varTy
   if b.kind in skVars: b = b.varTy
+
+  # echo "sameType: ", $a, " (kind: ", a.kind, ") vs ", $b, " (kind: ", b.kind, ")"
 
   # Unwrap generic params to their constraints
   if a.kind == skGenericParam: a = a.constraint
@@ -657,6 +679,7 @@ proc initSystemTypes*(module: Module) =
   module.add(genType(tyAny, "stmt", true))
   module.add(genType(tyJson, "json", true))
   module.add(genType(tyObject, "object", true))
+  module.add(genType(tyPointer, "pointer", true))
 
 proc getModuleName*(module: Module): string =
   ## Get the module name for the JS export
