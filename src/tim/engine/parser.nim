@@ -18,8 +18,11 @@ type
     # internals
     parentNode: seq[Node]
     classCacheAttr: CritBitTree[Node]
-      # A critbit tree used to cache static class attributes
-      # prefixed with a dot (.) for faster parsing and memory usage optimization.
+      # Cache for HTML class attributes
+      # to optimize memory usage and speed up
+      # the parsing process. Since class names
+      # are often reused, caching them reduces
+      # redundant allocations.
     lvl: int
 
   TimParserError* = object of ValueError
@@ -337,14 +340,14 @@ prefixHandle parseImportStmt:
     caseNotNil path:
       result.add(path)
 
+const attrKinds = {tkIdentifier, tkType, tkIf,
+                tkFor, tkElif, tkElse, tkOr, tkIn} + Strings
 template anyAttrIdent: untyped =
   (
-    ((p.curr in {tkIdentifier, tkType, tkIf, tkFor,
-      tkElif, tkElse, tkOr, tkIn} + Strings) and p.next is tkAssign) or
-    (
-      (p.curr is tkIdentifier and p.curr.value[0] in IdentChars) and
-      (p.curr.line == el.line or (p.curr.isChild(el) and p.next is tkAssign))
-    )
+    ((p.curr in attrKinds and p.next is tkAssign) or
+      (p.curr is tkIdentifier and p.curr.value[0] in IdentChars)) and
+    (p.curr.line == el.line or (
+      p.curr.isChild(el) and p.next in {tkAssign, tkIdentifier}))
   )
 
 proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
@@ -357,17 +360,12 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
       walk p # tkDot
       if likely(anyAttrIdent()):
         if p.classCacheAttr.hasKey(p.curr.value):
-          # HTML attributes are cached in a CritBitTree
-          # to optimize memory usage and speed up
-          # the parsing process.
           attrs.add(p.classCacheAttr[p.curr.value])
         else:
           let attrNode = newHtmlAttribute(htmlAttrClass, ast.newStringLit(p.curr.value))
           attrs.add(attrNode)
           p.classCacheAttr[p.curr.value] = attrNode
         walk p
-        # todo support class attributes containing colons
-        # example `size:sm` 
       elif p.curr is tkIdentVar:
         let identNode = p.parseExpression()
         caseNotNil identNode:
@@ -400,19 +398,17 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
           # and create a single class attribute with all values
           walk p # tkIdentifier `class`
           expectWalk tkAssign:
-            let attrValue: Node = p.parseExpression()
+            let attrValue: Node = p.parseExpression(minPrec = 45)
             caseNotNil attrValue:
-              let attrNode: Node = newHtmlAttribute(htmlAttrClass, attrValue)
-              attrs.add(attrNode)
+              attrs.add(newHtmlAttribute(htmlAttrClass, attrValue))
               continue
             do: break
-        elif p.curr.value == "id":
+        if p.curr.value == "id":
           walk p # tkIdentifier `id`
           expectWalk tkAssign:
-            let attrValue: Node = p.parseExpression()
+            let attrValue: Node = p.parseExpression(minPrec = 45)
             caseNotNil attrValue:
-              let attrNode: Node = newHtmlAttribute(htmlAttrID, attrValue)
-              attrs.add(attrNode)
+              attrs.add(newHtmlAttribute(htmlAttrID, attrValue))
               continue
             do: break
         var attr = ast.newStringLit(p.curr.value)
@@ -425,7 +421,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
         if p.curr is tkAssign:
           # parse an HTML attribute with a value
           walk p # tkAssign
-          let infixNode: Node = ast.newInfix(nil, attr, p.parseExpression())
+          let infixNode: Node = ast.newInfix(nil, attr, p.parseExpression(minPrec = 45))
           let attrNode = ast.newHtmlAttribute(htmlAttr, infixNode)
           attrs.add(attrNode)
         else:
@@ -482,7 +478,7 @@ prefixHandle parseElement:
       (p.curr.line == tk.line or p.curr.col > tk.col):
         p.parseAttributes(result.attributes, tk)
     else: discard
-  
+
   # parse inline elements
   case p.curr.kind
   of tkColon:
@@ -491,9 +487,7 @@ prefixHandle parseElement:
     caseNotNil valNode:
       result.childElements.add(valNode)
   of Strings:
-    # parse a string value and add it as a child element
-    let strNode: Node = p.parseString() 
-    result.childElements.add(strNode)  
+    result.childElements.add(p.parseString())
   # of tkString, tkIdentVar:
   #   if p.curr.line == result.ln:
   #     let valNode = p.parseExpression()
