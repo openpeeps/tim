@@ -57,8 +57,8 @@ type
     byteOffset: int       ## original byte offset (opcode position in raw currentChunk)
 
 const
-  VMInitialPreallocatedStackSize* {.intdefine.} = 16
-  VMPreallocatedStackSize* {.intdefine.} = 4
+  VMInitialPreallocatedStackSize* {.intdefine.} = 64
+  VMPreallocatedStackSize* {.intdefine.} = 16
 
 proc newVm*(): Vm =
   result = Vm()
@@ -235,21 +235,27 @@ proc parseChunk(currentChunk: Chunk): CachedOps =
       addOp(oc)
 
   # Precompute jump targets
-  var byteToOp: Table[int,int]
-  for i, b in byteOffsets: byteToOp[b] = i
+  var byteToOp = newSeq[int](codeLen)
+  for i in 0..<codeLen: byteToOp[i] = -1
+  for i, b in byteOffsets:
+    if b >= 0 and b < codeLen: byteToOp[b] = i
+
   for i, oc in opcodes:
     case oc
     of opcJumpFwd, opcJumpFwdT, opcJumpFwdF:
       let dist = arg1[i].int
-      # forward target (old encoding)
       let operandStart = byteOffsets[i] + 1
       let targetByte = operandStart + (dist - 1)
-      if targetByte in byteToOp: jumpTargets[i] = byteToOp[targetByte]
+      if targetByte >= 0 and targetByte < codeLen:
+        let j = byteToOp[targetByte]
+        if j != -1: jumpTargets[i] = j
     of opcJumpBack:
       let dist = arg1[i].int
       let targetByte = byteOffsets[i] - dist
-      if targetByte in byteToOp: jumpTargets[i] = byteToOp[targetByte]
-    else: discard
+      if targetByte >= 0 and targetByte < codeLen:
+        let j = byteToOp[targetByte]
+        if j != -1: jumpTargets[i] = j
+    else: discard # no jump target
 
   result = CachedOps(
     opcodes: opcodes,
@@ -314,7 +320,9 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
 
   var
     stack: Stack = newSeqOfCap[Value](VMInitialPreallocatedStackSize)
-    callStack: seq[CallFrame]
+      # preallocated stack for local variables / evaluation
+    callStack: seq[CallFrame] # todo preallocate
+      # call stack for managing imports / function calls
     script = script
     currentChunk  = startChunk
 
