@@ -433,40 +433,25 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
     if pcIdx < 0 or pcIdx >= co.opcodes.len: break
     let oc = co.opcodes[pcIdx]
     
-    # additional debug output for stack operations
+    # single debug output for opcode/stack at top of loop
     when defined(hayaVmWriteStackOps):
       display(span("exec_opcode:", fgMagenta),
               span($oc), span("chunk=" & $currentChunk & " pcIdx=" & $pcIdx & " stack=" & $stack))
     case oc
     # Constants / simple pushes
     of opcPushNil:
-      # arg1 = object id (if you used it); produce a nil object placeholder
       stack.push(initObject(co.getArg1Int(pcIdx).uint16, nilObject))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "  PushNil: id=", co.getArg1Int(pcIdx)
     of opcPushI, opcPushF, opcPushS:
       co.pushConst(pcIdx, currentChunk, stack)
     of opcPushTrue:
       stack.push(initValue(true))
-      when defined(hayaVmWriteStackOps):
-        echo "PushTrue"
     of opcPushFalse:
       stack.push(initValue(false))
-      when defined(hayaVmWriteStackOps):
-        echo "PushFalse"
     of opcPushPointer:
-      discard         # pointer literal already embedded (ignored here)
-      
-      when defined(hayaVmWriteStackOps):
-        echo "PushPointer"
+      discard
     of opcPopPointer:
       if stack.len > 0:
         discard stack.pop()
-        
-
-        when defined(hayaVmWriteStackOps):
-          echo "PopPointer"
     of opcFFIGetProc:
       # FFI dynamic call: arg1= symbol string index, arg2 = argc
       let symbolName = co.getArg1Str(pcIdx, currentChunk)
@@ -545,55 +530,30 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
       finally:
         dealloc(paramsMem)
         dealloc(argsMem)
-
     # Variables
     of opcPushG:
       stack.push(vm.globals[co.getArg1Str(pcIdx, currentChunk)])
-      
-      when defined(hayaVmWriteStackOps):
-        echo "PushG: ", co.getArg1Str(pcIdx, currentChunk), " value=", stack[^1]
     of opcPopG:
       let val = stack.pop()
       vm.globals[co.getArg1Str(pcIdx, currentChunk)] = val
-      
-      when defined(hayaVmWriteStackOps):
-        echo "PopG: ", co.getArg1Str(pcIdx, currentChunk), " value=", val
     of opcPushL:
       let idx = co.getArg1Int(pcIdx)
       ensureLocal(idx)
       stack.push(stack[stackBottom + idx])
-      
-      when defined(hayaVmWriteStackOps):
-        echo "PushL: idx=", idx, " value=", stack[^1]
     of opcPopL:
       let idx = co.getArg1Int(pcIdx)
       ensureLocal(idx)
       let val = stack.pop()
       stack[stackBottom + idx] = val
-      
-      when defined(hayaVmWriteStackOps):
-        echo "PopL: idx=", idx, " value=", val
     # HTML generation
     of opcAttrClass:
       result.add("class=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
-      
-      when defined(hayaVmWriteStackOps):
-        echo "AttrClass: ", co.getArg1Str(pcIdx, currentChunk)
     of opcAttrId:
       result.add("id=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
-      
-      when defined(hayaVmWriteStackOps):
-        echo "AttrId: ", co.getArg1Str(pcIdx, currentChunk)
     of opcWSpace:
       result.add(" ")
-      
-      when defined(hayaVmWriteStackOps):
-        echo "WSpace"
     of opcAttrEnd:
       result.add(">")
-      
-      when defined(hayaVmWriteStackOps):
-        echo "AttrEnd"
     of opcAttr:
       let key = stack.pop().stringVal[]
       let value = stack.pop()
@@ -607,27 +567,15 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         result.add(value.jsonVal.toString())
       else: discard
       result.add("\"")
-      
-      when defined(hayaVmWriteStackOps):
-        echo "Attr: key=", key, " value=", value
     of opcAttrKey:
       let attr = stack.pop()
       if attr.stringVal[].len > 0:
         result.add(" ") # leading space
         result.add(attr.stringVal[])
-      
-      when defined(hayaVmWriteStackOps):
-        echo "AttrKey: ", attr
     of opcBeginHtmlWithAttrs:
       result.add("<" & co.getArg1Str(pcIdx, currentChunk))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "BeginHtmlWithAttrs: ", co.getArg1Str(pcIdx, currentChunk)
     of opcBeginHtml:
       result.add("<" & co.getArg1Str(pcIdx, currentChunk) & ">")
-      
-      when defined(hayaVmWriteStackOps):
-        echo "BeginHtml: ", co.getArg1Str(pcIdx, currentChunk)
     of opcTextHtml:
       let v = stack.pop()
       case v.typeId
@@ -637,20 +585,10 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
       of tyBool: result.add($(v.boolVal))
       of tyJsonStorage: result.add(v.jsonVal.toString())
       else: discard
-      
-      when defined(hayaVmWriteStackOps):
-        echo "TextHtml: ", v
     of opcInnerHtml:
       discard
-      
-      when defined(hayaVmWriteStackOps):
-        echo "InnerHtml"
     of opcCloseHtml:
       result.add("</" & co.getArg1Str(pcIdx, currentChunk) & ">")
-      
-      when defined(hayaVmWriteStackOps):
-        echo "CloseHtml: ", co.getArg1Str(pcIdx, currentChunk)
-    
     # Arrays / Objects
     of opcConstrArray:
       let count = co.getArg1Int(pcIdx)
@@ -661,25 +599,16 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
           arr.objectVal.fields[i] = vals[i]
         stack.setLen(stack.len - count)
       stack.push(arr)
-      
-      when defined(hayaVmWriteStackOps):
-        echo "ConstrArray: count=", count, " arr=", arr
     of opcGetI:
       let idxVal = stack.pop()
       let arr = stack.pop()
       stack.push(arr.objectVal.fields[idxVal.intVal])
-      
-      when defined(hayaVmWriteStackOps):
-        echo "GetI: idx=", idxVal.intVal, " value=", stack[^1]
     of opcSetI:
       let
         val = stack.pop()
         idxVal = stack.pop()
         arr = stack.pop()
       arr.objectVal.fields[idxVal.intVal] = val
-
-      when defined(hayaVmWriteStackOps):
-        echo "SetI: idx=", idxVal.intVal, " value=", val
     of opcConstrObj:
       let count = co.getArg1Int(pcIdx)
       var obj = initObject(15, count)
@@ -692,24 +621,16 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
           obj.objectVal.fields[i] = fieldValue
         stack.setLen(stack.len - (count * 2))
       stack.push(obj)
-      when defined(hayaVmWriteStackOps):
-        echo "ConstrObj: count=", count, " obj=", obj
     of opcGetF:
       let fld = co.getArg1Int(pcIdx)
       let obj = stack.pop()
       stack.push(obj.objectVal.fields[fld])
-      
-      when defined(hayaVmWriteStackOps):
-        echo "GetF: field=", fld, " value=", stack[^1]
     of opcSetF:
       let
         fld = co.getArg1Int(pcIdx)
         val = stack.pop()
         obj = stack.pop()
       obj.objectVal.fields[fld] = val
-      
-      when defined(hayaVmWriteStackOps):
-        echo "SetF: field=", fld, " value=", val
     # JSON (placeholders)
     of opcGetJ:
       let
@@ -723,28 +644,16 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         jsonValue = obj.jsonVal[key.stringVal[]]
       else: discard
       stack.push(initValue(jsonValue))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "GetJ: key=", key, " value=", jsonValue
     of opcSetJ:
       discard # TODO
-      
-      when defined(hayaVmWriteStackOps):
-        echo "SetJ: not implemented"
     # Discard
     of opcDiscard:
       let n = co.getArg1Int(pcIdx)
       if n > 0 and stack.len >= n:
         stack.setLen(stack.len - n)
-      
-      when defined(hayaVmWriteStackOps):
-        echo "Discard: n=", n, " stackLen=", stack.len
     # Arithmetic
     of opcNegI:
       let a = stack.pop(); stack.push(initValue(-a.intVal))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "NegI: a=", a, " result=", stack[^1]
     of opcAddI, opcSubI, opcMultI, opcDivI:
       let b = stack.pop() # rhs arg
       let a = stack.pop() # lhs arg
@@ -754,15 +663,9 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         of opcMultI: stack.push(initValue(a.intVal * b.intVal))
         of opcDivI: stack.push(initValue(a.intVal div b.intVal))
         else: discard
-      
-      when defined(hayaVmWriteStackOps):
-        echo "IntArith: ", oc, " a=", a.intVal, " b=", b.intVal, " result=", stack[^1]
     of opcNegF:
       let a = stack.pop()
       stack.push(initValue(-a.floatVal))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "NegF: a=", a, " result=", stack[^1]
     of opcAddF, opcSubF, opcMultF, opcDivF:
       let b = stack.pop()
       let a = stack.pop()
@@ -774,36 +677,18 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         of opcMultF: stack.push(initValue(av * bv))
         of opcDivF: stack.push(initValue(av / bv))
         else: discard
-      
-      when defined(hayaVmWriteStackOps):
-        echo "FloatArith: ", oc, " a=", av, " b=", bv, " result=", stack[^1]
     # Logic
     of opcInvB:
       let a = stack.pop(); stack.push(initValue(not a.boolVal))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "InvB: a=", a, " result=", stack[^1]
     # Relational
     of opcEqB:
       let b = stack.pop(); let a = stack.pop(); stack.push(initValue(a.boolVal == b.boolVal))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "EqB: a=", a, " b=", b, " result=", stack[^1]
     of opcEqI:
       let b = stack.pop(); let a = stack.pop(); stack.push(initValue(a.intVal == b.intVal))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "EqI: a=", a, " b=", b, " result=", stack[^1]
     of opcLessI:
       let b = stack.pop(); let a = stack.pop(); stack.push(initValue(a.intVal < b.intVal))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "LessI: a=", a, " b=", b, " result=", stack[^1]
     of opcGreaterI:
       let b = stack.pop(); let a = stack.pop(); stack.push(initValue(a.intVal > b.intVal))
-      
-      when defined(hayaVmWriteStackOps):
-        echo "GreaterI: a=", a, " b=", b, " result=", stack[^1]
     of opcEqF, opcLessF, opcGreaterF:
       let b = stack.pop()
       let a = stack.pop()
@@ -818,10 +703,6 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         of opcGreaterF:
           stack.push(initValue(av > bv))
         else: discard
-      
-      when defined(hayaVmWriteStackOps):
-        echo "FloatRel: ", oc, " a=", av, " b=", bv, " result=", stack[^1]
-    
     # Modules
     of opcImportModule:
       let chunkPath = co.getArg1Str(pcIdx, currentChunk)
@@ -831,25 +712,17 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
       stackBottom = stack.len
       inc(vm.lvl)
       switchTo(other.mainChunk, other)
-      
       when defined(hayaVmWriteStackOps):
         display(span("import:", fgGreen), span(chunkPath), span($currentChunk))
-
       continue # jump to new chunk
     of opcImportModuleAlias, opcImportFromModule: discard # todo
-
     #
     # Control Flow
     #
     of opcJumpFwd:
       let tgt = co.jumpTargets[pcIdx]
       if tgt >= 0: pcIdx = tgt - 1
-      
-      when defined(hayaVmWriteStackOps):
-        echo "JumpFwd: tgt=", tgt
-
     of opcJumpFwdT:
-      # if stack.peek().boolVal:
       let cond = stack.pop()
       if cond.boolVal:
         let tgt = co.jumpTargets[pcIdx]
@@ -857,22 +730,15 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         when defined(hayaVmWriteStackOps):
           echo "JumpFwdT: tgt=", tgt, " cond=", cond.boolVal
     of opcJumpFwdF:
-      # if not stack.peek().boolVal:
       let cond = stack.pop()
       if not cond.boolVal:
         let tgt = co.jumpTargets[pcIdx]
         if tgt >= 0: pcIdx = tgt - 1
-        
-
         when defined(hayaVmWriteStackOps):
-          # echo "JumpFwdF: tgt=", tgt, " cond=", stack.peek().boolVal
           echo "JumpFwdF: tgt=", tgt, " cond=", cond.boolVal
     of opcJumpBack:
       let tgt = co.jumpTargets[pcIdx]
       if tgt >= 0: pcIdx = tgt - 1
-      
-      when defined(hayaVmWriteStackOps):
-        echo "JumpBack: tgt=", tgt
     of opcCallD:
       let chunkPath = co.getArg1Str(pcIdx, currentChunk)
       let procId = co.arg2[pcIdx].int
@@ -885,7 +751,6 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         raise newException(ValueError,
           "Not enough arguments on stack for call to " & p.name)
       stackBottom = stack.len - p.paramCount
-      
       when defined(hayaVmWriteStackOps):
         display(span("opc:", fgGreen), span("<" & $opcCallD & ">"),
           span("filePath=" & chunkPath & " procId=" & $procId & " name=" & p.name & " paramCount=" & $p.paramCount)) 
@@ -905,8 +770,6 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         restoreFrame() # after foreign call
 
         if p.hasResult: stack.push(callResult)
-        
-
         when defined(hayaVmWriteStackOps):
           if callResult != nil:
             echo "Foreign call result: ", callResult
@@ -916,25 +779,17 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
       let rv = stack.pop()
       restoreFrame()
       stack.push(rv)
-      
-      when defined(hayaVmWriteStackOps):
-        echo "ReturnVal: rv=", rv
     of opcReturnVoid:
       restoreFrame()
-      
       when defined(hayaVmWriteStackOps):
         display(span("return:", fgGreen), span("void", fgCyan))
     of opcViewLoader:
       result.add(staticString.get())
-      
-      when defined(hayaVmWriteStackOps):
-        echo "ViewLoader"
     of opcHalt:
       if stack.len > 0:
         echo "Warning: stack not empty at halt, contains ", stack.len, " items."
         echo stack[^1].typeId
       stack.setLen(0)
-      
       when defined(hayaVmWriteStackOps):
         display(span("*** halt", fgRed), span("lvl=" & $vm.lvl))
       if vm.lvl == 0:
@@ -945,7 +800,4 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
     of opcNoop: discard
     else:
       discard
-      
-      when defined(hayaVmWriteStackOps):
-        echo "Unknown opcode: ", oc
     inc(pcIdx)
