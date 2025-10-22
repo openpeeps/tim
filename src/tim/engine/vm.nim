@@ -420,8 +420,7 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
   proc ensureLocal(idx: int) =
     let needed = stackBottom + idx
     while stack.len <= needed:
-      stack.push(initValue(0)) # placeholder
-    
+      stack.push(initValue(999)) # placeholder
     
     # additional debug output for stack operations
     when defined(hayaVmWriteStackOps):
@@ -532,21 +531,25 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
         dealloc(argsMem)
     # Variables
     of opcPushG:
+      # The `opcPushG` pushes a global variable onto the stack.
       stack.push(vm.globals[co.getArg1Str(pcIdx, currentChunk)])
     of opcPopG:
+      # The `opcPopG` pops the top of the stack and stores it in a global variable.
       let val = stack.pop()
       vm.globals[co.getArg1Str(pcIdx, currentChunk)] = val
     of opcPushL:
+      # The `opcPushL` pushes a local variable onto the stack.
       let idx = co.getArg1Int(pcIdx)
-      ensureLocal(idx)
+      # ensureLocal(idx)
       stack.push(stack[stackBottom + idx])
     of opcPopL:
       let idx = co.getArg1Int(pcIdx)
-      ensureLocal(idx)
+      # ensureLocal(idx)
       let val = stack.pop()
       stack[stackBottom + idx] = val
     # HTML generation
     of opcAttrClass:
+      # special case for class attribute
       result.add("class=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
     of opcAttrId:
       result.add("id=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
@@ -626,16 +629,14 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
       let obj = stack.pop()
       stack.push(obj.objectVal.fields[fld])
     of opcSetF:
-      let
-        fld = co.getArg1Int(pcIdx)
-        val = stack.pop()
-        obj = stack.pop()
+      let fld = co.getArg1Int(pcIdx)
+      let val = stack.pop()
+      let obj = stack.pop()
       obj.objectVal.fields[fld] = val
     # JSON (placeholders)
     of opcGetJ:
-      let
-        key = stack.pop()
-        obj = stack.pop()
+      let key = stack.pop()
+      let obj = stack.pop()
       var jsonValue: JsonNode # the value to be pushed onto the stack
       case key.typeId
       of tyInt:
@@ -723,23 +724,29 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
       let tgt = co.jumpTargets[pcIdx]
       if tgt >= 0: pcIdx = tgt - 1
     of opcJumpFwdT:
-      let cond = stack.pop()
-      if cond.boolVal:
+      # jump if true
+      let cond = stack.peek().boolVal
+      if cond:
+        # we `peek` here; conditional jump does not pop
         let tgt = co.jumpTargets[pcIdx]
         if tgt >= 0: pcIdx = tgt - 1
         when defined(hayaVmWriteStackOps):
-          echo "JumpFwdT: tgt=", tgt, " cond=", cond.boolVal
+          echo "JumpFwdT: tgt=", tgt, " cond=", cond
     of opcJumpFwdF:
-      let cond = stack.pop()
-      if not cond.boolVal:
+      # jump if false
+      let cond = stack.peek().boolVal
+      if not cond:
+        # we `peek` instead of `pop` to allow reusing the condition
         let tgt = co.jumpTargets[pcIdx]
         if tgt >= 0: pcIdx = tgt - 1
         when defined(hayaVmWriteStackOps):
-          echo "JumpFwdF: tgt=", tgt, " cond=", cond.boolVal
+          echo "JumpFwdF: tgt=", tgt, " cond=", cond
     of opcJumpBack:
       let tgt = co.jumpTargets[pcIdx]
       if tgt >= 0: pcIdx = tgt - 1
+    
     of opcCallD:
+      # The `opcCallD` calls a procedure defined in the current or another chunk.
       let chunkPath = co.getArg1Str(pcIdx, currentChunk)
       let procId = co.arg2[pcIdx].int
       let targetScript =
@@ -768,7 +775,6 @@ proc interpret*(vm: Vm, script: Script, startChunk: Chunk,
           else:
             p.foreign(nil)
         restoreFrame() # after foreign call
-
         if p.hasResult: stack.push(callResult)
         when defined(hayaVmWriteStackOps):
           if callResult != nil:
