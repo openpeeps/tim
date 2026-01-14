@@ -7,7 +7,7 @@
 import std/[macros, options, os, sequtils,
       strutils, ropes, tables]
 
-import ../[ast, chunk, errors, sym]
+import pkg/voodoo/language/[ast, chunk, errors, sym]
 
 type
   GenKind = enum

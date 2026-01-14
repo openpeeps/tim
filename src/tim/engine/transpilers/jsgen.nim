@@ -5,9 +5,9 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[macros, options, os, sequtils,
-      strutils, ropes, tables]
+          strutils, ropes, tables]
 
-import ../[ast, chunk, errors, sym]
+import pkg/voodoo/language/[ast, chunk, errors, sym]
 
 type
   GenKind = enum
@@ -367,3 +367,8 @@ proc genScript*(program: Ast, includePath: Option[string],
     result.add(gen.genStmt(node, 2))
   result.add("    return html;\n")
   result.add("  }\n}")
+
+proc genScript*(nodes: seq[Node]) {.codegen.} =
+  # Generate the JS script from a sequence of nodes
+  for node in nodes:
+    result.add(gen.genStmt(node, 2))
