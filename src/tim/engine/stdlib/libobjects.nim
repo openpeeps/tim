@@ -1,0 +1,82 @@
+# A super fast template engine for cool kids
+#
+# (c) iLiquid, 2019-2020
+#     https://github.com/liquidev/
+#
+# (c) 2025 George Lemon | LGPL-v3 License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
+
+import std/[options, sequtils, strutils]
+import pkg/voodoo/language/[chunk, codegen, ast, sym, value]
+
+import ./inliner
+import ../parser
+
+proc initObjects*(script: Script, systemModule: Module): Module =
+  # foreign stuff
+  result = newModule("objects", some"objects.timl")
+  result.load(systemModule)
+
+  script.addProc(result, "add", @[
+      paramDef("s", tyArray), paramDef("item", tyAny)], tyVoid,
+    proc (args: StackView): Value =
+      # TODO runtime check for type compatibility
+      # inside the standard library 
+      args[0].objectVal.fields.add(args[1])
+    )
+    
+  script.addProc(result, "delete", @[
+    paramDef("s", tyArray), paramDef("offset", tyInt)], tyVoid,
+    proc (args: StackView): Value =
+      args[0].objectVal.fields.delete(args[1].intVal)
+  )
+
+  script.addProc(result, "insert", @[
+      paramDef("s", tyArray), paramDef("item", tyAny),
+      paramDef("offset", tyInt)], tyVoid,
+    proc (args: StackView): Value =
+      insert(args[0].objectVal.fields, args[1], args[2].intVal)
+  )
+
+  script.addProc(result, "join", @[paramDef("s", tyArray)], tyString,
+    proc (args: StackView): Value =
+      for v in args[0].objectVal.fields:
+        assert v.typeId == tyString, "join() only works on arrays of strings"
+      result = initvalue("")
+      result.stringVal[] = args[0].objectVal.fields.mapIt(it.stringVal[]).join(", ")
+  )
+
+  script.addProc(result, "hasKey", @[
+      paramDef("obj", tyObject), paramDef("key", tyString)], tyBool,
+    proc (args: StackView): Value =
+      result = initvalue(false)
+      for field in args[0].objectVal.fields:
+        if field.name == args[1].stringVal[]:
+          result.boolVal = true
+          break
+    )
+
+  script.addProc(result, "find", @[
+      paramDef("s", tyArray), paramDef("item", tyAny)], tyInt,
+    proc (args: StackView): Value =
+      # this should work for strings and numbers
+      result = initvalue(-1)
+      var i = 1
+      for v in args[0].objectVal.fields:
+        case v.typeId
+        of tyInt:
+          if v.intVal == args[1].intVal:
+            result.intVal = i - 1; break
+        of tyString:
+          if v.stringVal[] == args[1].stringVal[]:
+            result.intVal = i - 1; break
+        of tyFloat:
+          if v.floatVal == args[1].floatVal:
+            result.intVal = i - 1; break
+        of tyBool:
+          if v.boolVal == args[1].boolVal:
+            result.intVal = i - 1; break
+        else:
+          assert false, "find() not supported for this type " & $v.typeId
+    )
