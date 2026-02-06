@@ -14,7 +14,7 @@ binDir        = "bin"
 
 requires "nim >= 2.2.0"
 
-requires "toktok#head"
+# requires "toktok#head"
 requires "kapsis#head"
 requires "htmlparser"
 requires "jsony"
@@ -24,13 +24,17 @@ requires "nyml#head"
 requires "semver"
 requires "dotenv"
 requires "denim#head"
-requires "libdatachannel"
-requires "voodoo"
+requires "voodoo#head"
+requires "libffi"
 
+# requires "mirage#head"
 # requires "microparsec"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"
+
+task dev_llvm, "build a dev version":
+  exec "nimble build -d:enable_llvm --mm:orc -d:useMalloc"
 
 task napi, "build a dev version":
   exec "denim build src/tim.nim --cmake -y"
