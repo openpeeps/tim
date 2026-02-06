@@ -6,8 +6,7 @@
 
 import std/[tables, strutils, os, osproc, options, sequtils]
 import pkg/[flatty, nyml, semver, checksums/md5]
-
-import ../engine/ast
+import pkg/voodoo/language/ast
 
 import ./remote, ./configurator
 
@@ -99,6 +98,11 @@ proc loadModule*(pkgr: Packager, pkgName: string): string =
   let pkgName = pkgName[4..^1].split("/")
   let pkgPath = pkgrPackageSourceDir % [pkgName[0], "0.1.0"]
   result = readFile(normalizedPath(pkgPath / pkgName[1..^1].join("/") & ".timl"))
+
+proc getModulePath*(pkgr: Packager, pkgName, path: string): string =
+  ## Get the file path of a Tim Engine module from a specific package
+  let pkgPath = pkgrPackageSourceDir % [pkgName, "0.1.0"]
+  result = normalizedPath(pkgPath / path & ".timl")
 
 proc cacheModule*(pkgr: Packager, pkgName: string, ast: Ast) =
   ## Cache a Tim Engine module to binary AST
