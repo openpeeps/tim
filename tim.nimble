@@ -26,6 +26,7 @@ requires "dotenv"
 requires "denim#head"
 requires "voodoo#head"
 requires "libffi"
+requires "watchout#head"
 
 # requires "mirage#head"
 # requires "microparsec"
