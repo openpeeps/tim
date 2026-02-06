@@ -100,7 +100,7 @@ proc srcCommand*(v: Values) =
       let vmInstance = newVm()
       let output = vmInstance.interpret(script, mainChunk)
       echo output
-    except TimCompileError as e:
+    except CodeGenError as e:
       echo e.msg
       quit(1)
   elif ext == "js":
