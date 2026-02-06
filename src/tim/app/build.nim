@@ -4,22 +4,31 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[os, monotimes, times, strutils,
-          json, options, ropes]
+import std/[os, monotimes, times, strutils, json, options, ropes]
 
 import pkg/[flatty, jsony]
 import pkg/kapsis/[cli, runtime]
 
-import ../engine/[ast, parser, codegen, chunk, vm, sym]
-import ../engine/stdlib/[libsystem, libarrays]
+import pkg/voodoo/language/[ast, codegen, chunk, sym, vm]
+import pkg/voodoo/packagemanager/packager
 
-import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen]
+import ../engine/parser
+import ../engine/stdlib/[libsystem, libarrays, libffi]
+import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen, nimgen]
+
+proc parserCallback(astProgram: var Ast, path: string) =
+  parser.parseScript(astProgram, readFile(path), path)
 
 proc srcCommand*(v: Values) =
   ## Transpiles `timl` code to a target source
   # parse the script
   var srcPath = $(v.get("timl").getPath)
-  let
+  
+  # init the package manager and load the local packages
+  let pkgr = packager.initPackageRemote()
+  pkgr.loadPackages()
+
+  let 
     ext = v.get("--ext").getStr
     flagPrettyPrint = v.has("--pretty")
     flagNoCache = v.has("--nocache")
@@ -55,43 +64,41 @@ proc srcCommand*(v: Values) =
 
   var program: Ast # the AST representation of the script
   try:
-    parser.parseScript(program, timlCode)
+    parser.parseScript(program, timlCode, srcPath)
   except TimParserError as e:
     echo e.msg
     quit(1)
 
   var
-    mainChunk = newChunk()
+    mainChunk = newChunk(srcPath)
     script = newScript(mainChunk)
     module = newModule(srcPath.extractFilename, some(srcPath))
 
   # load standard library modules
-  let systemModule = modSystem(script, globalData, localData)
+  let systemModule = libsystem.loadLibrary(script, globalData, localData)
   module.load(systemModule)
 
   # let stringsLib = initStrings(script, systemModule)
   # module.load(stringsLib)
 
-  let arraysLib = initArrays(script, systemModule)
-  module.load(arraysLib)
+  # let ffiLib = initFFI(script, systemModule)
+  # module.load(ffiLib)
+
+  # let arraysLib = initArrays(script, systemModule)
+  # module.load(arraysLib)
 
   script.stdpos = script.procs.high
 
   # let timesModule = script.initTimes(systemModule)
   # module.load(timesModule)
-
   if ext == "html":
     try:
-      var compiler = codegen.initCodeGen(script, module, mainChunk)
+      var compiler = codegen.initCodeGen(script, module, mainChunk, pkgr = pkgr,
+                                    parserCallback = parserCallback)
       compiler.genScript(program, none(string))
 
       let vmInstance = newVm()
       let output = vmInstance.interpret(script, mainChunk)
-      
-      # if the output path is specified, write the output to the file
-      # todo
-
-      # otherwise, print the output to the console
       echo output
     except TimCompileError as e:
       echo e.msg
@@ -111,7 +118,12 @@ proc srcCommand*(v: Values) =
   elif ext == "lua":
     var lut = luagen.initCodeGen(script, module, mainChunk)
     echo lut.genScript(program, none(string), isMainScript = true)
-
+  elif ext == "nim":
+    var nimt = nimgen.initCodeGen(script, module, mainChunk)
+    echo nimt.genScript(program, none(string), isMainScript = true)
+  else:
+    displayError("Unsupported target source extension: " & ext)
+    quit(1)
 
   # display the time taken for compilation
   if flagBencmarks:
@@ -127,5 +139,5 @@ proc astCommand*(v: Values) =
     timlCode = readFile(srcPath)
   
   var program: Ast # the AST representation of the script
-  parser.parseScript(program, timlCode)
+  parser.parseScript(program, timlCode, srcPath)
   writeFile(srcPath & ".ast", toFlatty(program))

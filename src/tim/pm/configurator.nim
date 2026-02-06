@@ -34,12 +34,21 @@ type
 
   PolicyName* = enum
     policyAny = "any"
+      ## Allow all features (default)
     policyStdlib = "stdlib"
+      ## Allow usage of the standard library
     policyPackages = "packages"
+      ## Allow usage of packages
     policyImports = "imports"
+      ## Allow import statements
     policyLoops = "loops"
+      ## Allow for loops and while loops
     policyConditionals = "conditionals"
+      ## Allow conditionals
     policyAssignments = "assignments"
+      ## Allow variable assignments
+    policyLoadDynlib = "loadDynlib"
+      ## Allow loading dynamic libraries via FFI
 
   CompilationPolicy* = object
     allow: set[PolicyName]
@@ -48,6 +57,7 @@ type
     target*: TargetSource
     source*, output*: string
     layoutsPath*, viewsPath*, partialsPath*: string
+    basePath*: string
     policy*: CompilationPolicy
     release*: bool
 
@@ -89,3 +99,6 @@ when not defined napibuild:
     ## Generate a string representation of the TimConfig
     ## using `pkg/voodoo`
     voojson.toJson(c)
+
+proc getBasePath*(config: TimConfig): string =
+  return config.compilation.basePath

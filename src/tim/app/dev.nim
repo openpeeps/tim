@@ -8,8 +8,7 @@ import std/[os, osproc, strutils, sequtils, uri, httpclient]
 
 import pkg/[semver, nyml]
 import pkg/kapsis/[cli, runtime]
-
-import ../pm/[configurator, manager, remote]
+import pkg/voodoo/packagemanager/[configurator, packager, remote]
 
 #
 # CLI command `init` a new package
@@ -68,13 +67,22 @@ echo $hello"""
   writeFile(currDirPath / pkgName / "tim.config.yml",
     timConfig.generateYaml())
 
+proc watchCommand*(v: Values) =
+  ## Watches for file changes and rebuilds the project.
+  ## 
+  ## This command is used for development purposes for
+  ## transpiling Tim code to target source on the fly.
+  let timConfigPath = getCurrentDir() / "tim.config.yml"
+  if not fileExists(timConfigPath):
+    displayError("tim.config.yml not found in the current directory", quitProcess = true)
+  
 
 #
 # CLI command `install` a package
 # 
 proc installCommand*(v: Values) =
   ## Install a package from remote GIT sources
-  let pkgr = manager.initPackageRemote()
+  let pkgr = packager.initPackageRemote()
   pkgr.loadPackages() # load database of existing packages
   let pkgUrl = v.get("pkg").getUrl()
   if pkgUrl.scheme.len > 0:
@@ -116,7 +124,7 @@ proc removeCommand*(v: Values) =
       hasVersion = true; parseVersion(input[1])
     else: newVersion(0,1,0)
   displayInfo("Finding package `" & pkgName & "`")
-  let pkgr = manager.initPackageRemote()
+  let pkgr = packager.initPackageRemote()
   pkgr.loadPackages() # load database of existing packages
   if pkgr.hasPackage(pkgName):
     displaySuccess("Delete package `" & pkgName & "`")
@@ -131,7 +139,7 @@ proc removeCommand*(v: Values) =
 proc developCommand*(v: Values) =
   ## Create a symlink to a package in local source
   let pkgName = v.get("pkg").getStr
-  let pkgr = manager.initPackageRemote()
+  let pkgr = packager.initPackageRemote()
   # pkgr.loadPackages() # load database of existing packages
   # if not pkgr.hasPackage(pkgName):
   #   displayError("Package `$1` not found" % [pkgName], quitProcess = true)
