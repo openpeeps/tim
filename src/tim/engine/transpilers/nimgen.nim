@@ -77,7 +77,7 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.}
 
 proc error*(node: Node, msg: string) =
   ## Raise a compile error on the given node.
-  raise (ref TimCompileError)(
+  raise (ref CodeGenError)(
           # file: node.file,
           ln: node.ln,
           col: node.col,
@@ -273,6 +273,14 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
     result.add(params[1..^1].mapIt(it[0].render).join(", "))
     result.add("): $1 = \n" % retType)
     result.add(gen.genStmt(node[3], indent + 2))
+  of nkMacro:
+    let fnName = node[0].ident[1..^1]
+    let params = node[2]
+    result.add(ind & "proc " & fnName & "(")
+    result.add(params[1..^1].mapIt(it[0].render).join(", "))
+    result.add("): string =\n")
+    result.add(gen.genStmt(node[3], indent + 2))
+    result.add(ind & "  move(result)\n")
   of nkBlock:
     for s in node:
       result.add(gen.genStmt(s, indent))
@@ -294,7 +302,7 @@ proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
             isSnippet: static bool = false) {.codegen.} =
   ## Generates a Nim script from the given AST `program`.
-  result.add("import std/[json]\n")
+  result.add("import std/[json]\n\n")
   result.add("proc get$1View*(layout: string = \"base\", local: JsonNode = newJObject()): string =\n" % gen.module.getModuleName())
   result.add("  ## HTML template render function for rendering the $1 \n" % gen.module.getModuleName())
   for node in program.nodes:
