@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[strutils]
+import std/strutils
 
 type
   TokenKind* = enum
@@ -20,7 +20,7 @@ type
     tkEnd, tkInclude, tkDo, tkFn, tkFunc, tkMacro, tkIterator,
     tkYield, tkComponent, tkVar, tkConst, tkType, tkReturnCmd,
     tkDiscardCmd, tkBreakCmd, tkContinueCmd, tkIdentVar, tkIdentVarSafe,
-    tkStatic, tkEcho, tkComment, tkDoc, tkUnknown
+    tkStatic, tkEcho, tkComment, tkDoc, tkNil, tkUnknown
 
   TokenTuple* = tuple
     kind: TokenKind
@@ -65,6 +65,16 @@ proc peek(lex: Lexer, offset = 1): char =
   let idx = lex.pos + offset
   if idx < lex.input.len: lex.input[idx] else: '\0'
 
+proc peekToken(lex: Lexer, expectToken: string): bool =
+  # Peeks ahead to see if the next token matches expectToken
+  # without advancing the lexer
+  var tempLex = lex
+  tempLex.strbuf.setLen(0)
+  while tempLex.current.isAlphaAscii():
+    tempLex.strbuf.add(tempLex.current)
+    tempLex.advance()
+  return tempLex.strbuf == expectToken
+
 proc skipWhitespace(lex: var Lexer) =
   while lex.current in {' ', '\t', '\r'}:
     lex.advance()
@@ -75,6 +85,25 @@ proc initToken(lex: var Lexer, kind: static TokenKind, line, col, pos, wsno: int
 proc initToken(lex: var Lexer, kind: TokenKind, value: sink string, line, col, pos, wsno: int): TokenTuple =
   (kind, value, line, col, pos, wsno)
 
+template collectSnippet(tkKind: TokenKind, tkStr: string) =
+  # Collects a magic code snippet until `@end` is found 
+  result = initToken(lex, tkSnippetJs, tkStr, line, col, pos, wsno)
+  while true:
+    case lex.current
+    of '\0':
+      echo "EOF reached before closing @end" # todo error handling
+      return
+    of '@':
+      if lex.peekToken("end"):
+        result.kind = tkKind
+        result.value = result.value.unindent(pos + 2)
+        inc lex.pos, 4
+        lex.current = if lex.pos < lex.input.len: lex.input[lex.pos] else: '\0'
+        break
+    else:
+      result.value.add(lex.current)
+      lex.advance()
+      
 proc nextToken*(lex: var Lexer): TokenTuple =
   var wsno = 0
   # Skip whitespace and newlines before token
@@ -311,7 +340,7 @@ proc nextToken*(lex: var Lexer): TokenTuple =
     of "include":
       result = initToken(lex, tkInclude, "@include", line, col, pos, wsno)
     of "js":
-      result = initToken(lex, tkSnippetJs, "@js", line, col, pos, wsno)
+      collectSnippet(tkSnippetJs, "@js")
     of "yaml":
       result = initToken(lex, tkSnippetYaml, "@yaml", line, col, pos, wsno)
     of "json":
@@ -414,6 +443,8 @@ proc nextToken*(lex: var Lexer): TokenTuple =
         result = initToken(lex, tkEcho, move lex.strbuf, line, col, pos, wsno)
       of "yield":
         result = initToken(lex, tkYield, move lex.strbuf, line, col, pos, wsno)
+      of "nil":
+        result = initToken(lex, tkNil, move lex.strbuf, line, col, pos, wsno)
       else:
         result = initToken(lex, tkIdentifier, move lex.strbuf, line, col, pos, wsno)
     else:

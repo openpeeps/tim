@@ -8,7 +8,9 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[strutils, options, base64]
-import ../[chunk, codegen, ast, parser, sym, value]
+import pkg/voodoo/language/[chunk, ast, sym, value]
+
+import ./inliner
 
 proc initStrings*(script: Script, systemModule: Module): Module =
   # foreign stuff

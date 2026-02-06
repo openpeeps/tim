@@ -7,91 +7,38 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[strutils, options, os, httpclient,
-          httpcore, json, tables]
+import std/[strutils, options, os, sequtils,
+        httpclient, httpcore, json, tables]
 
 import pkg/jsony
-# import pkg/voodoo/parsers/voojson
+import pkg/voodoo/language/[chunk, ast, sym, value]
 
-import ../[chunk, codegen, ast, parser, sym, value]
+import ../parser
+import ./inliner
+
+# import pkg/voodoo/parsers/voojson
 
 type TimRuntime* = object of CatchableError
 
-proc compileCode*(script: Script, module: Module, filename, code: string) =
-  ## Compile some hayago code to the given script and module.
-  ## Any generated toplevel code is discarded. This should only be used for
-  ## declarations of hayago-side things, eg. iterators.
-  var astProgram: Ast
-  try:
-    parser.parseScript(astProgram, code, "std/system/inline")
-  except TimParserError as e:
-    echo e.msg
-    quit(1)
-  try:
-    # var codeChunk = newChunk()
-    var gen = initCodeGen(script, module, script.mainChunk)
-    gen.genScript(astProgram, none(string), emitHalt = false)
-  except TimCompileError as e:
-    echo e.msg
-    quit(1)
-
-
-const
-  Globals* = """
-const app* = parseJSON('$globalData')
-//const this* = parseJSON('$localData')
-
-"""
-
-  InlineCode* = """
-iterator `..`*(min: int, max: int): int {
-  var i = $min
-  if $i >= $max {
-    yield($min)
-  } else {
-    while $i <= $max {
-      yield($i)
-      inc($i)
-    }
-  }
-}
-
-iterator items*(arr: json): json {
-  var i = 0
-  const total = len($arr)
-  while $i < $total {
-    yield($arr[$i])
-    inc($i)
-  }
-}
-
-iterator items*(arr: array[object]): object {
-  var i = 0
-  const total = high($arr)
-  while $i <= $total {
-    yield($arr[$i])
-    inc($i)
-  }
-}
-
-iterator items*(arr: array[string]): string {
-  var i = 0
-  const total = high($arr)
-  while $i <= $total {
-    yield($arr[$i])
-    inc($i)
-  }
-}
-
-iterator items*(arr: array[int]): int {
-  var i = 0
-  const total = high($arr)
-  while $i <= $total {
-    yield($arr[$i])
-    inc($i)
-  }
-}
-"""
+proc convertObjectToJson(arg: Value): string =
+  case arg.objectVal.isForeign
+  of false:
+    result = "{"
+    let obj = arg.objectVal
+    for i in 0..<obj.keys.len:
+      result.add("\"" & obj.keys[i] & "\": ")
+      case obj.fields[i].typeId
+      of 4: # string
+        result.add("\"" & obj.fields[i].stringVal[] & "\"")
+      of 15: # object
+        result.add("[Object]")
+      else: # other types
+        result.add($obj.fields[i])
+      if i < obj.keys.len - 1:
+        result.add(", ")
+    result.add("}")
+  else:
+    result = "{...}"
 
 proc initSystemOps(script: Script, module: Module) =
   ## Add builtin operations into the module.
@@ -134,7 +81,7 @@ proc initSystemOps(script: Script, module: Module) =
   script.addProc(module, "==", @[paramDef("a", tyBool), paramDef("b", tyBool)], tyBool)
   script.addProc(module, "!=", @[paramDef("a", tyBool), paramDef("b", tyBool)], tyBool)
 
-proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
+proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
   ## Create and initialize the ``system`` module.
 
   # foreign stuff
@@ -205,6 +152,19 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
         else: "object"
       result = initValue(valueType))
 
+  script.addProc(result, "jsonType", @[paramDef("x", tyJson)], tyString,
+    proc (args: StackView): Value =
+      let valueType =
+        case args[0].jsonVal.kind:
+        of JBool: "bool"
+        of JInt: "int"
+        of JFloat: "float"
+        of JString: "string"
+        of JArray: "array"
+        of JObject: "object"
+        else: "nil"
+      result = initValue(valueType))
+
   # converters
   script.addProc(result, "toInt", @[paramDef("f", tyFloat)], tyInt,
     proc (args: StackView): Value =
@@ -247,6 +207,35 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
       result = initValue($(args[0].boolVal))
     )
 
+  script.addProc(result, "toString", @[paramDef("x", tyJson)], tyString,
+    proc (args: StackView): Value =
+      ## Convert JSON to string
+      case args[0].jsonVal.kind
+      of JObject, JArray:
+        return initValue(toJson(args[0].jsonVal))
+      of JInt:
+        return initValue($(args[0].jsonVal.getInt()))
+      of JFloat:
+        return initValue($(args[0].jsonVal.getFloat()))
+      of JBool:
+        return initValue($(args[0].jsonVal.getBool()))
+      of JString:
+        return initValue(args[0].jsonVal.getStr())
+      else: discard # todo handle nil
+  )
+
+  script.addProc(result, "toString", @[paramDef("x", tyObject)], tyString,
+    proc (args: StackView): Value =
+      ## Convert Object to JSON string
+      result = initValue(convertObjectToJson(args[0]))
+    )
+
+  script.addProc(result, "toKeys", @[paramDef("obj", tyJson)], tyJson,
+    proc (args: StackView): Value =
+      ## Get the keys of a JSON object as an array.
+      result = initValue(%*(args[0].jsonVal.keys().toSeq()))
+    )
+
   script.addProc(result, "echo", @[paramDef("x", tyString)], tyVoid,
     proc (args: StackView): Value =
       echo args[0].stringVal[])
@@ -280,25 +269,7 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
 
   script.addProc(result, "echo", @[paramDef("x", tyObject)], tyVoid,
     proc (args: StackView): Value =
-      case args[0].objectVal.isForeign
-      of false:
-        var res = "{"
-        let obj = args[0].objectVal
-        for i in 0..<obj.keys.len:
-          res.add(obj.keys[i] & ": ")
-          case obj.fields[i].typeId
-          of 4: # string
-            res.add("\"" & obj.fields[i].stringVal[] & "\"")
-          of 15: # object
-            res.add("[Object]")
-          else: # other types
-            res.add($obj.fields[i])
-          if i < obj.keys.len - 1:
-            res.add(", ")
-        res.add("}")
-        echo res
-      else:
-        echo "{...}"
+      echo convertObjectToJson(args[0])
     )
 
   script.addProc(result, "echo", @[paramDef("x", tyArray)], tyVoid,
@@ -390,12 +361,30 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
     proc (args: StackView): Value =
       result = initValue($(args[0].boolVal) & args[1].stringVal[]))
 
+  #
+  # String concatenation with JSON
+  #
+  script.addProc(result, "&", @[paramDef("x", tyJson), paramDef("y", tyString)], tyString,
+    proc (args: StackView): Value =
+      case args[0].jsonVal.kind
+      of JString:
+        result = initValue(args[0].jsonVal.getStr() & args[1].stringVal[])
+      else: discard # todo error?
+    )
+
   script.addProc(result, "&", @[paramDef("x", tyString), paramDef("y", tyJson)], tyString,
     proc (args: StackView): Value =
       case args[1].jsonVal.kind
       of JString:
         result = initValue(args[0].stringVal[] & args[1].jsonVal.getStr())
       else: discard # todo error?
+    )
+
+  script.addProc(result, "hasKey", @[paramDef("obj", tyJson), paramDef("key", tyString)], tyBool,
+    proc (args: StackView): Value =
+      result = initvalue(false)
+      if args[0].jsonVal.hasKey(args[1].stringVal[]):
+        result.boolVal = true
     )
 
   #
@@ -431,6 +420,11 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
   script.addProc(result, "len", @[paramDef("x", tyJson)], tyInt,
     proc (args: StackView): Value =
       result = initValue(len(args[0].jsonVal)))
+
+  script.addProc(result, "len", @[paramDef("x", tyArray)], tyInt,
+    proc (args: StackView): Value =
+      result = initValue(len(args[0].objectVal.fields)))
+
 
   #
   # Built-in OS Operations
@@ -479,13 +473,82 @@ proc modSystem*(script: Script, globalData, localData: JsonNode): Module =
         client.close()
     )
 
-  script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", tyJson)], tyBool,
-    proc (args: StackView): Value =
-      result = initValue(args[0].jsonVal == args[1].jsonVal))
+  for someTy in [tyBool, tyInt, tyFloat, tyString, tyJson, tyNil]:
+    script.addProc(result, "==", @[paramDef("a", tyJson), paramDef("b", someTy)], tyBool,
+      proc (args: StackView): Value =
+        case args[1].typeId
+        of tyBool:
+          result = initValue(args[0].jsonVal.getBool() == args[1].boolVal)
+        of tyInt:
+          result = initValue(args[0].jsonVal.getInt() == args[1].intVal)
+        of tyFloat:
+          result = initValue(args[0].jsonVal.getFloat() == args[1].floatVal)
+        of tyString:
+          result = initValue(args[0].jsonVal.getStr() == args[1].stringVal[])
+        of tyJsonStorage:
+          result = initValue(args[0].jsonVal == args[1].jsonVal)
+        of tyNil:
+          result = initValue(args[0].jsonVal.kind == JNull)
+        else:
+          raise newException(TimRuntime, "Invalid type for comparison with JSON.")
+      )
 
-  script.addProc(result, "!=", @[paramDef("a", tyJson), paramDef("b", tyJson)], tyBool,
-    proc (args: StackView): Value =
-      result = initValue(false == (args[0].jsonVal == args[1].jsonVal)))
+    script.addProc(result, "==", @[paramDef("a", someTy), paramDef("b", tyJson)], tyBool,
+      proc (args: StackView): Value =
+        case args[0].typeId
+        of tyBool:
+          result = initValue(args[0].boolVal == args[1].jsonVal.getBool())
+        of tyInt:
+          result = initValue(args[0].intVal == args[1].jsonVal.getInt())
+        of tyFloat:
+          result = initValue(args[0].floatVal == args[1].jsonVal.getFloat())
+        of tyString:
+          result = initValue(args[0].stringVal[] == args[1].jsonVal.getStr())
+        of tyJsonStorage:
+          result = initValue(args[0].jsonVal == args[1].jsonVal)
+        of tyNil:
+          result = initValue(args[1].jsonVal.kind == JNull)
+        else:
+          raise newException(TimRuntime, "Invalid type for comparison with JSON.")
+      )
+
+    script.addProc(result, "!=", @[paramDef("a", tyJson), paramDef("b", someTy)], tyBool,
+      proc (args: StackView): Value =
+        case args[1].typeId
+        of tyBool:
+          result = initValue(args[0].jsonVal.getBool() != args[1].boolVal)
+        of tyInt:
+          result = initValue(args[0].jsonVal.getInt() != args[1].intVal)
+        of tyFloat:
+          result = initValue(args[0].jsonVal.getFloat() != args[1].floatVal)
+        of tyString:
+          result = initValue(args[0].jsonVal.getStr() != args[1].stringVal[])
+        of tyJsonStorage:
+          result = initValue(args[0].jsonVal != args[1].jsonVal)
+        of tyNil:
+          result = initValue(args[0].jsonVal.kind != JNull)
+        else:
+          raise newException(TimRuntime, "Invalid type for comparison with JSON.")
+    )
+
+    script.addProc(result, "!=", @[paramDef("a", someTy), paramDef("b", tyJson)], tyBool,
+      proc (args: StackView): Value =
+        case args[0].typeId
+        of tyBool:
+          result = initValue(args[0].boolVal != args[1].jsonVal.getBool())
+        of tyInt:
+          result = initValue(args[0].intVal != args[1].jsonVal.getInt())
+        of tyFloat:
+          result = initValue(args[0].floatVal != args[1].jsonVal.getFloat())
+        of tyString:
+          result = initValue(args[0].stringVal[] != args[1].jsonVal.getStr())
+        of tyJsonStorage:
+          result = initValue(args[0].jsonVal != args[1].jsonVal)
+        of tyNil:
+          result = initValue(args[0].jsonVal.kind != JNull)
+        else:
+          raise newException(TimRuntime, "Invalid type for comparison with JSON.")
+    )
 
   var inlineCode = Globals % ["globalData", toJson(globalData), "localData", toJson(localData)]
   inlineCode.add(InlineCode)

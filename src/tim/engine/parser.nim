@@ -8,8 +8,7 @@ import std/[macros, lexbase, tables, strutils, critbits, options]
 
 # import ./tokens
 import ./lexer
-
-import ./[errors, ast]
+import pkg/voodoo/language/[errors, ast]
 
 type
   Parser* = object
@@ -257,6 +256,11 @@ prefixHandle parseFloat:
   result = ast.newFloatLit(v)
   walk p
 
+prefixHandle parseNil:
+  # parse nil
+  result = ast.newNil()
+  walk p
+
 prefixHandle parseString:
   # parse a string
   result = ast.newStringLit(p.curr.value)
@@ -345,7 +349,7 @@ const attrKinds = {tkIdentifier, tkType, tkIf,
 template anyAttrIdent: untyped =
   (
     ((p.curr in attrKinds and p.next is tkAssign) or
-      (p.curr is tkIdentifier and p.curr.value[0] in IdentChars)) and
+      (p.curr is tkIdentifier and p.curr.line == el.line)) and
     (p.curr.line == el.line or (
       p.curr.isChild(el) and p.next in {tkAssign, tkIdentifier}))
   )
@@ -398,7 +402,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
           # and create a single class attribute with all values
           walk p # tkIdentifier `class`
           expectWalk tkAssign:
-            let attrValue: Node = p.parseExpression(minPrec = 45)
+            let attrValue: Node = p.parseExpression(minPrec = 5)
             caseNotNil attrValue:
               attrs.add(newHtmlAttribute(htmlAttrClass, attrValue))
               continue
@@ -406,7 +410,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
         if p.curr.value == "id":
           walk p # tkIdentifier `id`
           expectWalk tkAssign:
-            let attrValue: Node = p.parseExpression(minPrec = 45)
+            let attrValue: Node = p.parseExpression(minPrec = 5)
             caseNotNil attrValue:
               attrs.add(newHtmlAttribute(htmlAttrID, attrValue))
               continue
@@ -421,7 +425,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
         if p.curr is tkAssign:
           # parse an HTML attribute with a value
           walk p # tkAssign
-          let infixNode: Node = ast.newInfix(nil, attr, p.parseExpression(minPrec = 45))
+          let infixNode: Node = ast.newInfix(nil, attr, p.parseExpression(minPrec = 5))
           let attrNode = ast.newHtmlAttribute(htmlAttr, infixNode)
           attrs.add(attrNode)
         else:
@@ -581,7 +585,14 @@ prefixHandle parseForLoop:
   let tokenFor: TokenTuple = p.curr
   if p.next.kind == tkIdentVar:
     walk p # tkFor
-    let itemVar: Node = ast.newIdent(p.curr.value)
+    var itemVar: Node
+    if p.next is tkComma:
+      itemVar = ast.newTree(nkBracket)
+      itemVar.add(ast.newIdent(p.curr.value))
+      walk p, 2 # tkComma
+      itemVar.add(ast.newIdent(p.curr.value))
+    else:
+      itemVar = ast.newIdent(p.curr.value)
     walk p
     expectWalk(tkIN)
     let iterExpr: Node = p.parseExpression() 
@@ -647,15 +658,21 @@ prefixHandle parseIdent:
 prefixHandle parseIdentVar:
   # parse a variable identifier.
   result = ast.newIdent(p.curr.value)
+  result.ln = p.curr.line
+  result.col = p.curr.col
   walk p # tkIdentVar
-  # if p.curr.line == result.ln and p.curr.wsno == 0:
-  #   case p.curr.kind
-  #   of tkLB:
-  #   else: break
+  if p.curr is tkAssign:
+    # handle variable assignment
+    # not sure if this should be here
+    walk p # tkAssign
+    let valNode: Node = p.parseExpression()
+    caseNotNil valNode:
+      result = ast.newInfix(ast.newIdent("="), result, valNode)
 
 prefixHandle parseJavaScript:
   result = ast.newNode(nkJavaScriptSnippet)
   result.snippetCode = p.curr.value
+  echo result.snippetCode
   # for attr in p.curr.attr:
   #   let identNode = ast.newNode(nkIdent)
   #   let id = attr.split("_")
@@ -969,10 +986,11 @@ prefixHandle parseReturn:
   # parse a return statement
   result = ast.newTree(nkReturn)
   walk p # tkReturn
-  let exprNode: Node = p.parseExpression()
-  caseNotNil exprNode:
-    result.add(exprNode)
-    p.walkOpt(tkSColon)
+  if p.curr.line == p.prev.line:
+    let exprNode: Node = p.parseExpression()
+    caseNotNil exprNode:
+      result.add(exprNode)
+      p.walkOpt(tkSColon)
 
 prefixHandle parseYield:
   # parse a yield statement
@@ -1061,6 +1079,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkBool: parseBoolean
     of tkInteger: parseInteger
     of tkFloat: parseFloat
+    of tkNil: parseNil
     of Strings: parseString
     of tkIdentVar: parseIdentVar
     of tkIf: parseIf
