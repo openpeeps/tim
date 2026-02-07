@@ -624,7 +624,6 @@ prefixHandle parseIf:
     
     # handle elif statements
     while p.curr is tkELIF:
-      # if p.curr.col != tokenIf.col: break # todo error
       let tokenElif = p.curr
       walk p # tkELIF
       let elifExpr: Node = p.parseExpression()
@@ -632,8 +631,9 @@ prefixHandle parseIf:
         let elifBlock: Node = p.parseBlock(tokenIf.col)
         caseNotNil elifBlock:
           children.add(@[elifExpr, elifBlock])
+
     # handle else statement, if available
-    if p.curr is tkELSE:
+    if p.curr is tkELSE and p.curr.col == tokenIf.col:
       let tokenElse = p.curr
       walk p # tkELSE
       let elseBlock: Node = p.parseBlock(tokenIf.col)
