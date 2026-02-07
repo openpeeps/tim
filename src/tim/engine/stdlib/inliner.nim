@@ -86,14 +86,12 @@ const app* = parseJSON('$globalData')
   InlineCode* = """
 iterator `..`*(min: int, max: int): int {
   var i = $min
-  if $i >= $max {
+  if $i >= $max:
     yield($min)
-  } else {
-    while $i <= $max {
+  else:
+    while $i <= $max:
       yield($i)
       inc($i)
-    }
-  }
 }
 
 iterator items*(data: json): json {
