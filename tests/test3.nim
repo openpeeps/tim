@@ -53,18 +53,24 @@ template initLibrary() {.dirty.} =
 proc rubyWrapper(x: Rope, className: string): string =
   result = $x
   result.add("\n")
-  result.add(className & ".render")
+  result.add("puts " & className & ".render()")
 
 proc pythonWrapper(x: Rope, className: string): string =
   result = $x
   result.add("\n")
   result.add("print(" & className & ".render())")
 
+proc jsWrapper(x: Rope, className: string): string =
+  result = $x
+  result.add("\n")
+  result.add("console.log(" & className & ".render())")
+
 const
   sample1 = """
 var hello = "Tim Engine is Awesome!"
-echo $hello
+h1.fw-bold: $hello
 """
+  sample1Html = """<h1 class="fw-bold">Tim Engine is Awesome!</h1>"""
 
 test "s2s ruby":
   initPackageManager()
@@ -80,7 +86,7 @@ test "s2s ruby":
   writeFile(s2sPath / "sample1.rb", rubyWrapper(output, "HelloWorld"))
   let stsOutput = execCmdEx("ruby " & s2sPath / "sample1.rb")
   assert stsOutput.exitCode == 0
-  assert stsOutput.output.strip() == "Tim Engine is Awesome!"
+  assert stsOutput.output.strip() == sample1Html
   echo stsOutput.output
 
 test "s2s python":
@@ -98,5 +104,23 @@ test "s2s python":
   
   let stsOutput = execCmdEx("python " & s2sPath / "sample1.py")
   assert stsOutput.exitCode == 0
-  assert stsOutput.output.strip() == "Tim Engine is Awesome!"
+  assert stsOutput.output.strip() == sample1Html
+  echo stsOutput.output
+
+test "s2s javascript":
+  initPackageManager()
+  initParser(sample1)
+  initLibrary()
+
+  var jst = jsgen.initCodeGen(script, module, mainChunk)
+  let output = jst.genScript(program, none(string), isMainScript = true)
+  echo "Generated JavaScript code:\n" & output
+  let s2sPath = getCurrentDir() / "tests" / "s2s"
+  
+  discard existsOrCreateDir(s2sPath)
+  writeFile(s2sPath / "sample1.js", jsWrapper(output, "HelloWorld"))
+  
+  let stsOutput = execCmdEx("node " & s2sPath / "sample1.js")
+  assert stsOutput.exitCode == 0
+  assert stsOutput.output.strip() == sample1Html
   echo stsOutput.output
