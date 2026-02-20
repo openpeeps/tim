@@ -141,5 +141,6 @@ else:
 
     if layoutTpl == nil:
       raise newException(TimEngineError, "Layout template not found: " & layout)
-    return eval(viewTpl, layoutTpl, data, engine.globalData)
-  
+    result = newStringOfCap(1024) # Preallocate a string with an initial capacity in bytes (1KB in this case)
+    result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
+    result.add(eval(viewTpl, layoutTpl, data, engine.globalData))
