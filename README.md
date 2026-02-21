@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png" alt="Tim - Template Engine" width="200px" height="200px"><br>
+  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/tim.png" alt="Tim - Template Engine" width="175px" height="175px"><br>
   ⚡️ A high-performance templating engine & markup language<br>
   <strong>Fast</strong> • <strong>Compiled</strong> • <strong>Source-to-Source</strong> • <strong>Interpreter</strong><br>
 </p>
@@ -8,15 +8,39 @@
   <code>nimble install tim</code> / <code>npm install @openpeeps/tim</code>
 </p>
 
+## About
+Tim Engine is a powerful development tool designed to boost developer productivity. It combines a high-performance templating engine with a versatile micro programming language, enabling developers to create dynamic web applications with ease.
+
+Additionally, Tim Engine supports source-to-source transpilation to multiple target languages: Lua, Python, Ruby, JavaScript and PHP.
+
 ## Key features
 - Fast, compiled, clean syntax
-- Template engine
-- Source-to-Source transpilation to Nim, Go, JavaScript
-- Standalone CLI & AST-based Interpreter
-- Standard Library
-- Transpiles timl code to JavaScript for CSR (**Client-Side Rendering**)
+- Template engine with support for layouts, partials and views
+- Source-to-Source transpilation to Lua, Python, Ruby, JavaScript and PHP
+- **Standard Library** with many built-in utilities for web development
+- **Built-in Package Manager** for easy installation of third-party packages
 - Built-in **Browser Sync & Reload**
-- Built-in Package Manager
 - Written in Nim language 👑
 
-wip
+
+## Getting Started
+_todo_
+
+## Documentation
+- [API Reference](https://openpeeps.github.io/tim/)
+
+### Source-to-Source Transpilation
+This feature allow developers to keep their front-end codebase in a single language (Tim Engine's language), enabling seamless integration with various back-end technologies. Current supported target languages are: Lua, Python, Ruby, JavaScript and PHP. Basically, you write your front-end once, and transpile it to one or more target languages as needed.
+
+
+### ❤ Contributions & Support
+- 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/tim/issues)
+- 👋 Wanna help? [Fork it!](https://github.com/openpeeps/tim/fork)
+- 🎉 Spread the word! **Tell your friends about Tim Engine**
+- ⚽️ Play with Tim Engine in your next web-project
+- 😎 [Get €20 in cloud credits from Hetzner](https://hetzner.cloud/?ref=Hm0mYGM9NxZ4)
+- 🥰 [Donate via PayPal address](https://www.paypal.com/donate/?hosted_button_id=RJK3ZTDWPL55C)
+
+### 🎩 License
+Tim Engine | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
+Copyright &copy; 2024 OpenPeeps & Contributors &mdash; All rights reserved.
