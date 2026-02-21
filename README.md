@@ -8,6 +8,11 @@
   <code>nimble install tim</code> / <code>npm install @openpeeps/tim</code>
 </p>
 
+<p align="center">
+  <a href="https://openpeeps.github.io/tim/">API reference</a><br>
+  <img src="https://github.com/openpeeps/tim/workflows/test/badge.svg" alt="Github Actions">  <img src="https://github.com/openpeeps/tim/workflows/docs/badge.svg" alt="Github Actions">
+</p>
+
 ## About
 Tim Engine is a powerful development tool designed to boost developer productivity. It combines a high-performance templating engine with a versatile micro programming language, enabling developers to create dynamic web applications with ease.
 
