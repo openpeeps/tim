@@ -369,6 +369,8 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
       case args[0].jsonVal.kind
       of JString:
         result = initValue(args[0].jsonVal.getStr() & args[1].stringVal[])
+      of JInt:
+        result = initValue($(args[0].jsonVal.getInt()) & args[1].stringVal[])
       else: discard # todo error?
     )
 
