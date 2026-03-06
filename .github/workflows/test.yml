@@ -34,7 +34,6 @@ jobs:
         with:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-#       - run: sudo apt-get -y install libsass-dev
       - run: 'sudo apt-get install -y libpcre3-dev'
       - run: "npm install cmake-js -g"
       - run: "choosenim show path -y"
@@ -45,20 +44,23 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local pull.ff only
           timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
-          git pull origin main
+
+          git pull --ff-only origin "${{ github.ref_name }}"
           git checkout .
+
           if test -f ./bindings/node/tim/src/bin/$timNodeName; then
             rm -f ./bindings/node/tim/src/bin/$timNodeName
             git add ./bindings/node/tim/src/bin/$timNodeName
-            git commit -m "cleanup previous tim.node"
+            git diff --cached --quiet || git commit -m "cleanup previous tim.node"
           fi
+
           cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
-          git status
           git add ./bindings/node/tim/src/bin/$timNodeName
-          git commit -m "update tim for node on ${{ runner.os }}"
-      - name: Push changes # push the output folder to your repo
+          git diff --cached --quiet || git commit -m "update tim for node on ${{ runner.os }}"
+      - name: Push changes
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: 'main'
+          branch: ${{ github.ref_name }}
