@@ -144,3 +144,21 @@ else:
     result = newStringOfCap(1024) # Preallocate a string with an initial capacity in bytes (1KB in this case)
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
     result.add(eval(viewTpl, layoutTpl, data, engine.globalData))
+
+  proc renderView*(engine: TimEngine, view: string, data: JsonNode): string =
+    ## Render a Tim Engine template based on the view and layout templates.
+    ## 
+    ## Optionally, you can pass a `JsonNode` object as data to be used
+    ## within the template as local data available under the `$this` variable.
+    ## 
+    ## If no layout is provided, the default `base` layout will be used.
+    ## 
+    ## Raises a `TimEngineError` if the view or layout templates are not found.
+    ## Ensure to handle these exceptions in your web server to respond
+    ## with appropriate HTTP status codes (e.g., 404 or 500).
+    let viewTpl: TimTemplate = engine.getView(view.replace(".", "/"))
+    if viewTpl == nil:
+      raise newException(TimEngineError, "View template not found: " & view)
+    result = newStringOfCap(1024)    # Preallocate a string with an initial capacity in bytes (1KB in this case)
+    result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
+    result.add(eval(viewTpl, data, engine.globalData))

@@ -252,8 +252,9 @@ var
   browserSyncWatcher: Watchout
   hasChanges: bool
 
-proc eval*(view, layout: TimTemplate,
-        localData, globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+proc eval*(view, layout: TimTemplate;
+      localData, globalData: JsonNode
+): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view within a layout and return the final HTML output.
   assert view.script != nil and layout.script != nil,
     "View or Layout script is not initialized"
@@ -262,6 +263,15 @@ proc eval*(view, layout: TimTemplate,
     layoutVM = newVM()
   let viewOutput = viewVM.interpret(view.script, view.mainChunk, localData = localData)
   return layoutVM.interpret(layout.script, layout.mainChunk, some(viewOutput), localData = localData)
+
+proc eval*(view: TimTemplate;
+  localData, globalData: JsonNode
+): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+  ## Evaluate a view without a layout and return the final HTML output. 
+  ## This can be used for rendering partials or standalone views.
+  assert view.script != nil, "View script is not initialized"
+  let viewVM = newVM()
+  return viewVM.interpret(view.script, view.mainChunk, localData = localData)
 
 proc precompile*(engine: TimEngine, firstRun: bool = false) =
   ## Precompile Tim Engine templates.
