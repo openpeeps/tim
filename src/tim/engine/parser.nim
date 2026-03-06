@@ -436,7 +436,7 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
 prefixHandle parseElement:
   # parse an HTML element
   let tk = p.curr
-  let tag = ast.htmlTag(tk.value)
+  let tag = htmlTag(tk.value)
   result = ast.newHtmlElement(tag, tk.value)
   result.ln = p.curr.line
   result.col = p.curr.col
