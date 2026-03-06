@@ -24,7 +24,7 @@ requires "nyml#head"
 requires "semver"
 requires "dotenv"
 requires "denim#head"
-requires "voodoo >= 0.1.2"
+requires "voodoo"
 requires "libffi"
 requires "watchout#head"
 
