@@ -40,7 +40,7 @@ block extendVoodooAstAndCodeGen:
       # discard gen.storeJavaScript(node)
       discard
 
-  extendModule "voodoo/src/voodoo/language/ast.nim":
+  extendModule "/voodoo/language/ast.nim":
     const voidHtmlElements* = [tagArea, tagBase, tagBr, tagCol,
       tagEmbed, tagHr, tagImg, tagInput, tagLink, tagMeta,
       tagParam, tagSource, tagTrack, tagWbr, tagCommand,
@@ -201,7 +201,7 @@ block extendVoodooAstAndCodeGen:
       else:
         result = $node.tag
 
-  extendModule "voodoo/src/voodoo/language/codegen.nim":
+  extendModule "/voodoo/language/codegen.nim":
     proc htmlConstr(node: Node): Sym {.codegen.} =
       # Constructs a new HTML element from Html object
       if gen.kind == gkProc:
