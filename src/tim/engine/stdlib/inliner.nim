@@ -18,7 +18,7 @@ proc addProc*(script: Script, module: Module, name: string,
   var nodeParams: seq[ProcParam]
   for param in params:
     case param.pKind
-    of tyHtmlElement:
+    of ttyHtmlElement:
       add nodeParams, (
         newIdent(param.pName),
         module.sym(param.pKindIdent),

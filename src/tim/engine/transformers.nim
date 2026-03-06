@@ -269,7 +269,7 @@ block extendVoodooAstAndCodeGen:
               gen.genStmt(subNode)
             else:
               let returnType: Sym = gen.genExpr(subNode)
-              if returnType.tyKind != tyVoid:
+              if returnType.tyKind != ttyVoid:
                 # if the return type is not void, we emit it as text
                 # so the returned value is rendered as text
                 # inside the HTML element

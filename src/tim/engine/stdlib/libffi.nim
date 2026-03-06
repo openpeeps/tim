@@ -23,7 +23,7 @@ proc loadFFI*(script: Script, systemModule: Module): Module =
   result = newModule("ffi", some"ffi.timl")
   result.load(systemModule)
 
-  script.addProc(result, "loadLibrary", @[paramDef("s", tyString)], tyPointer,
+  script.addProc(result, "loadLibrary", @[paramDef("s", ttyString)], ttyPointer,
     proc (args: StackView): Value =
       let path =
         if args[0].stringVal[].isAbsolute: args[0].stringVal[]

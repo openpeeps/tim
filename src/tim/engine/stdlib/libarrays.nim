@@ -18,7 +18,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
   result.load(systemModule)
 
   script.addProc(result, "add", @[
-      paramDef("s", tyArray), paramDef("item", tyAny)], tyVoid,
+      paramDef("s", ttyArray), paramDef("item", ttyAny)], ttyVoid,
     proc (args: StackView): Value =
       # TODO runtime check for type compatibility
       # inside the standard library 
@@ -26,19 +26,19 @@ proc initArrays*(script: Script, systemModule: Module): Module =
     )
     
   script.addProc(result, "delete", @[
-    paramDef("s", tyArray), paramDef("offset", tyInt)], tyVoid,
+    paramDef("s", ttyArray), paramDef("offset", ttyInt)], ttyVoid,
     proc (args: StackView): Value =
       args[0].objectVal.fields.delete(args[1].intVal)
   )
 
   script.addProc(result, "insert", @[
-      paramDef("s", tyArray), paramDef("item", tyAny),
-      paramDef("offset", tyInt)], tyVoid,
+      paramDef("s", ttyArray), paramDef("item", ttyAny),
+      paramDef("offset", ttyInt)], ttyVoid,
     proc (args: StackView): Value =
       insert(args[0].objectVal.fields, args[1], args[2].intVal)
   )
 
-  script.addProc(result, "join", @[paramDef("s", tyArray)], tyString,
+  script.addProc(result, "join", @[paramDef("s", ttyArray)], ttyString,
     proc (args: StackView): Value =
       # joins an array of strings with ", "
       for v in args[0].objectVal.fields:
@@ -47,7 +47,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
       result.stringVal[] = args[0].objectVal.fields.mapIt(it.stringVal[]).join(", ")
   )
 
-  script.addProc(result, "contains", @[paramDef("arr", tyArray), paramDef("x", tyString)], tyBool,
+  script.addProc(result, "contains", @[paramDef("arr", ttyArray), paramDef("x", ttyString)], ttyBool,
     proc (args: StackView): Value =
       # checks if an array contains a value
       for v in args[0].objectVal.fields:
@@ -69,7 +69,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
       result = initvalue(false)
   )
   
-  script.addProc(result, "find", @[paramDef("s", tyArray), paramDef("item", tyAny)], tyInt,
+  script.addProc(result, "find", @[paramDef("s", ttyArray), paramDef("item", ttyAny)], ttyInt,
     proc (args: StackView): Value =
       # returns the index of the first occurrence of item in the array, or -1 if not found
       result = initvalue(-1)
@@ -100,7 +100,7 @@ proc initArrays*(script: Script, systemModule: Module): Module =
     of tyString: result = hash(v.stringVal[])
     else: result = hash(v.typeId) # fallback for unsupported types
 
-  script.addProc(result, "dedup", @[paramDef("s", tyArray, mut=true)], tyVoid,
+  script.addProc(result, "dedup", @[paramDef("s", ttyArray, mut=true)], ttyVoid,
     proc (args: StackView): Value =
       # removes duplicates from the array using hash-based comparison
       var seen = newSeq[Hash]()

@@ -17,32 +17,32 @@ proc initStrings*(script: Script, systemModule: Module): Module =
   result = newModule("strings", some"strings.timl")
   result.load(systemModule)
 
-  script.addProc(result, "contains", @[paramDef("s", tyString), paramDef("sub", tyString)], tyBool,
+  script.addProc(result, "contains", @[paramDef("s", ttyString), paramDef("sub", ttyString)], ttyBool,
     proc (args: StackView): Value =
       initValue(strutils.contains(args[0].stringVal[], args[1].stringVal[])))
 
-  script.addProc(result, "startsWith", @[paramDef("s", tyString), paramDef("prefix", tyString)], tyBool,
+  script.addProc(result, "startsWith", @[paramDef("s", ttyString), paramDef("prefix", ttyString)], ttyBool,
     proc (args: StackView): Value =
       initValue(strutils.startsWith(args[0].stringVal[], args[1].stringVal[])))
 
-  script.addProc(result, "endsWith", @[paramDef("s", tyString), paramDef("suffix", tyString)], tyBool,
+  script.addProc(result, "endsWith", @[paramDef("s", ttyString), paramDef("suffix", ttyString)], ttyBool,
     proc (args: StackView): Value =
       initValue(strutils.endsWith(args[0].stringVal[], args[1].stringVal[])))
 
-  script.addProc(result, "toUpper", @[paramDef("s", tyString)], tyString,
+  script.addProc(result, "toUpper", @[paramDef("s", ttyString)], ttyString,
     proc (args: StackView): Value =
       initValue(strutils.toUpperAscii(args[0].stringVal[])))
 
-  # script.addProc(result, "isUpper", @[paramDef("s", tyString)], tyBool,
+  # script.addProc(result, "isUpper", @[paramDef("s", ttyString)], ttyBool,
   #   proc (args: StackView): Value =
   #     # todo handle utf8
   #     initValue(strutils.isUpperAscii(args[0].stringVal[])))
 
-  script.addProc(result, "toLower", @[paramDef("s", tyString)], tyString,
+  script.addProc(result, "toLower", @[paramDef("s", ttyString)], ttyString,
     proc (args: StackView): Value =
       initValue(strutils.toLowerAscii(args[0].stringVal[])))
 
-  # script.addProc(result, "isLower", @[paramDef("s", tyString)], tyBool,
+  # script.addProc(result, "isLower", @[paramDef("s", ttyString)], ttyBool,
   #   proc (args: StackView): Value =
   #     # todo handle utf8
   #     initValue(strutils.isLowerAscii(args[0].stringVal[])))
@@ -50,10 +50,10 @@ proc initStrings*(script: Script, systemModule: Module): Module =
   #
   # Base64 encoding/decoding
   #
-  script.addProc(result, "encode", @[paramDef("s", tyString)], tyString,
+  script.addProc(result, "encode", @[paramDef("s", ttyString)], ttyString,
     proc (args: StackView): Value =
       initValue(base64.encode(args[0].stringVal[])))
 
-  script.addProc(result, "decode", @[paramDef("s", tyString)], tyString,
+  script.addProc(result, "decode", @[paramDef("s", ttyString)], ttyString,
     proc (args: StackView): Value =
       initValue(base64.decode(args[0].stringVal[])))
