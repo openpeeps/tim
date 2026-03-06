@@ -1,5 +1,5 @@
-import std/[unittest, os, htmlparser,
-            xmltree, strtabs, sequtils]
+import std/[unittest, os, xmltree, strtabs, sequtils]
+import pkg/voodoo/parsers/htmlpar
 
 import ../src/tim
 
