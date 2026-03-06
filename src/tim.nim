@@ -35,7 +35,7 @@ when defined napi_build:
         viewPath = args.get("view").getStr
         view = timjs.getView(viewPath)
 
-      return bindings.`%*`(evaluate(view, layout))
+      return bindings.`%*`(eval(view, layout, nil, nil))
 
 elif isMainModule:
   # Building Tim Engine as a CLI application
