@@ -16,7 +16,7 @@ requires "nim >= 2.0.0"
 
 # requires "toktok#head"
 requires "kapsis#head"
-requires "htmlparser"
+requires "htmlparser#head"
 requires "jsony"
 requires "flatty"
 requires "checksums"
