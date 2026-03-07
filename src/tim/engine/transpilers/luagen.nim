@@ -41,7 +41,7 @@ proc writeVar(node: Node, indent: int = 0): string {.codegen.} =
   for decl in node:
     let varName = decl[0].ident
     let value = decl[^1].getImplValue
-    result.add(ind & varName & " = " & value & "\n")
+    result.add(ind & "local " & varName & " = " & value & "\n")
 
 proc renderHandle(node: Node, unquoted = true): string =
   case node.kind
@@ -141,6 +141,8 @@ proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
       result.add(ind & "html = html .. " & child.renderHandle & "\n")
     of nkString:
       result.add(ind & "html = html .. " & child.renderHandle(false) & "\n")
+    of nkIdent:
+      result.add(ind & "html = html .. " & child.renderHandle & "\n")
     of nkCall:
       if child[0].ident[0] == '@':
         discard
@@ -236,7 +238,8 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
 
 proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
-            isSnippet: static bool = false) {.codegen.} =
+            isSnippet: static bool = false,
+            withReturnStmt: static bool = true) {.codegen.} =
   result.add("local $1 = {}\n" % [gen.module.getModuleName()])
   result.add("\n-- @param ... Additional arguments (not used in this method).\n-- @return string The generated HTML.\n")
   result.add("function $1.render(...)\n" % [gen.module.getModuleName()])
@@ -245,4 +248,5 @@ proc genScript*(program: Ast, includePath: Option[string],
     result.add(gen.genStmt(node, 2))
   result.add("  return html\n")
   result.add("end\n")
-  result.add("return $1\n" % [gen.module.getModuleName()])
+  when withReturnStmt == true:
+    result.add("return $1\n" % [gen.module.getModuleName()])

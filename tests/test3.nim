@@ -65,6 +65,11 @@ proc jsWrapper(x: Rope, className: string): string =
   result.add("\n")
   result.add("console.log(" & className & ".render())")
 
+proc luaWrapper(x: Rope, className: string): string =
+  result = $x
+  result.add("\n")
+  result.add("do\n  local mod = " & className & "\n  print(mod:render())\nend\n")
+
 const
   sample1 = """
 var hello = "Tim Engine is Awesome!"
@@ -121,6 +126,24 @@ test "s2s javascript":
   writeFile(s2sPath / "sample1.js", jsWrapper(output, "HelloWorld"))
   
   let stsOutput = execCmdEx("node " & s2sPath / "sample1.js")
+  assert stsOutput.exitCode == 0
+  assert stsOutput.output.strip() == sample1Html
+  echo stsOutput.output
+
+test "s2s lua":
+  initPackageManager()
+  initParser(sample1)
+  initLibrary()
+
+  var lgt = luagen.initCodeGen(script, module, mainChunk)
+  let output = lgt.genScript(program, none(string), isMainScript = true, withReturnStmt = false)
+  echo "Generated Lua code:\n" & output
+  let s2sPath = getCurrentDir() / "tests" / "s2s"
+  
+  discard existsOrCreateDir(s2sPath)
+  writeFile(s2sPath / "sample1.lua", luaWrapper(output, "HelloWorld"))
+  
+  let stsOutput = execCmdEx("luajit " & s2sPath / "sample1.lua")
   assert stsOutput.exitCode == 0
   assert stsOutput.output.strip() == sample1Html
   echo stsOutput.output

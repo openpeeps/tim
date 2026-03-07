@@ -6,9 +6,9 @@
 
 import std/[macros, lexbase, tables, strutils, critbits, options]
 
-# import ./tokens
 import ./lexer
 import pkg/voodoo/language/[errors, ast]
+import pkg/voodoo/parsers/htmlpar
 
 type
   Parser* = object
