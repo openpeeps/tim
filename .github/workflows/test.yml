@@ -34,9 +34,15 @@ jobs:
         with:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: 'sudo apt-get install -y libpcre3-dev'
-      - run: "npm install cmake-js -g"
+
+      - name: Install libpcre and luajit
+        run: sudo apt-get install -y libluajit-5.1-dev luajit libpcre3-dev
+
+      - name: Install cmake-js for building node bindings"
+        run: "npm install cmake-js -g"
+
       - run: "choosenim show path -y"
+
       - run: nimble install -Y
       - run: nimble test
       - run: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
