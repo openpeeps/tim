@@ -131,13 +131,11 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
   if classNames.len > 0:
     # Join class names with spaces
     result.add(" class=\\\"" & classNames.join(" ") & "\\\"")
-  
+  # Add id attribute if present
   if idVal.len > 0:
-    # Add id attribute if present
     result.add(" id=\\\"" & idVal & "\\\"")
-  
+  # Add custom attributes
   for (key, value) in customAttrs:
-    # Add custom attributes
     if value.len > 0:
       result.add(" " & key & "=\\\"" & value & "\\\"")
     else:
@@ -148,7 +146,13 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
     of nkBool, nkInt, nkFloat:
       result.add(ind & "  add result, \"" & child.renderHandle & "\"\n")
     of nkString:
-      result.add(ind & "  add result, \"" & child.renderHandle(true) & "\"\n")
+      if tag == "script":
+        let js = minifyInlineJsVanilla(child.stringVal)
+        result.add(ind & "  add result, r\"\"\"" & js & "\"\"\"\n")
+      else:
+        result.add(ind & "  add result, \"" & child.renderHandle(true) & "\"\n")
+    of nkIdent:
+      result.add(ind & "  add result, \"" & child.renderHandle & "\"\n")
     of nkCall:
       # handle function calls
       if child[0].ident[0] == '@':
@@ -225,14 +229,22 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
   of nkWhile:
     result.add(ind & "while " & node[0].render & ":\n")
     result.add(gen.genStmt(node[1], indent + 2))
+  of nkViewLoader:
+    # let viewName = node[0].render
+    # result.add(ind & "get" & viewName & "View()\n")
+    discard
   else: discard
 
 proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
-            isSnippet: static bool = false) {.codegen.} =
+            isSnippet: static bool = false,
+            isView: static bool = true) {.codegen.} =
   ## Generates a Nim script from the given AST `program`.
   result.add("import std/[json]\n\n")
-  result.add("proc get$1View*(layout: string = \"base\", local: JsonNode = newJObject()): string =\n" % gen.module.getModuleName())
+  when isView == true:
+    result.add("proc get$1View*(layout: string = \"base\"; local, app: JsonNode = newJObject()): string =\n" % gen.module.getModuleName())
+  else:
+    result.add("proc get$1Layout*(this, app: JsonNode = newJObject()): string =\n" % gen.module.getModuleName())
   result.add("  ## HTML template render function for rendering the $1 \n" % gen.module.getModuleName())
   for node in program.nodes:
     result.add(gen.genStmt(node, 2))

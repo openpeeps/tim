@@ -80,7 +80,7 @@ iterator getPartials*(engine: TimEngine): TimTemplate =
   for _, tpl in engine.partials:
     yield tpl
 
-proc precompile*(engine: TimEngine, firstRun: bool = false) # forward declaration
+proc precompile*(engine: TimEngine) # forward declaration
 
 proc transpile*(engine: TimEngine, tpl: TimTemplate,
         pkgr: Packager, data: JsonNode = nil): bool {.discardable.}
@@ -252,9 +252,7 @@ var
   browserSyncWatcher: Watchout
   hasChanges: bool
 
-proc eval*(view, layout: TimTemplate;
-      localData, globalData: JsonNode
-): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+proc eval*(view, layout: TimTemplate, localData, globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view within a layout and return the final HTML output.
   assert view.script != nil and layout.script != nil,
     "View or Layout script is not initialized"
@@ -264,22 +262,19 @@ proc eval*(view, layout: TimTemplate;
   let viewOutput = viewVM.interpret(view.script, view.mainChunk, localData = localData)
   return layoutVM.interpret(layout.script, layout.mainChunk, some(viewOutput), localData = localData)
 
-proc eval*(view: TimTemplate;
-  localData, globalData: JsonNode
-): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+proc eval*(view: TimTemplate, localData, globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view without a layout and return the final HTML output. 
   ## This can be used for rendering partials or standalone views.
   assert view.script != nil, "View script is not initialized"
   let viewVM = newVM()
   return viewVM.interpret(view.script, view.mainChunk, localData = localData)
 
-proc precompile*(engine: TimEngine, firstRun: bool = false) =
+proc precompile*(engine: TimEngine) =
   ## Precompile Tim Engine templates.
   ## 
   ## This proc is usually called before starting the development server.
-  ## 
-  ## When the browser sync is enabled, it will watch for changes in the templates
-  ## and recompile them on the fly.
+  ## It transpiles all the templates and sets up the file watcher
+  ## for hot reloading.
 
   # init the package manager and load the local packages
   let pkgr = packager.initPackageRemote()

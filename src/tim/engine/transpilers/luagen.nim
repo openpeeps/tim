@@ -140,7 +140,13 @@ proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
     of nkBool, nkInt, nkFloat:
       result.add(ind & "html = html .. " & child.renderHandle & "\n")
     of nkString:
-      result.add(ind & "html = html .. " & child.renderHandle(false) & "\n")
+      if tag == "script":
+        let js = minifyInlineJsVanilla(child.stringVal)
+        result.add(ind & "html = html .. [[")
+        result.add(js)
+        result.add("]]\n")
+      else:
+        result.add(ind & "html = html .. " & child.renderHandle(false) & "\n")
     of nkIdent:
       result.add(ind & "html = html .. " & child.renderHandle & "\n")
     of nkCall:
@@ -241,8 +247,10 @@ proc genScript*(program: Ast, includePath: Option[string],
             isSnippet: static bool = false,
             withReturnStmt: static bool = true) {.codegen.} =
   result.add("local $1 = {}\n" % [gen.module.getModuleName()])
-  result.add("\n-- @param ... Additional arguments (not used in this method).\n-- @return string The generated HTML.\n")
-  result.add("function $1.render(...)\n" % [gen.module.getModuleName()])
+  result.add("\n-- @param args Table\n-- @return string The generated HTML.\n")
+  result.add("function $1.render(args)\n" % [gen.module.getModuleName()])
+  result.add("  local app = args.app or {}\n")
+  result.add("  local this = args.app or {}\n")
   result.add("  local html = ''\n")
   for node in program.nodes:
     result.add(gen.genStmt(node, 2))
