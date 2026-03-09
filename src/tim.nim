@@ -24,7 +24,7 @@ when defined napi_build:
         args.get("output").getStr,
         args.get("basepath").getStr
       )
-      timjs.precompile(firstRun = true)
+      timjs.precompile()
 
     proc render(view: string, layout: string = "base"): string {.export_napi.} =
       ## Render a Tim Engine template based on the view and layout paths
