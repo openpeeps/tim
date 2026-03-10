@@ -100,7 +100,7 @@ proc shouldInsertSemi(prevSig, next: char, lastWord: string): bool =
 
   prevCanEnd and nextCanStart
 
-proc minifyInlineJsVanilla(js: string): string =
+proc minifyInlineJs*(js: string): string =
   type JsState = enum
     jsNormal, jsSQuote, jsDQuote, jsTemplate, jsRegex, jsLineComment, jsBlockComment
 

@@ -1,7 +1,7 @@
 import std/[os, tables, net, strutils, json, sequtils, options]
 
 # import pkg/voodoo/language/pm/manager
-import pkg/voodoo/language/[ast, codegen, chunk, sym, vm, value]
+import pkg/voodoo/language/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/voodoo/packagemanager/[configurator, packager]
 
 import pkg/[watchout, checksums/sha1]
@@ -40,6 +40,8 @@ type
       ## the transpiled script of the template
     mainChunk: Chunk
       ## the main chunk of the transpiled script
+    dependencies*: seq[string] = @[]
+      ## a sequence of source paths that the template depends on (imports/includes)
 
   UserScript* = ref object
     # chunk: Chunk
@@ -55,9 +57,13 @@ type
     ## 
     ## It must be initialized with `newTim()`
     config*: TimConfig
+      ## The configuration for the Tim Engine, including source and output paths, target source, etc.
     userScript*: UserScript
+      ## A `UserScript` object that allows users to define custom foreign procedures
     globalData*: JsonNode
       ## Global data available in all templates under the `$app` variable
+    depResolver*: FileResolver
+      ## A `FileResolver` to manage template dependencies and hot reloading
     views*, layouts*, partials*: TableRef[string, TimTemplate] = newTable[string, TimTemplate]()
       ## Tables to store templates by their source path
   
@@ -123,6 +129,7 @@ proc newTim*(src, output, basepath: string,
   result = TimEngine(
     userScript: UserScript(),
     globalData: globalData,
+    depResolver: initResolver(),
     config: TimConfig(
       `type`: ConfigType.typeProject,
       compilation: CompilationSettings(
@@ -195,6 +202,37 @@ proc registerTemplate*(engine: TimEngine, src: string): TimTemplate =
 proc parserCallback(astProgram: var Ast, path: string) =
   parser.parseScript(astProgram, readFile(path), path)
 
+proc resolveDepPath(engine: TimEngine, ownerSrc, dep: string): string =
+  if dep.isAbsolute: return normalizedPath(dep)
+
+  let fromOwner = normalizedPath(ownerSrc.parentDir / dep)
+  if fileExists(fromOwner): return fromOwner
+
+  let fromPartials = normalizedPath(engine.config.compilation.partialsPath / dep)
+  if fileExists(fromPartials): return fromPartials
+  return fromOwner
+
+proc updateDeps(engine: TimEngine, tpl: TimTemplate, rawDeps: sink seq[string]) =
+  var deps: seq[string] = @[]
+  let owner = normalizedPath(tpl.src)
+  for raw in rawDeps:
+    let d = engine.resolveDepPath(owner,
+      engine.config.compilation.partialsPath / raw.addFileExt("timl"))
+    if d != owner and d notin deps:
+      deps.add(d)
+  tpl.dependencies =move deps
+  engine.depResolver.setDependencies(owner, tpl.dependencies)
+
+proc parsePartial(engine: TimEngine, tpl: TimTemplate) =
+  var astProgram: Ast
+  try:
+    parser.parseScript(astProgram, readFile(tpl.src), tpl.src)
+  except TimParserError as e:
+    echo "Error parsing template: ", e.msg
+    echo tpl.src
+    return
+  engine.updateDeps(tpl, astProgram.otherPaths)
+
 proc transpile*(engine: TimEngine, tpl: TimTemplate,
         pkgr: Packager, data: JsonNode = nil): bool {.discardable.} =
   ## Transpile the Tim template code.
@@ -211,6 +249,8 @@ proc transpile*(engine: TimEngine, tpl: TimTemplate,
     script = newScript(mainChunk)
     module = newModule(tpl.src.extractFilename, some(tpl.src))
     localData = newJObject()
+
+  engine.updateDeps(tpl, astProgram.otherPaths)
 
   # load standard library modules
   let systemModule = libsystem.loadLibrary(script, engine.globalData, localData)
@@ -254,11 +294,10 @@ var
 
 proc eval*(view, layout: TimTemplate, localData, globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view within a layout and return the final HTML output.
-  assert view.script != nil and layout.script != nil,
-    "View or Layout script is not initialized"
-  let
-    viewVM = newVM()
-    layoutVM = newVM()
+  assert view.script != nil and
+    layout.script != nil, "View or Layout script is not initialized"
+  let viewVM = newVM()
+  let layoutVM = newVM()
   let viewOutput = viewVM.interpret(view.script, view.mainChunk, localData = localData)
   return layoutVM.interpret(layout.script, layout.mainChunk, some(viewOutput), localData = localData)
 
@@ -328,6 +367,9 @@ proc precompile*(engine: TimEngine) =
         # partials don't need to be compiled as they
         # are included in other templates (layouts or views)
         engine.transpile(newTpl, pkgr)
+      else:
+        # for partials, we only need to parse them to get their dependencies
+        parsePartial(engine, newTpl)
 
   # Callback `onChange`
   proc onChange(file: watchout.File) =
@@ -340,12 +382,23 @@ proc precompile*(engine: TimEngine) =
       engine.transpile(tpl, pkgr)
       when defined timHotCode:
         notifyAllClients()
-    else:
-      # otherwise, we'll need to search for the templates
-      # that load the current partial template and recompile them
-      discard
-      # engine.importsHandle.excl(file.getPath())
-      # engine.resolveDependants(engine.importsHandle.dependencies(file.getPath).toSeq)
+    of ttPartial:
+      # refresh changed partial dependencies first
+      parsePartial(engine, tpl)
+      # re-transpile all recursive dependants
+      for depPath in engine.depResolver.dependants(tpl.src):
+        let depTpl = engine.getTemplateByPath(depPath)
+        if depTpl == nil: continue
+        case depTpl.templateType
+        of ttView, ttLayout:
+          engine.transpile(depTpl, pkgr)
+        of ttPartial:
+          parsePartial(engine, depTpl)
+        # clear the cached AST of the dependants to force
+        # re-parsing and updating their dependencies
+        codegenCache.cachedAst.del(tpl.src)
+      when defined timHotCode:
+        notifyAllClients()
     hasChanges = true
 
   # Callback `onDelete`
@@ -353,6 +406,11 @@ proc precompile*(engine: TimEngine) =
     # Runs when detecting a deleted template
     let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
     if tpl != nil:
+      # if the template is found, remove it from the engine tables
+      # and clear its dependencies from the resolver. We also need
+      # to re-transpile all the dependants of the deleted template to update
+      # their dependencies and remove the deleted template from their dependency list
+      engine.depResolver.clearFile(normalizedPath(tpl.src))
       case tpl.templateType
       of ttView:
         engine.views.del(tpl.src)

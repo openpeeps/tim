@@ -9,6 +9,7 @@ import std/[macros, lexbase, tables, strutils, critbits, options]
 import ./lexer
 import pkg/voodoo/language/[errors, ast]
 import pkg/voodoo/parsers/htmlpar
+from ./transpilers/private import minifyInlineJs
 
 type
   Parser* = object
@@ -16,6 +17,7 @@ type
     prev, curr, next: TokenTuple
     # internals
     parentNode: seq[Node]
+    otherPaths: seq[string]
     classCacheAttr: CritBitTree[Node]
       # Cache for HTML class attributes
       # to optimize memory usage and speed up
@@ -338,11 +340,15 @@ prefixHandle parseImportStmt:
       let path = p.parseExpression()
       caseNotNil path:
         result.add(path)
+        if result.kind == nkInclude:
+          p.otherPaths.add(path.stringVal)
   else:
     walk p # tkImport
     let path = p.parseExpression()
     caseNotNil path:
       result.add(path)
+      if result.kind == nkInclude:
+        p.otherPaths.add(path.stringVal)
 
 const attrKinds = {tkIdentifier, tkType, tkIf,
                 tkFor, tkElif, tkElse, tkOr, tkIn} + Strings
@@ -487,16 +493,16 @@ prefixHandle parseElement:
   case p.curr.kind
   of tkColon:
     walk p
-    let valNode = p.parseExpression()
-    caseNotNil valNode:
-      result.childElements.add(valNode)
+    if tag == tagScript:
+      let js = minifyInlineJs(p.curr.value)
+      result.childElements.add(ast.newStringLit(js))
+      walk p
+    else:
+      let valNode = p.parseExpression()
+      caseNotNil valNode:
+        result.childElements.add(valNode)
   of Strings:
     result.childElements.add(p.parseString())
-  # of tkString, tkIdentVar:
-  #   if p.curr.line == result.ln:
-  #     let valNode = p.parseExpression()
-  #     caseNotNil valNode:
-  #       result.childElements.add(valNode)
   of tkGT:
     # parse inline HTML tags
     var node: Node
@@ -1235,3 +1241,4 @@ proc parseScript*(astProgram: var Ast, code: string, sourcePath: string) =
       astProgram.nodes.add(node)
     do:
       p.curr.error(ErrUnexpectedToken % $p.curr.kind)
+  astProgram.otherPaths = move(p.otherPaths)

@@ -147,7 +147,7 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
       result.add(ind & "  add result, \"" & child.renderHandle & "\"\n")
     of nkString:
       if tag == "script":
-        let js = minifyInlineJsVanilla(child.stringVal)
+        let js = minifyInlineJs(child.stringVal)
         result.add(ind & "  add result, r\"\"\"" & js & "\"\"\"\n")
       else:
         result.add(ind & "  add result, \"" & child.renderHandle(true) & "\"\n")
@@ -242,7 +242,7 @@ proc genScript*(program: Ast, includePath: Option[string],
   ## Generates a Nim script from the given AST `program`.
   result.add("import std/[json]\n\n")
   when isView == true:
-    result.add("proc get$1View*(layout: string = \"base\"; local, app: JsonNode = newJObject()): string =\n" % gen.module.getModuleName())
+    result.add("proc get$1View*(this, app: JsonNode = newJObject()): string =\n" % gen.module.getModuleName())
   else:
     result.add("proc get$1Layout*(this, app: JsonNode = newJObject()): string =\n" % gen.module.getModuleName())
   result.add("  ## HTML template render function for rendering the $1 \n" % gen.module.getModuleName())

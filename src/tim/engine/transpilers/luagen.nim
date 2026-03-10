@@ -141,7 +141,7 @@ proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
       result.add(ind & "html = html .. " & child.renderHandle & "\n")
     of nkString:
       if tag == "script":
-        let js = minifyInlineJsVanilla(child.stringVal)
+        let js = minifyInlineJs(child.stringVal)
         result.add(ind & "html = html .. [[")
         result.add(js)
         result.add("]]\n")
