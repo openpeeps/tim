@@ -32,8 +32,11 @@ type
       iterForCtx: Context       # the for loop's context
     counter: uint16
 
-const
-  utilsJS = staticRead(currentSourcePath().parentDir / "tim.js")
+# const
+#   utilsJS = staticRead(currentSourcePath().parentDir / "tim.js")
+# TODO a mini library that will make it easy for Tim to render
+# timl code via javascript at client-side. something like jquery but
+# super lightweight and with 2026 flavor
 
 proc initCodeGen*(script: Script, module: Module, chunk: Chunk,
         kind = gkToplevel): CodeGen =
