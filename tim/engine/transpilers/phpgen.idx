@@ -1,0 +1,5 @@
+nimTitle	phpgen	tim/engine/transpilers/phpgen.html	module tim/engine/transpilers/phpgen		0
+nim	CodeGen	tim/engine/transpilers/phpgen.html#CodeGen	object CodeGen		19
+nim	initCodeGen	tim/engine/transpilers/phpgen.html#initCodeGen,Script,Module,Chunk	proc initCodeGen(script: Script; module: Module; chunk: Chunk; kind = gkToplevel): CodeGen		38
+nim	minifyInlineJs	tim/engine/transpilers/phpgen.html#minifyInlineJs,string	proc minifyInlineJs(js: string): string		103
+nim	genScript	tim/engine/transpilers/phpgen.html#genScript,CodeGen,Ast,Option[string],staticbool,staticbool	proc genScript(gen: var CodeGen; program: Ast; includePath: Option[string];\n          isMainScript: static bool = false; isSnippet: static bool = false): Rope		271

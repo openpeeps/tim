@@ -1,0 +1,2 @@
+nimTitle	libarrays	tim/engine/stdlib/libarrays.html	module tim/engine/stdlib/libarrays		0
+nim	initArrays	tim/engine/stdlib/libarrays.html#initArrays,Script,Module	proc initArrays(script: Script; systemModule: Module): Module		15

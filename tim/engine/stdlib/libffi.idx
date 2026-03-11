@@ -1,0 +1,4 @@
+nimTitle	libffi	tim/engine/stdlib/libffi.html	module tim/engine/stdlib/libffi		0
+nim	HelloWorldProc	tim/engine/stdlib/libffi.html#HelloWorldProc	type HelloWorldProc		18
+nim	GreetingProc	tim/engine/stdlib/libffi.html#GreetingProc	type GreetingProc		19
+nim	loadFFI	tim/engine/stdlib/libffi.html#loadFFI,Script,Module	proc loadFFI(script: Script; systemModule: Module): Module		21

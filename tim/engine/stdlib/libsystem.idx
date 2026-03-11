@@ -1,0 +1,3 @@
+nimTitle	libsystem	tim/engine/stdlib/libsystem.html	module tim/engine/stdlib/libsystem		0
+nim	TimRuntime	tim/engine/stdlib/libsystem.html#TimRuntime	object TimRuntime		21
+nim	loadLibrary	tim/engine/stdlib/libsystem.html#loadLibrary,Script,JsonNode,JsonNode	proc loadLibrary(script: Script; globalData, localData: JsonNode): Module		84
