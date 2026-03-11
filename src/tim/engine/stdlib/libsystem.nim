@@ -8,7 +8,8 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[strutils, options, os, sequtils,
-        httpclient, httpcore, json, tables]
+        httpclient, httpcore, json, tables,
+        algorithm, random]
 
 import pkg/jsony
 import pkg/voodoo/language/[chunk, ast, sym, value]
@@ -390,6 +391,19 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
     )
 
   #
+  # Random Utils
+  #
+  randomize()
+  script.addProc(result, "shuffle", @[paramDef("arr", ttyArray)], ttyArray,
+    proc (args: StackView): Value =
+      var arr = initArray(args[0].objectVal.fields.len)
+      for i in 0..<args[0].objectVal.fields.len:
+        arr.objectVal.fields[i] = args[0].objectVal.fields[i]
+      arr.objectVal.fields.shuffle()
+      result = arr
+    )
+
+  #
   # Echo `$` operator
   #
   # script.addProc(result, "$", @[paramDef("x", ttyBool)], ttyString,
@@ -432,12 +446,12 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
   # Built-in OS Operations
   # std/os
   #
-  script.addProc(result, "readFile", @[paramDef("filename", ttyString)], ttyString,
+  script.addProc(result, "readFile", @[paramDef("path", ttyString)], ttyString,
     proc (args: StackView): Value =
       initValue(readFile(args[0].stringVal[])))
 
   script.addProc(result, "writeFile",
-    @[paramDef("filename", ttyString), paramDef("content", ttyString)], ttyVoid,
+    @[paramDef("path", ttyString), paramDef("content", ttyString)], ttyVoid,
     proc (args: StackView): Value =
       writeFile(args[0].stringVal[], args[0].stringVal[]))
 
@@ -469,6 +483,14 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
           "status": res.status,
           "headers": toJson(res.headers.table).fromJson(),
           "content": fromJson(res.body)
+        }
+        result = initValue(resp)
+      except:
+        let err = getCurrentExceptionMsg()
+        var resp = %*{
+          "status": 0,
+          "headers": %*{},
+          "content": %*{"error": err}
         }
         result = initValue(resp)
       finally:
