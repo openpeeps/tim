@@ -1,5 +1,5 @@
 nimTitle	luagen	tim/engine/transpilers/luagen.html	module tim/engine/transpilers/luagen		0
 nim	CodeGen	tim/engine/transpilers/luagen.html#CodeGen	object CodeGen		19
-nim	initCodeGen	tim/engine/transpilers/luagen.html#initCodeGen,Script,Module,Chunk	proc initCodeGen(script: Script; module: Module; chunk: Chunk; kind = gkToplevel): CodeGen		38
-nim	minifyInlineJs	tim/engine/transpilers/luagen.html#minifyInlineJs,string	proc minifyInlineJs(js: string): string		103
+nim	initCodeGen	tim/engine/transpilers/luagen.html#initCodeGen,Script,Module,Chunk	proc initCodeGen(script: Script; module: Module; chunk: Chunk; kind = gkToplevel): CodeGen		41
+nim	minifyInlineJs	tim/engine/transpilers/luagen.html#minifyInlineJs,string	proc minifyInlineJs(js: string): string		106
 nim	genScript	tim/engine/transpilers/luagen.html#genScript,CodeGen,Ast,Option[string],staticbool,staticbool,staticbool	proc genScript(gen: var CodeGen; program: Ast; includePath: Option[string];\n          isMainScript: static bool = false; isSnippet: static bool = false;\n          withReturnStmt: static bool = true): Rope		248
