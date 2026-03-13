@@ -153,9 +153,9 @@ proc writeHtml(node: Node, indent: int = 0): string {.codegen.} =
       if child[0].ident[0] == '@':
         discard
       else:
-        result.add(gen.genStmt(child, indent + 2))
+        result.add(gen.genStmt(child, indent))
     else:
-      result.add(gen.genStmt(child, indent + 2))
+      result.add(gen.genStmt(child, indent))
   if node.tag notin voidHtmlElements:
     result.add(ind & "html = html .. \"</" & tag & ">\"\n")
 
@@ -216,7 +216,11 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
       result.add(gen.genStmt(node[2], indent + 1))
       result.add(ind & "end\n")
     else:
-      result.add(ind & "for _, " & varName & " in ipairs(" & iterable.render & ") do\n")
+      if iterable[0].ident == "..":
+        # a tim range `0..10` in lua shoild be `0, 10`
+        result.add(ind & "for x, " & varName & " in " & iterable[1].render & ", " & iterable[2].render & " do\n")
+      else:
+        result.add(ind & "for _, " & varName & " in ipairs(" & iterable.render & ") do\n")
       result.add(gen.genStmt(node[2], indent + 1))
       result.add(ind & "end\n")
   of nkCall:
@@ -253,7 +257,7 @@ proc genScript*(program: Ast, includePath: Option[string],
   result.add("  local this = args.app or {}\n")
   result.add("  local html = ''\n")
   for node in program.nodes:
-    result.add(gen.genStmt(node, 2))
+    result.add(gen.genStmt(node, 1))
   result.add("  return html\n")
   result.add("end\n")
   when withReturnStmt == true:
