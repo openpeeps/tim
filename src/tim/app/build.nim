@@ -7,7 +7,9 @@
 import std/[os, monotimes, times, strutils, json, options, ropes]
 
 import pkg/[flatty, jsony]
-import pkg/kapsis/[cli, runtime]
+
+import pkg/kapsis/runtime
+import pkg/kapsis/interactive/prompts
 
 import pkg/voodoo/language/[ast, codegen, chunk, sym, vm]
 import pkg/voodoo/packagemanager/packager

@@ -7,7 +7,10 @@
 import std/[os, osproc, strutils, sequtils, uri, httpclient]
 
 import pkg/[semver, nyml]
-import pkg/kapsis/[cli, runtime]
+
+import pkg/kapsis/runtime
+import pkg/kapsis/interactive/prompts
+
 import pkg/voodoo/packagemanager/[configurator, packager, remote]
 
 #
