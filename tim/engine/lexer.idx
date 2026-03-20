@@ -85,5 +85,5 @@ nim	TokenKind	tim/engine/lexer.html#TokenKind	enum TokenKind		10
 nim	TokenTuple	tim/engine/lexer.html#TokenTuple	tuple TokenTuple		25
 nim	Lexer	tim/engine/lexer.html#Lexer	object Lexer		34
 nim	newLexer	tim/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		40
-nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		107
-nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		454
+nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		117
+nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		464
