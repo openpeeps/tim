@@ -677,8 +677,7 @@ prefixHandle parseIdentVar:
 
 prefixHandle parseJavaScript:
   result = ast.newNode(nkJavaScriptSnippet)
-  result.snippetCode = p.curr.value
-  echo result.snippetCode
+  result.snippetCode = minifyInlineJs(p.curr.value)
   # for attr in p.curr.attr:
   #   let identNode = ast.newNode(nkIdent)
   #   let id = attr.split("_")
@@ -1061,6 +1060,20 @@ prefixHandle parseObject:
       else: break # todo error
     result.add(fields)
 
+prefixHandle parseTypeDef:
+  # parse a type definition
+  result = ast.newTree(nkTypeDef)
+  var typeName = ast.newIdent(p.curr.value)
+  walk p # tkIdentifier
+  if p.curr is tkLB:
+    typeName = p.parseGenericType(typeName)
+  expectWalk(tkAssign) # expect an equal sign
+  let typeDefNode: Node = p.parseExpression()
+  caseNotNil typeDefNode:
+    result.typeIdent = typeName
+    result.add(typeDefNode)
+  debugEcho typeDefNode
+
 prefixHandle parseViewPlaceholder:
   ## Parse a view placeholder
   result = ast.newNode(nkViewLoader)
@@ -1090,9 +1103,19 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkIdentVar: parseIdentVar
     of tkIf: parseIf
     of tkLitObject: parseObject
-    of tkIdentifier, tkType:
-      if p.next.line == p.curr.line and p.next is tkLP:
+    of tkIdentifier:
+      if p.next is tkLP and p.next.line == p.curr.line:
         parseCall
+      else:
+        if minPrec < 45:
+          parseElement
+        else:
+          parseIdent
+    of tkType:
+      if p.next is tkLP and p.next.line == p.curr.line:
+        parseCall
+      elif p.next is tkLC and p.next.line == p.curr.line:
+        parseTypeDef
       else:
         if minPrec < 45:
           parseElement

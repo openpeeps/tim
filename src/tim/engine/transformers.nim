@@ -9,6 +9,9 @@ block extendVoodooAstAndCodeGen:
     nkHtmlElement
     nkHtmlAttribute
     nkJavaScriptSnippet
+    nkViewLoader     # view loader using `@view` placeholder\
+    nkClientBlock    # client block using `@client ... @end`
+    nkMacro          # a block - {...}
 
   extendCase:
     # Extend the Node variant to support HTML elements
@@ -37,14 +40,25 @@ block extendVoodooAstAndCodeGen:
       discard gen.htmlConstr(node)
     of nkJavaScriptSnippet:
       # JavaScript snippet construction
-      # discard gen.storeJavaScript(node)
-      discard
+      let tag = "script"
+      let tagPos = gen.chunk.getString(tag)
+      gen.chunk.emit(opcBeginHtml)
+      gen.chunk.emit(tagPos)
+      discard gen.pushConst(ast.newStringLit(node.snippetCode))
+      gen.chunk.emit(opcTextHtml)
+      gen.chunk.emit(opcCloseHtml)
+      gen.chunk.emit(tagPos)
+    of nkMacro: discard gen.genMacro(node)
 
   extendModule "/voodoo/language/ast.nim":
     const voidHtmlElements* = [tagArea, tagBase, tagBr, tagCol,
       tagEmbed, tagHr, tagImg, tagInput, tagLink, tagMeta,
       tagParam, tagSource, tagTrack, tagWbr, tagCommand,
       tagKeygen, tagFrame]
+
+    proc newMacro*(children: varargs[Node]): Node =
+      ## Construct a new block.
+      newNode(nkMacro)
 
     proc newHtmlAttribute*(attrType: static HtmlAttributeType, attrNode: Node): Node =
       ## Construct a new HTML attribute node.
@@ -202,6 +216,104 @@ block extendVoodooAstAndCodeGen:
         result = $node.tag
 
   extendModule "/voodoo/language/codegen.nim":
+    proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
+      ## Generates code for a block of code that contains a procedure.
+      if not isInstantiation and node[1].kind != nkEmpty:
+        gen.pushScope()
+      # get some basic metadata
+      let
+        name = node[0]
+        formalParams = node[2]
+        body = node[3]
+        genericParams =
+          if not isInstantiation:
+            # collect generic params if we're not instantiating
+            gen.collectGenericParams(node[1])
+          else: none(seq[Sym])
+        params = gen.collectParams(formalParams, genericParams)
+        returnTy = # empty return type == void
+          if formalParams[0].kind != nkEmpty:
+            gen.lookup(formalParams[0])
+          else:
+            gen.module.sym"void"
+      # create a new proc
+      var (sym, theProc) =
+            gen.script.newProc(name, impl = node,
+                        params, returnTy, kind = pkNative, 
+                        genKind = gen.kind)
+      sym.genericParams = genericParams
+      sym.procType = ProcType.procTypeMacro
+      
+      # add the proc into the declaration scope
+      # we need to do this here, otherwise recursive calls will be broken
+      gen.addSym(sym, scopeOffset = ord(sym.genericParams.isSome))
+
+      # if we're in an instantiation or the proc is not generic, generate its code
+      if not sym.isGeneric or isInstantiation:
+        var
+          chunk = newChunk(gen.chunk.file)
+          procGen = initCodeGen(gen.script, gen.module, chunk, gkBlockProc,
+            ctxAllocator =
+              if gen.kind == gkToplevel: nil
+              else: gen.ctxAllocator
+          )
+        theProc.chunk = chunk
+        chunk.file = gen.chunk.file
+        procGen.procReturnTy = returnTy
+
+        # add the proc's parameters as locals
+        # TODO: closures and upvalues
+        procGen.pushScope()
+        for (name, ty, implValTy, isMut, isOpt) in params:
+          var varType = if isMut: skVar else: skLet
+          let param = procGen.declareVar(name, varType, ty)
+          param.varSet = true  # arguments are not assignable
+        
+        # todo
+        # let stmtVar = procGen.declareVar(ast.newIdent("stmt"), skLet, gen.module.sym"any")
+        # stmtVar.varSet = true
+        # procGen.pushDefault(gen.module.sym"string")
+        
+        # define the default `attrs` variable
+        # this is used to store the attributes of the block.
+        let attrs = newIdent("attrs")
+        procGen.declareVar(attrs, skVar, gen.module.sym"string", isMagic = true)
+        procGen.pushDefault(gen.module.sym"string")
+        procGen.popVar(attrs)
+        
+        # defines the default `blockStmt` variable
+        # this is used to store any additional statements
+        # provided at call time
+        # let blockStmt = newIdent("blockStmt")
+        # procGen.declareVar(blockStmt, skVar, gen.module.sym"any", isMagic = true)
+        # procGen.popVar(blockStmt)
+
+        # add the proc into the script
+        gen.script.procs.add(theProc)
+        if sym.procExport:
+          gen.script.procsExport.add(theProc)
+
+        # compile the proc's body
+        discard procGen.genBlock(body, isStmt = true)
+
+        # if the macro has any deferred code to be executed,
+        # we need to emit it now.
+        # procGen.chunk.emit(opcLoadDeferred)
+
+        # finally, return ``result`` if applicable
+        if returnTy.tyKind != ttyVoid:
+          let resultSym = procGen.lookup(newIdent("result"))
+          procGen.chunk.emit(opcPushL)
+          procGen.chunk.emit(resultSym.varStackPos.uint8)
+          procGen.chunk.emit(opcReturnVal)
+        else:
+          procGen.chunk.emit(opcReturnVoid)
+
+      # pop the generic declaration scope
+      if not isInstantiation and sym.isGeneric:
+        gen.popScope()
+      result = sym
+
     proc htmlConstr(node: Node): Sym {.codegen.} =
       # Constructs a new HTML element from Html object
       if gen.kind == gkProc:

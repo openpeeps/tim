@@ -65,19 +65,23 @@ proc peek(lex: Lexer, offset = 1): char =
   let idx = lex.pos + offset
   if idx < lex.input.len: lex.input[idx] else: '\0'
 
-proc peekToken(lex: Lexer, expectToken: string): bool =
-  # Peeks ahead to see if the next token matches expectToken
-  # without advancing the lexer
-  var tempLex = lex
-  tempLex.strbuf.setLen(0)
-  while tempLex.current.isAlphaAscii():
-    tempLex.strbuf.add(tempLex.current)
-    tempLex.advance()
-  return tempLex.strbuf == expectToken
-
 proc skipWhitespace(lex: var Lexer) =
   while lex.current in {' ', '\t', '\r'}:
     lex.advance()
+
+proc peekToken(lex: Lexer, expectToken: string): bool =
+  # Peeks ahead to see if the next token matches expectToken without advancing the lexer
+  var i = 0
+  var pos = lex.pos
+  # Skip whitespace
+  while pos < lex.input.len and lex.input[pos] in {' ', '\t', '\r'}:
+    inc pos
+  # Now check for expectToken
+  for ch in expectToken:
+    if pos >= lex.input.len or lex.input[pos] != ch:
+      return false
+    inc pos
+  return true
 
 proc initToken(lex: var Lexer, kind: static TokenKind, line, col, pos, wsno: int): TokenTuple =
   (kind, "", line, col, pos, wsno)
@@ -87,19 +91,25 @@ proc initToken(lex: var Lexer, kind: TokenKind, value: sink string, line, col, p
 
 template collectSnippet(tkKind: TokenKind, tkStr: string) =
   # Collects a magic code snippet until `@end` is found 
-  result = initToken(lex, tkSnippetJs, tkStr, line, col, pos, wsno)
+  result = initToken(lex, tkSnippetJs, "", line, col, pos, wsno)
+  skipWhitespace(lex)
   while true:
     case lex.current
     of '\0':
       echo "EOF reached before closing @end" # todo error handling
       return
     of '@':
-      if lex.peekToken("end"):
+      if lex.peekToken("@end"):
         result.kind = tkKind
-        result.value = result.value.unindent(pos + 2)
-        inc lex.pos, 4
-        lex.current = if lex.pos < lex.input.len: lex.input[lex.pos] else: '\0'
+        # Advance past "@end"
+        lex.advance() # @
+        lex.advance() # e
+        lex.advance() # n
+        lex.advance() # d
         break
+      else:
+        result.value.add(lex.current)
+        lex.advance()
     else:
       result.value.add(lex.current)
       lex.advance()
