@@ -59,7 +59,7 @@
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
       <li><a class="reference" href="#TempParamDef" title="TempParamDef = tuple[pName: string, pKind: TypeKind, pKindIdent: string,
-                     pImplSym: Sym, isMut, isOpt: bool]">TempParamDef</a></li>
+                     pImplSym: Sym, isMut, isOpt: bool, val: Value]">TempParamDef</a></li>
 
     </ul>
   </details>
@@ -167,7 +167,7 @@ iterator items*(arr: array[int]): int {
   <dl class="item">
     <div id="TempParamDef">
   <dt><pre><a href="inliner.html#TempParamDef"><span class="Identifier">TempParamDef</span></a> <span class="Other">=</span> <span class="Keyword">tuple</span><span class="Other">[</span><span class="Identifier">pName</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">,</span> <span class="Identifier">pKind</span><span class="Other">:</span> <span class="Identifier">TypeKind</span><span class="Other">,</span> <span class="Identifier">pKindIdent</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">,</span>
-                     <span class="Identifier">pImplSym</span><span class="Other">:</span> <span class="Identifier">Sym</span><span class="Other">,</span> <span class="Identifier">isMut</span><span class="Other">,</span> <span class="Identifier">isOpt</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">]</span></pre></dt>
+                     <span class="Identifier">pImplSym</span><span class="Other">:</span> <span class="Identifier">Sym</span><span class="Other">,</span> <span class="Identifier">isMut</span><span class="Other">,</span> <span class="Identifier">isOpt</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">,</span> <span class="Identifier">val</span><span class="Other">:</span> <span class="Identifier">Value</span><span class="Other">]</span></pre></dt>
   <dd>
     
     
@@ -257,7 +257,7 @@ iterator items*(arr: array[int]): int {
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">KeyError</span><span class="Other">,</span> <span class="Identifier">CodeGenError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
-    Add a foreign procedure to the given module, belonging to the given script.
+    
     
   </dd>
 </div>
@@ -299,7 +299,7 @@ iterator items*(arr: array[int]): int {
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-03-20 12:24:47 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-03-21 18:37:03 UTC</small>
       </div>
     </div>
   </div>
