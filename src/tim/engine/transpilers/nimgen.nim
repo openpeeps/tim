@@ -125,8 +125,8 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
       else:
         discard
   let ind = repeat(" ", indent)
-  result.add(ind & "block:\n")
-  result.add(ind & "  add result, \"<" & tag)
+  # result.add(ind & "block:\n")
+  result.add(ind & "add result, \"<" & tag)
   
   if classNames.len > 0:
     # Join class names with spaces
@@ -144,13 +144,13 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
   for child in node.childElements:
     case child.kind
     of nkBool, nkInt, nkFloat:
-      result.add(ind & "  add result, \"" & child.renderHandle & "\"\n")
+      result.add(ind & "add result, \"" & child.renderHandle & "\"\n")
     of nkString:
       if tag == "script":
         let js = minifyInlineJs(child.stringVal)
-        result.add(ind & "  add result, r\"\"\"" & js & "\"\"\"\n")
+        result.add(ind & "add result, r\"\"\"" & js & "\"\"\"\n")
       else:
-        result.add(ind & "  add result, \"" & child.renderHandle(true) & "\"\n")
+        result.add(ind & "add result, \"" & child.renderHandle(true) & "\"\n")
     of nkIdent:
       result.add(ind & "  add result, \"" & child.renderHandle & "\"\n")
     of nkCall:
@@ -158,11 +158,11 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
       if child[0].ident[0] == '@':
         discard
       else:
-        result.add(gen.genStmt(child, indent + 2))
+        result.add(gen.genStmt(child, indent))
     else:
-      result.add(gen.genStmt(child, indent + 2))
+      result.add(gen.genStmt(child, indent))
   if node.tag notin voidHtmlElements:
-    result.add(ind & "  add result, \"</" & tag & ">\"\n")
+    result.add(ind & "add result, \"</" & tag & ">\"\n")
 
 
 proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
