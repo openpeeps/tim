@@ -17,10 +17,10 @@ proc loadTimes*(script: Script, systemModule: Module): Module =
   result.load(systemModule)
 
   script.addProc(result, "now", @[], ttyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       initValue($(now())))
 
   script.addProc(result, "getCurrentYear", @[], ttyInt,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       result = initValue(now().year)
     )

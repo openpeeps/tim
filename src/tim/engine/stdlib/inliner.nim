@@ -5,51 +5,107 @@ import ../parser
 type
   TempParamDef* = tuple
     pName: string
+      # the name of the parameter, used for error messages and stuff
     pKind: TypeKind
+      # the type of the parameter, used for type checking and codegen
     pKindIdent: string
+      # the identifier of the parameter type, used for codegen
     pImplSym: Sym
+      # the symbol of the parameter implementation, used for codegen
     isMut, isOpt: bool
+      # whether the parameter is mutable or optional, used for codegen
+    val: Value
+      # the default value of the parameter, used for optional parameters
+
+proc toStackView(vals: var seq[Value]): StackView {.inline.} =
+  ## seq[Value] -> StackView (ptr UncheckedArray[Value])
+  if vals.len == 0:
+    return cast[StackView](nil)
+  cast[StackView](vals[0].addr)
+
+
+proc defaultNodeFromValue(v: Value): Node =
+  ## Converts runtime Value -> AST literal for default parameter codegen.
+  if v == nil: return ast.newNode(nkNil)
+  case v.typeId
+  of tyBool:
+    result = ast.newNode(nkBool)
+    result.boolVal = v.boolVal
+  of tyInt:
+    result = ast.newNode(nkInt)
+    result.intVal = v.intVal
+  of tyFloat:
+    result = ast.newNode(nkFloat)
+    result.floatVal = v.floatVal
+  of tyString:
+    result = ast.newNode(nkString)
+    result.stringVal = v.stringVal[]
+  of tyNil:
+    result = ast.newNode(nkNil)
+  else:
+    # Unsupported as compile-time default literal in bridge path
+    result = nil
+
+proc applyDefaults(args: StackView, argc: int, params: seq[TempParamDef]): seq[Value] =
+  result = newSeqOfCap[Value](params.len)
+
+  for i in 0..<argc:
+    result.add(args[i])
+
+  if result.len < params.len:
+    for i in result.len..<params.len:
+      if params[i].val != nil:
+        result.add(params[i].val)
+        echo params[i].val
+      else:
+        raise newException(ValueError, "missing required argument: " & params[i].pName)
+
 
 proc addProc*(script: Script, module: Module, name: string,
               params: seq[TempParamDef] = @[], returnTy: TypeKind,
               impl: ForeignProc = nil, exportSym = true) =
-  ## Add a foreign procedure to the given module,
-  ## belonging to the given script.
   var nodeParams: seq[ProcParam]
-  for param in params:
-    case param.pKind
-    of ttyHtmlElement:
-      add nodeParams, (
-        newIdent(param.pName),
-        module.sym(param.pKindIdent),
-        param.pImplSym,
-        param.isMut,
-        param.isOpt
-      )
-    else:
-      let paramSym = 
-        if param.pImplSym != nil:
-          # if the parameter has an implementation value, use its type
-          param.pImplSym
-        else:
-          module.sym($param.pKind)
-      add nodeParams, (
-        newIdent(param.pName),
-        paramSym,
-        param.pImplSym,
-        param.isMut,
-        param.isOpt
-      )
+
+  for raw in params:
+    var param = raw
+    let paramTy =
+      case param.pKind
+      of ttyHtmlElement: module.sym(param.pKindIdent)
+      else: module.sym($param.pKind)
+
+    # If a default Value is provided, expose it through implSym.impl
+    # so callProc -> genExpr(...) pushes that exact value.
+    if param.val != nil and param.pImplSym == nil:
+      let n = defaultNodeFromValue(param.val)
+      if n != nil:
+        param.pImplSym = newSym(
+          skConst,
+          ast.newIdent("__default_" & param.pName),
+          impl = n
+        )
+
+    let optional = param.isOpt or param.val != nil
+
+    nodeParams.add((
+      ast.newIdent(param.pName),
+      paramTy,
+      param.pImplSym,
+      param.isMut,
+      optional
+    ))
+
   let (sym, theProc) =
-    script.newProc(newIdent(name), impl = nil,
-        nodeParams, module.sym($(returnTy)), pkForeign, exportSym)
+    script.newProc(
+      ast.newIdent(name),
+      impl = nil,
+      nodeParams,
+      module.sym($returnTy),
+      pkForeign,
+      exportSym
+    )
+
   theProc.foreign = impl
   discard module.addCallable(sym, sym.name)
-  # let procIdentifier: Hash = hashIdentity(name)
-  # if module.functions.hasKey(procIdentifier):
-  #   module.functions[procIdentifier].add(sym)
-  # else:
-  #   module.functions[procIdentifier] = @[sym]
   if impl != nil:
     script.procs.add(theProc)
 
@@ -57,8 +113,7 @@ proc paramDef*(name: string, kind: TypeKind, val: Value = nil,
                 sym: Sym = nil, mut, isOpt: bool = false, kindStr = ""
           ): TempParamDef {.inline.} =
   ## Create a new parameter definition.
-  result = (name, kind, kindStr, sym, mut, isOpt)
-
+  result = (name, kind, kindStr, sym, mut, (isOpt or val != nil), val)
 
 proc compileCode*(script: Script, module: Module, filename, code: string) =
   ## Compile some hayago code to the given script and module.

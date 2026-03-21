@@ -24,7 +24,7 @@ proc loadFFI*(script: Script, systemModule: Module): Module =
   result.load(systemModule)
 
   script.addProc(result, "loadLibrary", @[paramDef("s", ttyString)], ttyPointer,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       let path =
         if args[0].stringVal[].isAbsolute: args[0].stringVal[]
         else: normalizedPath(getCurrentDir() / args[0].stringVal[])

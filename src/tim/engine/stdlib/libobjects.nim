@@ -20,7 +20,7 @@ proc initObjects*(script: Script, systemModule: Module): Module =
 
   script.addProc(result, "add", @[
       paramDef("s", tyArray), paramDef("item", tyAny)], tyVoid,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       # TODO runtime check for type compatibility
       # inside the standard library 
       args[0].objectVal.fields.add(args[1])
@@ -28,19 +28,19 @@ proc initObjects*(script: Script, systemModule: Module): Module =
     
   script.addProc(result, "delete", @[
     paramDef("s", tyArray), paramDef("offset", tyInt)], tyVoid,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       args[0].objectVal.fields.delete(args[1].intVal)
   )
 
   script.addProc(result, "insert", @[
       paramDef("s", tyArray), paramDef("item", tyAny),
       paramDef("offset", tyInt)], tyVoid,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       insert(args[0].objectVal.fields, args[1], args[2].intVal)
   )
 
   script.addProc(result, "join", @[paramDef("s", tyArray)], tyString,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       for v in args[0].objectVal.fields:
         assert v.typeId == tyString, "join() only works on arrays of strings"
       result = initvalue("")
@@ -49,7 +49,7 @@ proc initObjects*(script: Script, systemModule: Module): Module =
 
   script.addProc(result, "hasKey", @[
       paramDef("obj", tyObject), paramDef("key", tyString)], tyBool,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       result = initvalue(false)
       for field in args[0].objectVal.fields:
         if field.name == args[1].stringVal[]:
@@ -59,7 +59,7 @@ proc initObjects*(script: Script, systemModule: Module): Module =
 
   script.addProc(result, "find", @[
       paramDef("s", tyArray), paramDef("item", tyAny)], tyInt,
-    proc (args: StackView): Value =
+    proc (args: StackView, argc: int): Value =
       # this should work for strings and numbers
       result = initvalue(-1)
       var i = 1
