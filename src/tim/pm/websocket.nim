@@ -23,6 +23,11 @@ type
     buf: string
     state: ClientState
 
+  WebSocketServer* = ref object
+    port: Port
+    connections: seq[Socket]
+    thread: Thread[tuple[server: WebSocketServer]]
+
 proc acceptWebSocket(client: Socket, key: string) =
   let digest = sha1.secureHash(key & GUID)
   let shaArray = cast[array[0 .. 19, uint8]](digest)
@@ -65,46 +70,46 @@ proc wsFrameText(data: string): string =
 proc wsSendText*(client: Socket, data: string) =
   client.send(wsFrameText(data))
 
-var timWebSocketThread: Thread[tuple[port: Port]]
-var connections: seq[Socket]
-
-proc notifyAllClients*() =
-  ## Notify all connected WebSocket clients
-  for client in connections:
+proc notifyAllClients*(server: WebSocketServer) =
+  ## Notify all connected WebSocket clients for this server
+  for client in server.connections:
     if client != nil:
       client.wsSendText("1")
 
-proc onMessage(client: Socket, data: seq[byte]) =
+proc onMessage(server: WebSocketServer, client: Socket, data: seq[byte]) =
   discard
 
-proc onConnect(client: Socket) =
-  connections.add(client)
+proc onConnect(server: WebSocketServer, client: Socket) =
+  server.connections.add(client)
 
-proc onClose(client: Socket) =
+proc onClose(server: WebSocketServer, client: Socket) =
   while true:
-    let idx = connections.find(client)
+    let idx = server.connections.find(client)
     if idx == -1: break
-    connections.delete(idx)
+    server.connections.delete(idx)
 
-proc startWebSocket*(port: Port = Port(9000)) =
-  proc run(args: tuple[port: Port]) {.thread.} =
+proc startWebSocket*(port: Port = Port(9000)): WebSocketServer =
+  ## Start a new WebSocket server instance on the given port
+  let server = WebSocketServer(port: port, connections: @[])
+  proc run(args: tuple[server: WebSocketServer]) {.thread.} =
     {.gcsafe.}:
-      let server = newSocket()
-      server.setSockOpt(OptReusePort, true)
-      server.bindAddr(args.port)
-      server.listen()
+      let ws = args.server
+      let sock = newSocket()
+      sock.setSockOpt(OptReusePort, true)
+      sock.bindAddr(ws.port)
+      sock.listen()
 
       var selector = newSelector[int]()
-      selector.registerHandle(server.getFd, {Event.Read}, 0)
+      selector.registerHandle(sock.getFd, {Event.Read}, 0)
 
       var clientSockets = initTable[int, ClientInfo]()
 
       while true:
         let events = selector.select(-1)
         for event in events:
-          if SocketHandle(event.fd) == server.getFd:
+          if SocketHandle(event.fd) == sock.getFd:
             var client: Socket
-            server.accept(client)
+            sock.accept(client)
             client.getFd.setBlocking(false)
             selector.registerHandle(client.getFd, {Event.Read}, 0)
             clientSockets[client.getFd.int] = ClientInfo(sock: client, buf: "", state: Handshaking)
@@ -114,7 +119,7 @@ proc startWebSocket*(port: Port = Port(9000)) =
               var tmp = newString(4096)
               let n = info.sock.recv(tmp, tmp.len)
               if n <= 0:
-                onClose(info.sock)
+                ws.onClose(info.sock)
                 selector.unregister(SocketHandle(event.fd))
                 info.sock.close()
                 clientSockets.del(event.fd)
@@ -129,17 +134,18 @@ proc startWebSocket*(port: Port = Port(9000)) =
                     let key = getWebSocketKey(header)
                     if key.len > 0:
                       acceptWebSocket(info.sock, key)
-                      onConnect(info.sock)
+                      ws.onConnect(info.sock)
                       info.state = Open
                     # drop header from buffer
                     if headerEnd < info.buf.len:
                       let remaining = info.buf[headerEnd .. ^1]
                       if remaining.len > 0:
-                        onMessage(info.sock, cast[seq[byte]](remaining))
+                        ws.onMessage(info.sock, cast[seq[byte]](remaining))
                     info.buf.setLen(0)
                 else:
-                  onMessage(info.sock, cast[seq[byte]](info.buf))
+                  ws.onMessage(info.sock, cast[seq[byte]](info.buf))
                   info.buf.setLen(0)
                 clientSockets[event.fd] = info
-  let args = (port: port)
-  createThread(timWebSocketThread, run, args)
+  let args = (server: server)
+  createThread(server.thread, run, args)
+  return server

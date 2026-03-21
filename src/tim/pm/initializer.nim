@@ -1,10 +1,9 @@
 import std/[os, tables, net, strutils, json, sequtils, options]
-
-# import pkg/voodoo/language/pm/manager
 import pkg/voodoo/language/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/voodoo/packagemanager/[configurator, packager]
+import pkg/kapsis/interactive/prompts
 
-import pkg/[watchout, checksums/sha1]
+import pkg/[watchout, semver, jsony, nyml, checksums/sha1]
 import ../engine/parser
 
 export value
@@ -15,8 +14,8 @@ when defined timHotCode:
 #
 # Standard Libraries
 # 
-import ../engine/stdlib/[libsystem, libffi,  libtimes, libstrings, inliner]
-
+import ../engine/stdlib/[libsystem, libffi, libtimes, libstrings,
+            libarrays, libjson, inliner]
 
 export TypeKind, StackView, Value, CodeGenError
 export configurator, paramDef
@@ -51,6 +50,17 @@ type
       ## A sequence of foreign procedures to be added to the user script
     code: string # A string to inject into the script before execution
 
+  ThemeManifest* = object
+    ## The manifest for a Tim theme, defined in `theme.yaml` in the theme directory
+    name*, author*, url*, license*, description*: string
+    version*: semver.Version
+
+  Theme* = ref object
+    manifest*: ThemeManifest
+    path*: string # base path of the theme
+    views*, layouts*, partials*: TableRef[string, TimTemplate] = newTable[string, TimTemplate]()
+      ## Tables to store templates by their source path
+
   TimEngine* = ref object
     ## The main Tim Engine object.
     ## Holds the configuration and the templates.
@@ -64,12 +74,26 @@ type
       ## Global data available in all templates under the `$app` variable
     depResolver*: FileResolver
       ## A `FileResolver` to manage template dependencies and hot reloading
+    enableThemes*: bool
+      ## Whether to enable theme support. If true, the engine will look for themes in the
+      ## `themes` directory of the installation path and load the active theme's templates.
+    themes*: TableRef[string, Theme] = newTable[string, Theme]()
+      ## A table to store themes by their name
+    activeTheme*: Theme
+      ## The currently active theme, if any
+    activeThemeName*: Option[string]
+      ## The name of the currently active theme, used for initialization before loading themes
     views*, layouts*, partials*: TableRef[string, TimTemplate] = newTable[string, TimTemplate]()
       ## Tables to store templates by their source path
   
   TimEngineError* = object of CatchableError
 
 let stdlibs = newTable[string, proc(script: Script, systemModule: Module): Module]()
+
+proc parseHook*(s: string, i: var int, v: var semver.Version) =
+  var str: string
+  parseHook(s, i, str)
+  v = parseVersion(str)
 
 iterator getViews*(engine: TimEngine): TimTemplate =
   ## Iterator to get all view templates
@@ -114,7 +138,9 @@ proc injectScript*(userScript: UserScript, code: string) =
 
 proc newTim*(src, output, basepath: string,
           target = TargetSource.tsHtml,
-          globalData: JsonNode = newJObject()
+          globalData: JsonNode = newJObject(),
+          enableThemes: static bool = false,
+          activeThemeName: Option[string] = none(string)
   ): TimEngine =
   ## Initialize a new Tim Engine instance.
   ## 
@@ -130,6 +156,8 @@ proc newTim*(src, output, basepath: string,
     userScript: UserScript(),
     globalData: globalData,
     depResolver: initResolver(),
+    enableThemes: enableThemes,
+    activeThemeName: activeThemeName,
     config: TimConfig(
       `type`: ConfigType.typeProject,
       compilation: CompilationSettings(
@@ -150,15 +178,30 @@ proc newTim*(src, output, basepath: string,
 proc getTemplateByPath*(engine: TimEngine, path: string): TimTemplate =
   ## Get a Tim template by its source path.
   ## Returns a TimTemplate object with the template type set to `ttView`.
-  if path in engine.views:
-    return engine.views[path]
+  if engine.enableThemes:
+    # when themes are enabled, we need to look for the template in the active theme's tables
+    if engine.activeTheme == nil:
+      raise newException(TimEngineError, "Active theme is not set")
+    let active = engine.activeTheme
+    if path in active.views:
+      return active.views[path]
+    if path in active.layouts:
+      return active.layouts[path]
+    if path in active.partials:
+      return active.partials[path]
+  else:
+    if path in engine.views:
+      return engine.views[path]
 
-  if path in engine.layouts:
-    return engine.layouts[path]
+    if path in engine.layouts:
+      return engine.layouts[path]
 
-  if path in engine.partials:
-    return engine.partials[path]
+    if path in engine.partials:
+      return engine.partials[path]
 
+#
+# Tim Engine getters
+#
 proc getLayout*(engine: TimEngine, key: string): TimTemplate =
   ## Get a layout template by its name (with/without extension).
   let path = engine.config.compilation.layoutsPath / key
@@ -179,6 +222,36 @@ proc getPartial*(engine: TimEngine, key: string): TimTemplate =
   if not key.endsWith(".timl"):
     return engine.partials.getOrDefault(path & ".timl", nil)
   return engine.partials.getOrDefault(path, nil)
+
+#
+# Theme template getters
+#
+proc getThemePartial*(engine: TimEngine, key: string): TimTemplate =
+  ## Get a partial template from the active theme by its name (with/without extension).
+  if engine.activeTheme == nil:
+    raise newException(TimEngineError, "Active theme is not set")
+  let path = engine.activeTheme.path / "partials" / key
+  if not key.endsWith(".timl"):
+    return engine.activeTheme.partials.getOrDefault(path & ".timl", nil)
+  return engine.activeTheme.partials.getOrDefault(path, nil)
+
+proc getThemeLayout*(engine: TimEngine, key: string): TimTemplate =
+  ## Get a layout template from the active theme by its name (with/without extension).
+  if engine.activeTheme == nil:
+    raise newException(TimEngineError, "Active theme is not set")
+  let path = engine.activeTheme.path / "layouts" / key
+  if not key.endsWith(".timl"):
+    return engine.activeTheme.layouts.getOrDefault(path & ".timl", nil)
+  return engine.activeTheme.layouts.getOrDefault(path, nil)
+
+proc getThemeView*(engine: TimEngine, key: string): TimTemplate =
+  ## Get a view template from the active theme by its name (with/without extension).
+  if engine.activeTheme == nil:
+    raise newException(TimEngineError, "Active theme is not set")
+  let path = engine.activeTheme.path / "views" / key
+  if not key.endsWith(".timl"):
+    return engine.activeTheme.views.getOrDefault(path & ".timl", nil)
+  return engine.activeTheme.views.getOrDefault(path, nil)
 
 proc registerTemplate*(engine: TimEngine, src: string): TimTemplate =
   ## Register a new Tim template. Returns a `TimTemplate` object
@@ -272,6 +345,12 @@ proc transpile*(engine: TimEngine, tpl: TimTemplate,
   let stringsLib = initStrings(script, systemModule)
   module.load(stringsLib)
 
+  let arraysLib = initArrays(script, systemModule)
+  module.load(arraysLib)
+
+  let jsonlib = initJSON(script, systemModule)
+  module.load(jsonlib)
+
   # module.load(stdlibs["ffi"](script, systemModule))
   # module.load(stdlibs["times"](script, systemModule))
 
@@ -290,7 +369,7 @@ proc transpile*(engine: TimEngine, tpl: TimTemplate,
 
 var
   browserSyncWatcher: Watchout
-  hasChanges: bool
+  browserSyncThemeWatcher: Watchout
 
 proc eval*(view, layout: TimTemplate, localData, globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view within a layout and return the final HTML output.
@@ -319,111 +398,254 @@ proc precompile*(engine: TimEngine) =
   let pkgr = packager.initPackageRemote()
   pkgr.loadPackages()
 
-  for sourceDir in [ttLayout, ttView, ttPartial]:
-    if not dirExists(engine.config.compilation.source / $sourceDir):
-      raise newException(TimEngineError, "Missing directory $1: \n$2" % [$sourceDir, engine.config.compilation.source / $sourceDir])
-    for srcPath in walkDirRec(engine.config.compilation.source / $sourceDir):
-      let
-        id = getHashedPath(srcPath) # unique id based on path
-        astPath = engine.config.compilation.output / "ast" / id & ".ast"
-        htmlPath = engine.config.compilation.output / "html" / id & ".html"
-        sources = (src: srcPath, ast: astPath, html: htmlPath)
-      case sourceDir:
-        of ttLayout:
-          let tpl = newTemplate(id, ttLayout, sources.src)
-          if engine.transpile(tpl, pkgr):
-            engine.layouts[srcPath] =  tpl
-        of ttView:
-          let tpl = newTemplate(id, ttView, sources.src)
-          if engine.transpile(tpl, pkgr):
-            engine.views[srcPath] = tpl 
-        of ttPartial:
-          let tpl = newTemplate(id, ttPartial, sources.src)
-          if engine.transpile(tpl, pkgr):
-            engine.partials[srcPath] = tpl
-        else: discard
-
-  browserSyncWatcher = 
-    newWatchout(@[
-      engine.config.compilation.layoutsPath,
-      engine.config.compilation.viewsPath,
-      engine.config.compilation.partialsPath
-    ], some("*.timl"))
-
-  # Callback `onFound`
-  proc onFound(file: watchout.File) =
-    # Runs when detecting a new template.
-    let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-    if tpl != nil:
-      case tpl.templateType
-      of ttView, ttLayout:
-        engine.transpile(tpl, pkgr)
-      else: discard
-    else:
-      # if the template is not registered,
-      # we need to register it and compile it
-      let newTpl = engine.registerTemplate(file.getPath())
-      if newTpl.templateType != ttPartial:
-        # partials don't need to be compiled as they
-        # are included in other templates (layouts or views)
-        engine.transpile(newTpl, pkgr)
+  if engine.enableThemes:
+    # when themes are enabled, will discover themes available in the `themes` directory
+    # of the installation path. Each theme should have a `theme.yaml` manifest file and its own
+    # `views`, `layouts` and `partials` directories.
+    #
+    # The active theme is determined by the `activeTheme` field in the engine config, which should
+    # match the name of one of the discovered themes. Once found, we will load and transpile
+    # the templates of the active theme and set up the file watcher for hot reloading
+    let srcDir = engine.config.compilation.source
+    for themeDir in walkDirs(srcDir / "*"):
+      let yamlConfigPath = themeDir / "theme.yaml"
+      let jsonConfigPath = themeDir / "theme.json"
+      var themeManifest: ThemeManifest
+      if fileExists(yamlConfigPath):
+        try:
+          themeManifest = fromYAML(readFile(yamlConfigPath), ThemeManifest)
+        except YAMLException:
+          displayError("Failed to parse theme manifest: " & yamlConfigPath)
+      elif fileExists(jsonConfigPath):
+        try:
+          themeManifest = fromJson(readFile(jsonConfigPath), ThemeManifest)
+        except JsonParsingError:
+          displayError("Failed to parse theme manifest: " & jsonConfigPath)
       else:
-        # for partials, we only need to parse them to get their dependencies
-        parsePartial(engine, newTpl)
+        displayError("No theme manifest found for theme: " & themeDir)
+      var theme = Theme(path: themeDir, manifest: themeManifest)
+      engine.themes[themeManifest.name] = theme
+      
+      # if the theme is the active theme, load and transpile its templates
+      if engine.activeThemeName.isSome and themeManifest.name == engine.activeThemeName.get():
+        engine.activeTheme = theme
+        # load and transpile the active theme's templates
+        for sourceDir in [ttLayout, ttView, ttPartial]:
+          let themeSourcePath = themeDir / $sourceDir
+          if not dirExists(themeSourcePath):
+            displayError("Missing directory $1 for theme $2: \n$3" % [$sourceDir, themeManifest.name, themeSourcePath])
+            continue
+          let cachedOutputPath = engine.config.compilation.output / themeManifest.name
+          discard existsOrCreateDir(cachedOutputPath)
+          discard existsOrCreateDir(cachedOutputPath / "ast")
+          discard existsOrCreateDir(cachedOutputPath / "html")
+          for srcPath in walkDirRec(themeSourcePath):
+            let
+              id = getHashedPath(srcPath) # unique id based on path
+              astPath = cachedOutputPath / "ast" / id & ".ast"
+              htmlPath = cachedOutputPath / "html" / id & ".html"
+              sources = (src: srcPath, ast: astPath, html: htmlPath)
+            case sourceDir:
+            of ttLayout:
+              let tpl = newTemplate(id, ttLayout, sources.src)
+              if engine.transpile(tpl, pkgr):
+                theme.layouts[srcPath] =  tpl
+            of ttView:
+              let tpl = newTemplate(id, ttView, sources.src)
+              if engine.transpile(tpl, pkgr):
+                theme.views[srcPath] = tpl
+            of ttPartial:
+              let tpl = newTemplate(id, ttPartial, sources.src)
+              if engine.transpile(tpl, pkgr):
+                theme.partials[srcPath] = tpl
+          
+        # set up file watcher for the active theme
+        when defined timHotCode:
+          browserSyncThemeWatcher = newWatchout(@[
+            engine.activeTheme.path / "layouts",
+            engine.activeTheme.path / "views",
+            engine.activeTheme.path / "partials"
+          ], some("*.timl"))
 
-  # Callback `onChange`
-  proc onChange(file: watchout.File) =
-    # Runs when detecting changes
-    let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-    if tpl == nil: return # template not found, ignore
-    case tpl.templateType
-    of ttView, ttLayout:
-      # if the template is a view or layout, compile it
-      engine.transpile(tpl, pkgr)
-      when defined timHotCode:
-        notifyAllClients()
-    of ttPartial:
-      # refresh changed partial dependencies first
-      parsePartial(engine, tpl)
-      # re-transpile all recursive dependants
-      for depPath in engine.depResolver.dependants(tpl.src):
-        let depTpl = engine.getTemplateByPath(depPath)
-        if depTpl == nil: continue
-        case depTpl.templateType
+          let ws2 = startWebSocket(port = Port(9001))
+          sleep(100) # wait for the websocket server
+
+          # Callback `onFound`
+          proc onFound(file: watchout.File) =
+            # Runs when detecting a new template.
+            let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+            if tpl != nil:
+              case tpl.templateType
+              of ttView, ttLayout:
+                engine.transpile(tpl, pkgr)
+              else: discard
+            else:
+              # if the template is not registered,
+              # we need to register it and compile it
+              let newTpl = engine.registerTemplate(file.getPath())
+              if newTpl.templateType != ttPartial:
+                # partials don't need to be compiled as they
+                # are included in other templates (layouts or views)
+                engine.transpile(newTpl, pkgr)
+              else:
+                # for partials, we only need to parse them to get their dependencies
+                parsePartial(engine, newTpl)
+
+          # Callback `onChange`
+          proc onChange(file: watchout.File) =
+            # Runs when detecting changes
+            let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+            if tpl == nil: return # template not found, ignore
+            case tpl.templateType
+            of ttView, ttLayout:
+              # if the template is a view or layout, compile it
+              engine.transpile(tpl, pkgr)
+              ws2.notifyAllClients()
+            of ttPartial:
+              # refresh changed partial dependencies first
+              parsePartial(engine, tpl)
+              # re-transpile all recursive dependants
+              for depPath in engine.depResolver.dependants(tpl.src):
+                let depTpl = engine.getTemplateByPath(depPath)
+                if depTpl == nil: continue
+                case depTpl.templateType
+                of ttView, ttLayout:
+                  engine.transpile(depTpl, pkgr)
+                of ttPartial:
+                  parsePartial(engine, depTpl)
+                # clear the cached AST of the dependants to force
+                # re-parsing and updating their dependencies
+                codegenCache.cachedAst.del(tpl.src)
+              ws2.notifyAllClients()
+
+          # Callback `onDelete`
+          proc onDelete(file: watchout.File) =
+            # Runs when detecting a deleted template
+            let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+            if tpl != nil:
+              # if the template is found, remove it from the engine tables
+              # and clear its dependencies from the resolver. We also need
+              # to re-transpile all the dependants of the deleted template to update
+              # their dependencies and remove the deleted template from their dependency list
+              engine.depResolver.clearFile(normalizedPath(tpl.src))
+              # case tpl.templateType
+              # of ttView:
+              #   engine.views.del(tpl.src)
+              # of ttLayout:
+              #   engine.layouts.del(tpl.src)
+              # of ttPartial:
+              #   engine.partials.del(tpl.src)
+
+          browserSyncThemeWatcher.onFound = onFound
+          browserSyncThemeWatcher.onChange = onChange
+          browserSyncThemeWatcher.onDelete = onDelete
+          browserSyncThemeWatcher.start()
+  else:
+    # for non-theme mode, we load all templates from the source directory and transpile them
+    let srcDir = engine.config.compilation.source
+    for sourceDir in [ttLayout, ttView, ttPartial]:
+      if not dirExists(srcDir / $sourceDir):
+        raise newException(TimEngineError, "Missing directory $1: \n$2" % [$sourceDir, srcDir / $sourceDir])
+      for srcPath in walkDirRec(srcDir / $sourceDir):
+        let
+          id = getHashedPath(srcPath) # unique id based on path
+          astPath = engine.config.compilation.output / "ast" / id & ".ast"
+          htmlPath = engine.config.compilation.output / "html" / id & ".html"
+          sources = (src: srcPath, ast: astPath, html: htmlPath)
+        case sourceDir:
+          of ttLayout:
+            let tpl = newTemplate(id, ttLayout, sources.src)
+            if engine.transpile(tpl, pkgr):
+              engine.layouts[srcPath] =  tpl
+          of ttView:
+            let tpl = newTemplate(id, ttView, sources.src)
+            if engine.transpile(tpl, pkgr):
+              engine.views[srcPath] = tpl 
+          of ttPartial:
+            let tpl = newTemplate(id, ttPartial, sources.src)
+            if engine.transpile(tpl, pkgr):
+              engine.partials[srcPath] = tpl
+          else: discard
+
+    when defined timHotCode:
+      browserSyncWatcher = 
+        newWatchout(@[
+          engine.config.compilation.layoutsPath,
+          engine.config.compilation.viewsPath,
+          engine.config.compilation.partialsPath
+        ], some("*.timl"))
+      
+      let ws1 = startWebSocket(port = Port(9000))
+      sleep(100) # wait for the websocket server
+
+      # Callback `onFound`
+      proc onFound(file: watchout.File) =
+        # Runs when detecting a new template.
+        let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+        if tpl != nil:
+          case tpl.templateType
+          of ttView, ttLayout:
+            engine.transpile(tpl, pkgr)
+          else: discard
+        else:
+          # if the template is not registered,
+          # we need to register it and compile it
+          let newTpl = engine.registerTemplate(file.getPath())
+          if newTpl.templateType != ttPartial:
+            # partials don't need to be compiled as they
+            # are included in other templates (layouts or views)
+            engine.transpile(newTpl, pkgr)
+          else:
+            # for partials, we only need to parse them to get their dependencies
+            parsePartial(engine, newTpl)
+
+      # Callback `onChange`
+      proc onChange(file: watchout.File) =
+        # Runs when detecting changes
+        let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+        if tpl == nil: return # template not found, ignore
+        case tpl.templateType
         of ttView, ttLayout:
-          engine.transpile(depTpl, pkgr)
+          # if the template is a view or layout, compile it
+          engine.transpile(tpl, pkgr)
+          ws1.notifyAllClients()
         of ttPartial:
-          parsePartial(engine, depTpl)
-        # clear the cached AST of the dependants to force
-        # re-parsing and updating their dependencies
-        codegenCache.cachedAst.del(tpl.src)
-      when defined timHotCode:
-        notifyAllClients()
-    hasChanges = true
+          # refresh changed partial dependencies first
+          parsePartial(engine, tpl)
+          # re-transpile all recursive dependants
+          for depPath in engine.depResolver.dependants(tpl.src):
+            let depTpl = engine.getTemplateByPath(depPath)
+            if depTpl == nil: continue
+            case depTpl.templateType
+            of ttView, ttLayout:
+              engine.transpile(depTpl, pkgr)
+            of ttPartial:
+              parsePartial(engine, depTpl)
+            # clear the cached AST of the dependants to force
+            # re-parsing and updating their dependencies
+            codegenCache.cachedAst.del(tpl.src)
+          ws1.notifyAllClients()
 
-  # Callback `onDelete`
-  proc onDelete(file: watchout.File) =
-    # Runs when detecting a deleted template
-    let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
-    if tpl != nil:
-      # if the template is found, remove it from the engine tables
-      # and clear its dependencies from the resolver. We also need
-      # to re-transpile all the dependants of the deleted template to update
-      # their dependencies and remove the deleted template from their dependency list
-      engine.depResolver.clearFile(normalizedPath(tpl.src))
-      case tpl.templateType
-      of ttView:
-        engine.views.del(tpl.src)
-      of ttLayout:
-        engine.layouts.del(tpl.src)
-      of ttPartial:
-        engine.partials.del(tpl.src)
+      # Callback `onDelete`
+      proc onDelete(file: watchout.File) =
+        # Runs when detecting a deleted template
+        let tpl: TimTemplate = engine.getTemplateByPath(file.getPath())
+        if tpl != nil:
+          # if the template is found, remove it from the engine tables
+          # and clear its dependencies from the resolver. We also need
+          # to re-transpile all the dependants of the deleted template to update
+          # their dependencies and remove the deleted template from their dependency list
+          engine.depResolver.clearFile(normalizedPath(tpl.src))
+          case tpl.templateType
+          of ttView:
+            engine.views.del(tpl.src)
+          of ttLayout:
+            engine.layouts.del(tpl.src)
+          of ttPartial:
+            engine.partials.del(tpl.src)
 
-  when defined timHotCode:
-    startWebSocket(port = Port(9000))
-    sleep(100)
-
-  browserSyncWatcher.onFound = onFound
-  browserSyncWatcher.onChange = onChange
-  browserSyncWatcher.onDelete = onDelete
-  browserSyncWatcher.start()
+      # Set up file watcher callbacks and start watching for changes
+      browserSyncWatcher.onFound = onFound
+      browserSyncWatcher.onChange = onChange
+      browserSyncWatcher.onDelete = onDelete
+      browserSyncWatcher.start()
