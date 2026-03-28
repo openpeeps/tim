@@ -134,10 +134,6 @@ proc compileCode*(script: Script, module: Module, filename, code: string) =
     quit(1)
 
 const
-  Globals* = """
-const app* = parseJSON('$globalData')
-"""
-
   InlineCode* = """
 iterator `..`*(min: int, max: int): int {
   var i = $min

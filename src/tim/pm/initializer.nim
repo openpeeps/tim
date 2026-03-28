@@ -342,6 +342,34 @@ proc transpile*(engine: TimEngine, tpl: TimTemplate,
       )
     # module.load(engine.userScript.module)
 
+  script.addProc(module, "evaluate", @[paramDef("code", ttyString)], ttyAny,
+    proc (args: StackView, argc: int): Value =
+      ## Evaluate a string of Tim code and return the result.
+      var inlineAst: Ast
+      try:
+        parser.parseScript(inlineAst, args[0].stringVal[], "inline")
+        var inlineChunk = newChunk("inline")
+        var inlineScript = newScript(inlineChunk)
+        var inlineModule = newModule("inline", some("inline"))
+
+        let systemModule = libsystem.loadLibrary(inlineScript, newJObject(), newJObject())
+        inlineModule.load(systemModule)
+
+        var inlineCompiler = codegen.initCompiler(inlineScript, inlineModule,
+                                inlineChunk, pkgr, stdlibs, parserCallback)
+        inlineCompiler.genScript(
+          program = inlineAst,
+          includePath = some(engine.config.compilation.partialsPath)
+        )
+
+        let inlineVM = newVM()
+        let outputVM = inlineVM.interpret(inlineScript, inlineChunk, localData = newJObject())
+        result = initValue(outputVM)
+
+      except TimParserError as e:
+        raise newException(TimRuntime, e.msg)
+    )
+
   let stringsLib = initStrings(script, systemModule)
   module.load(stringsLib)
 
@@ -377,15 +405,16 @@ proc eval*(view, layout: TimTemplate, localData, globalData: JsonNode): string {
     layout.script != nil, "View or Layout script is not initialized"
   let viewVM = newVM()
   let layoutVM = newVM()
-  let viewOutput = viewVM.interpret(view.script, view.mainChunk, localData = localData)
-  return layoutVM.interpret(layout.script, layout.mainChunk, some(viewOutput), localData = localData)
+  let viewOutput = viewVM.interpret(view.script, view.mainChunk, globalData = globalData, localData = localData)
+  return layoutVM.interpret(layout.script, layout.mainChunk,
+      some(viewOutput), globalData = globalData, localData = localData)
 
 proc eval*(view: TimTemplate, localData, globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view without a layout and return the final HTML output. 
   ## This can be used for rendering partials or standalone views.
   assert view.script != nil, "View script is not initialized"
   let viewVM = newVM()
-  return viewVM.interpret(view.script, view.mainChunk, localData = localData)
+  return viewVM.interpret(view.script, view.mainChunk, globalData = globalData, localData = localData)
 
 proc precompile*(engine: TimEngine) =
   ## Precompile Tim Engine templates.
@@ -434,6 +463,10 @@ proc precompile*(engine: TimEngine) =
           let themeSourcePath = themeDir / $sourceDir
           if not dirExists(themeSourcePath):
             displayError("Missing directory $1 for theme $2: \n$3" % [$sourceDir, themeManifest.name, themeSourcePath])
+            # to continue or to not continue, that's the question. we can choose to
+            # skip transpiling this theme if its structure is not correct, or we can
+            # raise an error and stop the app, or simply invalidate the theme
+            # so it can be listed into a "broken themes" section in the dashboard
             continue
           let cachedOutputPath = engine.config.compilation.output / themeManifest.name
           discard existsOrCreateDir(cachedOutputPath)

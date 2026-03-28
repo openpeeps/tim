@@ -231,6 +231,26 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
       result = initValue(convertObjectToJson(args[0]))
     )
 
+  script.addProc(result, "escape", @[paramDef("s", ttyString)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      ## Escape a string for safe inclusion in HTML.
+      result = initValue(args[0].stringVal[].replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;"))
+    )
+
+  script.addProc(result, "unescape", @[paramDef("s", ttyString)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      ## Unescape a string from HTML entities back to normal characters.
+      result = initValue(args[0].stringVal[].replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&"))
+    )
+
   script.addProc(result, "toKeys", @[paramDef("obj", ttyJson)], ttyJson,
     proc (args: StackView, argc: int): Value =
       ## Get the keys of a JSON object as an array.
@@ -574,6 +594,4 @@ proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
           raise newException(TimRuntime, "Invalid type for comparison with JSON.")
     )
 
-  var inlineCode = Globals % ["globalData", toJson(globalData), "localData", toJson(localData)]
-  inlineCode.add(InlineCode)
-  script.compileCode(result, "system", inlineCode)
+  script.compileCode(result, "system", InlineCode)
