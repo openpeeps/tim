@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/openpeeps/tim/rewrite/.github/timV2.png" alt="Tim - Template Engine" width="120px" height="120px"><br>
+  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timV2.png" alt="Tim - Template Engine" width="120px" height="120px"><br>
   ⚡️ A high-performance templating engine & markup language<br>
   <strong>Fast</strong> • <strong>Compiled</strong> • <strong>Source-to-Source</strong> • <strong>Interpreter</strong><br>
 </p>
