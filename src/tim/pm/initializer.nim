@@ -326,7 +326,7 @@ proc transpile*(engine: TimEngine, tpl: TimTemplate,
   engine.updateDeps(tpl, astProgram.otherPaths)
 
   # load standard library modules
-  let systemModule = libsystem.loadLibrary(script, engine.globalData, localData)
+  let systemModule = libsystem.loadLibrary(script)
   module.load(systemModule)
 
   # load the user defined script
@@ -352,7 +352,7 @@ proc transpile*(engine: TimEngine, tpl: TimTemplate,
         var inlineScript = newScript(inlineChunk)
         var inlineModule = newModule("inline", some("inline"))
 
-        let systemModule = libsystem.loadLibrary(inlineScript, newJObject(), newJObject())
+        let systemModule = libsystem.loadLibrary(inlineScript)
         inlineModule.load(systemModule)
 
         var inlineCompiler = codegen.initCompiler(inlineScript, inlineModule,
