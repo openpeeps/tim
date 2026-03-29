@@ -18,7 +18,8 @@ Tim Engine is a powerful development tool designed to boost developer productivi
 
 Additionally, Tim Engine supports source-to-source transpilation to multiple target languages: **Lua**, **Python**, **Ruby**, **JavaScript** and **PHP** and **Nim**. Note that all transpilation targets are currently in very early stages of development and may not yet be fully functional or stable.
 
-The primary focus of the project is currently on the core templating engine and its features, with transpilation capabilities being developed incrementally over time.
+> [!NOTE]
+> The primary focus of the project is currently on the core templating engine and its features, with transpilation capabilities being developed incrementally over time.
 
 ## Key features
 - ⚡️ Fast, Compiled, Clean syntax
