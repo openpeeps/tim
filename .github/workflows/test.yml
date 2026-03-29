@@ -46,27 +46,27 @@ jobs:
       - run: nimble install -Y
       - run: nimble test
       - run: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
-      - name: "update tim.node"
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local pull.ff only
-          timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
+      # - name: "update tim.node"
+      #   run: |
+      #     git config --local user.name "github-actions[bot]"
+      #     git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      #     git config --local pull.ff only
+      #     timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
 
-          git pull --ff-only origin "${{ github.ref_name }}"
-          git checkout .
+      #     git pull --ff-only origin "${{ github.ref_name }}"
+      #     git checkout .
 
-          if test -f ./bindings/node/tim/src/bin/$timNodeName; then
-            rm -f ./bindings/node/tim/src/bin/$timNodeName
-            git add ./bindings/node/tim/src/bin/$timNodeName
-            git diff --cached --quiet || git commit -m "cleanup previous tim.node"
-          fi
+      #     if test -f ./bindings/node/tim/src/bin/$timNodeName; then
+      #       rm -f ./bindings/node/tim/src/bin/$timNodeName
+      #       git add ./bindings/node/tim/src/bin/$timNodeName
+      #       git diff --cached --quiet || git commit -m "cleanup previous tim.node"
+      #     fi
 
-          cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
-          git add ./bindings/node/tim/src/bin/$timNodeName
-          git diff --cached --quiet || git commit -m "update tim for node on ${{ runner.os }}"
-      - name: Push changes
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ github.ref_name }}
+      #     cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
+      #     git add ./bindings/node/tim/src/bin/$timNodeName
+      #     git diff --cached --quiet || git commit -m "update tim for node on ${{ runner.os }}"
+      # - name: Push changes
+      #   uses: ad-m/github-push-action@master
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     branch: ${{ github.ref_name }}
