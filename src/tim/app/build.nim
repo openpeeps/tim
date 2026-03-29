@@ -77,7 +77,7 @@ proc srcCommand*(v: Values) =
     module = newModule(srcPath.extractFilename, some(srcPath))
 
   # load standard library modules
-  let systemModule = libsystem.loadLibrary(script, globalData, localData)
+  let systemModule = libsystem.loadLibrary(script)
   module.load(systemModule)
 
   # let stringsLib = initStrings(script, systemModule)
