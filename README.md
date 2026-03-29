@@ -16,7 +16,9 @@
 ## About
 Tim Engine is a powerful development tool designed to boost developer productivity. It combines a high-performance templating engine with a versatile micro programming language, enabling developers to create dynamic web applications with ease.
 
-Additionally, Tim Engine supports source-to-source transpilation to multiple target languages: Lua, Python, Ruby, JavaScript and PHP.
+Additionally, Tim Engine supports source-to-source transpilation to multiple target languages: **Lua**, **Python**, **Ruby**, **JavaScript** and **PHP** and **Nim**. Note that all transpilation targets are currently in very early stages of development and may not yet be fully functional or stable.
+
+The primary focus of the project is currently on the core templating engine and its features, with transpilation capabilities being developed incrementally over time.
 
 ## Key features
 - ⚡️ Fast, Compiled, Clean syntax
@@ -28,16 +30,12 @@ Additionally, Tim Engine supports source-to-source transpilation to multiple tar
 - 🪄 SPA Awareness with support for client-side routing and dynamic content updates
 - 👑 Written in Nim language
 
-
 ## Getting Started
-_todo_
+To get started with Tim Engine, you can install it using Nimble, or download the latest release from GitHub. For detailed installation instructions and usage examples, please refer to the [Official Documentation](https://tim.openpeeps.dev/).
 
 ## Documentation
 - [API Reference](https://openpeeps.github.io/tim/)
-
-### Source-to-Source Transpilation
-This feature allow developers to keep their front-end codebase in a single language (Tim Engine's language), enabling seamless integration with various back-end technologies. Current supported target languages are: Lua, Python, Ruby, JavaScript and PHP. Basically, you write your front-end once, and transpile it to one or more target languages as needed.
-
+- [Official Documentation](https://tim.openpeeps.dev/)
 
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/tim/issues)
@@ -49,4 +47,4 @@ This feature allow developers to keep their front-end codebase in a single langu
 
 ### 🎩 License
 Tim Engine | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
-Copyright &copy; 2024 OpenPeeps & Contributors &mdash; All rights reserved.
+Copyright &copy; 2026 OpenPeeps & Contributors &mdash; All rights reserved.
