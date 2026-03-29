@@ -47,7 +47,7 @@ template initLibrary() {.dirty.} =
           data["this"]
         else: newJObject()
       else: newJObject()
-  let systemModule = libsystem.loadLibrary(script, globalData, localData)
+  let systemModule = libsystem.loadLibrary(script)
   module.load(systemModule)
 
 proc rubyWrapper(x: Rope, className: string): string =

@@ -82,7 +82,7 @@ proc initSystemOps(script: Script, module: Module) =
   script.addProc(module, "==", @[paramDef("a", ttyBool), paramDef("b", ttyBool)], ttyBool)
   script.addProc(module, "!=", @[paramDef("a", ttyBool), paramDef("b", ttyBool)], ttyBool)
 
-proc loadLibrary*(script: Script, globalData, localData: JsonNode): Module =
+proc loadLibrary*(script: Script): Module =
   ## Create and initialize the ``system`` module.
 
   # foreign stuff

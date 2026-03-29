@@ -7,6 +7,11 @@
 import std/[net, strutils, base64, tables, os, nativesockets, selectors]
 import pkg/checksums/sha1
 
+## This module implements a very basic websocket server that can be used 
+## to notify connected clients when a new change is detected in the templates directory.
+## 
+## This is not a full featured websocket server and is only intended for Tim's internal use.
+
 const
   GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 

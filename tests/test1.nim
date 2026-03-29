@@ -1,206 +1,111 @@
-import std/[unittest, os, xmltree, strtabs, sequtils]
+import std/[unittest, os, xmltree, strtabs,
+        sequtils, json, options]
+
+include ../src/tim/engine/transformers
+
 import pkg/voodoo/parsers/htmlpar
-
-import ../src/tim
-
-var t = newTim("./app/templates", "./app/storage", currentSourcePath())
-
-# test "precompile":
-#   t.precompile()
-
-# test "render index":
-#   echo t.render("index", data = nil)
-
-# test "check layout":
-#   let html = t.render("index", data = nil).parseHtml
-#   # check `meta` tags
-#   let meta = html.findAll("meta").toSeq
-#   check meta.len == 2
-#   check meta[0].attrs["charset"] == "utf-8"
-
-#   check meta[1].attrsLen == 2
-#   check meta[1].attrs.hasKey("name")
-#   check meta[1].attrs.hasKey("content")
-
-#   let title = html.findAll("title").toSeq
-#   check title.len == 1
-#   check title[0].innerText == "Tim Engine is Awesome!"
+import pkg/voodoo/language/[ast, codegen, chunk, sym, vm, value, resolver]
 
 import ../src/tim/engine/[errors, parser]
-import pkg/voodoo/language/[codegen, ast, sym]
+import ../src/tim/engine/stdlib/[libsystem]
 
-proc toHtml(id, code: string): (Parser, CodeGen) =
-  var program: Ast
-  parser.parseScript(program, code, "inline")
-  # result[1] = newCompiler(result[0].getAst, false)
+proc parserCallback(astProgram: var Ast, path: string) =
+  parser.parseScript(astProgram, readFile(path), path)
 
-# proc load(x: string): string =
-#   readFile(currentSourcePath().parentDir / "snippets" / x & ".timl")
+proc toHtml(id, code: string, localData, globalData = newJObject()): string =
 
-# test "assignment var":
-#   const code = """
-# var a = 123
-# h1: $a
-# var b = {}
-#   """
-#   let x = toHtml("test_var", code)
-#   check x[0].hasErrors == false
-#   check x[1].hasErrors == false
+  var astTree: Ast
+  parser.parseScript(astTree, code, id)
 
-# test "invalid timl code":
-#   let x = toHtml("invalid", load("invalid"))
-#   check x[0].hasErrors == false
-#   check x[1].hasErrors == true
+  var mainChunk = newChunk(id)
+  var script = newScript(mainChunk)
+  var module = newModule(id, some(id))
 
-# test "conditions if":
-#   let code = """
-# if 0 == 0:
-#   span: "looks true to me""""
-#   assert tim.toHtml("test_if", code) ==
-#     """<span>looks true to me</span>"""
+  # load standard library modules
+  let systemModule = libsystem.loadLibrary(script)
+  module.load(systemModule)
 
-# test "conditions if/else":
-#   let code = """
-# if 1 != 1:
-#   span: "looks true to me"
-# else:
-#   span.just-some-basic-stuff: "this is basic""""
-#   assert tim.toHtml("test_if", code) ==
-#     """<span class="just-some-basic-stuff">this is basic</span>"""
+  script.stdpos = script.procs.high # start after stdlib procs
+  
+  var compiler = codegen.initCompiler(script, module, mainChunk, nil, nil, parserCallback)
+  compiler.genScript(program = astTree, includePath = some(getCurrentDir()))
 
-# test "conditions if/elif":
-#   let code = """
-# if 1 != 1:
-#   span: "looks true to me"
-# elif 1 == 1:
-#   span.just-some-basic-stuff: "this is basic""""
-#   assert tim.toHtml("test_if", code) ==
-#     """<span class="just-some-basic-stuff">this is basic</span>"""
+  let vmm = newVM()
+  return vmm.interpret(script, mainChunk, localData = localData, globalData = globalData)
 
-# test "conditions if/elif/else":
-#   let code = """
-# if 1 != 1:
-#   span: "looks true to me"
-# elif 1 > 1:
-#   span.just-some-basic-stuff: "this is basic"
-# else:
-#   span.none
-#   """
-#   assert tim.toHtml("test_if", code) ==
-#     """<span class="none"></span>"""
+suite "Basics":
+  test "simple template":
+    let samplecode= """
+div.container > div.row > div.col-12
+  "Tim Engine is Awesome!"
+"""
+    assert toHtml("test1", samplecode) ==
+      """<div class="container"><div class="row"><div class="col-12">Tim Engine is Awesome!</div></div></div>"""
+  
+  test "text elements":
+    let samplecode = """
+h1: "Hello World!"
+  span: "This span is inside the h1 element"
+"""
+    assert toHtml("test2", samplecode) ==
+      """<h1>Hello World!<span>This span is inside the h1 element</span></h1>"""
+  
+  test "attributes and nesting":
+    let samplecode = """
+a#my-link.btn.btn-primary href="https://example.com"
+  target="_blank" title="Example Link": "Click me!"
+"""
+    assert toHtml("test3", samplecode) ==
+      """<a id="my-link" href="https://example.com" target="_blank" title="Example Link" class="btn btn-primary">Click me!</a>"""
+  
+  test "dynamic data":
+    let samplecode = """
+p: "Hello, " & $this["name"] & "!"
+"""
+    let localData = newJObject()
+    localData["name"] = newJString("Tim")
+    assert toHtml("test4", samplecode, localData) ==
+      """<p>Hello, Tim!</p>"""
+  test "conditionals":
+    let samplecode = """
+if $this["isLoggedIn"] == true:
+  p: "Welcome back, " & $this["username"] & "!"
+else:
+  p: "Please log in to continue."
+"""
+    let localData = newJObject()
+    localData["isLoggedIn"] = newJBool(true)
+    localData["username"] = newJString("Tim")
+    
+    assert toHtml("test5", samplecode, localData) ==
+      """<p>Welcome back, Tim!</p>"""
+    
+    # Test the else branch
+    localData["isLoggedIn"] = newJBool(false)
+    assert toHtml("test5", samplecode, localData) ==
+      """<p>Please log in to continue.</p>"""
 
-# test "loops for":
-#   let code = """
-# var fruits = ["satsuma", "watermelon", "orange"]
-# for $fruit in $fruits:
-#   span data-fruit=$fruit: $fruit
-#   """
-#   assert tim.toHtml("test_loops", code) ==
-#     """<span data-fruit="satsuma">satsuma</span><span data-fruit="watermelon">watermelon</span><span data-fruit="orange">orange</span>"""
+    test "loops":
+      let samplecode = """
+ul
+  for $item in $this["items"]:
+    li: $item
+"""
+      var localData = newJObject()
+      localData["items"] = newJArray()
+      for x in [newJString("Item 1"), newJString("Item 2"), newJString("Item 3")]:
+        localData["items"].add(x)
+      assert toHtml("test6", samplecode, localData) ==
+        """<ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>"""
 
-# test "loops for + nested elements":
-#   let code = """
-# section#main > div.my-4 > ul.text-center
-#   for $x in ["barberbeats", "vaporwave", "aesthetic"]:
-#     li.d-block > span.fw-bold: $x"""
-#   assert tim.toHtml("test_loops_nested", code) ==
-#     """<section id="main"><div class="my-4"><ul class="text-center"><li class="d-block"><span class="fw-bold">barberbeats</span></li><li class="d-block"><span class="fw-bold">vaporwave</span></li><li class="d-block"><span class="fw-bold">aesthetic</span></li></ul></div></section>"""
-
-# test "loops for in range":
-#   let code = """
-# for $i in 0..4:
-#   i: $i"""
-#   assert tim.toHtml("for_inrange", code) ==
-#     """<i>0</i><i>1</i><i>2</i><i>3</i><i>4</i>"""
-
-# test "loops using * multiplier":
-#   let code = """
-# const items = ["keyboard", "speakers", "mug"]
-# li * 3: $i + 1 & " - " & $items[$i]"""
-#   assert tim.toHtml("test_multiplier", code) ==
-#     """<li>1 - keyboard</li><li>2 - speakers</li><li>3 - mug</li>"""
-
-# test "loops using * var multiplier":
-#   let code = """
-# const x = 3
-# const items = ["keyboard", "speakers", "mug"]
-# li * $x: $items[$i]"""
-#   assert tim.toHtml("test_multiplier", code) ==
-#     """<li>keyboard</li><li>speakers</li><li>mug</li>"""
-
-# test "loops while block + inc break":
-#   let code = """
-# var i = 0
-# while true:
-#   if $i == 100:
-#     break
-#   inc($i)
-# span: "Total: " & $i.toString"""
-#   assert tim.toHtml("test_while_inc", code) ==
-#     """<span>Total: 100</span>"""
-
-# test "loops while block + dec break":
-#   let code = """
-# var i = 100
-# while true:
-#   if $i == 0:
-#     break
-#   dec($i)
-# span: "Remained: " & $i.toString"""
-#   assert tim.toHtml("test_while_dec", code) ==
-#     """<span>Remained: 0</span>"""
-
-# test "loops while block + dec":
-#   let code = """
-# var i = 100
-# while $i != 0:
-#   dec($i)
-# span: "Remained: " & $i.toString"""
-#   assert tim.toHtml("test_while_dec", code) ==
-#     """<span>Remained: 0</span>"""
-
-# test "function return string":
-#   let code = """
-# fn hello(x: string): string =
-#   return $x
-# h1: hello("Tim is awesome!")
-#   """
-#   assert tim.toHtml("test_function", code) ==
-#     """<h1>Tim is awesome!</h1>"""
-
-# test "function return int":
-#   let code = """
-# fn hello(x: int): int =
-#   return $x + 10
-# h1: hello(7)
-#   """
-#   assert tim.toHtml("test_function", code) ==
-#     """<h1>17</h1>"""
-
-# test "objects anonymous function":
-#   let code = """
-# @import "std/strings"
-# @import "std/os"
-
-# var x = {
-#   getHello:
-#     fn(x: string): string {
-#       return toUpper($x & " World")
-#     }
-# }
-# h1: $x.getHello("Hello")
-#   """
-#   assert tim.toHtml("anonymous_function", code) ==
-#     """<h1>HELLO WORLD</h1>"""
-
-# test "std/strings":
-#   let x = toHtml("std_strings", load("std_strings"))
-#   assert x[1].hasErrors == false
-
-# test "std/arrays":
-#   let x = toHtml("std_arrays", load("std_arrays"))
-#   assert x[1].hasErrors == false
-
-# test "std/objects":
-#   let x = toHtml("std_objects", load("std_objects"))
-#   assert x[1].hasErrors == false
+    test "error handling":
+      let samplecode = """
+p: "This will cause an error: " & $this["undefinedKey"]
+"""
+      try:
+        discard toHtml("test7", samplecode)
+        doAssert false, "Expected an error due to undefined key, but no error was raised."
+      except KeyError as e:
+        # this is not a code generation error, but a runtime error due  to
+        # accessing an undefined key in the JSON storage, so a KeyError is expected
+        assert e.msg == "key not found: undefinedKey"
