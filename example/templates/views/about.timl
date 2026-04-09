@@ -1,48 +1,15 @@
-@placeholder#topbar
-var boxes = [
-  {
-    title: "Chimney Sweep"
-    description: "Once feared for the soot they carried,
-      these skilled climbers cleaned fireplaces to prevent
-      fires and improve indoor air quality" 
-  }
-  {
-    title: "Town Crier"
-    description: "With booming voices and ringing bells,
-      they delivered news and announcements in the days
-      before mass media"
-  }
-  {
-    title: "Ratcatcher"
-    description: "These pest controllers faced smelly
-      challenges, but their work helped prevent the
-      spread of diseases like the plague"
-  }
-  {
-    title: "Ancient Rome"
-    description: "In ancient Rome, gladiators sometimes
-      fought wild animals while wearing costumes of mythological figures"
-  }
-  {
-    title: "The first traffic light"
-    description: "Was installed in London in 1868 and used gas
-      lanterns to signal stop and go."
-  }
-  {
-    title: "The Great Wall at once?"
-    description: "Nope. It wasn't built all at once, but over
-      centuries by different dynasties."
-  }
-]
-
-section.pt-5 > div.container
-  div.row > div#content-zone.col-lg-7.mx-auto
-    div.text-center > img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png" alt="Tim Engine" width="200px"
-    h1.display-4.fw-bold:
-      "Random Forgotten Professions & Historical Oddities 🤯"
-  div.row.my-3.g-4
-    for $box in $boxes:
-      div.col-lg-4.d-flex.align-items-stretch > div.card.bg-transparent.text-light.border-0 style="border-radius: 18px" > div.card-body.p-4
-        div.card-title.fw-bold.h3: $box.title
-        p.card-text.fw-normal.h5.lh-base: $box.description
-  @include "foot"
+div.container > div.row > div.col-lg-12
+  div.row.vh-100.align-items-center.g-5
+    div.col-lg-5.mx-auto
+      a.navbar-brand.position-relative.mx-4 href="#"
+        img.position-relative src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timV2.png"
+          width="100px" height="100px"
+        em
+      a.text-white href="/" class="text-decoration-none": "Back to home"
+      h1.display-4.fw-bold: "A template engine for cool kids!"
+      p.mb-3.fw-light: "Tim Engine is a high-performance Domain-Specific Language (DSL) and template engine written in Nim, designed to be fast, efficient, and easy to use. It offers a clean and intuitive syntax for generating HTML, making it a great choice for web developers looking to create dynamic and responsive web applications with ease."
+      div.d-grid.gap-4.d-md-flex.justify-content-md-start
+        a href="https://tim.openpeeps.dev" class="btn btn-outline-light border-2 rounded-3 px-4"
+          "Check documentation"
+        a href="/" class="btn btn-primary border-2 rounded-3 px-4"
+          "Check Tim on GitHub"

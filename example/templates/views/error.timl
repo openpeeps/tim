@@ -1,4 +1,8 @@
-section.container > div.row.vh-100 > div.col-lg-7.mx-auto.align-self-center.text-center
-  h1.display-5.fw-bold: "😅 " & $this.meta.title
-  p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em": $this.meta.msg
-  a href="/" class="btn btn-outline-secondary text-light btn-lg px-4 rounded-pill": "👉 Go back to Pantzini"
+div.container > div.row > div.col-lg-12 > div.row.vh-100.align-items-center.g-5 > div.col-lg-5 
+  a.navbar-brand.position-relative.mx-4 href="#"
+    img.position-relative src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timV2.png"
+      width="100px" height="100px"
+    em
+  h1.display-3.fw-bold: "Oups! Something went wrong."
+  p.h3.fw-light: "An unexpected error occurred while processing your request. Please try again later."
+  a href="/" class="btn btn-outline-light border-2 mt-4 rounded-3 px-4": "Go Back Home"

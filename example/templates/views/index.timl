@@ -1,15 +1,21 @@
-// tips: variables declared at template level
-// with default value are known at compile-time
-const logo = "https://raw.githubusercontent.com/openpeeps/tim/main/.github/timengine.png"
-const heading = "This is Tim 👋 A super fast template engine for cool kids!"
-const lead = // double quote in multi-line strings
-    "Build sleek, dynamic websites and apps in a breeze with
-    Tim Engine's intuitive syntax and powerful features.
-    It's the template engine that keeps up with your creativity."
+var features = ["Compiled & Lightweight", "Embeddable", "Clean & Intuitive Syntax", "Source-to-Source transpilation",
+      "VM Interpreter", "Hot Code Reload", "Browser Sync & Reload", "Extensible", "Built-in Standard Library",
+      "Package Manager", "Macros", "Partials", "Emmet-like syntax", "Built-in Minification", "For loops",
+      "Conditionals", "HTML Escaping", "Multi-Theme Support", "And much more..."]
 
-section.pt-5 > div.container > div.row > div#content-zone.col-lg-7.mx-auto
-  div.text-center
-    img src=$logo alt="Tim Engine" width="200px"
-  h1.display-4.fw-bold: $heading
-  p.mb-4.h4.fw-normal.px-4 style="line-height: 1.8em": $lead
-  @include "foot" // include footer
+div.container > div.row > div.col-lg-12
+  div.row.vh-100.align-items-center.g-5
+    div.col-lg-5 
+      a.navbar-brand.position-relative.mx-4 href="#"
+        img.position-relative src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timV2.png"
+          width="100px" height="100px"
+        em
+      h1.display-3.fw-bold: "This is Tim Engine"
+      p.h3.fw-light.mb-4: "A high-performance template engine & markup language written in Nim with a focus on developer experience and productivity"
+      a href="/" class="btn btn-primary border-2 rounded-3 px-4": "Check Tim on GitHub"
+
+    div.col-lg-7 > div.row.g-3
+      div.container.masonry-columns
+        for $feature in $features:
+          div.card.bg-black.border-1.border-dark.rounded-4 > div.p-3.text-center
+            p.mb-0.small: $feature

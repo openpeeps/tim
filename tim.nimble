@@ -14,7 +14,6 @@ binDir        = "bin"
 
 requires "nim >= 2.0.0"
 
-# requires "toktok#head"
 requires "kapsis#head"
 requires "jsony"
 requires "flatty"
@@ -22,20 +21,12 @@ requires "checksums"
 requires "nyml#head"
 requires "semver"
 requires "dotenv"
-requires "denim#head"
 requires "voodoo#head"
 requires "libffi"
-requires "gccjit"
 requires "watchout#head"
-
-# requires "mirage#head"
-# requires "microparsec"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"
-
-task dev_llvm, "build a dev version":
-  exec "nimble build -d:enable_llvm --mm:orc -d:useMalloc"
 
 task napi, "build a dev version":
   exec "denim build src/tim.nim --cmake -y"
@@ -43,5 +34,9 @@ task napi, "build a dev version":
 task devlog, "build a dev version":
   exec "nimble build --mm:arc -d:hayaVmWriteStackOps -d:hayaVmWritePcFlow -d:timLogCodeGen -d:useMalloc"
 
-task prod, "build a dev version":
-  exec "nimble build --mm:arc -d:release --opt:speed -d:useMalloc"
+import std/os
+task build_examples, "build examples":
+  for e in walkDir(currentSourcePath().parentDir / "example"):
+    let x = e.path.splitFile
+    if x.name.startsWith("example_") and x.ext == ".nim" and not x.name.startsWith("!"):
+      exec "nim c -d:timHotCode --threads:on --deepcopy:on --mm:arc -o:./example/" & x.name & " example/" & x.name & x.ext

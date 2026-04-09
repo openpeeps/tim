@@ -1,51 +1,61 @@
-#This example demonstrates using Tim with Prologue
-import std/[strutils, times]
+# This is an example of using Tim Engine with Prologue
+
+import std/[strutils, times, os]
+import ../src/tim
+
+#
+# Setup Tim Engine
+#
+var
+  timEngine = newTim(
+    src = "templates",            # where to find the .timl files
+    output = "storage",           # where to cache precompiled templates
+    basepath = getCurrentDir()    # base path for resolving absolute paths in templates
+  )
+
+timEngine.precompile()
+
+#
+# Setup Prologue
+#
 import prologue
-include ./initializer
 
-#init Settings for prologue
-let 
-    settings = newSettings(port = Port(8082))
-
+let settings = newSettings(port = Port(8082))
 var app = newApp(settings = settings)
 
 #define your route handling callbacks
 proc indexPageHandler(ctx: Context) {.async, gcsafe.} =
+  {.gcsafe.}:
     let localObjects = %*{
-        "meta": {
-            "title": "Tim Engine is Awesome!"
-        },
-        "path": "/"
+      "meta": {
+          "title": "Tim Engine is Awesome!"
+      },
+      "path": "/"
     }
-
-    {.cast(gcsafe).}: #timl is a global using GC'ed memory and prologue loves it's callbacks to be gc-safe
-        let indexPage = timl.render(viewName = "index", layoutName = "base", local = localObjects)
-
+    let indexPage = timEngine.render(view = "index", data = localObjects)
     resp indexPage
 
 proc aboutPageHandler(ctx: Context) {.async, gcsafe.} =
+  {.gcsafe.}:
     let localObjects = %*{
-        "meta": {
-            "title": "About Tim Engine"
-        },
-        "path": "/about"
+      "meta": {
+          "title": "About Tim Engine"
+      },
+      "path": "/about"
     }
-    {.cast(gcsafe).}: #timl is a global using GC'ed memory and prologue loves it's callbacks to be gc-safe
-        let aboutPage = timl.render(viewName = "about", layoutName = "secondary", local = localObjects)
-
+    let aboutPage = timEngine.render(view = "about", layout = "secondary", data = localObjects)
     resp aboutPage
 
 proc e404(ctx: Context) {.async, gcsafe.} =
+  {.gcsafe.}:
     let localObjects = %*{
-        "meta": {
-            "title": "Oh, you're a genius!",
-            "msg": "Oh yes, yes. It's got action, it's got drama, it's got dance! Oh, it's going to be a hit hit hit!"
-        },
-        "path": %*(ctx.request.path)
+      "meta": {
+          "title": "Oh, you're a genius!",
+          "msg": "Oh yes, yes. It's got action, it's got drama, it's got dance! Oh, it's going to be a hit hit hit!"
+      },
+      "path": %*(ctx.request.path)
     }
-    {.cast(gcsafe).}: #timl is a global using GC'ed memory and prologue loves it's callbacks to be gc-safe
-        let e404Page = timl.render(viewName = "error", layoutName = "base", local = localObjects)
-
+    let e404Page = timEngine.render(view = "error", data = localObjects)
     resp e404Page
 
 #tell prologue how to handle routes
