@@ -181,6 +181,16 @@ proc loadLibrary*(script: Script): Module =
       ## Convert an int to a float
       result = initValue(toFloat(args[0].intVal)))
 
+  script.addProc(result, "toFloat", @[paramDef("i", ttyJson)], ttyFloat,
+    proc (args: StackView, argc: int): Value =
+      if likely(args[0].jsonVal.kind == JInt):
+        result = initValue(toFloat(args[0].jsonVal.getInt()))
+      elif likely(args[0].jsonVal.kind == JFloat):
+        result = initValue(args[0].jsonVal.getFloat())
+      else:
+        raise newException(TimRuntime, "Cannot convert JSON value to float.")
+  )
+
   script.addProc(result, "assert", @[paramDef("condition", ttyBool)], ttyVoid,
     proc (args: StackView, argc: int): Value =
       ## Assert that the given condition is true.
