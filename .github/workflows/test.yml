@@ -1,35 +1,27 @@
 name: test
-
 on:
   push:
     paths-ignore:
       - LICENSE
       - README.*
       - examples
-      - editors
-      - package.json
+      - .github/workflows
   pull_request:
     paths-ignore:
       - LICENSE
       - README.*
       - examples
-      - editors
-      - package.json
-
+      - .github/workflows
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         nim-version:
-          - '2.0.0'
-        os:
-          - ubuntu-latest
-          # - windows-latest
-          # - macOS-latest
-          # - macos-13 # building on arm64 fails
+          - 'stable'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+      
       - uses: jiro4989/setup-nim-action@v1
         with:
           nim-version: ${{ matrix.nim-version }}
@@ -41,32 +33,13 @@ jobs:
       - name: Install cmake-js for building node bindings"
         run: "npm install cmake-js -g"
 
-      - run: "choosenim show path -y"
+      - name: "Install Denim for building node bindings"
+        run: "nimble install -y denim"
 
-      - run: nimble install -Y
-      - run: nimble test
-      - run: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
-      # - name: "update tim.node"
-      #   run: |
-      #     git config --local user.name "github-actions[bot]"
-      #     git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      #     git config --local pull.ff only
-      #     timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
+      - name: "Install & test via Nimble"
+        run: |
+          nimble install -Y
+          nimble test
 
-      #     git pull --ff-only origin "${{ github.ref_name }}"
-      #     git checkout .
-
-      #     if test -f ./bindings/node/tim/src/bin/$timNodeName; then
-      #       rm -f ./bindings/node/tim/src/bin/$timNodeName
-      #       git add ./bindings/node/tim/src/bin/$timNodeName
-      #       git diff --cached --quiet || git commit -m "cleanup previous tim.node"
-      #     fi
-
-      #     cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
-      #     git add ./bindings/node/tim/src/bin/$timNodeName
-      #     git diff --cached --quiet || git commit -m "update tim for node on ${{ runner.os }}"
-      # - name: Push changes
-      #   uses: ad-m/github-push-action@master
-      #   with:
-      #     github_token: ${{ secrets.GITHUB_TOKEN }}
-      #     branch: ${{ github.ref_name }}
+      - name: "Build a Node addon via Denim"
+        rrun: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
