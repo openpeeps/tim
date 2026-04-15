@@ -1,3 +1,4 @@
+import std/os
 import pkg/voodoo/extensibles
 
 # Extend Voodoo AST and CodeGen to support
@@ -13,7 +14,7 @@ block extendVoodooAstAndCodeGen:
     nkClientBlock    # client block using `@client ... @end`
     nkMacro          # a block - {...}
 
-  extendCase:
+  extendCase do:
     # Extend the Node variant to support HTML elements
     # attributes and JavaScript snippets
     type Node = ref object        # required by `extendCase`
@@ -33,6 +34,12 @@ block extendVoodooAstAndCodeGen:
         snippetCode*: string
         snippetCodeAttrs*: seq[(string, Node)]
 
+  # Extend the case statement by adding new branches
+  # for code generation of the new node kinds we added to the AST
+  #
+  # Note that `case node.kind` is already defined in the original
+  # `genStmt` procedure, the `extendCaseStmt` macro just allows us
+  # to add new branches to it
   extendCaseStmt "codeGenStmt":
     case node.kind:
     of nkHtmlElement:
@@ -50,7 +57,9 @@ block extendVoodooAstAndCodeGen:
       gen.chunk.emit(tagPos)
     of nkMacro: discard gen.genMacro(node)
 
-  extendModule "/voodoo/language/ast.nim":
+  # Extends the AST module with new node constructors and utilities
+  # for HTML elements and macros
+  extendModule "voodoo" / "language" / "ast.nim":
     const voidHtmlElements* = [tagArea, tagBase, tagBr, tagCol,
       tagEmbed, tagHr, tagImg, tagInput, tagLink, tagMeta,
       tagParam, tagSource, tagTrack, tagWbr, tagCommand,
@@ -215,7 +224,7 @@ block extendVoodooAstAndCodeGen:
       else:
         result = $node.tag
 
-  extendModule "/voodoo/language/codegen.nim":
+  extendModule "voodoo" / "language" / "codegen.nim":
     proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
       ## Generates code for a block of code that contains a procedure.
       if not isInstantiation and node[1].kind != nkEmpty:
