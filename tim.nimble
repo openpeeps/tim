@@ -21,9 +21,8 @@ requires "nyml#head"
 requires "semver"
 requires "dotenv"
 requires "voodoo#head"
-requires "libffi"
 requires "watchout#head"
-requires "openparser#head"
+requires "https://github.com/openpeeps/openparser#head"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"
