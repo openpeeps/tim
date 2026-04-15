@@ -1,17 +1,27 @@
-import ../src/tim
+# This is an example of using Tim Engine with HttpBeast
 import std/[options, asyncdispatch, macros,
-  os, strutils, times, json]
+            os, strutils, times, json, httpcore, net]
+
+import ../src/tim
+
+#
+# Setup Tim Engine
+#
+var
+  timEngine = newTim(
+    src = "templates",            # where to find the .timl files
+    output = "storage",           # where to cache precompiled templates
+    basepath = getCurrentDir()    # base path for resolving absolute paths in templates
+  )
+
+timEngine.precompile()
+
 import pkg/[httpbeast]
 
-from std/httpcore import HttpCode, Http200
-from std/net import Port
-
-include ./initializer
-
 proc resp(req: Request, view: string, layout = "base", code = Http200,
-    headers = "Content-Type: text/html", local = newJObject()) =
-  local["path"] = %*(req.path.get())
-  let htmlOutput = timl.render(view, layout, local = local)
+    headers = "Content-Type: text/html", data = newJObject()) =
+  data["path"] = %*(req.path.get())
+  let htmlOutput = timEngine.render(view, layout, data = data)
   req.send(code, htmlOutput, headers)
 
 proc onRequest(req: Request): Future[void] =
@@ -22,20 +32,20 @@ proc onRequest(req: Request): Future[void] =
       case path
       of "/":
         req.resp("index",
-          local = %*{
+          data = %*{
             "meta": {
               "title": "Tim Engine is Awesome!"
             }
           })
       of "/about":
         req.resp("about", "secondary",
-          local = %*{
+          data = %*{
             "meta": {
               "title": "About Tim Engine"
             }
           })
       else:
-        req.resp("error", code = Http404, local = %*{
+        req.resp("error", code = Http404, data = %*{
           "meta": {
             "title": "Oh, you're a genius!",
             "msg": "Oh yes, yes. It's got action, it's got drama, it's got dance! Oh, it's going to be a hit hit hit!"

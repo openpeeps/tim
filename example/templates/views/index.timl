@@ -12,7 +12,7 @@ div.container > div.row > div.col-lg-12
         em
       h1.display-3.fw-bold: "This is Tim Engine"
       p.h3.fw-light.mb-4: "A high-performance template engine & markup language written in Nim with a focus on developer experience and productivity"
-      a href="/" class="btn btn-primary border-2 rounded-3 px-4": "Check Tim on GitHub"
+      a href="/" class="btn fw-bold btn-outline-info border-2 rounded-3 px-4": "More about Tim"
 
     div.col-lg-7 > div.row.g-3
       div.container.masonry-columns
