@@ -14,7 +14,7 @@ import pkg/voodoo/language/[ast, codegen, chunk, sym, vm]
 import pkg/voodoo/packagemanager/packager
 
 import ../engine/parser
-import ../engine/stdlib/[libsystem, libarrays, libffi]
+import ../engine/stdlib/[libsystem, libarrays]
 import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen, nimgen]
 
 proc parserCallback(astProgram: var Ast, path: string) =
@@ -81,9 +81,6 @@ proc srcCommand*(v: Values) =
 
   # let stringsLib = initStrings(script, systemModule)
   # module.load(stringsLib)
-
-  # let ffiLib = initFFI(script, systemModule)
-  # module.load(ffiLib)
 
   # let arraysLib = initArrays(script, systemModule)
   # module.load(arraysLib)

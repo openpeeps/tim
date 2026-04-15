@@ -92,10 +92,11 @@ type
 
 let stdlibs = newTable[string, proc(script: Script, systemModule: Module): Module]()
 
-# proc parseHook*(s: string, i: var int, v: var semver.Version) =
-#   var str: string
-#   parseHook(s, i, str)
-#   v = parseVersion(str)
+proc parseHook(parser: var json.JsonParser, field: string, v: var semver.Version) =
+  # A JSON parsing hook to parse the `version` field in the
+  # theme manifest as a `semver.Version` object
+  v = parseVersion(parser.curr.value)
+  parser.walk()
 
 iterator getViews*(engine: TimEngine): TimTemplate =
   ## Iterator to get all view templates

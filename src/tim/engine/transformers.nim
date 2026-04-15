@@ -245,6 +245,7 @@ block extendVoodooAstAndCodeGen:
             gen.lookup(formalParams[0])
           else:
             gen.module.sym"void"
+      
       # create a new proc
       var (sym, theProc) =
             gen.script.newProc(name, impl = node,
@@ -407,3 +408,72 @@ block extendVoodooAstAndCodeGen:
 
       if gen.kind == gkHtmlNest:
         gen.kind = gkToplevel
+
+  block extendVM:
+    extendEnum Opcode:
+      opcBeginHtml = "beginHtml"    ## construct HTML object
+      opcBeginHtmlWithAttrs = "behinHtmlWithAttrs" ## construct HTML object with attributes
+      opcAttrEnd = "attrEnd"        ## ends HTML object
+      opcInnerHtml = "innerHtml"        ## ends HTML object
+      opcTextHtml = "textHtml"      ## adds text to HTML object
+      opcCloseHtml = "closeHtml"    ## closes HTML object
+
+      opcAttrClass = "attrClass"    ## adds class to HTML object
+      opcAttrId = "attrId"          ## adds id to HTML object
+      opcAttr = "attr"
+      opcAttrKey = "attrKey"        ## adds a key to HTML object attribute
+      opcWSpace = "space"           ## adds whitespace to HTML result
+    
+    extendCaseStmt "vmParseChunkCase":
+      case oc:
+      of opcAttrClass, opcAttrId, opcBeginHtmlWithAttrs, opcBeginHtml, opcCloseHtml:
+        let sid = readArg[uint16](pc)
+        addOp(oc, sid.int64, 0, akString)
+    
+    extendCaseStmt "vmInterpretCase":
+      case oc:
+      # HTML generation
+      of opcAttrClass:
+        # special case for class attribute
+        result.add("class=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
+      of opcAttrId:
+        result.add("id=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
+      of opcWSpace:
+        result.add(" ")
+      of opcAttrEnd:
+        result.add(">")
+      of opcAttr:
+        let key = stack.pop().stringVal[]
+        let value = stack.pop()
+        result.add(key & "=\"")
+        case value.typeId
+        of tyString: result.add(value.stringVal[])
+        of tyInt:    result.add($value.intVal)
+        of tyFloat:  result.add($value.floatVal)
+        of tyBool:   result.add($(value.boolVal))
+        of tyJsonStorage:
+          result.add(value.jsonVal.toString())
+        else: discard
+        result.add("\"")
+      of opcAttrKey:
+        let attr = stack.pop()
+        if attr.stringVal[].len > 0:
+          result.add(" ") # leading space
+          result.add(attr.stringVal[])
+      of opcBeginHtmlWithAttrs:
+        result.add("<" & co.getArg1Str(pcIdx, currentChunk))
+      of opcBeginHtml:
+        result.add("<" & co.getArg1Str(pcIdx, currentChunk) & ">")
+      of opcTextHtml:
+        let v = stack.pop()
+        case v.typeId
+        of tyString: result.add(v.stringVal[])
+        of tyInt: result.add($v.intVal)
+        of tyFloat: result.add($v.floatVal)
+        of tyBool: result.add($(v.boolVal))
+        of tyJsonStorage: result.add(v.jsonVal.toString())
+        else: discard
+      of opcInnerHtml:
+        discard
+      of opcCloseHtml:
+        result.add("</" & co.getArg1Str(pcIdx, currentChunk) & ">")
