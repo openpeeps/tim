@@ -1,9 +1,11 @@
-import std/[os, tables, net, strutils, json, sequtils, options]
+import std/[os, tables, net, strutils, sequtils, options]
+
+import pkg/openparser/json
 import pkg/voodoo/language/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/voodoo/packagemanager/[configurator, packager]
 import pkg/kapsis/interactive/prompts
 
-import pkg/[watchout, semver, jsony, nyml, checksums/sha1]
+import pkg/[watchout, semver, nyml, checksums/sha1]
 import ../engine/parser
 
 export value
@@ -90,10 +92,10 @@ type
 
 let stdlibs = newTable[string, proc(script: Script, systemModule: Module): Module]()
 
-proc parseHook*(s: string, i: var int, v: var semver.Version) =
-  var str: string
-  parseHook(s, i, str)
-  v = parseVersion(str)
+# proc parseHook*(s: string, i: var int, v: var semver.Version) =
+#   var str: string
+#   parseHook(s, i, str)
+#   v = parseVersion(str)
 
 iterator getViews*(engine: TimEngine): TimTemplate =
   ## Iterator to get all view templates

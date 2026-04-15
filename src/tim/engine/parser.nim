@@ -4,11 +4,11 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[macros, lexbase, tables, strutils, critbits, options]
+import std/[macros, lexbase, tables,
+      strutils, critbits, htmlparser, options]
 
 import ./lexer
 import pkg/voodoo/language/[errors, ast]
-import pkg/voodoo/parsers/htmlpar
 from ./transpilers/private import minifyInlineJs
 
 type

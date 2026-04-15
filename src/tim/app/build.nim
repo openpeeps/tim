@@ -6,8 +6,7 @@
 
 import std/[os, monotimes, times, strutils, json, options, ropes]
 
-import pkg/[flatty, jsony]
-
+import pkg/flatty
 import pkg/kapsis/runtime
 import pkg/kapsis/interactive/prompts
 

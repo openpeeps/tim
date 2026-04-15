@@ -15,7 +15,6 @@ binDir        = "bin"
 requires "nim >= 2.0.0"
 
 requires "kapsis#head"
-requires "jsony"
 requires "flatty"
 requires "checksums"
 requires "nyml#head"
@@ -24,6 +23,7 @@ requires "dotenv"
 requires "voodoo#head"
 requires "libffi"
 requires "watchout#head"
+requires "openparser#head"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"

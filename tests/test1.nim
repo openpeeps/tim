@@ -1,9 +1,7 @@
 import std/[unittest, os, xmltree, strtabs,
-        sequtils, json, options]
+        sequtils, json, options, htmlparser]
 
 include ../src/tim/engine/transformers
-
-import pkg/voodoo/parsers/htmlpar
 import pkg/voodoo/language/[ast, codegen, chunk, sym, vm, value, resolver]
 
 import ../src/tim/engine/[errors, parser]
