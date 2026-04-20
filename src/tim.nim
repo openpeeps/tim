@@ -11,7 +11,7 @@ when defined napi_build:
   # This allows Tim Engine to be used in Node.js/Bun.js applications
 
   import std/[strutils, json]
-  import pkg/[denim, jsony, watchout]
+  import pkg/[denim, openparser/json, watchout]
   
   import ./tim/pm/initializer
   
@@ -35,7 +35,7 @@ when defined napi_build:
         viewPath = args.get("view").getStr
         view = timjs.getView(viewPath)
 
-      return bindings.`%*`(eval(view, layout, nil, nil))
+      return nodeapi.`%*`(eval(view, layout, nil, nil))
 
 elif isMainModule:
   # Building Tim Engine as a CLI application
