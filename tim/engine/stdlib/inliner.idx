@@ -1,6 +1,3 @@
 nimTitle	inliner	tim/engine/stdlib/inliner.html	module tim/engine/stdlib/inliner		0
-nim	TempParamDef	tim/engine/stdlib/inliner.html#TempParamDef	tuple TempParamDef		6
-nim	addProc	tim/engine/stdlib/inliner.html#addProc,Script,Module,string,seq[TempParamDef],TypeKind,ForeignProc	proc addProc(script: Script; module: Module; name: string;\n        params: seq[TempParamDef] = @[]; returnTy: TypeKind;\n        impl: ForeignProc = nil; exportSym = true)		64
-nim	paramDef	tim/engine/stdlib/inliner.html#paramDef,string,TypeKind,Value,Sym,bool,bool,string	proc paramDef(name: string; kind: TypeKind; val: Value = nil; sym: Sym = nil;\n         mut, isOpt: bool = false; kindStr = ""): TempParamDef		112
-nim	compileCode	tim/engine/stdlib/inliner.html#compileCode,Script,Module,string,string	proc compileCode(script: Script; module: Module; filename, code: string)		118
-nim	InlineCode	tim/engine/stdlib/inliner.html#InlineCode	const InlineCode		137
+nim	compileCode	tim/engine/stdlib/inliner.html#compileCode,Script,Module,string,string	proc compileCode(script: Script; module: Module; filename, code: string)		62
+nim	InlineCode	tim/engine/stdlib/inliner.html#InlineCode	const InlineCode		81
