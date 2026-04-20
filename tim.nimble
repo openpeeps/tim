@@ -23,7 +23,7 @@ requires "dotenv"
 requires "voodoo#head"
 requires "watchout#head"
 requires "openparser#head"
-requires "vancode#head"
+requires "https://github.com/openpeeps/vancode#head"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"
