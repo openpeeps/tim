@@ -485,3 +485,5 @@ block extendvancodeAstAndCodeGen:
         discard
       of opcCloseHtml:
         result.add("</" & co.getArg1Str(pcIdx, currentChunk) & ">")
+      of opcViewLoader:
+        result.add(staticString.get())
