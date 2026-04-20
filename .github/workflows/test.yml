@@ -42,4 +42,4 @@ jobs:
           nimble test
 
       - name: "Build a Node addon via Denim"
-        rrun: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
+        run: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
