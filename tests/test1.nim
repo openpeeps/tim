@@ -2,10 +2,12 @@ import std/[unittest, os, xmltree, strtabs,
         sequtils, json, options, htmlparser]
 
 include ../src/tim/engine/transformers
-import pkg/voodoo/language/[ast, codegen, chunk, sym, vm, value, resolver]
+import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 
 import ../src/tim/engine/[errors, parser]
 import ../src/tim/engine/stdlib/[libsystem]
+
+from ../src/tim/pm/initializer import declareGlobals
 
 proc parserCallback(astProgram: var Ast, path: string) =
   parser.parseScript(astProgram, readFile(path), path)
@@ -26,6 +28,7 @@ proc toHtml(id, code: string, localData, globalData = newJObject()): string =
   script.stdpos = script.procs.high # start after stdlib procs
   
   var compiler = codegen.initCompiler(script, module, mainChunk, nil, nil, parserCallback)
+  compiler.declareGlobals()
   compiler.genScript(program = astTree, includePath = some(getCurrentDir()))
 
   let vmm = newVM()

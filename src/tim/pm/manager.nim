@@ -6,7 +6,7 @@
 
 import std/[tables, strutils, os, osproc, options, sequtils]
 import pkg/[flatty, nyml, semver, checksums/md5]
-import pkg/voodoo/language/ast
+import pkg/vancode/interpreter/ast
 
 import ./remote, ./configurator
 

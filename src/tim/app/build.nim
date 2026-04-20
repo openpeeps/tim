@@ -10,8 +10,8 @@ import pkg/flatty
 import pkg/kapsis/runtime
 import pkg/kapsis/interactive/prompts
 
-import pkg/voodoo/language/[ast, codegen, chunk, sym, vm]
-import pkg/voodoo/packagemanager/packager
+import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm]
+import pkg/vancode/manager/packager
 
 import ../engine/parser
 import ../engine/stdlib/[libsystem, libarrays]
@@ -19,6 +19,13 @@ import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen, nimgen]
 
 proc parserCallback(astProgram: var Ast, path: string) =
   parser.parseScript(astProgram, readFile(path), path)
+
+proc declareGlobals(compiler: codegen.CodeGen) =
+  # Declare global variables for the template scripts, such as `$app` and `$this`.
+  let appStorage = newIdent("app")
+  let thisStorage = newIdent("this")
+  compiler.declareVar(appStorage, skConst, compiler.module.sym"json", isMagic = true)
+  compiler.declareVar(thisStorage, skConst, compiler.module.sym"json", isMagic = true)
 
 proc srcCommand*(v: Values) =
   ## Transpiles `timl` code to a target source
@@ -30,18 +37,19 @@ proc srcCommand*(v: Values) =
   pkgr.loadPackages()
 
   let 
-    ext = v.get("--ext").getStr
+    ext =
+      if v.has("--ext"): v.get("--ext").getStr
+      else: "html" # default target is HTML
     flagPrettyPrint = v.has("--pretty")
     flagNoCache = v.has("--nocache")
     flagRecache = v.has("--recache")
     hasJsonFlag = v.has("--json-errors")
     outputPath = if v.has("-o"): v.get("-o").getStr else: ""
     flagBencmarks = v.has("--bench")
-    # enableWatcher = v.has("w")
-  
+
   if not srcPath.isAbsolute:
     srcPath = getCurrentDir() / srcPath
-
+  var srcFilePath = srcPath
   let
     timlCode = readFile(srcPath)
     t = getMonotime()
@@ -65,15 +73,15 @@ proc srcCommand*(v: Values) =
 
   var program: Ast # the AST representation of the script
   try:
-    parser.parseScript(program, timlCode, srcPath)
+    parser.parseScript(program, timlCode, srcFilePath)
   except TimParserError as e:
     echo e.msg
     quit(1)
 
   var
-    mainChunk = newChunk(srcPath)
+    mainChunk = newChunk(srcFilePath)
     script = newScript(mainChunk)
-    module = newModule(srcPath.extractFilename, some(srcPath))
+    module = newModule(srcFilePath.extractFilename, some(srcFilePath))
 
   # load standard library modules
   let systemModule = libsystem.loadLibrary(script)
@@ -94,7 +102,7 @@ proc srcCommand*(v: Values) =
       var compiler = codegen.initCodeGen(script, module, mainChunk, pkgr = pkgr,
                                     parserCallback = parserCallback)
       compiler.genScript(program, none(string))
-
+      compiler.declareGlobals()
       let vmInstance = newVm()
       let output = vmInstance.interpret(script, mainChunk)
       echo output

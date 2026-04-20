@@ -429,6 +429,10 @@ proc nextToken*(lex: var Lexer): TokenTuple =
         result = initToken(lex, tkIn, move lex.strbuf, line, col, pos, wsno)
       of "or":
         result = initToken(lex, tkOr, move lex.strbuf, line, col, pos, wsno)
+      of "type":
+        result = initToken(lex, tkType, move lex.strbuf, line, col, pos, wsno)
+      of "object":
+        result = initToken(lex, tkLitObject, move lex.strbuf, line, col, pos, wsno)
       of "fn":
         result = initToken(lex, tkFn, move lex.strbuf, line, col, pos, wsno)
       of "func":

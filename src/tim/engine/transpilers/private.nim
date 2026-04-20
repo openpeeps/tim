@@ -3,11 +3,8 @@
 # (c) 2025 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
-
-import std/[macros, options, os, sequtils,
-                strutils, ropes, tables]
-
-import pkg/voodoo/language/[ast, chunk, errors, sym]
+import std/[macros, strutils, ropes, tables, sequtils, options]
+import pkg/vancode/interpreter/[ast, chunk, errors, sym]
 
 type
   GenKind = enum

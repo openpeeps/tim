@@ -8,16 +8,11 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[strutils, options, os, sequtils,
-        httpclient, httpcore, json, tables,
-        algorithm, random]
+        httpclient, httpcore, random, hashes]
 
-import pkg/jsony
-import pkg/voodoo/language/[chunk, ast, sym, value]
-
-import ../parser
+import pkg/openparser/json
+import pkg/vancode/interpreter/[chunk, ast, sym, value]
 import ./inliner
-
-# import pkg/voodoo/parsers/voojson
 
 type TimRuntime* = object of CatchableError
 
@@ -114,6 +109,18 @@ proc loadLibrary*(script: Script): Module =
   script.addProc(result, "isnot", @[paramDef("a", ttyBool), paramDef("b", ttyBool)], ttyBool,
     proc (args: StackView, argc: int): Value =
       result = initValue(args[0].stringVal[] != args[1].stringVal[]))
+
+  #
+  # Object hash and equality
+  #
+  script.addProc(result, "==", @[paramDef("a", ttyObject), paramDef("b", ttyObject)], ttyBool,
+    proc (args: StackView, argc: int): Value =
+      when defined(nimPreviewHashRef):
+        initvalue(hash(args[0].objectVal) == hash(args[1].objectVal))
+      else:
+        raise newException(TimRuntime, "Hashing ref is not enabled. Use `-d:nimPreviewHashRef` to enable it.")
+    )
+      
 
   #
   # JSON operators between JSON and other types

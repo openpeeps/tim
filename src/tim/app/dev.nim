@@ -11,7 +11,7 @@ import pkg/[semver, nyml]
 import pkg/kapsis/runtime
 import pkg/kapsis/interactive/prompts
 
-import pkg/voodoo/packagemanager/[configurator, packager, remote]
+import pkg/vancode/manager/[configurator, packager, remote]
 
 #
 # CLI command `init` a new package

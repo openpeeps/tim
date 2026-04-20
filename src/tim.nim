@@ -45,6 +45,7 @@ elif isMainModule:
   import ./tim/app/[build, dev]
 
   initKapsis do:
+    defaultCommand: "src"
     commands:
       #
       # Source to Source commands
@@ -53,7 +54,7 @@ elif isMainModule:
       #
       -- "Source to Source"
       src path(timl),
-        string("--ext"),      # choose a target (default target `html`)
+        ?string("--ext"),      # choose a target (default target `html`)
         ?string("-o"),        # save output to file
         ?json("--data"),      # pass data to global/local scope
         ?bool("--nocache"),   # tells Tim to import modules and rebuild cache
@@ -122,7 +123,7 @@ else:
     ## Flush the Tim Engine cache
     discard # to be implemented
 
-  proc render*(engine: TimEngine, view: string, layout: string = "base",
+  proc render*(engine: TimEngine, view: sink string, layout: sink string = "base",
               data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
     ## 
@@ -147,7 +148,7 @@ else:
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
     result.add(eval(viewTpl, layoutTpl, data, engine.globalData))
 
-  proc renderView*(engine: TimEngine, view: string, data: JsonNode): string =
+  proc renderView*(engine: TimEngine, view: sink string, data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
     ## 
     ## Optionally, you can pass a `JsonNode` object as data to be used
@@ -161,10 +162,9 @@ else:
     let viewTpl: TimTemplate = engine.getView(view.replace(".", "/"))
     if viewTpl == nil:
       raise newException(TimEngineError, "View template not found: " & view)
-    result = newStringOfCap(1024)    # Preallocate a string with an initial capacity in bytes (1KB in this case)
     result.add(eval(viewTpl, data, engine.globalData))
 
-  proc themeRender*(engine: TimEngine, view: string, layout: string = "base",
+  proc themeRender*(engine: TimEngine, view: sink string, layout: sink string = "base",
               data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
     ## This is used for rendering frontend views that are part of the active theme.
@@ -184,7 +184,6 @@ else:
       raise newException(TimEngineError, "View template not found in active theme: " & view)
     if layoutTpl == nil:
       raise newException(TimEngineError, "Layout template not found in active theme: " & layout)
-    result = newStringOfCap(1024)    # Preallocate a string with an initial capacity in bytes (1KB in this case)
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
     result.add(eval(viewTpl, layoutTpl, data, engine.globalData))
 
@@ -203,6 +202,5 @@ else:
     let viewTpl: TimTemplate = engine.getThemeView(view.replace(".", "/"))
     if viewTpl == nil:
       raise newException(TimEngineError, "View template not found in active theme: " & view)
-    result = newStringOfCap(1024)    # Preallocate a string with an initial capacity in bytes (1KB in this case)
     result.add(eval(viewTpl, data, engine.globalData))
     

@@ -8,7 +8,7 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[times, options]
-import pkg/voodoo/language/[chunk, sym, value]
+import pkg/vancode/interpreter/[chunk, sym, value]
 import ./inliner
 
 proc loadTimes*(script: Script, systemModule: Module): Module =

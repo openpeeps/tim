@@ -8,7 +8,7 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[strutils, options, base64]
-import pkg/voodoo/language/[chunk, ast, sym, value]
+import pkg/vancode/interpreter/[chunk, ast, sym, value]
 
 import ./inliner
 

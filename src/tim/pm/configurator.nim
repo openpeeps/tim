@@ -8,7 +8,7 @@ from std/net import Port, `$`
 import pkg/[nyml, semver]
 
 when not defined napibuild:
-  import pkg/voodoo/parsers/voojson
+  import pkg/openparser/json
 
 export `$`
 
@@ -88,17 +88,15 @@ when not defined napibuild:
     ## This is used to generate the `tim.yml` file
     let str =
       if c.`type` == ConfigType.typePackage:
-        voojson.toJson(c, JsonOptions(
+        json.toJson(c, JsonOptions(
           skipFields: @["type", "compilation", "browser_sync"]
         ))
       else:
         toJson(c)
-    dump(voojson.fromJson(str))
+    dump(json.fromJson(str))
 
   proc `$`*(c: TimConfig): string = 
-    ## Generate a string representation of the TimConfig
-    ## using `pkg/voodoo`
-    voojson.toJson(c)
+    json.toJson(c)
 
 proc getBasePath*(config: TimConfig): string =
   return config.compilation.basePath

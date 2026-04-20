@@ -4,12 +4,11 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[macros, lexbase, tables,
-      strutils, critbits, htmlparser, options]
+import std/[macros, tables, strutils, critbits, options, memfiles]
+import pkg/vancode/interpreter/[errors, ast]
 
-import ./lexer
-import pkg/voodoo/language/[errors, ast]
 from ./transpilers/private import minifyInlineJs
+import ./lexer
 
 type
   Parser* = object
@@ -722,7 +721,7 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
       val = newEmpty()
       vars: seq[Node]
     vars.add(identNode)
-    while true:
+    while p.curr.kind != tkEOF:
       case p.curr.kind
       of tkColon:
         walk p # tkColon
@@ -748,8 +747,7 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
           vars.add(p.parseExpression())
         else: break
       else: break
-    vars.add(ty)
-    vars.add(val)
+    vars.add([ty, val])
     result.add(vars)
 
 prefixHandle parseVar:
@@ -796,7 +794,7 @@ proc parseFunctionHead(p: var Parser, isAnon: bool;
       formalParams.add(params)
 
   # parse a return type
-  if p.curr is tkColon and p.next is tkIdentifier:
+  if p.curr is tkColon and p.next in {tkIdentifier, tkLitObject}:
     walk p # tkColon
     formalParams[0] = p.parseIdent()
 
@@ -1023,56 +1021,83 @@ prefixHandle parseDocComment:
   result.comment = p.curr.value
   walk p
 
-prefixHandle parseObject:
-  # parse an object
-  result = ast.newTree(nkObject)
-  if p.next is tkIdentifier:
-    walk p # tkLitObject
-    var id = ast.newIdent(p.curr.value)
-    if p.next is tkAsterisk:
-      id = ast.newNode(nkPostfix).add([ast.newIdent("*"), id])
-      walk p, 2
-    else:
-      walk p # tkIdentifier
-    expectWalk(tkLC) # expect a left curly brace
-    # add the object identifier to the result
-    # the empty node is used to define generic
-    # parameters (todo)
-    result.add([id, ast.newEmpty()])
-    # parse the object fields
-    var fields = newNode(nkRecFields)
-    while true:
-      case p.curr.kind
-      of tkEOF: break
-      of tkRC:
-        walk p; break # end of the object
-      of Strings + {tkIdentifier}:
-        # parse a field name. it can be either a string or an identifier
-        # let fieldName = p.curr
-        # walk p # tkIdentifier/tkString
-        # expectWalk(tkColon)
-        # parse the field value
-        let kvNode: Node = p.parseIdentDefs()
-        caseNotNil kvNode:
-          fields.add(kvNode)
-        if p.curr is tkComma and p.next isnot tkRC:
-          walk p # tkComma
-      else: break # todo error
-    result.add(fields)
+# prefixHandle parseObject:
+#   # parse an object
+#   result = ast.newTree(nkObject)
+#   if p.next is tkIdentifier:
+#     walk p # tkLitObject
+#     var id = ast.newIdent(p.curr.value)
+#     if p.next is tkAsterisk:
+#       id = ast.newNode(nkPostfix).add([ast.newIdent("*"), id])
+#       walk p, 2
+#     else:
+#       walk p # tkIdentifier
+#     expectWalk(tkLC) # expect a left curly brace
+#     # add the object identifier to the result
+#     # the empty node is used to define generic
+#     # parameters (todo)
+#     result.add([id, ast.newEmpty()])
+#     # parse the object fields
+#     var fields = newNode(nkRecFields)
+#     while true:
+#       case p.curr.kind
+#       of tkEOF: break
+#       of tkRC:
+#         walk p; break # end of the object
+#       of Strings + {tkIdentifier}:
+#         # parse a field name. it can be either a string or an identifier
+#         # let fieldName = p.curr
+#         # walk p # tkIdentifier/tkString
+#         # expectWalk(tkColon)
+#         # parse the field value
+#         let kvNode: Node = p.parseIdentDefs()
+#         caseNotNil kvNode:
+#           fields.add(kvNode)
+#         if p.curr is tkComma and p.next isnot tkRC:
+#           walk p # tkComma
+#       else: break # todo error
+#     result.add(fields)
 
 prefixHandle parseTypeDef:
   # parse a type definition
   result = ast.newTree(nkTypeDef)
-  var typeName = ast.newIdent(p.curr.value)
+  result.ln = p.curr.line
+  result.col = p.curr.col
+  walk p # tkType
+  
+  var typeIdent = ast.newIdent(p.curr.value)
+  typeIdent.ln = p.curr.line
+  typeIdent.col = p.curr.col
   walk p # tkIdentifier
+
+  let typeDefCol = 
+    if result.ln == typeIdent.ln: result.col # use the column of `type` keyword
+    else: typeIdent.col # use the column of the identifier, in case of multi-line type definitions
+
+  # handle generic type definitions like `type MyType[T] = ...`
   if p.curr is tkLB:
-    typeName = p.parseGenericType(typeName)
-  expectWalk(tkAssign) # expect an equal sign
-  let typeDefNode: Node = p.parseExpression()
-  caseNotNil typeDefNode:
-    result.typeIdent = typeName
-    result.add(typeDefNode)
-  debugEcho typeDefNode
+    typeIdent = p.parseGenericType(typeIdent)
+  
+  expectWalk(tkAssign)
+  # parse the type definition
+  case p.curr.kind
+  of tkLitObject:
+    # parse `key: type = value` defintions
+    walk p # tkLitObject
+    var objectDef = newNode(nkObject)
+    var fieldDefs = newNode(nkRecFields)
+    while p.curr.kind != tkEOF:
+      if p.curr.kind == tkIdentifier and p.curr.col > typeDefCol:
+        let fieldDef: Node = p.parseIdentDefs()
+        caseNotNil fieldDef:
+          fieldDefs.add(fieldDef)
+      else: break
+    objectDef.add(typeIdent)
+    objectDef.add(fieldDefs)
+    result.add(objectDef)
+  else: discard # TODO
+  
+  # debugEcho result
 
 prefixHandle parseViewPlaceholder:
   ## Parse a view placeholder
@@ -1102,7 +1127,6 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of Strings: parseString
     of tkIdentVar: parseIdentVar
     of tkIf: parseIf
-    of tkLitObject: parseObject
     of tkIdentifier:
       if p.next is tkLP and p.next.line == p.curr.line:
         parseCall
@@ -1115,6 +1139,8 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
       if p.next is tkLP and p.next.line == p.curr.line:
         parseCall
       elif p.next is tkLC and p.next.line == p.curr.line:
+        parseTypeDef
+      elif p.next is tkIdentifier:
         parseTypeDef
       else:
         if minPrec < 45:
@@ -1223,11 +1249,17 @@ prefixHandle parseStmt:
   # Parse a statement node
   let prefixFn: PrefixFunction = 
     case p.curr.kind
-    of tkIdentifier, tkType:
-      # if p.next.line == p.curr.line and p.next in Assignables + {tkIdentVar, tkType}:
-      #   parseCall
+    of tkIdentifier:
       if p.next.line == p.curr.line and p.next is tkLP:
         parseCall
+      else: parseElement
+    of tkType:
+      if p.next.line == p.curr.line and p.next is tkLP:
+        parseCall
+      elif p.next.line == p.curr.line and p.next is tkLC:
+        parseTypeDef
+      elif p.next is tkIdentifier:
+        parseTypeDef
       else: parseElement
     of tkAt:
       parseMacroCall
@@ -1242,7 +1274,6 @@ prefixHandle parseStmt:
     of tkIterator: parseIterator
     of tkStatic: parseStaticStmt
     of tkEcho: parseEcho
-    of tkLitObject: parseObject
     of tkDoc: parseDocComment
     of tkViewLoader: parseViewPlaceholder
     of tkClient: parseClientBlock

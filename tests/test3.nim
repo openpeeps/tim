@@ -6,8 +6,8 @@ import pkg/[flatty, jsony]
 
 import ../src/tim/engine/transformers
 
-import pkg/voodoo/language/[ast, codegen, chunk, sym, vm]
-import pkg/voodoo/packagemanager/packager
+import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm]
+import pkg/vancode/manager/packager
 
 import ../src/tim/engine/parser
 import ../src/tim/engine/stdlib/[libsystem, libarrays, libffi]
@@ -92,6 +92,8 @@ test "s2s ruby":
   let stsOutput = execCmdEx("ruby " & s2sPath / "sample1.rb")
   assert stsOutput.exitCode == 0
   assert stsOutput.output.strip() == sample1Html
+
+  echo "Generated Ruby code:"
   echo stsOutput.output
 
 test "s2s python":
@@ -110,6 +112,8 @@ test "s2s python":
   let stsOutput = execCmdEx("python " & s2sPath / "sample1.py")
   assert stsOutput.exitCode == 0
   assert stsOutput.output.strip() == sample1Html
+
+  echo "Generated Python code:"
   echo stsOutput.output
 
 test "s2s javascript":
@@ -128,6 +132,8 @@ test "s2s javascript":
   let stsOutput = execCmdEx("node " & s2sPath / "sample1.js")
   assert stsOutput.exitCode == 0
   assert stsOutput.output.strip() == sample1Html
+
+  echo "Generated JavaScript code:"
   echo stsOutput.output
 
 test "s2s lua":
@@ -146,4 +152,6 @@ test "s2s lua":
   let stsOutput = execCmdEx("luajit " & s2sPath / "sample1.lua")
   assert stsOutput.exitCode == 0
   assert stsOutput.output.strip() == sample1Html
+
+  echo "Generated Lua code:"
   echo stsOutput.output

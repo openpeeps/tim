@@ -1,9 +1,9 @@
 import std/os
 import pkg/voodoo/extensibles
 
-# Extend Voodoo AST and CodeGen to support
+# Extend vancode AST and CodeGen to support
 # HTML elements and other Tim Engine specific nodes
-block extendVoodooAstAndCodeGen:
+block extendvancodeAstAndCodeGen:
   extendEnum NodeKind:
     # Extend `NodeKind` enum to support HTML
     # elements and attributes in the AST
@@ -56,10 +56,17 @@ block extendVoodooAstAndCodeGen:
       gen.chunk.emit(opcCloseHtml)
       gen.chunk.emit(tagPos)
     of nkMacro: discard gen.genMacro(node)
+    of nkViewLoader: gen.chunk.emit(opcViewLoader)
+    of nkClientBlock:
+      # gen.chunk.emit(opcClientBlock)
+      # var jst = jsgen.initCodeGen(gen.script, gen.module, gen.chunk)
+      # let jsSnippet: Rope = jsgen.genScript(jst, node[0].children)
+      # gen.chunk.emit(opcClientBlockEnd)
+      discard
 
   # Extends the AST module with new node constructors and utilities
   # for HTML elements and macros
-  extendModule "voodoo" / "language" / "ast.nim":
+  extendModule "vancode" / "interpreter" / "ast.nim":
     const voidHtmlElements* = [tagArea, tagBase, tagBr, tagCol,
       tagEmbed, tagHr, tagImg, tagInput, tagLink, tagMeta,
       tagParam, tagSource, tagTrack, tagWbr, tagCommand,
@@ -224,7 +231,7 @@ block extendVoodooAstAndCodeGen:
       else:
         result = $node.tag
 
-  extendModule "voodoo" / "language" / "codegen.nim":
+  extendModule "vancode" / "interpreter" / "codegen.nim":
     proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
       ## Generates code for a block of code that contains a procedure.
       if not isInstantiation and node[1].kind != nkEmpty:
@@ -423,6 +430,7 @@ block extendVoodooAstAndCodeGen:
       opcAttr = "attr"
       opcAttrKey = "attrKey"        ## adds a key to HTML object attribute
       opcWSpace = "space"           ## adds whitespace to HTML result
+      opcViewLoader = "viewLoader"  ## loads a view using the `@view` placeholder
     
     extendCaseStmt "vmParseChunkCase":
       case oc:
