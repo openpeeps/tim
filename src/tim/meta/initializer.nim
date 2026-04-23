@@ -7,6 +7,7 @@ import pkg/kapsis/interactive/prompts
 
 import pkg/[watchout, semver, nyml, checksums/sha1]
 import ../engine/parser
+import ./config
 
 export value
 
@@ -73,7 +74,7 @@ type
     ## Holds the configuration and the templates.
     ## 
     ## It must be initialized with `newTim()`
-    config*: TimConfig
+    config*: PackageConfig
       ## The configuration for the Tim Engine, including source and output paths, target source, etc.
     userScript*: UserScript
       ## A `UserScript` object that allows users to define custom foreign procedures
@@ -101,7 +102,7 @@ proc parseHook(parser: var json.JsonParser, v: var semver.Version) =
   # A JSON parsing hook to parse the `version` field in the
   # theme manifest as a `semver.Version` object
   v = parseVersion(parser.curr.value)
-  parser.walk()
+  parser.advance()
 
 iterator getViews*(engine: TimEngine): TimTemplate =
   ## Iterator to get all view templates
@@ -162,7 +163,7 @@ proc newTim*(src, output, basepath: string,
     depResolver: initResolver(),
     enableThemes: enableThemes,
     activeThemeName: activeThemeName,
-    config: TimConfig(
+    config: PackageCOnfig(
       `type`: ConfigType.typeProject,
       compilation: CompilationSettings(
         source: sourcePath,
@@ -171,13 +172,36 @@ proc newTim*(src, output, basepath: string,
         layoutsPath: sourcePath / "layouts",
         viewsPath: sourcePath / "views",
         partialsPath: sourcePath / "partials",
-        target: target
+        # target: target
       )
     )
   )
 
   stdlibs["times"] = loadTimes
-  stdlibs["ffi"] = loadFFI
+  # stdlibs["ffi"] = loadFFI
+
+proc newTim*(views, layouts, partials: EmbeddedTemplates, globalData: JsonNode = nil): TimEngine =
+  ## Initialize a new Tim Engine instance from a preloaded table of templates.
+  ## 
+  ## Usually used in embedded mode, where the templates are embedded into the binary
+  ## as a table of source paths to template content strings.
+  result = TimEngine(
+    userScript: UserScript(),
+    globalData: globalData,
+    depResolver: initResolver(),
+    config: PackageConfig(
+      `type`: ConfigType.typeProject,
+      compilation: CompilationSettings(
+        # sourceType: SourceType.sourceEmbedded,
+        source: "",
+        output: "",
+        basePath: "",
+        layoutsPath: "",
+        viewsPath: "",
+        partialsPath: "",
+      )
+    )
+  )
 
 proc getTemplateByPath*(engine: TimEngine, path: string): TimTemplate =
   ## Get a Tim template by its source path.
@@ -395,8 +419,7 @@ proc precompileTemplate*(engine: TimEngine, tpl: TimTemplate,
         )
 
         var vmInstance = newVM()
-        let outputVM = vm.interpret(vmInstance, inlineScript, inlineChunk, localData = newJObject())
-        result = initValue(outputVM)
+        result = vm.interpret(vmInstance, inlineScript, inlineChunk, localData = newJObject())
 
       except TimParserError as e:
         raise newException(TimRuntime, e.msg)
@@ -438,7 +461,7 @@ var
   browserSyncThemeWatcher: Watchout
 
 proc eval*(view, layout: TimTemplate, localData,
-        globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+        globalData: JsonNode): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view within a layout and return the final HTML output.
   ## 
   ## Templates are evaluated in the context of the provided `localData` and `globalData`, which are
@@ -455,15 +478,17 @@ proc eval*(view, layout: TimTemplate, localData,
 
   # then evaluate the layout template, passing the view output
   # and returning the final result
-  result = view.vmInstance.interpret(layout.script, layout.mainChunk,
-                    some(viewOutput), globalData = globalData, localData = localData)
+  view.vmInstance.interpret(layout.script, layout.mainChunk,
+                      some($viewOutput), globalData = globalData,
+                      localData = localData)
 
-proc eval*(view: TimTemplate, localData, globalData: JsonNode): string {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+proc eval*(view: TimTemplate, localData, globalData: JsonNode): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view without a layout and return the final HTML output. 
   ## This can be used for rendering partials or standalone views.
   assert view.script != nil, "View script is not initialized"
-  result = view.vmInstance.interpret(view.script, view.mainChunk,
-                globalData = globalData, localData = localData)
+  view.vmInstance.interpret(view.script, view.mainChunk,
+                      globalData = globalData,
+                      localData = localData)
 
 proc precompile*(engine: TimEngine) =
   ## Precompile Tim Engine templates.
@@ -476,6 +501,14 @@ proc precompile*(engine: TimEngine) =
   let pkgr = packager.initPackageRemote()
   pkgr.loadPackages()
 
+  # if engine.config.compilation.sourceType == SourceType.sourceEmbedded:
+  #   # when loading templates from embedded resources, we need to register them
+  #   # in the engine's tables and precompile them directly from their content
+  #   for path, content in engine.config.compilation.embeddedTemplates:
+  #     let tpl = engine.registerTemplate(path)
+  #     echo tpl.sources.src
+  #   return 
+  
   if engine.enableThemes:
     # when themes are enabled, will discover themes available in the `themes` directory
     # of the installation path. Each theme should have a `theme.yaml` manifest file and its own

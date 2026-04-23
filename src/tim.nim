@@ -13,7 +13,7 @@ when defined napi_build:
   import std/[strutils, json]
   import pkg/[denim, openparser/json, watchout]
   
-  import ./tim/pm/initializer
+  import ./tim/meta/initializer
   
   var timjs: TimEngine
   init proc(module: Module) =
@@ -83,7 +83,7 @@ else:
   # so it can be used in other Nim projects
   import std/[macros, strutils, macrocache, json]
 
-  import ./tim/pm/initializer
+  import ./tim/meta/initializer
   export initializer
 
   const
@@ -144,9 +144,8 @@ else:
 
     if layoutTpl == nil:
       raise newException(TimEngineError, "Layout template not found: " & layout)
-    result = newStringOfCap(1024)    # Preallocate a string with an initial capacity in bytes (1KB in this case)
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
-    result.add(eval(viewTpl, layoutTpl, data, engine.globalData))
+    result.add($eval(viewTpl, layoutTpl, data, engine.globalData))
 
   proc renderView*(engine: TimEngine, view: sink string, data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
@@ -162,7 +161,7 @@ else:
     let viewTpl: TimTemplate = engine.getView(view.replace(".", "/"))
     if viewTpl == nil:
       raise newException(TimEngineError, "View template not found: " & view)
-    result.add(eval(viewTpl, data, engine.globalData))
+    result.add($eval(viewTpl, data, engine.globalData))
 
   proc themeRender*(engine: TimEngine, view: sink string, layout: sink string = "base",
               data: JsonNode): string =
@@ -185,7 +184,7 @@ else:
     if layoutTpl == nil:
       raise newException(TimEngineError, "Layout template not found in active theme: " & layout)
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
-    result.add(eval(viewTpl, layoutTpl, data, engine.globalData))
+    result.add($eval(viewTpl, layoutTpl, data, engine.globalData))
 
   proc themeRenderView*(engine: TimEngine, view: string, data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
@@ -202,5 +201,5 @@ else:
     let viewTpl: TimTemplate = engine.getThemeView(view.replace(".", "/"))
     if viewTpl == nil:
       raise newException(TimEngineError, "View template not found in active theme: " & view)
-    result.add(eval(viewTpl, data, engine.globalData))
+    result.add($eval(viewTpl, data, engine.globalData))
     

@@ -438,52 +438,56 @@ block extendvancodeAstAndCodeGen:
         let sid = readArg[uint16](pc)
         addOp(oc, sid.int64, 0, akString)
     
+    injectSnippet "VanCodeVMBeforeMainLoop":
+      # a Voodoo injected snippet to initialize the `result` variable
+      result = initValue("")
+
     extendCaseStmt "vmInterpretCase":
       case oc:
       # HTML generation
       of opcAttrClass:
         # special case for class attribute
-        result.add("class=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
+        result.stringVal[].add("class=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
       of opcAttrId:
-        result.add("id=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
+        result.stringVal[].add("id=\"" & co.getArg1Str(pcIdx, currentChunk) & "\"")
       of opcWSpace:
-        result.add(" ")
+        result.stringVal[].add(" ")
       of opcAttrEnd:
-        result.add(">")
+        result.stringVal[].add(">")
       of opcAttr:
         let key = stack.pop().stringVal[]
         let value = stack.pop()
-        result.add(key & "=\"")
+        result.stringVal[].add(key & "=\"")
         case value.typeId
-        of tyString: result.add(value.stringVal[])
-        of tyInt:    result.add($value.intVal)
-        of tyFloat:  result.add($value.floatVal)
-        of tyBool:   result.add($(value.boolVal))
+        of tyString: result.stringVal[].add(value.stringVal[])
+        of tyInt:    result.stringVal[].add($value.intVal)
+        of tyFloat:  result.stringVal[].add($value.floatVal)
+        of tyBool:   result.stringVal[].add($(value.boolVal))
         of tyJsonStorage:
-          result.add(value.jsonVal.toString())
+          result.stringVal[].add(value.jsonVal.toString())
         else: discard
-        result.add("\"")
+        result.stringVal[].add("\"")
       of opcAttrKey:
         let attr = stack.pop()
         if attr.stringVal[].len > 0:
-          result.add(" ") # leading space
-          result.add(attr.stringVal[])
+          result.stringVal[].add(" ") # leading space
+          result.stringVal[].add(attr.stringVal[])
       of opcBeginHtmlWithAttrs:
-        result.add("<" & co.getArg1Str(pcIdx, currentChunk))
+        result.stringVal[].add("<" & co.getArg1Str(pcIdx, currentChunk))
       of opcBeginHtml:
-        result.add("<" & co.getArg1Str(pcIdx, currentChunk) & ">")
+        result.stringVal[].add("<" & co.getArg1Str(pcIdx, currentChunk) & ">")
       of opcTextHtml:
         let v = stack.pop()
         case v.typeId
-        of tyString: result.add(v.stringVal[])
-        of tyInt: result.add($v.intVal)
-        of tyFloat: result.add($v.floatVal)
-        of tyBool: result.add($(v.boolVal))
-        of tyJsonStorage: result.add(v.jsonVal.toString())
+        of tyString: result.stringVal[].add(v.stringVal[])
+        of tyInt: result.stringVal[].add($v.intVal)
+        of tyFloat: result.stringVal[].add($v.floatVal)
+        of tyBool: result.stringVal[].add($(v.boolVal))
+        of tyJsonStorage: result.stringVal[].add(v.jsonVal.toString())
         else: discard
       of opcInnerHtml:
         discard
       of opcCloseHtml:
-        result.add("</" & co.getArg1Str(pcIdx, currentChunk) & ">")
+        result.stringVal[].add("</" & co.getArg1Str(pcIdx, currentChunk) & ">")
       of opcViewLoader:
-        result.add(staticString.get())
+        result.stringVal[].add(staticString.get())

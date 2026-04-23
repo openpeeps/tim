@@ -414,10 +414,11 @@ proc loadLibrary*(script: Script): Module =
 
   script.addProc(result, "&", @[paramDef("x", ttyString), paramDef("y", ttyJson)], ttyString,
     proc (args: StackView, argc: int): Value =
-      case args[1].jsonVal.kind
-      of JString:
-        result = initValue(args[0].stringVal[] & args[1].jsonVal.getStr())
-      else: discard # todo error?
+      if likely(args[1].jsonVal != nil):
+        case args[1].jsonVal.kind
+        of JString:
+          result = initValue(args[0].stringVal[] & args[1].jsonVal.getStr())
+        else: discard # todo error?
     )
 
   script.addProc(result, "hasKey", @[paramDef("obj", ttyJson), paramDef("key", ttyString)], ttyBool,

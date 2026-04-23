@@ -10,7 +10,7 @@ import pkg/flatty
 import pkg/kapsis/runtime
 import pkg/kapsis/interactive/prompts
 
-import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm]
+import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
 import pkg/vancode/manager/packager
 
 import ../engine/parser
@@ -104,7 +104,7 @@ proc srcCommand*(v: Values) =
       compiler.genScript(program, none(string))
       compiler.declareGlobals()
       let vmInstance = newVm()
-      let output = vmInstance.interpret(script, mainChunk)
+      let output: value.Value = vmInstance.interpret(script, mainChunk)
       echo output
     except CodeGenError as e:
       echo e.msg
@@ -146,4 +146,4 @@ proc astCommand*(v: Values) =
   
   var program: Ast # the AST representation of the script
   parser.parseScript(program, timlCode, srcPath)
-  writeFile(srcPath & ".ast", toFlatty(program))
+  writeFile(srcPath.changeFileExt("ast"), toFlatty(program))

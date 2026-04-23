@@ -3,9 +3,11 @@
 # (c) 2024 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
-from std/net import Port, `$`
-
+import std/tables
 import pkg/[nyml, semver]
+import pkg/vancode/manager/configurator
+
+from std/net import Port, `$`
 
 when not defined napibuild:
   import pkg/openparser/json
@@ -14,6 +16,8 @@ export `$`
 
 type
   TargetSource* = enum
+    ## The target source for template compilation,
+    ## determining how templates are loaded and rendered
     tsNim    = "nim"
     tsJS     = "js"
     tsHtml   = "html"
@@ -21,47 +25,26 @@ type
     tsPython = "py"
 
   BrowserSync* = ref object
+    ## Configuration for browser synchronization during development,
+    ## allowing for live-reloading of templates in the browser when changes are detected
     port*: Port
     delay*: uint # ms todo use jsony hooks + std/times
 
-  ConfigType* = enum
-    typeProject = "project"
-    typePackage = "package"
+  # ConfigType* = enum
+  #   ## The type of configuration being defined, which determines
+  #   ## the structure of the TimConfig
+  #   typeProject = "project"
+  #   typePackage = "package"
 
-  Requirement* = object
-    id: string
-    version: Version
+  SourceType* = enum
+    sourceFilesystem, sourceEmbedded
 
-  PolicyName* = enum
-    policyAny = "any"
-      ## Allow all features (default)
-    policyStdlib = "stdlib"
-      ## Allow usage of the standard library
-    policyPackages = "packages"
-      ## Allow usage of packages
-    policyImports = "imports"
-      ## Allow import statements
-    policyLoops = "loops"
-      ## Allow for loops and while loops
-    policyConditionals = "conditionals"
-      ## Allow conditionals
-    policyAssignments = "assignments"
-      ## Allow variable assignments
-    policyLoadDynlib = "loadDynlib"
-      ## Allow loading dynamic libraries via FFI
-
-  CompilationPolicy* = object
-    allow: set[PolicyName]
-
-  CompilationSettings* = object
-    target*: TargetSource
-    source*, output*: string
-    layoutsPath*, viewsPath*, partialsPath*: string
-    basePath*: string
-    policy*: CompilationPolicy
-    release*: bool
+  EmbeddedTemplates* = TableRef[string, string]
+    ## An alias for a simple in-memory template store, used when loading templates
+    ## from embedded resources instead of the filesystem.
 
   TimConfig* = ref object
+    ## The main configuration object for the Tim template engine
     name*: string
       ## Name of the package or project
       ## This must be a valid identifier
@@ -99,4 +82,5 @@ when not defined napibuild:
     json.toJson(c)
 
 proc getBasePath*(config: TimConfig): string =
+  ## Get the base path for template loading based on the configuration
   return config.compilation.basePath
