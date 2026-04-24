@@ -6,8 +6,7 @@
 
 import std/[os, osproc, strutils, sequtils, uri, httpclient]
 
-import pkg/[semver, nyml]
-
+import pkg/[semver, openparser/yaml]
 import pkg/kapsis/runtime
 import pkg/kapsis/interactive/prompts
 
@@ -56,7 +55,7 @@ var hello = "Tim Engine is Awesome"
 echo $hello"""
   writeFile(currDirPath / pkgName / "src" / pkgName & ".timl", sampleCode)
 
-  var timConfig = TimConfig(
+  var timConfig = PackageConfig(
     name: pkgName,
     `type`: ConfigType.typePackage,
     description: pkgDesc,
@@ -99,7 +98,7 @@ proc installCommand*(v: Values) =
       case res.code
       of Http200:
         let remoteYaml: GithubFileResponse = pkgr.remote.getFileContent(res) # this is base64 encoded
-        let pkgConfig: TimConfig = fromYaml(remoteYaml.content.decode(), TimConfig)
+        let pkgConfig: YamlObject = parseYAML(remoteYaml.content.decode())
         # case pkgConfig.`type`:
         #   of typePackage:
         #     if not pkgr.hasPackage(pkgConfig.name):
