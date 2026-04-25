@@ -34,7 +34,7 @@ jobs:
         run: "npm install cmake-js -g"
 
       - name: "Install Denim for building node bindings"
-        run: "nimble install -y denim"
+        run: "nimble install -y denim@#head"
 
       - name: "Install & test via Nimble"
         run: |
