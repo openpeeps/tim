@@ -7,7 +7,7 @@ import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import ../src/tim/engine/[errors, parser]
 import ../src/tim/engine/stdlib/[libsystem]
 
-from ../src/tim/pm/initializer import declareGlobals
+from ../src/tim/meta/initializer import declareGlobals
 
 proc parserCallback(astProgram: var Ast, path: string) =
   parser.parseScript(astProgram, readFile(path), path)
@@ -32,7 +32,7 @@ proc toHtml(id, code: string, localData, globalData = newJObject()): string =
   compiler.genScript(program = astTree, includePath = some(getCurrentDir()))
 
   let vmm = newVM()
-  return vmm.interpret(script, mainChunk, localData = localData, globalData = globalData)
+  return $(vmm.interpret(script, mainChunk, localData = localData, globalData = globalData))
 
 suite "Basics":
   test "simple template":

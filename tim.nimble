@@ -16,14 +16,13 @@ requires "nim >= 2.0.0"
 
 requires "kapsis#head"
 requires "flatty"
-requires "checksums"
-requires "nyml#head"
+requires "checksums"  
 requires "semver"
 requires "dotenv"
 requires "voodoo#head"
 requires "watchout#head"
 requires "openparser#head"
-requires "https://github.com/openpeeps/vancode#head"
+requires "vancode#head"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"
