@@ -839,7 +839,7 @@ proc parseMacroFunctionHead(p: var Parser, isAnon: bool;
   else:
     name = ast.newEmpty()
   genericParams = ast.newEmpty() # todo
-  formalParams = newTree(nkFormalParams, newEmpty())
+  formalParams = newTree(nkFormalParams, newSeq[Node](0))
   if p.curr is tkLP:
     var params: seq[Node]
     if p.parseCommaIdentList(tkLP, tkRP, params):
@@ -856,7 +856,7 @@ prefixHandle parseMacroFunction:
     # parse function statement
     let fnBlock: Node = p.parseBlock(fnpos, parseFnBlock = true)
     caseNotNil fnBlock:
-      result = ast.newTree(nkMacro, name, genericParams, formalParams, fnBlock)  
+      result = ast.newTree(nkMacro, name, genericParams, formalParams, fnBlock)
 
 prefixHandle parseMacroCall:
   # parse a block call
@@ -924,7 +924,8 @@ prefixHandle parseMacroCall:
 
 prefixHandle parseCall:
   # parse a function call
-  result = ast.newCall(ast.newIdent(p.curr.value))
+  let fnName = ast.newIdent(p.curr.value, p.curr.line, p.curr.col)
+  result = ast.newCall(fnName)
   var expectRP: bool
   walk p # tkIdentifier
   

@@ -60,7 +60,7 @@ elif isMainModule:
         ?bool("--nocache"),   # tells Tim to import modules and rebuild cache
         ?bool("--bench"):     # benchmark operations
           ## Transpile `timl` to specific target source
-      
+
       ast path(timl):
         ## Transpile timl code to AST representation
 

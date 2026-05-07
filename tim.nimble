@@ -3,7 +3,7 @@
 version       = "0.2.0"
 author        = "OpenPeeps"
 description   = "A super fast template engine for cool kids!"
-license       = "LGPLv3"
+license       = "LGPL-3.0-or-later"
 srcDir        = "src"
 skipDirs      = @["example", "editors", "bindings"]
 installExt    = @["nim"]

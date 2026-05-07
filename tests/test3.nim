@@ -1,16 +1,13 @@
-import unittest
 import std/[os, monotimes, times, osproc,
-        strutils, json, options, ropes]
-
-import pkg/[flatty, jsony]
+        unittest, strutils, json, options, ropes]
 
 import ../src/tim/engine/transformers
 
-import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm]
+import pkg/vancode/interpreter/[ast, chunk, sym]
 import pkg/vancode/manager/packager
 
 import ../src/tim/engine/parser
-import ../src/tim/engine/stdlib/[libsystem, libarrays, libffi]
+import ../src/tim/engine/stdlib/libsystem
 import ../src/tim/engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen, nimgen]
 
 proc parserCallback(astProgram: var Ast, path: string) =

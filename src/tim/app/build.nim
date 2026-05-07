@@ -10,14 +10,14 @@ import pkg/flatty
 import pkg/kapsis/runtime
 import pkg/kapsis/interactive/prompts
 
-import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value]
+import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/packager
 
 import ../engine/parser
 import ../engine/stdlib/[libsystem, libarrays]
 import ../engine/transpilers/[jsgen, pygen, rbgen, phpgen, luagen, nimgen]
 
-proc parserCallback(astProgram: var Ast, path: string) =
+proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
 
 proc declareGlobals(compiler: codegen.CodeGen) =

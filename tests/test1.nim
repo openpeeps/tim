@@ -9,7 +9,7 @@ import ../src/tim/engine/stdlib/[libsystem]
 
 from ../src/tim/meta/initializer import declareGlobals
 
-proc parserCallback(astProgram: var Ast, path: string) =
+proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
   parser.parseScript(astProgram, readFile(path), path)
 
 proc toHtml(id, code: string, localData, globalData = newJObject()): string =

@@ -276,7 +276,11 @@ proc loadLibrary*(script: Script): Module =
 
   script.addProc(result, "echo", @[paramDef("x", ttyString)], ttyVoid,
     proc (args: StackView, argc: int): Value =
-      echo args[0].stringVal[])
+      if likely(args[0].typeId == tyString):
+        echo args[0].stringVal[]
+      else:
+        echo "<nil>"
+    )
 
   script.addProc(result, "echo", @[paramDef("x", ttyInt)], ttyVoid,
     proc (args: StackView, argc: int): Value =

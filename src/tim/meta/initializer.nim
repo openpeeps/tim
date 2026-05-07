@@ -49,6 +49,7 @@ type
       # the VM instance for evaluating the template
     dependencies*: seq[string] = @[]
       ## a sequence of source paths that the template depends on (imports/includes)
+    embeddedCode*: Option[string]
 
   UserScript* {.acyclic.} = ref object
     # chunk: Chunk
@@ -68,12 +69,18 @@ type
     path*: string # base path of the theme
     views*, layouts*, partials*: TableRef[string, TimTemplate] = newTable[string, TimTemplate]()
       ## Tables to store templates by their source path
+  
+  TimSourceType* = enum
+    timSourceFilesystem, timSourceEmbedded
 
   TimEngine* {.acyclic.} = ref object
     ## The main Tim Engine object.
     ## Holds the configuration and the templates.
     ## 
     ## It must be initialized with `newTim()`
+    sourceType*: TimSourceType
+      ## The source type of the templates, either from the filesystem
+      ## or embedded in the binary
     config*: PackageConfig
       ## The configuration for the Tim Engine, including source and output paths, target source, etc.
     userScript*: UserScript
@@ -178,14 +185,14 @@ proc newTim*(src, output, basepath: string,
   )
 
   stdlibs["times"] = loadTimes
-  # stdlibs["ffi"] = loadFFI
 
-proc newTim*(views, layouts, partials: EmbeddedTemplates, globalData: JsonNode = nil): TimEngine =
+proc newTim*(globalData: JsonNode = nil): TimEngine =
   ## Initialize a new Tim Engine instance from a preloaded table of templates.
   ## 
   ## Usually used in embedded mode, where the templates are embedded into the binary
   ## as a table of source paths to template content strings.
   result = TimEngine(
+    sourceType: TimSourceType.timSourceEmbedded,
     userScript: UserScript(),
     globalData: globalData,
     depResolver: initResolver(),
@@ -193,12 +200,6 @@ proc newTim*(views, layouts, partials: EmbeddedTemplates, globalData: JsonNode =
       `type`: ConfigType.typeProject,
       compilation: CompilationSettings(
         # sourceType: SourceType.sourceEmbedded,
-        source: "",
-        output: "",
-        basePath: "",
-        layoutsPath: "",
-        viewsPath: "",
-        partialsPath: "",
       )
     )
   )
@@ -312,8 +313,14 @@ proc registerTemplate*(engine: TimEngine, src: string): TimTemplate =
     engine.partials[src] = tpl
   return tpl
 
-proc parserCallback(astProgram: var Ast, path: string) =
-  parser.parseScript(astProgram, readFile(path), path)
+proc parserCallback(astProgram: var Ast, path: string, resolver: FileResolver) =
+  var content: string
+  try:
+    content = resolver.readFile(path)
+  except ResolverError:
+    # fallback to disk read as before
+    content = readFile(path)
+  parser.parseScript(astProgram, content, path)
 
 proc resolveDepPath(engine: TimEngine, ownerSrc, dep: string): string =
   # Resolve the path of a dependency based on the owner template's
@@ -456,6 +463,60 @@ proc precompileTemplate*(engine: TimEngine, tpl: TimTemplate,
   writeFile(tpl.sources.opcache, tpl.mainChunk.code)
   return true # marks the template as successfully precompiled
 
+proc precompileEmbeddedTemplate*(engine: TimEngine, tpl: TimTemplate,
+        pkgr: Packager, data: JsonNode = nil): bool {.discardable.} =
+  ## Precompile a Tim template from embedded code. This is used when the
+  ## templates are embedded into the binary as strings, and we need to compile them into scripts
+  var astProgram: Ast
+  try:
+    parser.parseScript(astProgram, tpl.embeddedCode.get(), tpl.id)
+  except TimParserError as e:
+    displayError("Tim Engine - Error parsing embedded template: " & e.msg & "\nTemplate ID: " & tpl.id)
+    return
+  
+  var
+    mainChunk = newChunk(tpl.id)
+    script = newScript(mainChunk)
+    module = newModule(tpl.id, some(tpl.id))
+    localData = newJObject()
+  
+  # load standard library modules
+  let systemModule = libsystem.loadLibrary(script)
+  module.load(systemModule)
+
+  let stringsLib = initStrings(script, systemModule)
+  module.load(stringsLib)
+
+  let arraysLib = initArrays(script, systemModule)
+  module.load(arraysLib)
+
+  let jsonlib = initJSON(script, systemModule)
+  module.load(jsonlib)
+
+  script.stdpos = script.procs.high
+  
+  var compiler =
+    codegen.initCompiler(script, module, mainChunk,
+                      pkgr, stdlibs, parserCallback)
+
+  # Inject an in-memory FS into the compiler's resolver so genImport/resolveFile
+  # and parserCallback read from embedded contents. Include the current tpl and
+  # optionally other embedded templates (partials/views) if available.
+  var vfsMap = newTable[string, string]()
+  vfsMap[normalizedPath(tpl.id)] = tpl.embeddedCode.get()
+  compiler.resolver.fs = newInMemoryFS(vfsMap)
+  compiler.declareGlobals()
+  compiler.genScript(
+    program = astProgram,
+    includePath = some(engine.config.compilation.partialsPath)
+  )
+  
+  tpl.script = script
+  tpl.mainChunk = mainChunk
+  tpl.vmInstance = newVM()
+
+  result = true # marks the template as successfully precompiled
+
 var
   browserSyncWatcher: Watchout
   browserSyncThemeWatcher: Watchout
@@ -490,6 +551,37 @@ proc eval*(view: TimTemplate, localData, globalData: JsonNode): Value {.raises: 
                       globalData = globalData,
                       localData = localData)
 
+proc precompile*(engine: TimEngine,
+        views, layouts, partials: EmbeddedTemplates,
+        globalData: JsonNode = nil) =
+  ## Precompile a set of embedded templates and return a Tim Engine instance.
+  if engine.sourceType != TimSourceType.timSourceEmbedded:
+    # when the source type is embedded, we need to precompile the templates
+    raise newException(TimEngineError, "Source type is not set to embedded. Cannot precompile embedded templates.")
+  
+  # init the package manager and load the local packages
+  let pkgr = packager.initPackageRemote()
+  pkgr.loadPackages()
+
+  for k, view in views:
+    let id = getHashedPath(k)
+    let tpl = TimTemplate(id: id, templateType: ttView, embeddedCode: some(view))
+    if engine.precompileEmbeddedTemplate(tpl, pkgr):
+      engine.views[k] = tpl
+  
+  for k, layout in layouts:
+    let id = getHashedPath(k)
+    let tpl = TimTemplate(id: id, templateType: ttLayout, embeddedCode: some(layout))
+    if engine.precompileEmbeddedTemplate(tpl, pkgr):
+      engine.layouts[k] = tpl
+  
+  for k, partial in partials:
+    let id = getHashedPath(k)
+    let tpl = TimTemplate(id: id, templateType: ttPartial, embeddedCode: some(partial))
+    if engine.precompileEmbeddedTemplate(tpl, pkgr):
+      engine.partials[k] = tpl
+
+
 proc precompile*(engine: TimEngine) =
   ## Precompile Tim Engine templates.
   ## 
@@ -500,14 +592,6 @@ proc precompile*(engine: TimEngine) =
   # init the package manager and load the local packages
   let pkgr = packager.initPackageRemote()
   pkgr.loadPackages()
-
-  # if engine.config.compilation.sourceType == SourceType.sourceEmbedded:
-  #   # when loading templates from embedded resources, we need to register them
-  #   # in the engine's tables and precompile them directly from their content
-  #   for path, content in engine.config.compilation.embeddedTemplates:
-  #     let tpl = engine.registerTemplate(path)
-  #     echo tpl.sources.src
-  #   return 
   
   if engine.enableThemes:
     # when themes are enabled, will discover themes available in the `themes` directory

@@ -66,6 +66,20 @@ block extendvancodeAstAndCodeGen:
 
   # Extends the AST module with new node constructors and utilities
   # for HTML elements and macros
+
+  extendCaseStmt "astHashCase":
+    case node.kind
+    of nkHtmlElement:
+      h = h !& hash(node.tag)
+      for attr in node.attributes:
+        h = h !& hash(attr.attrType)
+        h = h !& hash(attr.attrNode)
+      for child in node.childElements:
+        h = h !& hash(child)
+    of nkHtmlAttribute:
+      h = h !& hash(node.attrType)
+      h = h !& hash(node.attrNode)
+
   extendModule "vancode" / "interpreter" / "ast.nim":
     const voidHtmlElements* = [tagArea, tagBase, tagBr, tagCol,
       tagEmbed, tagHr, tagImg, tagInput, tagLink, tagMeta,
@@ -232,10 +246,118 @@ block extendvancodeAstAndCodeGen:
         result = $node.tag
 
   extendModule "vancode" / "interpreter" / "codegen.nim":
+
+    proc genMacro*(node: Node, isInstantiation = false): Sym {.codegen.}
+
+    proc procCall*(node: Node, procSym: Sym): Sym {.codegen.} =
+      var argTypes: seq[Sym]
+      let hasTrailingStmt = node.len > 1 and (node[^1].kind in {nkHtmlElement, nkIf, nkFor, nkCall})
+      let isMacroSym = procSym.kind == skProc and procSym.procType == ProcType.procTypeMacro
+
+      proc bindStatementBody(macroImpl: Node, injectedStmt: Node) =
+        if macroImpl == nil or macroImpl.len < 4: return
+        let body = macroImpl[3]
+        if body == nil or body.kind != nkBlock: return
+
+        for i in 0..body.children.high:
+          let child = body[i]
+          if child.kind == nkMacro and child.len >= 4 and child[0].kind == nkIdent and child[0].ident == "@statement":
+            var blk = ast.newNode(nkBlock)
+            if injectedStmt.kind == nkBlock:
+              blk = deepCopy(injectedStmt)
+            else:
+              blk.add(deepCopy(injectedStmt))
+            child[3] = blk
+            return
+
+      if isMacroSym and hasTrailingStmt:
+        let injectedBlock = node[^1]
+        let keyHash = hash(procSym).int64 xor int64(injectedBlock.hash())
+          # if gen.instantiationCache.hasKey(keyHash):
+          #   result = gen.instantiationCache[keyHash]
+          # else:
+        let macroImpl = procSym.impl
+        if macroImpl == nil: 
+          node.error("macro implementation missing")
+
+        var clonedImpl = deepCopy(macroImpl)
+        # unique name for cloned instantiation
+        let uniqueName = procSym.name.ident & "$inst$" & $(gen.count())
+        clonedImpl[0] = newIdent(uniqueName)
+
+        # move trailing stmt into inner @statement macro body
+        bindStatementBody(clonedImpl, injectedBlock)
+
+        # remove synthetic `body` param from clone; statement is now baked in
+        clonedImpl[2].children.delete(clonedImpl[2].len - 1)
+
+        # compile clone as instantiation (no extra macro injections)
+        let instSym = gen.genMacro(clonedImpl, isInstantiation = true)
+
+        # gen.instantiationCache[keyHash] = instSym
+        result = instSym
+
+        if node.len > 2:
+          for arg in node[1..^2]:
+            let argSym: Sym = gen.genExpr(arg)
+            assert argSym != nil, "Expression must return a symbol"
+            argTypes.add(argSym)
+
+        return gen.callProc(result, argTypes, errorNode = node)
+      else:
+        if node.len > 1:
+          for arg in node[1..^1]:
+            let argSym: Sym = gen.genExpr(arg)
+            assert argSym != nil, "Expression must return a symbol"
+            argTypes.add(argSym)
+        return gen.callProc(procSym, argTypes, errorNode = node)
+
+    proc hasParamNamed(formalParams: Node, paramName: string): bool =
+      if formalParams == nil or formalParams.kind == nkEmpty or formalParams.len <= 1:
+        return false
+      for defs in formalParams[1..^1]:
+        if defs.len < 3: continue
+        for i in 0..(defs.len - 3):
+          var n = defs[i]
+          if n.kind == nkPostfix and n.len == 2:
+            n = n[1]
+          if n.kind == nkIdent and n.ident == paramName:
+            return true
+      false
+
+    proc genInnerMacro: Node =
+      # reserved macro slot where trailing statement gets injected
+      result = ast.newNode(nkMacro)
+      result.add(ast.newIdent("@statement"))      # name
+      result.add(ast.newNode(nkEmpty))            # generic params
+      let fp = ast.newNode(nkFormalParams)        # formal params
+      fp.add(ast.newNode(nkEmpty))                # return type
+      result.add(fp)
+      result.add(ast.newNode(nkBlock))            # body
+
+    proc hasInnerStatementMacro(body: Node): bool =
+      if body == nil or body.kind != nkBlock: return false
+      for child in body.children:
+        if child.kind == nkMacro and child.len > 0 and child[0].kind == nkIdent and child[0].ident == "@statement":
+          return true
+      false
+
     proc genMacro(node: Node, isInstantiation = false): Sym {.codegen.} =
       ## Generates code for a block of code that contains a procedure.
       if not isInstantiation and node[1].kind != nkEmpty:
         gen.pushScope()
+
+      if not isInstantiation and node[0].ident != "@statement":
+        if not hasParamNamed(node[2], "body"):
+          let bodyParam = ast.newNode(nkIdentDefs)
+          bodyParam.add(ast.newIdent("body"))
+          bodyParam.add(ast.newIdent("stmt"))
+          bodyParam.add(ast.newNode(nkNil))
+          node[2].add(bodyParam)
+
+        if not hasInnerStatementMacro(node[3]):
+          node[3].children.insert(genInnerMacro(), 0)
+
       # get some basic metadata
       let
         name = node[0]
@@ -246,12 +368,10 @@ block extendvancodeAstAndCodeGen:
             # collect generic params if we're not instantiating
             gen.collectGenericParams(node[1])
           else: none(seq[Sym])
-        params = gen.collectParams(formalParams, genericParams)
-        returnTy = # empty return type == void
-          if formalParams[0].kind != nkEmpty:
-            gen.lookup(formalParams[0])
-          else:
-            gen.module.sym"void"
+      
+      var params = gen.collectParams(formalParams, genericParams)
+      # macros always return the `stmt` (HTML) type
+      let returnTy = gen.module.sym"void"
       
       # create a new proc
       var (sym, theProc) =
@@ -260,7 +380,7 @@ block extendvancodeAstAndCodeGen:
                         genKind = gen.kind)
       sym.genericParams = genericParams
       sym.procType = ProcType.procTypeMacro
-      
+
       # add the proc into the declaration scope
       # we need to do this here, otherwise recursive calls will be broken
       gen.addSym(sym, scopeOffset = ord(sym.genericParams.isSome))
@@ -279,18 +399,20 @@ block extendvancodeAstAndCodeGen:
         procGen.procReturnTy = returnTy
 
         # add the proc's parameters as locals
-        # TODO: closures and upvalues
         procGen.pushScope()
         for (name, ty, implValTy, isMut, isOpt) in params:
           var varType = if isMut: skVar else: skLet
           let param = procGen.declareVar(name, varType, ty)
           param.varSet = true  # arguments are not assignable
         
-        # todo
-        # let stmtVar = procGen.declareVar(ast.newIdent("stmt"), skLet, gen.module.sym"any")
-        # stmtVar.varSet = true
-        # procGen.pushDefault(gen.module.sym"string")
-        
+        # declare ``result`` if applicable
+        let returnNode = newIdent("result")
+        if returnTy.tyKind != ttyVoid:
+          let res = newIdent("result")
+          procGen.declareVar(res, skVar, returnTy, isMagic = true)
+          procGen.pushDefault(returnTy)
+          procGen.popVar(res)
+
         # define the default `attrs` variable
         # this is used to store the attributes of the block.
         let attrs = newIdent("attrs")
@@ -298,33 +420,24 @@ block extendvancodeAstAndCodeGen:
         procGen.pushDefault(gen.module.sym"string")
         procGen.popVar(attrs)
         
-        # defines the default `blockStmt` variable
-        # this is used to store any additional statements
-        # provided at call time
-        # let blockStmt = newIdent("blockStmt")
-        # procGen.declareVar(blockStmt, skVar, gen.module.sym"any", isMagic = true)
-        # procGen.popVar(blockStmt)
-
         # add the proc into the script
         gen.script.procs.add(theProc)
         if sym.procExport:
+          # if the proc is exported, we also add it to the export list so it can be
           gen.script.procsExport.add(theProc)
 
         # compile the proc's body
         discard procGen.genBlock(body, isStmt = true)
-
-        # if the macro has any deferred code to be executed,
-        # we need to emit it now.
-        # procGen.chunk.emit(opcLoadDeferred)
-
+        
         # finally, return ``result`` if applicable
         if returnTy.tyKind != ttyVoid:
-          let resultSym = procGen.lookup(newIdent("result"))
+          let resultSym = procGen.lookup(returnNode)
           procGen.chunk.emit(opcPushL)
           procGen.chunk.emit(resultSym.varStackPos.uint8)
           procGen.chunk.emit(opcReturnVal)
         else:
           procGen.chunk.emit(opcReturnVoid)
+        procGen.popScope()
 
       # pop the generic declaration scope
       if not isInstantiation and sym.isGeneric:
