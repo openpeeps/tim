@@ -543,13 +543,27 @@ proc eval*(view, layout: TimTemplate, localData,
                       some($viewOutput), globalData = globalData,
                       localData = localData)
 
-proc eval*(view: TimTemplate, localData, globalData: JsonNode): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+proc eval*(view: TimTemplate, localData,
+      globalData: JsonNode): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view without a layout and return the final HTML output. 
   ## This can be used for rendering partials or standalone views.
   assert view.script != nil, "View script is not initialized"
   view.vmInstance.interpret(view.script, view.mainChunk,
                       globalData = globalData,
                       localData = localData)
+
+proc compileCode*(view, layout: TimTemplate,
+        localData, globalData: JsonNode
+  ): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+  ## Compile a view and layout into HTML without evaluating them.
+  ## This can be used for debugging or for generating the HTML output
+  ## without executing any code in the templates.
+  eval(view, layout, localData, globalData)
+
+proc compileCode*(view: TimTemplate, localData, globalData: JsonNode
+  ): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+  ## Compile a view into HTML without evaluating it.
+  eval(view, localData, globalData)
 
 proc precompile*(engine: TimEngine,
         views, layouts, partials: EmbeddedTemplates,
