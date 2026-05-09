@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.0"
+version       = "0.2.1"
 author        = "OpenPeeps"
 description   = "A super fast template engine for cool kids!"
 license       = "LGPL-3.0-or-later"
