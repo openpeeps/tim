@@ -37,6 +37,8 @@ type
     current*: char
     strbuf*: string # For building strings
 
+  TimLexerError* = object of CatchableError
+
 proc newLexer*(input: string): Lexer =
   result.input = input
   result.pos = 0
@@ -47,6 +49,39 @@ proc newLexer*(input: string): Lexer =
     result.current = input[0]
   else:
     result.current = '\0'
+
+proc charAt(l: Lexer, idx: int): char {.inline.} =
+  if idx < 0 or idx >= l.input.len: return '\0'
+  l.input[idx]
+
+proc getContext(l: Lexer, posOverride: int = -1): string =
+  # Show the full current line and place caret at exact token position.
+  let rawPos = if posOverride >= 0: posOverride else: l.pos
+  let atPos = max(0, min(rawPos, l.input.len))
+
+  var lineStart = atPos
+  while lineStart > 0 and l.charAt(lineStart - 1) != '\n':
+    dec lineStart
+
+  var lineEnd = atPos
+  while lineEnd < l.input.len and l.charAt(lineEnd) notin {'\n', '\r'}:
+    inc lineEnd
+
+  var snippet: string
+  if l.input.len > 0:
+    snippet = l.input[lineStart ..< lineEnd]
+  else:
+    snippet = newStringOfCap(max(0, lineEnd - lineStart))
+    for i in lineStart ..< lineEnd:
+      snippet.add(l.charAt(i))
+
+  let markerPos = max(0, min(snippet.len, atPos - lineStart))
+  result = snippet & "\n" & " ".repeat(markerPos) & "^"
+
+proc error*(l: var Lexer, msg: string) =
+  # Raise a lexer error
+  let context = getContext(l)
+  raise newException(TimLexerError, ("\n" & context & "\n" & "Error ($1:$2) " % [$l.line, $l.col]) & msg)
 
 proc advance(lex: var Lexer) =
   if lex.pos < lex.input.len:
@@ -96,8 +131,7 @@ template collectSnippet(tkKind: TokenKind, tkStr: string) =
   while true:
     case lex.current
     of '\0':
-      echo "EOF reached before closing @end" # todo error handling
-      return
+      lex.error("EOF reached before closing @end for " & tkStr & " snippet")
     of '@':
       if lex.peekToken("@end"):
         result.kind = tkKind
@@ -349,8 +383,10 @@ proc nextToken*(lex: var Lexer): TokenTuple =
       result = initToken(lex, tkImport, "@import", line, col, pos, wsno)
     of "include":
       result = initToken(lex, tkInclude, "@include", line, col, pos, wsno)
+    of "javascript":
+      collectSnippet(tkSnippetJs, "@javascript")
     of "js":
-      collectSnippet(tkSnippetJs, "@js")
+      lex.error("The `@js` snippet is no longer supported. Use `@javascript` instead for better readability.")
     of "html":
       collectSnippet(tkSnippetHtml, "@html")
     of "yaml":
