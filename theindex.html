@@ -141,19 +141,35 @@
           </ul></dd>
 <dt><a name="minifyInlineJs" href="#minifyInlineJs"><span>minifyInlineJs:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="jsgen: proc minifyInlineJs(js: string): string" href="tim/engine/transpilers/jsgen.html#minifyInlineJs%2Cstring">jsgen: proc minifyInlineJs(js: string): string</a></li>
+          data-doc-search-tag="jsgen: proc minifyInlineJs(js: sink string): owned string" href="tim/engine/transpilers/jsgen.html#minifyInlineJs%2Csinkstring">jsgen: proc minifyInlineJs(js: sink string): owned string</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="luagen: proc minifyInlineJs(js: string): string" href="tim/engine/transpilers/luagen.html#minifyInlineJs%2Cstring">luagen: proc minifyInlineJs(js: string): string</a></li>
+          data-doc-search-tag="luagen: proc minifyInlineJs(js: sink string): owned string" href="tim/engine/transpilers/luagen.html#minifyInlineJs%2Csinkstring">luagen: proc minifyInlineJs(js: sink string): owned string</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="nimgen: proc minifyInlineJs(js: string): string" href="tim/engine/transpilers/nimgen.html#minifyInlineJs%2Cstring">nimgen: proc minifyInlineJs(js: string): string</a></li>
+          data-doc-search-tag="nimgen: proc minifyInlineJs(js: sink string): owned string" href="tim/engine/transpilers/nimgen.html#minifyInlineJs%2Csinkstring">nimgen: proc minifyInlineJs(js: sink string): owned string</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="phpgen: proc minifyInlineJs(js: string): string" href="tim/engine/transpilers/phpgen.html#minifyInlineJs%2Cstring">phpgen: proc minifyInlineJs(js: string): string</a></li>
+          data-doc-search-tag="phpgen: proc minifyInlineJs(js: sink string): owned string" href="tim/engine/transpilers/phpgen.html#minifyInlineJs%2Csinkstring">phpgen: proc minifyInlineJs(js: sink string): owned string</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="private: proc minifyInlineJs(js: string): string" href="tim/engine/transpilers/private.html#minifyInlineJs%2Cstring">private: proc minifyInlineJs(js: string): string</a></li>
+          data-doc-search-tag="private: proc minifyInlineJs(js: sink string): owned string" href="tim/engine/transpilers/private.html#minifyInlineJs%2Csinkstring">private: proc minifyInlineJs(js: sink string): owned string</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="pygen: proc minifyInlineJs(js: string): string" href="tim/engine/transpilers/pygen.html#minifyInlineJs%2Cstring">pygen: proc minifyInlineJs(js: string): string</a></li>
+          data-doc-search-tag="pygen: proc minifyInlineJs(js: sink string): owned string" href="tim/engine/transpilers/pygen.html#minifyInlineJs%2Csinkstring">pygen: proc minifyInlineJs(js: sink string): owned string</a></li>
           <li><a class="reference external"
-          data-doc-search-tag="rbgen: proc minifyInlineJs(js: string): string" href="tim/engine/transpilers/rbgen.html#minifyInlineJs%2Cstring">rbgen: proc minifyInlineJs(js: string): string</a></li>
+          data-doc-search-tag="rbgen: proc minifyInlineJs(js: sink string): owned string" href="tim/engine/transpilers/rbgen.html#minifyInlineJs%2Csinkstring">rbgen: proc minifyInlineJs(js: sink string): owned string</a></li>
+          </ul></dd>
+<dt><a name="minifyRawHtml" href="#minifyRawHtml"><span>minifyRawHtml:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="jsgen: proc minifyRawHtml(code: sink string; res: var string)" href="tim/engine/transpilers/jsgen.html#minifyRawHtml%2Csinkstring%2Cstring">jsgen: proc minifyRawHtml(code: sink string; res: var string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="luagen: proc minifyRawHtml(code: sink string; res: var string)" href="tim/engine/transpilers/luagen.html#minifyRawHtml%2Csinkstring%2Cstring">luagen: proc minifyRawHtml(code: sink string; res: var string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="nimgen: proc minifyRawHtml(code: sink string; res: var string)" href="tim/engine/transpilers/nimgen.html#minifyRawHtml%2Csinkstring%2Cstring">nimgen: proc minifyRawHtml(code: sink string; res: var string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="phpgen: proc minifyRawHtml(code: sink string; res: var string)" href="tim/engine/transpilers/phpgen.html#minifyRawHtml%2Csinkstring%2Cstring">phpgen: proc minifyRawHtml(code: sink string; res: var string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="private: proc minifyRawHtml(code: sink string; res: var string)" href="tim/engine/transpilers/private.html#minifyRawHtml%2Csinkstring%2Cstring">private: proc minifyRawHtml(code: sink string; res: var string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="pygen: proc minifyRawHtml(code: sink string; res: var string)" href="tim/engine/transpilers/pygen.html#minifyRawHtml%2Csinkstring%2Cstring">pygen: proc minifyRawHtml(code: sink string; res: var string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="rbgen: proc minifyRawHtml(code: sink string; res: var string)" href="tim/engine/transpilers/rbgen.html#minifyRawHtml%2Csinkstring%2Cstring">rbgen: proc minifyRawHtml(code: sink string; res: var string)</a></li>
           </ul></dd>
 <dt><a name="newLexer" href="#newLexer"><span>newLexer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -463,6 +479,10 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkScolon" href="tim/engine/lexer.html#tkScolon">lexer: TokenKind.tkScolon</a></li>
           </ul></dd>
+<dt><a name="tkSnippetHtml" href="#tkSnippetHtml"><span>tkSnippetHtml:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="lexer: TokenKind.tkSnippetHtml" href="tim/engine/lexer.html#tkSnippetHtml">lexer: TokenKind.tkSnippetHtml</a></li>
+          </ul></dd>
 <dt><a name="tkSnippetJs" href="#tkSnippetJs"><span>tkSnippetJs:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: TokenKind.tkSnippetJs" href="tim/engine/lexer.html#tkSnippetJs">lexer: TokenKind.tkSnippetJs</a></li>
@@ -535,7 +555,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-05-12 10:28:08 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-05-12 12:00:15 UTC</small>
       </div>
     </div>
   </div>

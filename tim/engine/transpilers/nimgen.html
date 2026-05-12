@@ -89,7 +89,11 @@
 
 </ul>
 <ul class="simple nested-toc-section">minifyInlineJs
-  <li><a class="reference" href="#minifyInlineJs%2Cstring" title="minifyInlineJs(js: string): string">minifyInlineJs(js: string): string</a></li>
+  <li><a class="reference" href="#minifyInlineJs%2Csinkstring" title="minifyInlineJs(js: sink string): owned string">minifyInlineJs(js: sink string): owned string</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">minifyRawHtml
+  <li><a class="reference" href="#minifyRawHtml%2Csinkstring%2Cstring" title="minifyRawHtml(code: sink string; res: var string)">minifyRawHtml(code: sink string; res: var string)</a></li>
 
 </ul>
 
@@ -165,8 +169,21 @@
 
 </div>
 <div id="minifyInlineJs-procs-all">
-  <div id="minifyInlineJs,string">
-  <dt><pre><span class="Keyword">proc</span> <a href="#minifyInlineJs%2Cstring"><span class="Identifier">minifyInlineJs</span></a><span class="Other">(</span><span class="Identifier">js</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <div id="minifyInlineJs,sinkstring">
+  <dt><pre><span class="Keyword">proc</span> <a href="#minifyInlineJs%2Csinkstring"><span class="Identifier">minifyInlineJs</span></a><span class="Other">(</span><span class="Identifier">js</span><span class="Other">:</span> <span class="Identifier">sink</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">owned</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    
+    
+  </dd>
+</div>
+
+</div>
+<div id="minifyRawHtml-procs-all">
+  <div id="minifyRawHtml,sinkstring,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#minifyRawHtml%2Csinkstring%2Cstring"><span class="Identifier">minifyRawHtml</span></a><span class="Other">(</span><span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">sink</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">res</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">string</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -185,7 +202,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-05-12 10:28:08 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-05-12 12:00:15 UTC</small>
       </div>
     </div>
   </div>

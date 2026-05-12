@@ -1,7 +1,8 @@
 nimTitle	jsgen	tim/engine/transpilers/jsgen.html	module tim/engine/transpilers/jsgen		0
 nim	CodeGen	tim/engine/transpilers/jsgen.html#CodeGen	object CodeGen		16
 nim	initCodeGen	tim/engine/transpilers/jsgen.html#initCodeGen,Script,Module,Chunk	proc initCodeGen(script: Script; module: Module; chunk: Chunk; kind = gkToplevel): CodeGen		38
-nim	minifyInlineJs	tim/engine/transpilers/jsgen.html#minifyInlineJs,string	proc minifyInlineJs(js: string): string		103
+nim	minifyInlineJs	tim/engine/transpilers/jsgen.html#minifyInlineJs,sinkstring	proc minifyInlineJs(js: sink string): owned string		107
+nim	minifyRawHtml	tim/engine/transpilers/jsgen.html#minifyRawHtml,sinkstring,string	proc minifyRawHtml(code: sink string; res: var string)		223
 nim	genScript	tim/engine/transpilers/jsgen.html#genScript,CodeGen,Ast,Option[string],staticbool,staticbool	proc genScript(gen: var CodeGen; program: Ast; includePath: Option[string];\n          isMainScript: static bool = false; isSnippet: static bool = false;\n          commonJs = true): Rope		289
 nim	genScript	tim/engine/transpilers/jsgen.html#genScript,CodeGen,seq[Node]	proc genScript(gen: var CodeGen; nodes: seq[Node]): Rope		310
 nimgrp	genscript	tim/engine/transpilers/jsgen.html#genScript-procs-all	proc		286

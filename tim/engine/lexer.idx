@@ -50,6 +50,7 @@ nim	tkBool	tim/engine/lexer.html#tkBool	TokenKind.tkBool		10
 nim	tkLitObject	tim/engine/lexer.html#tkLitObject	TokenKind.tkLitObject		10
 nim	tkAt	tim/engine/lexer.html#tkAt	TokenKind.tkAt		10
 nim	tkImport	tim/engine/lexer.html#tkImport	TokenKind.tkImport		10
+nim	tkSnippetHtml	tim/engine/lexer.html#tkSnippetHtml	TokenKind.tkSnippetHtml		10
 nim	tkSnippetJs	tim/engine/lexer.html#tkSnippetJs	TokenKind.tkSnippetJs		10
 nim	tkSnippetYaml	tim/engine/lexer.html#tkSnippetYaml	TokenKind.tkSnippetYaml		10
 nim	tkSnippetJson	tim/engine/lexer.html#tkSnippetJson	TokenKind.tkSnippetJson		10
@@ -86,4 +87,4 @@ nim	TokenTuple	tim/engine/lexer.html#TokenTuple	tuple TokenTuple		25
 nim	Lexer	tim/engine/lexer.html#Lexer	object Lexer		34
 nim	newLexer	tim/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		40
 nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		117
-nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		468
+nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		470
