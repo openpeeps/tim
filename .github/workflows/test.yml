@@ -59,7 +59,7 @@ jobs:
           cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
           git status
           git add ./bindings/node/tim/src/bin/$timNodeName
-          git commit -m "update tim for node on ${{ runner.os }}"
+          git commit -m "update tim addon for nodejs on ${{ runner.os }}"
       - name: Push changes # push the output folder to your repo
         uses: ad-m/github-push-action@master
         with:
