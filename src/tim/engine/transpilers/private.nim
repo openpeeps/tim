@@ -100,10 +100,11 @@ proc shouldInsertSemi(prevSig, next: char, lastWord: string): bool =
 
   prevCanEnd and nextCanStart
 
-proc minifyInlineJs*(js: string): string =
-  type JsState = enum
-    jsNormal, jsSQuote, jsDQuote, jsTemplate, jsRegex, jsLineComment, jsBlockComment
+type JsState = enum
+  jsNormal, jsSQuote, jsDQuote, jsTemplate, jsRegex,
+  jsLineComment, jsBlockComment
 
+proc minifyInlineJs*(js: sink string): owned string =
   var
     st = jsNormal
     i = 0
@@ -216,3 +217,188 @@ proc minifyInlineJs*(js: string): string =
     i += 1
   if currWord.len > 0:
     lastWord = currWord
+
+const rawTags = ["pre", "code", "textarea", "script", "style"]
+
+proc minifyRawHtml*(code: sink string, res: var string) =
+  var
+    i = 0
+    pendingWs = false
+    prevSig: char = '\0'
+    rawTag = ""
+    inRaw = false
+
+  template emit(ch: char) =
+    res.add(ch)
+    if not ch.isSpaceAscii:
+      prevSig = ch
+
+  template emitStr(s: string) =
+    if s.len == 0: return
+    res.add(s)
+    var last = s[^1]
+    if not last.isSpaceAscii:
+      prevSig = last
+  
+  # parse a tag name from code starting at pos, returns lowercased name and new pos
+  proc parseTagName(pos: int): (string, int) =
+    var j = pos
+    var name = ""
+    while j < code.len and isIdentChar(code[j]):
+      name.add(code[j].toLowerAscii)
+      j += 1
+    (name, j)
+    
+  while i < code.len:
+    let c = code[i]
+    let n = if i + 1 < code.len: code[i + 1] else: '\0'
+
+    if inRaw:
+      # look for closing tag </rawTag>
+      if c == '<' and i + 1 < code.len and code[i+1] == '/':
+        var j = i + 2
+        var name = ""
+        while j < code.len and isIdentChar(code[j]):
+          name.add(code[j].toLowerAscii)
+          j += 1
+        if name == rawTag:
+          # emit closing tag start and fall into tag parsing to emit full closing tag
+          emitStr("</")
+          emitStr(name)
+          # skip any whitespace until '>'
+          while j < code.len and code[j].isSpaceAscii:
+            j.inc()
+          # copy until '>'
+          while j < code.len and code[j] != '>':
+            emit(code[j]); j.inc()
+          if j < code.len and code[j] == '>':
+            emit('>')
+            j.inc()
+          i = j
+          inRaw = false
+          rawTag = ""
+          pendingWs = false
+          continue
+        else:
+          # not the closing tag, emit '<' and continue
+          emit(c); i.inc()
+          continue
+      else:
+        res.add(c)
+        i.inc()
+        continue
+
+    # not in raw content
+    if c == '<':
+      # comment?
+      if i + 3 < code.len and code[i+1] == '!' and code[i+2] == '-' and code[i+3] == '-':
+        # check for conditional or important comments (e.g. <!--[if ...]) preserve them
+        let condPos = i + 4
+        var preserve = condPos < code.len and code[condPos] == '['
+        if preserve:
+          # copy whole comment as-is
+          var j = i
+          while j + 2 < code.len and not (code[j] == '-' and code[j+1] == '-' and code[j+2] == '>'):
+            res.add(code[j]); j.inc()
+          if j + 2 < code.len:
+            res.add('-'); res.add('-'); res.add('>')
+            j += 3
+          i = j
+          prevSig = '>'
+          continue
+        else:
+          # skip comment entirely
+          var j = i + 4
+          while j + 2 < code.len and not (code[j] == '-' and code[j+1] == '-' and code[j+2] == '>'):
+            j.inc()
+          if j + 2 < code.len:
+            j += 3
+          i = j
+          pendingWs = false
+          continue
+      # normal tag start: parse tag name to detect raw tags
+      emit('<')
+      i.inc()
+      # optional leading slash (closing tag) already handled by inRaw branch; here just copy if present
+      var closing = false
+      if i < code.len and code[i] == '/':
+        emit('/') ; closing = true ; i.inc()
+
+      # skip whitespace before tag name
+      while i < code.len and code[i].isSpaceAscii:
+        i.inc()
+
+      let (tname, after) = parseTagName(i)
+      if tname.len > 0:
+        emitStr(tname)
+        i = after
+      # emit rest of opening tag up to '>' taking care of quoted attributes
+      var inS = false
+      var inD = false
+      while i < code.len and code[i] != '>':
+        let ch = code[i]
+        if ch == '\'' and not inD:
+          emit(ch); inS = not inS
+        elif ch == '"' and not inS:
+          emit(ch); inD = not inD
+        else:
+          # collapse whitespace inside tag to single space
+          if ch.isSpaceAscii:
+            # skip all contiguous whitespace and emit single space if appropriate
+            var j = i
+            while j < code.len and code[j].isSpaceAscii:
+              j.inc()
+            # don't emit leading space immediately after '<' or '/'
+            if res.len > 0 and res[^1] != '<' and res[^1] != '/' and res[^1] != ' ':
+              emit(' ')
+            i = j - 1
+          else:
+            emit(ch)
+        i.inc()
+      if i < code.len and code[i] == '>':
+        emit('>')
+        i.inc()
+      # if this is an opening tag for a raw tag, enter raw mode (but only for non-closing tags)
+      if not closing and tname in rawTags:
+        rawTag = tname
+        inRaw = true
+        # for script/style try to minify inner JS/CSS
+        if rawTag == "script" or rawTag == "style":
+          # collect content until matching closing tag
+          var j = i
+          var content = ""
+          while j < code.len:
+            if code[j] == '<' and j + 1 < code.len and code[j+1] == '/':
+              var k = j + 2
+              var cname = ""
+              while k < code.len and isIdentChar(code[k]):
+                cname.add(code[k].toLowerAscii); k.inc()
+              if cname == rawTag:
+                break
+            content.add(code[j]); j.inc()
+          # minify script content if script
+          if content.len > 0:
+            if rawTag == "script":
+              let min = minifyInlineJs(content)
+              res.add(min)
+            else:
+              # for style just collapse leading/trailing whitespace
+              var s = content.strip()
+              res.add(s)
+          i = j
+          # now loop will handle the closing tag in inRaw branch
+        continue
+
+    elif c.isSpaceAscii:
+      pendingWs = true
+      i.inc()
+      continue
+
+    else:
+      if pendingWs:
+        # decide if a space is needed between prevSig and current char
+        if needsSpace(prevSig, c):
+          emit(' ')
+        pendingWs = false
+      emit(c)
+      i.inc()

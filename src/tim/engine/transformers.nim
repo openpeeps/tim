@@ -7,6 +7,7 @@ block extendvancodeAstAndCodeGen:
   extendEnum NodeKind:
     # Extend `NodeKind` enum to support HTML
     # elements and attributes in the AST
+    nkRawHtml
     nkHtmlElement
     nkHtmlAttribute
     nkJavaScriptSnippet
@@ -33,6 +34,8 @@ block extendvancodeAstAndCodeGen:
       of nkJavaScriptSnippet:
         snippetCode*: string
         snippetCodeAttrs*: seq[(string, Node)]
+      of nkRawHtml:
+        rawHtml*: string
 
   # Extend the case statement by adding new branches
   # for code generation of the new node kinds we added to the AST
@@ -57,6 +60,11 @@ block extendvancodeAstAndCodeGen:
       gen.chunk.emit(tagPos)
     of nkMacro: discard gen.genMacro(node)
     of nkViewLoader: gen.chunk.emit(opcViewLoader)
+    of nkRawHtml:
+      # inject raw HTML directly into the output without any escaping
+      # or processing; this is used for the `@html` snippet
+      discard gen.pushConst(ast.newStringLit(node.rawHtml))
+      gen.chunk.emit(opcRawHtml)
     of nkClientBlock:
       # gen.chunk.emit(opcClientBlock)
       # var jst = jsgen.initCodeGen(gen.script, gen.module, gen.chunk)
@@ -533,6 +541,7 @@ block extendvancodeAstAndCodeGen:
     extendEnum Opcode:
       opcBeginHtml = "beginHtml"    ## construct HTML object
       opcBeginHtmlWithAttrs = "behinHtmlWithAttrs" ## construct HTML object with attributes
+      opcRawHtml = "rawHtml"        ## inject raw HTML into output
       opcAttrEnd = "attrEnd"        ## ends HTML object
       opcInnerHtml = "innerHtml"        ## ends HTML object
       opcTextHtml = "textHtml"      ## adds text to HTML object
@@ -589,6 +598,10 @@ block extendvancodeAstAndCodeGen:
         result.stringVal[].add("<" & co.getArg1Str(pcIdx, currentChunk))
       of opcBeginHtml:
         result.stringVal[].add("<" & co.getArg1Str(pcIdx, currentChunk) & ">")
+      of opcRawHtml:
+        let v = stack.pop()
+        if v.typeId == tyString:
+          result.stringVal[].add(v.stringVal[])
       of opcTextHtml:
         let v = stack.pop()
         case v.typeId

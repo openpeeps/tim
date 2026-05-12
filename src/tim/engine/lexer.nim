@@ -15,9 +15,9 @@ type
     tkGt, tkGte, tkLt, tkLte, tkAmp, tkAndAnd, tkPipe, tkOrOr,
     tkBacktick, tkSqString, tkCase, tkOf, tkIf, tkElif, tkElse,
     tkAnd, tkFor, tkWhile, tkIn, tkOr, tkBool, tkLitObject,
-    tkAt, tkImport, tkSnippetJs, tkSnippetYaml, tkSnippetJson,
-    tkSnippetMarkdown, tkPlaceholder, tkViewLoader, tkClient,
-    tkEnd, tkInclude, tkDo, tkFn, tkFunc, tkMacro, tkIterator,
+    tkAt, tkImport, tkSnippetHtml, tkSnippetJs, tkSnippetYaml,
+    tkSnippetJson, tkSnippetMarkdown, tkPlaceholder, tkViewLoader,
+    tkClient, tkEnd, tkInclude, tkDo, tkFn, tkFunc, tkMacro, tkIterator,
     tkYield, tkComponent, tkVar, tkConst, tkType, tkReturnCmd,
     tkDiscardCmd, tkBreakCmd, tkContinueCmd, tkIdentVar, tkIdentVarSafe,
     tkStatic, tkEcho, tkComment, tkDoc, tkNil, tkUnknown
@@ -351,6 +351,8 @@ proc nextToken*(lex: var Lexer): TokenTuple =
       result = initToken(lex, tkInclude, "@include", line, col, pos, wsno)
     of "js":
       collectSnippet(tkSnippetJs, "@js")
+    of "html":
+      collectSnippet(tkSnippetHtml, "@html")
     of "yaml":
       result = initToken(lex, tkSnippetYaml, "@yaml", line, col, pos, wsno)
     of "json":

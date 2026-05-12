@@ -7,7 +7,7 @@
 import std/[macros, tables, strutils, critbits, options, memfiles]
 import pkg/vancode/interpreter/[errors, ast]
 
-from ./transpilers/private import minifyInlineJs
+from ./transpilers/private import minifyInlineJs, minifyRawHtml
 import ./lexer
 
 type
@@ -684,6 +684,14 @@ prefixHandle parseJavaScript:
   #   add result.snippetCodeAttrs, (attr, identNode)
   walk p
 
+prefixHandle parseRawHtml:
+  result = ast.newNode(nkRawHtml)
+  let raw =move p.curr.value
+  var output = newStringOfCap(raw.len)
+  minifyRawHtml(raw, output)
+  result.rawHtml =move output
+  walk p
+
 #
 # Identifier & Variable Definitions
 #
@@ -1159,10 +1167,11 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkImport, tkInclude: parseImportStmt
     of tkLB: parseArray
     of tkLC: parseObjectStorage
-    of tkSnippetJs: parseJavaScript
     of tkYield: parseYield
     of tkEcho: parseEcho
     of tkDoc: parseDocComment
+    of tkSnippetJs: parseJavaScript
+    of tkSnippetHtml: parseRawHtml
     of tkViewLoader: parseViewPlaceholder
     of tkClient: parseClientBlock
     else: nil
@@ -1269,13 +1278,14 @@ prefixHandle parseStmt:
     of tkWhile: parseWhileLoop
     of tkFor: parseForLoop
     of tkImport, tkInclude: parseImportStmt
-    of tkSnippetJs: parseJavaScript
     of tkFunc, tkFn: parseFunction
     of tkMacro: parseMacroFunction
     of tkIterator: parseIterator
     of tkStatic: parseStaticStmt
     of tkEcho: parseEcho
     of tkDoc: parseDocComment
+    of tkSnippetJs: parseJavaScript
+    of tkSnippetHtml: parseRawHtml
     of tkViewLoader: parseViewPlaceholder
     of tkClient: parseClientBlock
     else: parseExpression
