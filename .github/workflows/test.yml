@@ -43,3 +43,25 @@ jobs:
 
       - name: "Build a Node addon via Denim"
         run: denim build src/${{ github.event.repository.name }}.nim -r -y --cmake
+
+      - name: "Update Tim addon for Node.js"
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          timNodeName="tim-$(echo "${{ runner.os }}" | tr '[:upper:]' '[:lower:]').node"
+          git pull origin main
+          git checkout .
+          if test -f ./bindings/node/tim/src/bin/$timNodeName; then
+            rm -f ./bindings/node/tim/src/bin/$timNodeName
+            git add ./bindings/node/tim/src/bin/$timNodeName
+            git commit -m "cleanup previous tim.node"
+          fi
+          cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
+          git status
+          git add ./bindings/node/tim/src/bin/$timNodeName
+          git commit -m "update tim for node on ${{ runner.os }}"
+      - name: Push changes # push the output folder to your repo
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: 'main'
