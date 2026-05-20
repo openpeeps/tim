@@ -268,9 +268,12 @@ prefixHandle parseString:
   walk p
 
 proc parseCommaList(p: var Parser, start, term: static TokenKind,
-  results: var seq[Node], infixList: static bool = false): bool =
+  results: var seq[Node], infixList: static bool = false,
+  advanceToken: static bool = true): bool =
   # parse a comma separated list of expressions
-  walk p # start
+  when advanceToken == true:
+    # hacky way to handle the case where we dont' want to advance
+    walk p # start
   if p.curr isnot term:
     while p.curr isnot tkEOF:
       when infixList == true:
@@ -954,9 +957,14 @@ prefixHandle parseCall:
         result.add(namedArg)
       else:
         # parse a normal argument
-        let arg = p.parseExpression()
-        caseNotNil arg:
-          result.add(arg)
+        if p.next.kind == tkColon:
+          discard p.parseCommaList(tkLP, tkRP, result.children,
+                              infixList = true, advanceToken = false)
+          break # parseCommaList will handle the rest of the arguments in this case, so we can break the loop
+        else:
+          let arg = p.parseExpression()
+          caseNotNil arg:
+            result.add(arg)
       
       # checking for the next token
       case p.curr.kind
@@ -1105,8 +1113,6 @@ prefixHandle parseTypeDef:
     objectDef.add(fieldDefs)
     result.add(objectDef)
   else: discard # TODO
-  
-  # debugEcho result
 
 prefixHandle parseViewPlaceholder:
   ## Parse a view placeholder
