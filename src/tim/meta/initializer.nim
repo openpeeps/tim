@@ -23,6 +23,10 @@ import ../engine/stdlib/[libsystem, libffi, libtimes,
 export TypeKind, StackView, Value, CodeGenError
 export configurator, paramDef
 
+# a rudimentary way to add new statement-like node kinds
+# planning to replace this with a more robust extensible system in the future
+vanCodeStmtNodeKinds.add(@[nkHtmlElement, nkMacro, nkClientBlock, nkViewLoader])
+
 type
   TimTemplateType* = enum
     ## Type of the Tim template

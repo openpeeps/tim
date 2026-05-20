@@ -38,7 +38,7 @@ proc getImplValue(node: Node, unquoted = true): string =
 
 proc writeVar(node: Node, indent: int = 0): string {.codegen.} =
   let ind = repeatStr("  ", indent)
-  for decl in node:
+  for decl in node[0]:
     let varName = decl[0].ident
     let value = decl[^1].getImplValue
     result.add(ind & "local " & varName & " = " & value & "\n")

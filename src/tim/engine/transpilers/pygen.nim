@@ -39,7 +39,7 @@ proc getImplValue(node: Node, unquoted = true): string =
 proc writeVar(node: Node, indent: int = 0): string {.codegen.} =
   # Write variable declaration with type comment
   let ind = repeatStr("    ", indent)
-  for decl in node:
+  for decl in node[0]:
     let varName = decl[0].ident
     let varType = if decl[1].kind != nkEmpty: decl[1].render else: "Any"
     let value = decl[^1].getImplValue
@@ -158,7 +158,7 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
   let ind = repeatStr("    ", indent)
   case node.kind
   of nkVar, nkLet, nkConst:
-    for decl in node:
+    for decl in node[0]:
       let varName = decl[0].ident
       let varType = if decl[1].kind != nkEmpty: decl[1].render else: "Any"
       result.add(ind & "# type: " & varName & ": " & varType & "\n")

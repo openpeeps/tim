@@ -49,7 +49,7 @@ proc writeVar(node: Node) {.codegen.} =
   else:
     result.add(jsConst)
   result.add(" ")
-  for decl in node:
+  for decl in node[0]:
     result.add(jsAssign % [decl[0].ident, decl[^1].getImplValue])
 
 # Render a node as a Ruby expression for HTML/text output
@@ -187,7 +187,7 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
   case node.kind
   of nkVar, nkLet, nkConst:
     # Add TypeDoc for variable type if available
-    for decl in node:
+    for decl in node[0]:
       let varName = decl[0].ident
       let varType = if decl[1].kind != nkEmpty: decl[1].render else: "any"
       result.add(ind & "/** @type {" & varType & "} */\n")

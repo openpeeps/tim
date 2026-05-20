@@ -49,7 +49,7 @@ proc writeVar(node: Node) {.codegen.} =
   #   prefix = phpVar
   # else:
     # result.add(phpConst & " ")
-  for decl in node:
+  for decl in node[0]:
     result.add(phpVar & decl[0].ident & " = " & decl[^1].getImplValue & ";\n")
 
 proc renderHandle(node: Node, unquoted = true): string =

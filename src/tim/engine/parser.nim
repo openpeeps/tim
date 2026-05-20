@@ -722,11 +722,11 @@ proc getVarIdent(p: var Parser, varIdent: bool): Node {.rule.} =
       walk p
       return ast.newNode(nkPostfix).add([ast.newIdent("*"), result])
 
-proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
+proc parseIdentDefs(p: var Parser): Node {.rule.} =
   # parse identifier definitions
   result = newNode(nkIdentDefs)
   if p.curr.kind == tkIdentifier:
-    let identNode = p.getVarIdent(varIdent)
+    let identNode = p.getVarIdent(true)
     var
       ty = newEmpty()
       val = newEmpty()
@@ -761,6 +761,33 @@ proc parseIdentDefs(p: var Parser, varIdent = true): Node {.rule.} =
     vars.add([ty, val])
     result.add(vars)
 
+proc parseVarIdent(p: var Parser): Node {.rule.} =
+  # Parse identifier definitions
+  result = ast.newNode(nkIdentDefs)
+  while true:
+    let identNode = p.getVarIdent(true)
+    var
+      ty = newEmpty()
+      val = newEmpty()
+    # check for a type annotation
+    if p.curr.kind == tkColon:
+      walk p  # Consume `:`
+      if p.curr.kind == tkIdentifier:
+        ty = p.parseIdent()
+      else:
+        p.curr.error("Expected type after ':'")
+    # check for an assignment
+    if p.curr.kind == tkAssign:
+      walk p  # Consume `=`
+      val = p.parseExpression()
+    # add the identifier, type, and value to the result
+    result.add(ast.newTree(nkAssign, identNode, ty, val))
+    if p.curr.kind == tkComma:
+      if p.next.kind == tkIdentifier and p.next.col == identNode.col:
+        walk p # tkComma
+      else: break
+    else: break
+
 prefixHandle parseVar:
   # parse a variable definition
   case p.curr.kind
@@ -770,7 +797,7 @@ prefixHandle parseVar:
     result = ast.newNode(nkConst)
   else: discard
   walk p # tkVar/tkConst
-  result.add(p.parseIdentDefs(true))
+  result.add(p.parseVarIdent())
 
 #
 # Functions

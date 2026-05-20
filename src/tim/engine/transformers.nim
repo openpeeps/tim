@@ -256,7 +256,8 @@ block extendvancodeAstAndCodeGen:
   extendModule "vancode" / "interpreter" / "codegen.nim":
 
     proc genMacro*(node: Node, isInstantiation = false): Sym {.codegen.}
-
+    
+    const procCallOverwrite = true
     proc procCall*(node: Node, procSym: Sym): Sym {.codegen.} =
       var argTypes: seq[Sym]
       let hasTrailingStmt = node.len > 1 and (node[^1].kind in {nkHtmlElement, nkIf, nkFor, nkCall})
@@ -543,7 +544,7 @@ block extendvancodeAstAndCodeGen:
       opcBeginHtmlWithAttrs = "behinHtmlWithAttrs" ## construct HTML object with attributes
       opcRawHtml = "rawHtml"        ## inject raw HTML into output
       opcAttrEnd = "attrEnd"        ## ends HTML object
-      opcInnerHtml = "innerHtml"        ## ends HTML object
+      opcInnerHtml = "innerHtml"    ## ends HTML object
       opcTextHtml = "textHtml"      ## adds text to HTML object
       opcCloseHtml = "closeHtml"    ## closes HTML object
 

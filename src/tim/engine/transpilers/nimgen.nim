@@ -38,7 +38,7 @@ proc writeVar(node: Node, indent: int = 0) {.codegen.} =
     if node.children[0][^1].kind == nkEmpty:
       node.error(ErrVarMustHaveValue) # constant variables must have an initial value
   result.add(" ")
-  for decl in node:
+  for decl in node[0]:
     let varName = decl[0].ident
     let value = decl[^1].getImplValue
     result.add(varName & " = " & $value & "\n")
