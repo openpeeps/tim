@@ -42,7 +42,7 @@ elif isMainModule:
   import pkg/kapsis
   import pkg/kapsis/runtime
   import pkg/kapsis/interactive/prompts
-  import ./tim/app/[build, dev]
+  import ./tim/app/[build, dev, #[serve]#]
 
   initKapsis do:
     defaultCommand: "src"
@@ -78,6 +78,12 @@ elif isMainModule:
       remove string(pkg):
         ## Remove a package from local source
 
+      # #
+      # # Server commands
+      # #
+      # -- "Server"
+      # serve path(config):
+      #   ## Start a local server
 else:
   # Importing Tim Engine as a Nimble library
   # so it can be used in other Nim projects
@@ -123,7 +129,7 @@ else:
     ## Flush the Tim Engine cache
     discard # to be implemented
 
-  proc render*(engine: TimEngine, view: sink string, layout: sink string = "base",
+  proc render*(engine: TimEngine, view: string, layout: string = "base",
               data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
     ## 
@@ -147,7 +153,7 @@ else:
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
     result.add($eval(viewTpl, layoutTpl, data, engine.globalData))
 
-  proc renderView*(engine: TimEngine, view: sink string, data: JsonNode): string =
+  proc renderView*(engine: TimEngine, view: string, data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
     ## 
     ## Optionally, you can pass a `JsonNode` object as data to be used
@@ -163,7 +169,7 @@ else:
       raise newException(TimEngineError, "View template not found: " & view)
     result.add($eval(viewTpl, data, engine.globalData))
 
-  proc themeRender*(engine: TimEngine, view: sink string, layout: sink string = "base",
+  proc themeRender*(engine: TimEngine, view: string, layout: string = "base",
               data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
     ## This is used for rendering frontend views that are part of the active theme.

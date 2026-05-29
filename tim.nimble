@@ -15,14 +15,15 @@ binDir        = "bin"
 requires "nim >= 2.0.0"
 
 requires "kapsis#head"
+requires "vancode#head"
 requires "flatty"
 requires "checksums"  
 requires "semver"
-requires "dotenv"
 requires "voodoo#head"
-requires "watchout#head"
+requires "watchout"
 requires "openparser#head"
-requires "vancode#head"
+# requires "marvdown#head"
+# requires "supranim#head"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"

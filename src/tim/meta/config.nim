@@ -4,7 +4,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 import std/tables
-import pkg/[nyml, semver]
+import pkg/[openparser/yaml, semver]
 import pkg/vancode/manager/configurator
 
 from std/net import Port, `$`

@@ -5,7 +5,8 @@ import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
 import pkg/vancode/manager/[configurator, packager]
 import pkg/kapsis/interactive/prompts
 
-import pkg/[watchout, semver, nyml, checksums/sha1]
+import pkg/[watchout, semver, checksums/sha1]
+import pkg/openparser/yaml
 import ../engine/parser
 import ./config
 
@@ -160,13 +161,10 @@ proc newTim*(src, output, basepath: string,
           activeThemeName: string = ""): TimEngine =
   ## Initialize a new Tim Engine instance.
   ## 
-  ## `src`: the source directory containing the templates
-  ## 
-  ## `output`: the output directory where the rendered files will be saved
-  ## 
-  ## `basepath`: the base path to resolve the `src` and `output` paths
-  ## 
-  ## `target`: the target source for transpilation (default: HTML)
+  ## - `src`: the source directory containing the templates
+  ## - `output`: the output directory where the rendered files will be saved
+  ## - `basepath`: the base path to resolve the `src` and `output` paths
+  ## - `target`: the target source for transpilation (default: HTML)
   let sourcePath = normalizedPath(basepath / src)
   result = TimEngine(
     userScript: UserScript(),
@@ -187,8 +185,7 @@ proc newTim*(src, output, basepath: string,
       )
     )
   )
-
-  stdlibs["times"] = loadTimes
+  # stdlibs["times"] = loadTimes this should not be here
 
 proc newTim*(globalData: JsonNode = nil): TimEngine =
   ## Initialize a new Tim Engine instance from a preloaded table of templates.
