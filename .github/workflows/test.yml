@@ -53,13 +53,13 @@ jobs:
           git checkout .
           if test -f ./bindings/node/tim/src/bin/$timNodeName; then
             rm -f ./bindings/node/tim/src/bin/$timNodeName
-            git add ./bindings/node/tim/src/bin/$timNodeName
-            git commit -m "cleanup previous tim.node"
+            git add -f ./bindings/node/tim/src/bin/$timNodeName
+            git commit -m "cleanup previous tim.node" || true
           fi
           cp ./bin/tim.node ./bindings/node/tim/src/bin/$timNodeName
           git status
-          git add ./bindings/node/tim/src/bin/$timNodeName
-          git commit -m "update tim addon for nodejs on ${{ runner.os }}"
+          git add -f ./bindings/node/tim/src/bin/$timNodeName
+          git commit -m "update tim addon for nodejs on ${{ runner.os }}" || true
       - name: Push changes # push the output folder to your repo
         uses: ad-m/github-push-action@master
         with:
