@@ -75,8 +75,8 @@ when not defined napibuild:
           skipFields: @["type", "compilation", "browser_sync"]
         ))
       else:
-        toJson(c)
-    dump(json.fromJson(str))
+        json.toJson(c)
+    yaml.dump(json.fromJson(str))
 
   proc `$`*(c: TimConfig): string = 
     json.toJson(c)

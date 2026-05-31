@@ -7,6 +7,7 @@ import pkg/kapsis/interactive/prompts
 
 import pkg/[watchout, semver, checksums/sha1]
 import pkg/openparser/yaml
+
 import ../engine/parser
 import ./config
 
@@ -623,9 +624,9 @@ proc precompile*(engine: TimEngine) =
       var themeManifest: ThemeManifest
       if fileExists(yamlConfigPath):
         try:
-          themeManifest = fromYAML(readFile(yamlConfigPath), ThemeManifest)
-        except YAMLException:
-          displayError("Failed to parse theme manifest: " & yamlConfigPath)
+          themeManifest = parseYaml(readFile(yamlConfigPath), ThemeManifest)
+        except OpenParserYamlError as e:
+          displayError("Failed to parse theme manifest: " & yamlConfigPath & "\nError: " & e.msg)
       elif fileExists(jsonConfigPath):
         try:
           themeManifest = fromJson(readFile(jsonConfigPath), ThemeManifest)

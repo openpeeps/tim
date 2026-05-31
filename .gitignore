@@ -4,6 +4,8 @@
 nimcache/
 nimblecache/
 htmldocs/
+tests/*
+!tests/*.nim
 /pkginfo.json
 /tests/app/storage/*
 /example/storage/ast/*
@@ -12,3 +14,9 @@ htmldocs/
 /init.sh
 /CMakeLists.txt
 denim_build/
+/press
+src/tim/loaders/
+tests/snippets
+src/tim/experiments
+bindings
+!example/templates
