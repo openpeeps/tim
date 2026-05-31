@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.1"
+version       = "0.2.2"
 author        = "OpenPeeps"
 description   = "A super fast template engine for cool kids!"
 license       = "LGPL-3.0-or-later"
@@ -21,6 +21,7 @@ requires "checksums >= 0.2.2"
 requires "voodoo >= 0.1.9"
 requires "watchout >= 0.2.2"
 requires "openparser >= 0.1.2"
+requires "semver >= 1.2.3"
 # requires "marvdown#head"
 # requires "supranim#head"
 
