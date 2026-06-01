@@ -88,5 +88,5 @@ nim	Lexer	tim/engine/lexer.html#Lexer	object Lexer		34
 nim	TimLexerError	tim/engine/lexer.html#TimLexerError	object TimLexerError		40
 nim	newLexer	tim/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		42
 nim	error	tim/engine/lexer.html#error,Lexer,string	proc error(l: var Lexer; msg: string)		81
-nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		151
-nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		506
+nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		150
+nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		497
