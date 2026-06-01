@@ -101,10 +101,10 @@ proc srcCommand*(v: Values) =
     try:
       var compiler = codegen.initCodeGen(script, module, mainChunk, pkgr = pkgr,
                                     parserCallback = parserCallback)
-      compiler.genScript(program, none(string))
       compiler.declareGlobals()
+      compiler.genScript(program, none(string))
       let vmInstance = newVm()
-      let output: value.Value = vmInstance.interpret(script, mainChunk)
+      let output: value.Value = vmInstance.interpret(script, mainChunk, globalData = globalData, localData = localData)
       echo output
     except CodeGenError as e:
       echo e.msg
