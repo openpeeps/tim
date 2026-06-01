@@ -23,28 +23,6 @@ proc toStackView(vals: var seq[Value]): StackView {.inline.} =
     return cast[StackView](nil)
   cast[StackView](vals[0].addr)
 
-proc defaultNodeFromValue(v: Value): Node =
-  ## Converts runtime Value -> AST literal for default parameter codegen.
-  if v == nil: return ast.newNode(nkNil)
-  case v.typeId
-  of tyBool:
-    result = ast.newNode(nkBool)
-    result.boolVal = v.boolVal
-  of tyInt:
-    result = ast.newNode(nkInt)
-    result.intVal = v.intVal
-  of tyFloat:
-    result = ast.newNode(nkFloat)
-    result.floatVal = v.floatVal
-  of tyString:
-    result = ast.newNode(nkString)
-    result.stringVal = v.stringVal[]
-  of tyNil:
-    result = ast.newNode(nkNil)
-  else:
-    # Unsupported as compile-time default literal in bridge path
-    result = nil
-
 proc applyDefaults(args: StackView, argc: int, params: seq[TempParamDef]): seq[Value] =
   result = newSeqOfCap[Value](params.len)
 
@@ -55,7 +33,6 @@ proc applyDefaults(args: StackView, argc: int, params: seq[TempParamDef]): seq[V
     for i in result.len..<params.len:
       if params[i].val != nil:
         result.add(params[i].val)
-        echo params[i].val
       else:
         raise newException(ValueError, "missing required argument: " & params[i].pName)
 
