@@ -133,9 +133,8 @@ template collectSnippet(tkKind: TokenKind, tkStr: string) =
     of '\0':
       lex.error("EOF reached before closing @end for " & tkStr & " snippet")
     of '@':
-      if lex.peekToken("@end"):
+      if lex.peek(1) == 'e' and lex.peek(2) == 'n' and lex.peek(3) == 'd':
         result.kind = tkKind
-        # Advance past "@end"
         lex.advance() # @
         lex.advance() # e
         lex.advance() # n
@@ -155,15 +154,7 @@ proc nextToken*(lex: var Lexer): TokenTuple =
     while lex.current in {' ', '\t', '\r'}:
       inc wsno
       lex.advance()
-    if lex.current == '\n' or lex.current == '\r':
-      lex.advance()
-      wsno = 0
-      continue
-    elif lex.current == '\r':
-      if lex.peek() == '\n':
-        lex.advance()
-      inc lex.line
-      lex.col = 0
+    if lex.current == '\n':
       lex.advance()
       wsno = 0
       continue

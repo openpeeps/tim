@@ -45,46 +45,6 @@ proc error(tk: TokenTuple, msg: string) =
           col: tk.col,
           msg: ErrorFmt % ["", $tk.line, $tk.col, msg])
 
-const
-  infixTokenTable = {
-    tkPlus: "+",
-    tkMinus: "-",
-    tkAsterisk: "*",
-    tkDivide: "/",
-    tkGT: ">",
-    tkGTE: ">=",
-    tkLT: "<",
-    
-    tkLTE: "<=",
-    tkEQ: "==",
-    tkNE: "!=",
-    tkAmp: "&",
-    tkAssign: "=",
-    tkDot: ".",
-    tkLB: "["
-  }.toTable
-
-  logicalOperators = {
-    tkAnd: "and",
-    tkAndAnd: "&&",
-    tkOr: "or",
-    tkOrOr: "||",
-    tkAmp: "&"
-  }.toTable
-
-  OperatorPrecedence = {
-    "+": 10, "-": 10,
-    "*": 20, "/": 20,
-    ".": 30,
-    "[": 40,
-    ".": 45,
-    "==": 5, "!=": 5,
-    ">": 5, "<": 5, ">=": 5, "<=": 5,
-    "and": 3, "&&": 3,
-    "or": 2, "||": 2,
-    "&": 6
-  }.toTable
-
 #
 # Parser utility functions
 #
@@ -368,15 +328,15 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
     case p.curr.kind
     of tkEOF: break
     of tkDot:
-      # parse html classes prefixed with a dot
-      walk p # tkDot
+      walk p
       if likely(anyAttrIdent()):
-        if p.classCacheAttr.hasKey(p.curr.value):
-          attrs.add(p.classCacheAttr[p.curr.value])
+        let cv = p.curr.value
+        if cv in p.classCacheAttr:
+          attrs.add(p.classCacheAttr[cv])
         else:
-          let attrNode = newHtmlAttribute(htmlAttrClass, ast.newStringLit(p.curr.value))
+          let attrNode = newHtmlAttribute(htmlAttrClass, ast.newStringLit(cv))
           attrs.add(attrNode)
-          p.classCacheAttr[p.curr.value] = attrNode
+          p.classCacheAttr[cv] = attrNode
         walk p
       elif p.curr is tkIdentVar:
         let identNode = p.parseExpression()
@@ -529,7 +489,7 @@ prefixHandle parseElement:
                     dec p.lvl, currentParent.col div p.curr.col
                   except DivByZeroDefect:
                     discard
-                  delete(p.parentNode, p.parentNode.high)
+                  p.parentNode.setLen(p.parentNode.high)
                   break
           result.childElements.add(node)
           if p.lvl != 0:
@@ -559,7 +519,7 @@ prefixHandle parseElement:
             break
           if p.curr.col < currentParent.col:
             dec p.lvl
-            delete(p.parentNode, p.parentNode.high)
+            p.parentNode.setLen(p.parentNode.high)
             break
           elif p.curr.col == currentParent.col:
             dec p.lvl
@@ -1217,22 +1177,42 @@ prefixHandle parsePrefix:
 #
 # Infix Handlers
 #
-proc getPrecedence(op: string): int =
-  # Get the precedence of an operator
-  # Returns 0 if the operator is not found
-  if op in OperatorPrecedence: OperatorPrecedence[op]
+proc getPrecedence(op: string): int {.inline.} =
+  case op
+  of "+", "-": 10
+  of "*", "/": 20
+  of ".": 45
+  of "[": 40
+  of "==", "!=", ">", "<", ">=", "<=": 5
+  of "and", "&&": 3
+  of "or", "||": 2
+  of "&": 6
   else: 0
 
-proc isInfix(kind: TokenKind, minPrec = 0): (bool, int, Option[string]) =
-  # Check if the token kind is an infix operator
+proc isInfix(kind: TokenKind, minPrec = 0): (bool, int, string) {.inline.} =
   var opStr: string
-  if infixTokenTable.hasKey(kind):
-    opStr = infixTokenTable[kind]
-  elif logicalOperators.hasKey(kind):
-    opStr = logicalOperators[kind]
-  else: return # default
+  case kind
+  of tkPlus: opStr = "+"
+  of tkMinus: opStr = "-"
+  of tkAsterisk: opStr = "*"
+  of tkDivide: opStr = "/"
+  of tkGT: opStr = ">"
+  of tkGTE: opStr = ">="
+  of tkLT: opStr = "<"
+  of tkLTE: opStr = "<="
+  of tkEQ: opStr = "=="
+  of tkNE: opStr = "!="
+  of tkAmp: opStr = "&"
+  of tkAssign: opStr = "="
+  of tkDot: opStr = "."
+  of tkLB: opStr = "["
+  of tkAnd: opStr = "and"
+  of tkAndAnd: opStr = "&&"
+  of tkOr: opStr = "or"
+  of tkOrOr: opStr = "||"
+  else: return (false, 0, "")
   let prec = getPrecedence(opStr)
-  result = (prec > minPrec, prec, some(opStr))
+  result = (prec > minPrec, prec, opStr)
 
 proc parseExpression(p: var Parser, minPrec = 0): Node =
   var lhs = p.parsePrefix(minPrec)
@@ -1250,7 +1230,7 @@ proc parseExpression(p: var Parser, minPrec = 0): Node =
       of Operators, LogicalOperators:
         let inf = p.curr.kind.isInfix(minPrec)
         if not inf[0]: break
-        opStr = inf[2].get()
+        opStr = inf[2]
         prec = inf[1]
       of tkDot:
         opStr = "."
