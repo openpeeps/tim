@@ -355,8 +355,15 @@ block extendvancodeAstAndCodeGen:
       ## Generates code for a block of code that contains a procedure.
       if not isInstantiation and node[1].kind != nkEmpty:
         gen.pushScope()
-
-      if not isInstantiation and node[0].ident != "@statement":
+      var name: Node
+      if node[0].kind == nkIdent:
+        name = node[0]
+      elif node[0].kind == nkPostfix:
+        name = node[0][1] # a public macro postfixed with `*`
+      else:
+        node.error("invalid macro name")
+          
+      if not isInstantiation and name.ident != "@statement":
         if not hasParamNamed(node[2], "body"):
           let bodyParam = ast.newNode(nkIdentDefs)
           bodyParam.add(ast.newIdent("body"))
@@ -369,7 +376,6 @@ block extendvancodeAstAndCodeGen:
 
       # get some basic metadata
       let
-        name = node[0]
         formalParams = node[2]
         body = node[3]
         genericParams =
