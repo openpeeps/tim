@@ -155,7 +155,7 @@ proc loadLibrary*(script: Script): Module =
         of tyString: "string"
         of tyJsonStorage: "json"
         of tyArrayObject: "array"
-        of tyHtmlObject: "html"
+        # of tyHtmlObject: "html"
         # of ttyPointer: "pointer"
         else: "object"
       result = initValue(valueType))
@@ -307,7 +307,8 @@ proc loadLibrary*(script: Script): Module =
 
   script.addProc(result, "echo", @[paramDef("x", ttyNil)], ttyVoid,
     proc (args: StackView, argc: int): Value =
-      echo "nil")
+      echo "nil"
+  )
 
   script.addProc(result, "echo", @[paramDef("x", ttyObject)], ttyVoid,
     proc (args: StackView, argc: int): Value =
@@ -321,10 +322,10 @@ proc loadLibrary*(script: Script): Module =
 
   script.addProc(result, "echo", @[paramDef("x", ttyPointer)], ttyVoid,
     proc (args: StackView, argc: int): Value =
-      if args[0].objectVal == nil or args[0].objectVal.data == nil:
+      if args[0].objectVal == nil or args[0].objectVal.foreign.data == nil:
         echo "pointer(nil)"
       else:
-        echo "pointer(", $(cast[int64](args[0].objectVal.data)), ")"
+        echo "pointer(", $(cast[int64](args[0].objectVal.foreign.data)), ")"
     )
 
   let genT = ast.newIdent("T")
