@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.2"
+version       = "0.2.3"
 author        = "OpenPeeps"
 description   = "A super fast template engine for cool kids!"
 license       = "LGPL-3.0-or-later"
@@ -15,7 +15,7 @@ binDir        = "bin"
 requires "nim >= 2.0.0"
 
 requires "kapsis >= 0.3.3"
-requires "vancode >= 0.1.1"
+requires "vancode >= 0.1.2"
 requires "flatty >= 0.4.0"
 requires "checksums >= 0.2.2"
 requires "voodoo >= 0.1.9"
