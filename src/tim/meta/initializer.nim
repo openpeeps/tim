@@ -260,6 +260,9 @@ proc getPartial*(engine: TimEngine, key: string): TimTemplate =
     return engine.partials.getOrDefault(path & ".timl", nil)
   return engine.partials.getOrDefault(path, nil)
 
+proc simplifyTemplatePath(engine: TimEngine, tpl: TimTemplate): string =
+  replace(tpl.sources.src, engine.config.compilation.source)
+
 #
 # Theme template getters
 #
@@ -375,15 +378,15 @@ proc declareGlobals*(compiler: CodeGen) =
   compiler.declareVar(thisStorage, skConst, compiler.module.sym"json", isMagic = true)
 
 proc precompileTemplate*(engine: TimEngine, tpl: TimTemplate,
-        pkgr: Packager, data: JsonNode = nil): bool {.discardable.} =
+                 pkgr: Packager, data: JsonNode = nil): bool {.discardable.} =
   ## Precompile a Tim template. This involves parsing the template to extract its dependencies,
   ## compiling the template into a script, and updating the engine's dependency resolver.
   var astProgram: Ast
   try:
     parser.parseScript(astProgram, readFile(tpl.sources.src), tpl.sources.src)
   except TimParserError as e:
-    echo "Error parsing template: ", e.msg
-    echo tpl.sources.src
+    displayError("Tim Engine –– Parsing error –– " & e.msg)
+    displayInfo(cyan(engine.simplifyTemplatePath(tpl)))
     return
 
   var
@@ -458,18 +461,22 @@ proc precompileTemplate*(engine: TimEngine, tpl: TimTemplate,
     codegen.initCompiler(script, module, mainChunk,
                           pkgr, stdlibs, parserCallback)
   compiler.declareGlobals()
-  compiler.genScript(
-    program = astProgram,
-    includePath = some(engine.config.compilation.partialsPath)
-  )
-  
-  tpl.script = script
-  tpl.mainChunk = mainChunk
-  tpl.vmInstance = newVM()
-  
-  writeFile(tpl.sources.ast, toJson(astProgram))
-  writeFile(tpl.sources.opcache, tpl.mainChunk.code)
-  return true # marks the template as successfully precompiled
+  try:
+    compiler.genScript(
+      program = astProgram,
+      includePath = some(engine.config.compilation.partialsPath)
+    )
+    
+    tpl.script = script
+    tpl.mainChunk = mainChunk
+    tpl.vmInstance = newVM()
+    
+    writeFile(tpl.sources.ast, toJson(astProgram))
+    writeFile(tpl.sources.opcache, tpl.mainChunk.code)
+    return true # marks the template as successfully precompiled
+  except CodeGenError as e:
+    displayError("Code generation error in template: " & tpl.sources.src)
+    display(e.msg)
 
 proc precompileEmbeddedTemplate*(engine: TimEngine, tpl: TimTemplate,
         pkgr: Packager, data: JsonNode = nil): bool {.discardable.} =
@@ -479,7 +486,8 @@ proc precompileEmbeddedTemplate*(engine: TimEngine, tpl: TimTemplate,
   try:
     parser.parseScript(astProgram, tpl.embeddedCode.get(), tpl.id)
   except TimParserError as e:
-    displayError("Tim Engine - Error parsing embedded template: " & e.msg & "\nTemplate ID: " & tpl.id)
+    displayError("Tim Engine –– Parsing error –– " & e.msg)
+    displayInfo(cyan(engine.simplifyTemplatePath(tpl)))
     return
   
   var
@@ -529,7 +537,7 @@ var
   browserSyncWatcher: Watchout
   browserSyncThemeWatcher: Watchout
 
-proc eval*(view, layout: TimTemplate, localData,
+proc interpret*(view, layout: TimTemplate, localData,
         globalData: JsonNode): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view within a layout and return the final HTML output.
   ## 
@@ -551,7 +559,7 @@ proc eval*(view, layout: TimTemplate, localData,
                       some($viewOutput), globalData = globalData,
                       localData = localData)
 
-proc eval*(view: TimTemplate, localData,
+proc interpret*(view: TimTemplate, localData,
       globalData: JsonNode): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Evaluate a view without a layout and return the final HTML output. 
   ## This can be used for rendering partials or standalone views.
@@ -561,17 +569,16 @@ proc eval*(view: TimTemplate, localData,
                       localData = localData)
 
 proc compileCode*(view, layout: TimTemplate,
-        localData, globalData: JsonNode
-  ): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
+                localData, globalData: JsonNode): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Compile a view and layout into HTML without evaluating them.
   ## This can be used for debugging or for generating the HTML output
   ## without executing any code in the templates.
-  eval(view, layout, localData, globalData)
+  interpret(view, layout, localData, globalData)
 
 proc compileCode*(view: TimTemplate, localData, globalData: JsonNode
   ): Value {.raises: [IndexDefect, ValueError, KeyError, TimEngineError, Exception].} =
   ## Compile a view into HTML without evaluating it.
-  eval(view, localData, globalData)
+  interpret(view, localData, globalData)
 
 proc precompile*(engine: TimEngine,
         views, layouts, partials: EmbeddedTemplates,

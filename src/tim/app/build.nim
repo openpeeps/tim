@@ -107,7 +107,8 @@ proc srcCommand*(v: Values) =
       let output: value.Value = vmInstance.interpret(script, mainChunk, globalData = globalData, localData = localData)
       echo output
     except CodeGenError as e:
-      echo e.msg
+      displayError("Code generation error in template: " & srcFilePath)
+      display(e.msg)
       quit(1)
   elif ext == "js":
     var jst = jsgen.initCodeGen(script, module, mainChunk)

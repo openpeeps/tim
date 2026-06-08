@@ -105,6 +105,8 @@ type JsState = enum
   jsLineComment, jsBlockComment
 
 proc minifyInlineJs*(js: sink string): owned string =
+  ## Minify a chunk of JavaScript code by removing comments and unnecessary
+  ## whitespace, while preserving string literals, template literals, and regexes.
   var
     st = jsNormal
     i = 0
@@ -221,6 +223,8 @@ proc minifyInlineJs*(js: sink string): owned string =
 const rawTags = ["pre", "code", "textarea", "script", "style"]
 
 proc minifyRawHtml*(code: sink string, res: var string) =
+  ## Minify raw HTML by collapsing whitespace and removing comments,
+  ## while preserving content inside certain "raw" tags like <pre>, <code>, <textarea>, <script>, and <style>.
   var
     i = 0
     pendingWs = false
@@ -402,3 +406,170 @@ proc minifyRawHtml*(code: sink string, res: var string) =
         pendingWs = false
       emit(c)
       i.inc()
+
+proc minifyInlineCSS*(css: sink string): owned string =
+  ## Minify a chunk of CSS: strip /* comments */, collapse whitespace,
+  ## remove unnecessary spaces around punctuation and drop the last
+  ## semicolon before a closing brace.
+  type CssState = enum
+    cssNormal, cssSQuote, cssDQuote, cssComment, cssUrl, cssUrlSQuote, cssUrlDQuote
+
+  var
+    i = 0
+    pendingWs = false
+    prevSig: char = '\0'
+    escape = false
+    state = cssNormal
+
+  result = newStringOfCap(css.len)
+
+  template emit(ch: char) =
+    result.add(ch)
+    if not ch.isSpaceAscii:
+      prevSig = ch
+
+  while i < css.len:
+    let c = css[i]
+    let n = if i + 1 < css.len: css[i + 1] else: '\0'
+
+    case state
+    of cssNormal:
+      # comments
+      if c == '/' and n == '*':
+        state = cssComment
+        i.inc(2)
+        continue
+      # strings
+      elif c == '\'':
+        if pendingWs:
+          if needsSpace(prevSig, c): emit(' ')
+          pendingWs = false
+        emit(c); state = cssSQuote; escape = false; i.inc(); continue
+      elif c == '"':
+        if pendingWs:
+          if needsSpace(prevSig, c): emit(' ')
+          pendingWs = false
+        emit(c); state = cssDQuote; escape = false; i.inc(); continue
+
+      # detect url( case (case-insensitive)
+      elif c.toLowerAscii == 'u' and i + 3 < css.len and
+           css[i+1].toLowerAscii == 'r' and css[i+2].toLowerAscii == 'l':
+        # emit 'url' and then expect '(' possibly after spaces
+        if pendingWs:
+          pendingWs = false
+        emit('u'); emit('r'); emit('l')
+        var j = i + 3
+        # skip spaces between url and '('
+        while j < css.len and css[j].isSpaceAscii:
+          j.inc()
+        if j < css.len and css[j] == '(':
+          emit('(')
+          i = j + 1
+          state = cssUrl
+          continue
+        else:
+          i = j
+          continue
+
+      # whitespace handling
+      elif c.isSpaceAscii:
+        pendingWs = true
+        i.inc()
+        continue
+
+      else:
+        # punctuation where we usually remove surrounding spaces
+        if c in {':', ';', '{', '}', '(', ')', ',', '>', '+', '~', '='}:
+          # drop any emitted trailing space before punctuation
+          if result.len > 0 and result[^1].isSpaceAscii:
+            result.setLen(result.len - 1)
+          # emit punctuation
+          emit(c)
+          pendingWs = false
+          # if closing brace, drop trailing semicolon if present
+          if c == '}' and result.len > 0 and result[^2] == ';':
+            # remove that semicolon (result[^1] is '}', so check ^2)
+            result.setLen(result.len - 2)
+            result.add('}')
+            prevSig = '}'
+          i.inc()
+          continue
+        else:
+          if pendingWs:
+            if needsSpace(prevSig, c):
+              emit(' ')
+            pendingWs = false
+          emit(c)
+          i.inc()
+          continue
+
+    of cssComment:
+      # skip until */
+      if c == '*' and n == '/':
+        state = cssNormal
+        i.inc(2)
+      else:
+        i.inc()
+
+    of cssSQuote:
+      emit(c)
+      if escape:
+        escape = false
+      elif c == '\\':
+        escape = true
+      elif c == '\'':
+        state = cssNormal
+      i.inc()
+
+    of cssDQuote:
+      emit(c)
+      if escape:
+        escape = false
+      elif c == '\\':
+        escape = true
+      elif c == '"':
+        state = cssNormal
+      i.inc()
+
+    of cssUrl:
+      # inside url(...) copies until matching ')' while honoring quotes
+      if c == '\'':
+        emit(c); state = cssUrlSQuote; escape = false; i.inc(); continue
+      elif c == '"':
+        emit(c); state = cssUrlDQuote; escape = false; i.inc(); continue
+      elif c == ')':
+        # trim trailing whitespace inside url(...) (common minifier behavior)
+        while result.len > 0 and result[^1].isSpaceAscii:
+          result.setLen(result.len - 1)
+        emit(')')
+        state = cssNormal
+        i.inc()
+        continue
+      else:
+        # emit verbatim (including spaces inside url)
+        emit(c)
+        i.inc()
+        continue
+
+    of cssUrlSQuote:
+      emit(c)
+      if escape:
+        escape = false
+      elif c == '\\':
+        escape = true
+      elif c == '\'':
+        state = cssUrl
+      i.inc()
+
+    of cssUrlDQuote:
+      emit(c)
+      if escape:
+        escape = false
+      elif c == '\\':
+        escape = true
+      elif c == '"':
+        state = cssUrl
+      i.inc()
+
+  # final cleanup: remove leading/trailing whitespace
+  result = result.strip()

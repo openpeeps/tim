@@ -7,7 +7,7 @@
 import std/[macros, tables, strutils, critbits, options, memfiles]
 import pkg/vancode/interpreter/[errors, ast]
 
-from ./transpilers/private import minifyInlineJs, minifyRawHtml
+from ./transpilers/private import minifyInlineJs, minifyRawHtml, minifyInlineCSS
 import ./lexer
 
 type
@@ -647,6 +647,11 @@ prefixHandle parseJavaScript:
   #   add result.snippetCodeAttrs, (attr, identNode)
   walk p
 
+prefixHandle parseCSS:
+  result = ast.newNode(nkCssSnippet)
+  result.snippetCode = minifyInlineCSS(p.curr.value)
+  walk p
+
 prefixHandle parseRawHtml:
   result = ast.newNode(nkRawHtml)
   let raw =move p.curr.value
@@ -837,7 +842,10 @@ proc parseMacroFunctionHead(p: var Parser, isAnon: bool;
   else:
     name = ast.newEmpty()
   genericParams = ast.newEmpty() # todo
+
   formalParams = newTree(nkFormalParams, newSeq[Node](0))
+  formalParams.add(ast.newNode(nkEmpty)) # no need for return type
+
   if p.curr is tkLP:
     var params: seq[Node]
     if p.parseCommaIdentList(tkLP, tkRP, params):
@@ -946,7 +954,7 @@ prefixHandle parseCall:
         # parse a normal argument
         if p.next.kind == tkColon:
           discard p.parseCommaList(tkLP, tkRP, result.children,
-                              infixList = true, advanceToken = false)
+                                 infixList = true, advanceToken = false)
           break # parseCommaList will handle the rest of the arguments in this case, so we can break the loop
         else:
           let arg = p.parseExpression()
@@ -1164,6 +1172,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkEcho: parseEcho
     of tkDoc: parseDocComment
     of tkSnippetJs: parseJavaScript
+    of tkSnippetCSS: parseCSS
     of tkSnippetHtml: parseRawHtml
     of tkViewLoader: parseViewPlaceholder
     of tkClient: parseClientBlock
@@ -1298,6 +1307,7 @@ prefixHandle parseStmt:
     of tkEcho: parseEcho
     of tkDoc: parseDocComment
     of tkSnippetJs: parseJavaScript
+    of tkSnippetCSS: parseCSS
     of tkSnippetHtml: parseRawHtml
     of tkViewLoader: parseViewPlaceholder
     of tkClient: parseClientBlock

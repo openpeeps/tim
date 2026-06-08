@@ -11,6 +11,7 @@ block extendvancodeAstAndCodeGen:
     nkHtmlElement
     nkHtmlAttribute
     nkJavaScriptSnippet
+    nkCssSnippet
     nkViewLoader     # view loader using `@view` placeholder\
     nkClientBlock    # client block using `@client ... @end`
     nkMacro          # a block - {...}
@@ -31,7 +32,7 @@ block extendvancodeAstAndCodeGen:
       of nkHtmlAttribute:
         attrType*: HtmlAttributeType
         attrNode*: Node
-      of nkJavaScriptSnippet:
+      of nkJavaScriptSnippet, nkCssSnippet:
         snippetCode*: string
         snippetCodeAttrs*: seq[(string, Node)]
       of nkRawHtml:
@@ -51,6 +52,16 @@ block extendvancodeAstAndCodeGen:
     of nkJavaScriptSnippet:
       # JavaScript snippet construction
       let tag = "script"
+      let tagPos = gen.chunk.getString(tag)
+      gen.chunk.emit(opcBeginHtml)
+      gen.chunk.emit(tagPos)
+      discard gen.pushConst(ast.newStringLit(node.snippetCode))
+      gen.chunk.emit(opcTextHtml)
+      gen.chunk.emit(opcCloseHtml)
+      gen.chunk.emit(tagPos)
+    of nkCssSnippet:
+      # CSS snippet construction
+      let tag = "style"
       let tagPos = gen.chunk.getString(tag)
       gen.chunk.emit(opcBeginHtml)
       gen.chunk.emit(tagPos)

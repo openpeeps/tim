@@ -151,7 +151,7 @@ else:
     if layoutTpl == nil:
       raise newException(TimEngineError, "Layout template not found: " & layout)
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
-    result.add($eval(viewTpl, layoutTpl, data, engine.globalData))
+    result.add($interpret(viewTpl, layoutTpl, data, engine.globalData))
 
   proc renderView*(engine: TimEngine, view: string, data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
@@ -167,7 +167,7 @@ else:
     let viewTpl: TimTemplate = engine.getView(view.replace(".", "/"))
     if viewTpl == nil:
       raise newException(TimEngineError, "View template not found: " & view)
-    result.add($eval(viewTpl, data, engine.globalData))
+    result.add($interpret(viewTpl, data, engine.globalData))
 
   proc themeRender*(engine: TimEngine, view: string, layout: string = "base",
               data: JsonNode): string =
@@ -190,7 +190,7 @@ else:
     if layoutTpl == nil:
       raise newException(TimEngineError, "Layout template not found in active theme: " & layout)
     result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
-    result.add($eval(viewTpl, layoutTpl, data, engine.globalData))
+    result.add($interpret(viewTpl, layoutTpl, data, engine.globalData))
 
   proc themeRenderView*(engine: TimEngine, view: string, data: JsonNode): string =
     ## Render a Tim Engine template based on the view and layout templates.
@@ -207,5 +207,5 @@ else:
     let viewTpl: TimTemplate = engine.getThemeView(view.replace(".", "/"))
     if viewTpl == nil:
       raise newException(TimEngineError, "View template not found in active theme: " & view)
-    result.add($eval(viewTpl, data, engine.globalData))
+    result.add($interpret(viewTpl, data, engine.globalData))
     

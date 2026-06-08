@@ -13,14 +13,37 @@ type
     tkLC, tkRC, tkLP, tkRP, tkLB, tkRB, tkDot, tkId, tkTernary,
     tkExc, tkNe, tkAssign, tkEq, tkColon, tkComma, tkScolon,
     tkGt, tkGte, tkLt, tkLte, tkAmp, tkAndAnd, tkPipe, tkOrOr,
-    tkBacktick, tkSqString, tkCase, tkOf, tkIf, tkElif, tkElse,
-    tkAnd, tkFor, tkWhile, tkIn, tkOr, tkBool, tkLitObject,
+    tkBacktick, tkSqString,
+    tkCase = "case",
+    tkOf = "of",
+    tkIf = "if",
+    tkElif = "elif",
+    tkElse = "else",
+    tkAnd = "and",
+    tkFor = "for",
+    tkWhile = "while",
+    tkIn = "in",
+    tkOr = "or",
+    tkBool, tkLitObject,
     tkAt, tkImport, tkSnippetHtml, tkSnippetJs, tkSnippetYaml,
-    tkSnippetJson, tkSnippetMarkdown, tkPlaceholder, tkViewLoader,
-    tkClient, tkEnd, tkInclude, tkDo, tkFn, tkFunc, tkMacro, tkIterator,
-    tkYield, tkComponent, tkVar, tkConst, tkType, tkReturnCmd,
-    tkDiscardCmd, tkBreakCmd, tkContinueCmd, tkIdentVar, tkIdentVarSafe,
-    tkStatic, tkEcho, tkComment, tkDoc, tkNil, tkUnknown
+    tkSnippetCSS, tkSnippetJson, tkSnippetMarkdown,
+    tkPlaceholder, tkViewLoader,
+    tkClient, tkEnd, tkInclude, tkDo, tkFn = "fn",
+    tkFunc = "func",
+    tkMacro = "macro",
+    tkIterator = "iterator",
+    tkYield = "yield",
+    tkComponent, tkVar = "var",
+    tkConst = "const",
+    tkType = "type",
+    tkReturnCmd = "return",
+    tkDiscardCmd = "discard",
+    tkBreakCmd = "break",
+    tkContinueCmd = "continue",
+    tkIdentVar, tkIdentVarSafe,
+    tkStatic, tkEcho = "echo",
+    tkComment, tkDoc, tkNil = "nil",
+    tkUnknown
 
   TokenTuple* = tuple
     kind: TokenKind
@@ -376,6 +399,8 @@ proc nextToken*(lex: var Lexer): TokenTuple =
       result = initToken(lex, tkInclude, "@include", line, col, pos, wsno)
     of "javascript":
       collectSnippet(tkSnippetJs, "@javascript")
+    of "css":
+      collectSnippet(tkSnippetCSS, "@css")
     of "js":
       lex.error("The `@js` snippet is no longer supported. Use `@javascript` instead for better readability.")
     of "html":
