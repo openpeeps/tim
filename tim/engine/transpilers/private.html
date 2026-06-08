@@ -76,6 +76,10 @@
   <li><a class="reference" href="#initCodeGen%2CScript%2CModule%2CChunk" title="initCodeGen(script: Script; module: Module; chunk: Chunk; kind = gkToplevel): CodeGen">initCodeGen(script: Script; module: Module; chunk: Chunk; kind = gkToplevel): CodeGen</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">minifyInlineCSS
+  <li><a class="reference" href="#minifyInlineCSS%2Csinkstring" title="minifyInlineCSS(css: sink string): owned string">minifyInlineCSS(css: sink string): owned string</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">minifyInlineJs
   <li><a class="reference" href="#minifyInlineJs%2Csinkstring" title="minifyInlineJs(js: sink string): owned string">minifyInlineJs(js: sink string): owned string</a></li>
 
@@ -131,13 +135,28 @@
 </div>
 
 </div>
+<div id="minifyInlineCSS-procs-all">
+  <div id="minifyInlineCSS,sinkstring">
+  <dt><pre><span class="Keyword">proc</span> <a href="#minifyInlineCSS%2Csinkstring"><span class="Identifier">minifyInlineCSS</span></a><span class="Other">(</span><span class="Identifier">css</span><span class="Other">:</span> <span class="Identifier">sink</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">owned</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    <pre>Minify a chunk of CSS: strip /* comments */, collapse whitespace,
+remove unnecessary spaces around punctuation and drop the last
+semicolon before a closing brace.</pre>
+
+    
+  </dd>
+</div>
+
+</div>
 <div id="minifyInlineJs-procs-all">
   <div id="minifyInlineJs,sinkstring">
   <dt><pre><span class="Keyword">proc</span> <a href="#minifyInlineJs%2Csinkstring"><span class="Identifier">minifyInlineJs</span></a><span class="Other">(</span><span class="Identifier">js</span><span class="Other">:</span> <span class="Identifier">sink</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">owned</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
-    
+    Minify a chunk of JavaScript code by removing comments and unnecessary whitespace, while preserving string literals, template literals, and regexes.
     
   </dd>
 </div>
@@ -149,7 +168,7 @@
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
-    
+    Minify raw HTML by collapsing whitespace and removing comments, while preserving content inside certain &quot;raw&quot; tags like &lt;pre&gt;, &lt;code&gt;, &lt;textarea&gt;, &lt;script&gt;, and &lt;style&gt;.
     
   </dd>
 </div>
@@ -165,7 +184,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-06-05 16:27:34 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-06-08 18:41:04 UTC</small>
       </div>
     </div>
   </div>

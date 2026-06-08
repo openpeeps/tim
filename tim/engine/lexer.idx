@@ -53,6 +53,7 @@ nim	tkImport	tim/engine/lexer.html#tkImport	TokenKind.tkImport		10
 nim	tkSnippetHtml	tim/engine/lexer.html#tkSnippetHtml	TokenKind.tkSnippetHtml		10
 nim	tkSnippetJs	tim/engine/lexer.html#tkSnippetJs	TokenKind.tkSnippetJs		10
 nim	tkSnippetYaml	tim/engine/lexer.html#tkSnippetYaml	TokenKind.tkSnippetYaml		10
+nim	tkSnippetCSS	tim/engine/lexer.html#tkSnippetCSS	TokenKind.tkSnippetCSS		10
 nim	tkSnippetJson	tim/engine/lexer.html#tkSnippetJson	TokenKind.tkSnippetJson		10
 nim	tkSnippetMarkdown	tim/engine/lexer.html#tkSnippetMarkdown	TokenKind.tkSnippetMarkdown		10
 nim	tkPlaceholder	tim/engine/lexer.html#tkPlaceholder	TokenKind.tkPlaceholder		10
@@ -83,10 +84,10 @@ nim	tkDoc	tim/engine/lexer.html#tkDoc	TokenKind.tkDoc		10
 nim	tkNil	tim/engine/lexer.html#tkNil	TokenKind.tkNil		10
 nim	tkUnknown	tim/engine/lexer.html#tkUnknown	TokenKind.tkUnknown		10
 nim	TokenKind	tim/engine/lexer.html#TokenKind	enum TokenKind		10
-nim	TokenTuple	tim/engine/lexer.html#TokenTuple	tuple TokenTuple		25
-nim	Lexer	tim/engine/lexer.html#Lexer	object Lexer		34
-nim	TimLexerError	tim/engine/lexer.html#TimLexerError	object TimLexerError		40
-nim	newLexer	tim/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		42
-nim	error	tim/engine/lexer.html#error,Lexer,string	proc error(l: var Lexer; msg: string)		81
-nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		150
-nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		497
+nim	TokenTuple	tim/engine/lexer.html#TokenTuple	tuple TokenTuple		48
+nim	Lexer	tim/engine/lexer.html#Lexer	object Lexer		57
+nim	TimLexerError	tim/engine/lexer.html#TimLexerError	object TimLexerError		63
+nim	newLexer	tim/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		65
+nim	error	tim/engine/lexer.html#error,Lexer,string	proc error(l: var Lexer; msg: string)		104
+nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		173
+nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		522

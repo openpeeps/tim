@@ -2,4 +2,5 @@ nimTitle	private	tim/engine/transpilers/private.html	module tim/engine/transpile
 nim	CodeGen	tim/engine/transpilers/private.html#CodeGen	object CodeGen		16
 nim	initCodeGen	tim/engine/transpilers/private.html#initCodeGen,Script,Module,Chunk	proc initCodeGen(script: Script; module: Module; chunk: Chunk; kind = gkToplevel): CodeGen		38
 nim	minifyInlineJs	tim/engine/transpilers/private.html#minifyInlineJs,sinkstring	proc minifyInlineJs(js: sink string): owned string		107
-nim	minifyRawHtml	tim/engine/transpilers/private.html#minifyRawHtml,sinkstring,string	proc minifyRawHtml(code: sink string; res: var string)		223
+nim	minifyRawHtml	tim/engine/transpilers/private.html#minifyRawHtml,sinkstring,string	proc minifyRawHtml(code: sink string; res: var string)		225
+nim	minifyInlineCSS	tim/engine/transpilers/private.html#minifyInlineCSS,sinkstring	proc minifyInlineCSS(css: sink string): owned string		410
