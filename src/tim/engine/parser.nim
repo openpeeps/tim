@@ -911,7 +911,7 @@ prefixHandle parseMacroCall:
           break # break the loop after adding the statement
         do: break
       else: break # nothing to add
-
+    debugEcho result
     # Inline nest support: @container() > @container() / @container() > div
     # Only treat '>' as nesting if followed by an element or another macro.
     while p.curr is tkGT and (p.next.kind in {tkIdentifier, tkAt}):

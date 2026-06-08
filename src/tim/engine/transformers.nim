@@ -97,7 +97,14 @@ block extendvancodeAstAndCodeGen:
         h = h !& hash(child)
     of nkHtmlAttribute:
       h = h !& hash(node.attrType)
-      h = h !& hash(node.attrNode)
+      if node.attrNode != nil:
+        if node.attrNode.kind == nkInfix:
+          # HTML key=value attributes use nkInfix with a nil operator
+          # child[0] (the `=` is implied); skip nil children
+          for child in node.attrNode.children:
+            if child != nil: h = h !& hash(child)
+        else:
+          h = h !& hash(node.attrNode)
 
   extendModule "vancode" / "interpreter" / "ast.nim":
     const voidHtmlElements* = [tagArea, tagBase, tagBr, tagCol,
@@ -322,7 +329,6 @@ block extendvancodeAstAndCodeGen:
             let argSym: Sym = gen.genExpr(arg)
             assert argSym != nil, "Expression must return a symbol"
             argTypes.add(argSym)
-
         return gen.callProc(result, argTypes, errorNode = node)
       else:
         if node.len > 1:
