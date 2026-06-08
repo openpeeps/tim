@@ -426,6 +426,14 @@ block extendvancodeAstAndCodeGen:
               if gen.kind == gkToplevel: nil
               else: gen.ctxAllocator
           )
+        
+        # pass down some context from the parent codegen to the proc codegen so it can
+        procGen.includeBasePath = gen.includeBasePath
+        procGen.parserCallback = gen.parserCallback
+        procGen.resolver = gen.resolver
+        procGen.pkgr = gen.pkgr
+        procGen.stdlibs = gen.stdlibs
+
         theProc.chunk = chunk
         chunk.file = gen.chunk.file
         procGen.procReturnTy = returnTy
