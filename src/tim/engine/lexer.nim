@@ -192,8 +192,53 @@ proc nextToken*(lex: var Lexer): TokenTuple =
     lex.advance()
     result = initToken(lex, tkPlus, line, col, pos, wsno)
   of '-':
-    lex.advance()
-    result = initToken(lex, tkMinus, line, col, pos, wsno)
+    # Check if this is a negative number literal
+    var peekPos = lex.pos + 1
+    # Skip whitespace between '-' and potential digit
+    while peekPos < lex.input.len and lex.input[peekPos] in {' ', '\t', '\r'}:
+      inc peekPos
+    if peekPos < lex.input.len and lex.input[peekPos] in {'0'..'9'}:
+      # Tokenize as negative number
+      lex.advance() # consume '-'
+      # Skip whitespace
+      while lex.current in {' ', '\t', '\r'}:
+        lex.advance()
+      lex.strbuf.setLen(0)
+      lex.strbuf.add('-')
+      var isFloat = false
+      # Integer part
+      while lex.current in {'0'..'9', '_'}:
+        if lex.current != '_':
+          lex.strbuf.add(lex.current)
+        lex.advance()
+      # Fractional part
+      if lex.current == '.' and lex.peek().isDigit():
+        isFloat = true
+        lex.strbuf.add('.')
+        lex.advance()
+        while lex.current in {'0'..'9', '_'}:
+          if lex.current != '_':
+            lex.strbuf.add(lex.current)
+          lex.advance()
+      # Exponent part
+      if isFloat and (lex.current == 'e' or lex.current == 'E'):
+        lex.strbuf.add(lex.current)
+        lex.advance()
+        if lex.current == '+' or lex.current == '-':
+          lex.strbuf.add(lex.current)
+          lex.advance()
+        while lex.current in {'0'..'9', '_'}:
+          if lex.current != '_':
+            lex.strbuf.add(lex.current)
+          lex.advance()
+        result = initToken(lex, tkFloat, move lex.strbuf, line, col, pos, wsno)
+      elif isFloat:
+        result = initToken(lex, tkFloat, move lex.strbuf, line, col, pos, wsno)
+      else:
+        result = initToken(lex, tkInteger, move lex.strbuf, line, col, pos, wsno)
+    else:
+      lex.advance()
+      result = initToken(lex, tkMinus, line, col, pos, wsno)
   of '*':
     lex.advance()
     result = initToken(lex, tkAsterisk, line, col, pos, wsno)
