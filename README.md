@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/timV2.png" alt="Tim - Template Engine" width="120px" height="120px"><br>
+  <img src="https://raw.githubusercontent.com/openpeeps/tim/main/.github/tim_logo.png" alt="Tim - Template Engine" width="120px" height="120px"><br>
   ⚡️ A high-performance templating engine & markup language<br>
   <strong>Fast</strong> • <strong>Compiled</strong> • <strong>Source-to-Source</strong> • <strong>Interpreter</strong><br>
 </p>
@@ -37,6 +37,9 @@ To get started with Tim Engine, you can install it using Nimble, or download the
 ## Documentation
 - [API Reference](https://openpeeps.github.io/tim/)
 - [Official Documentation](https://tim.openpeeps.dev/)
+
+## Awesome Projects using Tim Engine
+- [Sunday Publishing Platform](https://github.com/getsunday) - A modern, open-source publishing platform built with Tim Engine
 
 ### ❤ Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/openpeeps/tim/issues)
