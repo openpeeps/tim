@@ -31,6 +31,19 @@ Additionally, Tim Engine supports source-to-source transpilation to multiple tar
 - 🪄 SPA Awareness with support for client-side routing and dynamic content updates
 - 👑 Written in Nim language
 
+## Syntax Overview
+Here is a simple example of Tim Engine's syntax for creating a basic web page template:
+```
+var title = "Welcome to Tim Engine"
+div.container > div.row > div.col-12
+  h1.display-4.fw-bold: $title // passing variable to template
+  p.lead: "Tim Engine is a powerful templating engine and scripting language for developers."
+  a.btn.btn-primary.px-4.rounded-3
+    href="https://example.com": "Get Started"
+```
+
+Find more about Tim's syntax and features here https://tim.openpeeps.dev/language/syntax
+
 ## Getting Started
 To get started with Tim Engine, you can install it using Nimble, or download the latest release from GitHub. For detailed installation instructions and usage examples, please refer to the [Official Documentation](https://tim.openpeeps.dev/).
 
