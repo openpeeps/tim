@@ -407,24 +407,23 @@ proc loadLibrary*(script: Script): Module =
   #
   # String concatenation with JSON
   #
+  proc jsonToStr(j: JsonNode): string =
+    case j.kind
+    of JString: result = j.getStr()
+    of JInt: result = $j.getInt()
+    of JFloat: result = $j.getFloat()
+    of JBool: result = $j.getBool()
+    of JNull: result = ""
+    else: result = ""
+
   script.addProc(result, "&", @[paramDef("x", ttyJson), paramDef("y", ttyString)], ttyString,
     proc (args: StackView, argc: int): Value =
-      case args[0].jsonVal.kind
-      of JString:
-        result = initValue(args[0].jsonVal.getStr() & args[1].stringVal[])
-      of JInt:
-        result = initValue($(args[0].jsonVal.getInt()) & args[1].stringVal[])
-      else: discard # todo error?
-    )
+      result = initValue(jsonToStr(args[0].jsonVal) & args[1].stringVal[]))
 
   script.addProc(result, "&", @[paramDef("x", ttyString), paramDef("y", ttyJson)], ttyString,
     proc (args: StackView, argc: int): Value =
       if likely(args[1].jsonVal != nil):
-        case args[1].jsonVal.kind
-        of JString:
-          result = initValue(args[0].stringVal[] & args[1].jsonVal.getStr())
-        else: discard # todo error?
-    )
+        result = initValue(args[0].stringVal[] & jsonToStr(args[1].jsonVal)))
 
   script.addProc(result, "hasKey", @[paramDef("obj", ttyJson), paramDef("key", ttyString)], ttyBool,
     proc (args: StackView, argc: int): Value =

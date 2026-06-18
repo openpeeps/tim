@@ -51,6 +51,51 @@ To get started with Tim Engine, you can install it using Nimble, or download the
 - [API Reference](https://openpeeps.github.io/tim/)
 - [Official Documentation](https://tim.openpeeps.dev/)
 
+## Benchmarks
+
+Here are some benchmarks comparing the performance of Tim Engine's virtual machine (VM) when executing pre-compiled templates. The benchmarks include various scenarios such as rendering HTML, dynamic data, conditionals, loops, and more.
+```
+=== Tim Engine VM Benchmarks (pre-compiled templates) ===
+Benchmark                           Iterations    Total (ms)    Mean (µs)       Ops/sec
+─────────────────────────────────────────────────────────────────────────────────────
+VM — static HTML                     10000        30.094         3.009       332289.
+  [OK] VM — static HTML
+VM — dynamic data                    10000        39.361         3.936       254060.
+  [OK] VM — dynamic data
+VM — conditionals (true)             10000        22.154         2.215       451380.
+  [OK] VM — conditionals (true)
+VM — conditionals (false)            10000        22.737         2.274       439810.
+  [OK] VM — conditionals (false)
+VM — loops (10 items)                10000        68.805         6.880       145339.
+  [OK] VM — loops (10 items)
+VM — loops (1000 items)               1000       418.102       418.102         2392.
+  [OK] VM — loops (1000 items)
+VM — string stdlib                   10000        23.358         2.336       428125.
+  [OK] VM — string stdlib
+VM — deep nesting                    10000        58.691         5.869       170384.
+  [OK] VM — deep nesting
+VM — mixed template                   5000       177.691        35.538        28139.
+  [OK] VM — mixed template
+─────────────────────────────────────────────────────────────────────────────────────
+```
+
+While these benchmarks shows the full pipeline (lexing, parsing > ast > codegen > vm execution) for the same templates, which includes the overhead of parsing and code generation, it gives a more realistic picture of the overall performance of the engine when rendering templates without a prepared VM bytecode.
+```
+Benchmark                           Iterations    Total (ms)    Mean (µs)       Ops/sec
+─────────────────────────────────────────────────────────────────────────────────────
+Parsing — small                        10000        21.169         2.117       472396.
+Parsing — complex                       5000       100.764        20.153        49621.
+Full pipeline — static                  2000       607.031       303.515         3295.
+Full pipeline — dynamic                 2000       627.298       313.649         3188.
+Conditionals — true                     2000       609.800       304.900         3280.
+Conditionals — false                    2000       610.486       305.243         3276.
+Loops — 10 items                        1000       321.576       321.576         3110.
+Loops — 1000 items                        50        37.672       753.439         1327.
+String stdlib                           1000       303.507       303.507         3295.
+Deep nesting                             500       161.140       322.281         3103.
+Mixed template                           500       205.136       410.272         2437.
+```
+
 ## Awesome Projects using Tim Engine
 - [Sunday Publishing Platform](https://github.com/getsunday) - A modern, open-source publishing platform built with Tim Engine
 

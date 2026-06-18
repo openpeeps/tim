@@ -433,6 +433,7 @@ block extendvancodeAstAndCodeGen:
         procGen.resolver = gen.resolver
         procGen.pkgr = gen.pkgr
         procGen.stdlibs = gen.stdlibs
+        # procGen.scopes = gen.scopes
 
         theProc.chunk = chunk
         chunk.file = gen.chunk.file
