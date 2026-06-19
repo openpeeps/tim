@@ -55,27 +55,17 @@ To get started with Tim Engine, you can install it using Nimble, or download the
 
 Here are some benchmarks comparing the performance of Tim Engine's virtual machine (VM) when executing pre-compiled templates. The benchmarks include various scenarios such as rendering HTML, dynamic data, conditionals, loops, and more.
 ```
-=== Tim Engine VM Benchmarks (pre-compiled templates) ===
 Benchmark                           Iterations    Total (ms)    Mean (µs)       Ops/sec
 ─────────────────────────────────────────────────────────────────────────────────────
 VM — static HTML                     10000        30.094         3.009       332289.
-  [OK] VM — static HTML
 VM — dynamic data                    10000        39.361         3.936       254060.
-  [OK] VM — dynamic data
 VM — conditionals (true)             10000        22.154         2.215       451380.
-  [OK] VM — conditionals (true)
 VM — conditionals (false)            10000        22.737         2.274       439810.
-  [OK] VM — conditionals (false)
 VM — loops (10 items)                10000        68.805         6.880       145339.
-  [OK] VM — loops (10 items)
 VM — loops (1000 items)               1000       418.102       418.102         2392.
-  [OK] VM — loops (1000 items)
 VM — string stdlib                   10000        23.358         2.336       428125.
-  [OK] VM — string stdlib
 VM — deep nesting                    10000        58.691         5.869       170384.
-  [OK] VM — deep nesting
 VM — mixed template                   5000       177.691        35.538        28139.
-  [OK] VM — mixed template
 ─────────────────────────────────────────────────────────────────────────────────────
 ```
 

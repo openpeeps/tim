@@ -1,0 +1,3 @@
+--mm:atomicArc
+--deepCopy:on
+--define:timHotCode
