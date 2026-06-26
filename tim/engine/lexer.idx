@@ -81,6 +81,7 @@ nim	tkStatic	tim/engine/lexer.html#tkStatic	TokenKind.tkStatic		10
 nim	tkEcho	tim/engine/lexer.html#tkEcho	TokenKind.tkEcho		10
 nim	tkComment	tim/engine/lexer.html#tkComment	TokenKind.tkComment		10
 nim	tkDoc	tim/engine/lexer.html#tkDoc	TokenKind.tkDoc		10
+nim	tkHtmlComment	tim/engine/lexer.html#tkHtmlComment	TokenKind.tkHtmlComment		10
 nim	tkNil	tim/engine/lexer.html#tkNil	TokenKind.tkNil		10
 nim	tkUnknown	tim/engine/lexer.html#tkUnknown	TokenKind.tkUnknown		10
 nim	TokenKind	tim/engine/lexer.html#TokenKind	enum TokenKind		10
@@ -90,4 +91,4 @@ nim	TimLexerError	tim/engine/lexer.html#TimLexerError	object TimLexerError		63
 nim	newLexer	tim/engine/lexer.html#newLexer,string	proc newLexer(input: string): Lexer		65
 nim	error	tim/engine/lexer.html#error,Lexer,string	proc error(l: var Lexer; msg: string)		104
 nim	nextToken	tim/engine/lexer.html#nextToken,Lexer	proc nextToken(lex: var Lexer): TokenTuple		173
-nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		567
+nim	getToken	tim/engine/lexer.html#getToken,Lexer	proc getToken(lex: var Lexer): TokenTuple		585
