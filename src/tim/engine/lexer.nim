@@ -42,7 +42,7 @@ type
     tkContinueCmd = "continue",
     tkIdentVar, tkIdentVarSafe,
     tkStatic, tkEcho = "echo",
-    tkComment, tkDoc, tkNil = "nil",
+    tkComment, tkDoc, tkHtmlComment, tkNil = "nil",
     tkUnknown
 
   TokenTuple* = tuple
@@ -351,7 +351,25 @@ proc nextToken*(lex: var Lexer): TokenTuple =
       lex.advance()
       result = initToken(lex, tkGt, line, col, pos, wsno)
   of '<':
-    if lex.peek() == '=':
+    if lex.peek() == '!' and lex.peek(2) == '-' and lex.peek(3) == '-':
+      # HTML comment <!-- ... -->
+      lex.advance() # <
+      lex.advance() # !
+      lex.advance() # -
+      lex.advance() # -
+      lex.strbuf.setLen(0)
+      while true:
+        if lex.current == '-' and lex.peek() == '-' and lex.peek(2) == '>':
+          lex.advance() # -
+          lex.advance() # -
+          lex.advance() # >
+          break
+        if lex.current == '\0':
+          lex.error("EOF reached before closing --> for HTML comment")
+        lex.strbuf.add(lex.current)
+        lex.advance()
+      result = initToken(lex, tkHtmlComment, move lex.strbuf, line, col, pos, wsno)
+    elif lex.peek() == '=':
       lex.advance()
       lex.advance()
       result = initToken(lex, tkLte, "<=", line, col, pos, wsno)

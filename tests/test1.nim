@@ -1,5 +1,5 @@
 import std/[unittest, os, xmltree, strtabs,
-        sequtils, json, options, htmlparser]
+        sequtils, json, options, htmlparser, strutils]
 
 include ../src/tim/engine/transformers
 import pkg/vancode/interpreter/[ast, codegen, chunk, sym, vm, value, resolver]
@@ -110,3 +110,12 @@ p: "This will cause an error: " & $this["undefinedKey"]
         # this is not a code generation error, but a runtime error due  to
         # accessing an undefined key in the JSON storage, so a KeyError is expected
         assert e.msg == "key not found: undefinedKey"
+
+    test "html comments":
+      let samplecode = """
+div.container
+  <!-- This is an HTML comment -->
+  p: "Hello"
+"""
+      let html = toHtml("test8", samplecode)
+      doAssert "<!-- This is an HTML comment -->" in html

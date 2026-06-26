@@ -660,6 +660,11 @@ prefixHandle parseRawHtml:
   result.rawHtml =move output
   walk p
 
+prefixHandle parseHtmlComment:
+  result = ast.newNode(nkRawHtml)
+  result.rawHtml = "<!-- " & strip(p.curr.value) & " -->"
+  walk p
+
 #
 # Identifier & Variable Definitions
 #
@@ -1174,6 +1179,7 @@ proc getPrefixFn(p: var Parser, minPrec: int): PrefixFunction =
     of tkSnippetJs: parseJavaScript
     of tkSnippetCSS: parseCSS
     of tkSnippetHtml: parseRawHtml
+    of tkHtmlComment: parseHtmlComment
     of tkViewLoader: parseViewPlaceholder
     of tkClient: parseClientBlock
     else: nil
@@ -1309,6 +1315,7 @@ prefixHandle parseStmt:
     of tkSnippetJs: parseJavaScript
     of tkSnippetCSS: parseCSS
     of tkSnippetHtml: parseRawHtml
+    of tkHtmlComment: parseHtmlComment
     of tkViewLoader: parseViewPlaceholder
     of tkClient: parseClientBlock
     else: parseExpression
