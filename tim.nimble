@@ -22,8 +22,8 @@ requires "voodoo >= 0.1.9"
 requires "watchout >= 0.2.2"
 requires "openparser >= 0.1.2"
 requires "semver >= 1.2.3"
+requires "supranim >= 0.1.1"
 # requires "marvdown#head"
-# requires "supranim#head"
 
 task dev, "build a dev version":
   exec "nimble build --mm:orc -d:useMalloc"

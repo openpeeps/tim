@@ -117,3 +117,24 @@ proc initArrays*(script: Script, systemModule: Module): Module =
           seen.add(h)
           inc(i)
   )
+
+  script.addProc(result, "isEmpty", @[paramDef("arr", ttyArray)], ttyBool,
+    proc (args: StackView, argc: int): Value =
+      initValue(args[0].objectVal.fields.len == 0))
+
+  script.addProc(result, "first", @[paramDef("arr", ttyArray)], ttyAny,
+    proc (args: StackView, argc: int): Value =
+      if args[0].objectVal.fields.len > 0:
+        result = args[0].objectVal.fields[0])
+
+  script.addProc(result, "last", @[paramDef("arr", ttyArray)], ttyAny,
+    proc (args: StackView, argc: int): Value =
+      if args[0].objectVal.fields.len > 0:
+        result = args[0].objectVal.fields[^1])
+
+  script.addProc(result, "reverse", @[paramDef("arr", ttyArray)], ttyArray,
+    proc (args: StackView, argc: int): Value =
+      let n = args[0].objectVal.fields.len
+      result = initArray(n)
+      for i in 0..<n:
+        result.objectVal.fields[i] = args[0].objectVal.fields[n - 1 - i])

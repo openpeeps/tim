@@ -19,7 +19,7 @@ proc initObjects*(script: Script, systemModule: Module): Module =
   result.load(systemModule)
 
   script.addProc(result, "add", @[
-      paramDef("s", tyArray), paramDef("item", tyAny)], tyVoid,
+      paramDef("s", ttyArray), paramDef("item", ttyAny)], ttyVoid,
     proc (args: StackView, argc: int): Value =
       # TODO runtime check for type compatibility
       # inside the standard library 
@@ -27,19 +27,19 @@ proc initObjects*(script: Script, systemModule: Module): Module =
     )
     
   script.addProc(result, "delete", @[
-    paramDef("s", tyArray), paramDef("offset", tyInt)], tyVoid,
+    paramDef("s", ttyArray), paramDef("offset", ttyInt)], ttyVoid,
     proc (args: StackView, argc: int): Value =
       args[0].objectVal.fields.delete(args[1].intVal)
   )
 
   script.addProc(result, "insert", @[
-      paramDef("s", tyArray), paramDef("item", tyAny),
-      paramDef("offset", tyInt)], tyVoid,
+      paramDef("s", ttyArray), paramDef("item", ttyAny),
+      paramDef("offset", ttyInt)], ttyVoid,
     proc (args: StackView, argc: int): Value =
       insert(args[0].objectVal.fields, args[1], args[2].intVal)
   )
 
-  script.addProc(result, "join", @[paramDef("s", tyArray)], tyString,
+  script.addProc(result, "join", @[paramDef("s", ttyArray)], ttyString,
     proc (args: StackView, argc: int): Value =
       for v in args[0].objectVal.fields:
         assert v.typeId == tyString, "join() only works on arrays of strings"
@@ -48,17 +48,17 @@ proc initObjects*(script: Script, systemModule: Module): Module =
   )
 
   script.addProc(result, "hasKey", @[
-      paramDef("obj", tyObject), paramDef("key", tyString)], tyBool,
+      paramDef("obj", ttyObject), paramDef("key", ttyString)], ttyBool,
     proc (args: StackView, argc: int): Value =
       result = initvalue(false)
-      for field in args[0].objectVal.fields:
-        if field.name == args[1].stringVal[]:
+      for key in args[0].objectVal.keys:
+        if key == args[1].stringVal[]:
           result.boolVal = true
           break
     )
 
   script.addProc(result, "find", @[
-      paramDef("s", tyArray), paramDef("item", tyAny)], tyInt,
+      paramDef("s", ttyArray), paramDef("item", ttyAny)], ttyInt,
     proc (args: StackView, argc: int): Value =
       # this should work for strings and numbers
       result = initvalue(-1)
@@ -80,3 +80,29 @@ proc initObjects*(script: Script, systemModule: Module): Module =
         else:
           assert false, "find() not supported for this type " & $v.typeId
     )
+
+  script.addProc(result, "len", @[paramDef("obj", ttyObject)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initvalue(args[0].objectVal.fields.len))
+
+  script.addProc(result, "isEmpty", @[paramDef("obj", ttyObject)], ttyBool,
+    proc (args: StackView, argc: int): Value =
+      initvalue(args[0].objectVal.fields.len == 0))
+
+  script.addProc(result, "clear", @[paramDef("obj", ttyObject, mut=true)], ttyVoid,
+    proc (args: StackView, argc: int): Value =
+      args[0].objectVal.fields.setLen(0))
+
+  script.addProc(result, "keys", @[paramDef("obj", ttyObject)], ttyArray,
+    proc (args: StackView, argc: int): Value =
+      let n = args[0].objectVal.keys.len
+      result = initArray(n)
+      for i, k in args[0].objectVal.keys:
+        result.objectVal.fields[i] = initValue(k))
+
+  script.addProc(result, "values", @[paramDef("obj", ttyObject)], ttyArray,
+    proc (args: StackView, argc: int): Value =
+      let n = args[0].objectVal.fields.len
+      result = initArray(n)
+      for i, v in args[0].objectVal.fields:
+        result.objectVal.fields[i] = v)

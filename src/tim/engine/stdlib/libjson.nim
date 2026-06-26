@@ -7,7 +7,7 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
-import std/[options, json]
+import std/[options, json, sequtils]
 import pkg/vancode/interpreter/[chunk, ast, sym, value]
 
 import ./inliner
@@ -32,3 +32,31 @@ proc initJSON*(script: Script, systemModule: Module): Module =
         if i < args[0].jsonVal.elems.len - 1:
           result.stringVal[] = result.stringVal[] & sep
   )
+
+  script.addProc(result, "keys", @[paramDef("obj", ttyJson)], ttyJson,
+    proc (args: StackView, argc: int): Value =
+      if args[0].jsonVal.kind == JObject:
+        result = initValue(%*(args[0].jsonVal.keys().toSeq()))
+      else:
+        result = initValue(newJArray()))
+
+  script.addProc(result, "values", @[paramDef("obj", ttyJson)], ttyJson,
+    proc (args: StackView, argc: int): Value =
+      if args[0].jsonVal.kind == JObject:
+        var arr = newJArray()
+        for _, v in args[0].jsonVal:
+          arr.add(v)
+        result = initValue(arr)
+      else:
+        result = initValue(newJArray()))
+
+  script.addProc(result, "pretty", @[paramDef("obj", ttyJson)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(json.pretty(args[0].jsonVal)))
+
+  script.addProc(result, "get", @[paramDef("obj", ttyJson), paramDef("key", ttyString), paramDef("default", ttyJson)], ttyJson,
+    proc (args: StackView, argc: int): Value =
+      if args[0].jsonVal.kind == JObject and args[0].jsonVal.hasKey(args[1].stringVal[]):
+        result = initValue(args[0].jsonVal[args[1].stringVal[]])
+      else:
+        result = args[2])

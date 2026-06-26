@@ -8,7 +8,7 @@
 #          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
 
 import std/[strutils, options, os, sequtils,
-        httpclient, httpcore, random, hashes]
+        httpclient, httpcore, random, hashes, math]
 
 import pkg/openparser/json
 import pkg/vancode/interpreter/[chunk, ast, sym, value]
@@ -495,7 +495,7 @@ proc loadLibrary*(script: Script): Module =
   script.addProc(result, "writeFile",
     @[paramDef("path", ttyString), paramDef("content", ttyString)], ttyVoid,
     proc (args: StackView, argc: int): Value =
-      writeFile(args[0].stringVal[], args[0].stringVal[]))
+      writeFile(args[0].stringVal[], args[1].stringVal[]))
 
   script.addProc(result, "sleep", @[paramDef("ms", ttyInt)], ttyVoid,
     proc (args: StackView, argc: int): Value =
@@ -615,5 +615,74 @@ proc loadLibrary*(script: Script): Module =
         else:
           raise newException(TimRuntime, "Invalid type for comparison with JSON.")
     )
+
+  #
+  # Math utilities
+  #
+  script.addProc(result, "abs", @[paramDef("n", ttyInt)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(abs(args[0].intVal)))
+
+  script.addProc(result, "abs", @[paramDef("n", ttyFloat)], ttyFloat,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(abs(args[0].floatVal)))
+
+  script.addProc(result, "min", @[paramDef("a", ttyInt), paramDef("b", ttyInt)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(min(args[0].intVal, args[1].intVal)))
+
+  script.addProc(result, "min", @[paramDef("a", ttyFloat), paramDef("b", ttyFloat)], ttyFloat,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(min(args[0].floatVal, args[1].floatVal)))
+
+  script.addProc(result, "max", @[paramDef("a", ttyInt), paramDef("b", ttyInt)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(max(args[0].intVal, args[1].intVal)))
+
+  script.addProc(result, "max", @[paramDef("a", ttyFloat), paramDef("b", ttyFloat)], ttyFloat,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(max(args[0].floatVal, args[1].floatVal)))
+
+  script.addProc(result, "round", @[paramDef("n", ttyFloat)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(toInt(round(args[0].floatVal))))
+
+  script.addProc(result, "floor", @[paramDef("n", ttyFloat)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(toInt(floor(args[0].floatVal))))
+
+  script.addProc(result, "ceil", @[paramDef("n", ttyFloat)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(toInt(ceil(args[0].floatVal))))
+
+  script.addProc(result, "sqrt", @[paramDef("n", ttyFloat)], ttyFloat,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(sqrt(args[0].floatVal)))
+
+  #
+  # Converter utilities
+  #
+  script.addProc(result, "toBool", @[paramDef("x", ttyInt)], ttyBool,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(args[0].intVal != 0))
+
+  script.addProc(result, "toBool", @[paramDef("x", ttyString)], ttyBool,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(args[0].stringVal[] == "true"))
+
+  script.addProc(result, "intVal", @[paramDef("x", ttyJson)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      case args[0].jsonVal.kind
+      of JInt:
+        result = initValue(args[0].jsonVal.getInt())
+      of JFloat:
+        result = initValue(toInt(args[0].jsonVal.getFloat()))
+      else:
+        raise newException(TimRuntime, "Cannot convert JSON value to int.")
+      )
+
+  script.addProc(result, "strVal", @[paramDef("x", ttyJson)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      result = initValue(jsonToStr(args[0].jsonVal)))
 
   script.compileCode(result, "system", InlineCode)

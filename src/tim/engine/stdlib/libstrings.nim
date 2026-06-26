@@ -57,3 +57,48 @@ proc initStrings*(script: Script, systemModule: Module): Module =
   script.addProc(result, "decode", @[paramDef("s", ttyString)], ttyString,
     proc (args: StackView, argc: int): Value =
       initValue(base64.decode(args[0].stringVal[])))
+
+  script.addProc(result, "strip", @[paramDef("s", ttyString)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      initValue(strutils.strip(args[0].stringVal[])))
+
+  script.addProc(result, "split", @[paramDef("s", ttyString), paramDef("sep", ttyString)], ttyArray,
+    proc (args: StackView, argc: int): Value =
+      let parts = strutils.split(args[0].stringVal[], args[1].stringVal[])
+      result = initArray(parts.len)
+      for i, p in parts:
+        result.objectVal.fields[i] = initValue(p))
+
+  script.addProc(result, "replace", @[paramDef("s", ttyString), paramDef("from", ttyString), paramDef("to", ttyString)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      initValue(strutils.replace(args[0].stringVal[], args[1].stringVal[], args[2].stringVal[])))
+
+  script.addProc(result, "repeat", @[paramDef("s", ttyString), paramDef("n", ttyInt)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      initValue(strutils.repeat(args[0].stringVal[], args[1].intVal)))
+
+  script.addProc(result, "capitalize", @[paramDef("s", ttyString)], ttyString,
+    proc (args: StackView, argc: int): Value =
+      initValue(strutils.capitalizeAscii(args[0].stringVal[])))
+
+  script.addProc(result, "count", @[paramDef("s", ttyString), paramDef("sub", ttyString)], ttyInt,
+    proc (args: StackView, argc: int): Value =
+      initValue(strutils.count(args[0].stringVal[], args[1].stringVal[])))
+
+  script.addProc(result, "isAlphaNumeric", @[paramDef("s", ttyString)], ttyBool,
+    proc (args: StackView, argc: int): Value =
+      var res = args[0].stringVal[].len > 0
+      for c in args[0].stringVal[]:
+        if not strutils.isAlphaNumeric(c):
+          res = false
+          break
+      initValue(res))
+
+  script.addProc(result, "isDigit", @[paramDef("s", ttyString)], ttyBool,
+    proc (args: StackView, argc: int): Value =
+      var res = args[0].stringVal[].len > 0
+      for c in args[0].stringVal[]:
+        if not strutils.isDigit(c):
+          res = false
+          break
+      initValue(res))
