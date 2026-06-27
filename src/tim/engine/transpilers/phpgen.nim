@@ -27,6 +27,16 @@ proc phpEscapeStr(s: string): string =
     of '$':  result.add("\\$")
     else:    result.add(c)
 
+proc inferPhpType(valNode: Node): string =
+  case valNode.kind
+  of nkString: "string"
+  of nkInt: "int"
+  of nkFloat: "float"
+  of nkBool: "bool"
+  of nkArray, nkObject: "array"
+  of nkNil: "null"
+  else: ""
+
 proc phpOp(op: string): string =
   case op
   of "&": "."
@@ -184,7 +194,11 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
     for decl in node:
       if decl.kind == nkIdentDefs and decl[0].kind == nkAssign:
         let varName = decl[0][0].ident
-        let varType = if decl[0][1].kind != nkEmpty: decl[0][1].render else: "mixed"
+        let varType =
+          if decl[0][1].kind != nkEmpty: decl[0][1].render
+          else:
+            let inferred = inferPhpType(decl[0][2])
+            if inferred.len > 0: inferred else: "mixed"
         result.add(ind & "// @var $" & varName & ": " & varType & "\n")
       result.add(ind & gen.writeVar(node))
   of nkProc:

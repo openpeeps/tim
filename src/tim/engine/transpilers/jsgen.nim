@@ -41,6 +41,16 @@ proc jsOp(op: string): string =
   of "mod": "%"
   else: op
 
+proc inferJsType(valNode: Node): string =
+  case valNode.kind
+  of nkString: "string"
+  of nkInt, nkFloat: "number"
+  of nkBool: "boolean"
+  of nkArray: "Array"
+  of nkObject: "Object"
+  of nkNil: "null"
+  else: ""
+
 proc jsEscapeStr(s: string): string =
   result = newStringOfCap(s.len)
   for c in s:
@@ -215,7 +225,11 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
   of nkVar, nkLet, nkConst:
     for decl in node[0]:
       let varName = if decl[0].kind == nkIdent: decl[0].ident else: decl[0].render
-      let varType = if decl[1].kind != nkEmpty: decl[1].render else: "any"
+      let varType =
+        if decl[1].kind != nkEmpty: decl[1].render
+        else:
+          let inferred = inferJsType(decl[2])
+          if inferred.len > 0: inferred else: "any"
       result.add(ind & "/** @type {" & varType & "} */\n")
       result.add(ind & gen.writeVar(node) & ";\n")
   of nkProc:
