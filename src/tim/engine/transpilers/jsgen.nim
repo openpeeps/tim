@@ -16,22 +16,60 @@ const
   jsAssign = "$1 = $2;"
   jsFunc = "function $1($2) {\n$3\n}"
 
+proc jsIdent(ident: string): string =
+  if ident.len > 0 and ident[0] == '$':
+    ident[1..^1]
+  else:
+    ident
+
+proc jsOp(op: string): string =
+  case op
+  of "&": "+"
+  of "and": "&&"
+  of "or": "||"
+  of "not": "!"
+  of "==": "==="
+  of "!=": "!=="
+  of "is": "==="
+  of "isnot": "!=="
+  of "mod": "%"
+  else: op
+
+proc jsEscapeStr(s: string): string =
+  result = newStringOfCap(s.len)
+  for c in s:
+    case c
+    of '\n': result.add("\\n")
+    of '\r': result.add("\\r")
+    of '\t': result.add("\\t")
+    of '\\': result.add("\\\\")
+    of '`':  result.add("\\`")
+    of '$':  result.add("\\$")
+    else:    result.add(c)
+
+proc jsEscapeDQuote(s: string): string =
+  result = newStringOfCap(s.len)
+  for c in s:
+    case c
+    of '\n': result.add("\\n")
+    of '\r': result.add("\\r")
+    of '\t': result.add("\\t")
+    of '\\': result.add("\\\\")
+    of '"':  result.add("\\\"")
+    else:    result.add(c)
+
 proc getImplValue(node: Node, unquoted = true): string =
-  # Helper to render JS values from AST nodes
   case node.kind
   of nkInt:     $node.intVal
   of nkFloat:   $node.floatVal
   of nkString: 
-    if unquoted: "\"" & node.stringVal & "\""
+    if unquoted: "\"" & jsEscapeDQuote(node.stringVal) & "\""
     else: node.stringVal
   of nkBool:    $node.boolVal
   of nkArray:
-    # Render array as JS array
     "[" & node.children.mapIt(getImplValue(it)).join(", ") & "]"
   of nkObject:
-    # Render object as JS object
     "{" & node.children.mapIt(
-      # Each child is likely a nkIdentDefs or similar
       if it.kind == nkIdentDefs:
         let key = it[0].render
         let value = getImplValue(it[^1])
@@ -42,7 +80,6 @@ proc getImplValue(node: Node, unquoted = true): string =
   else: ""
 
 proc writeVar(node: Node) {.codegen.} =
-  # Write variable declaration (JS let/const)
   case node.kind
   of nkVar:
     result.add(jsLet)
@@ -50,47 +87,36 @@ proc writeVar(node: Node) {.codegen.} =
     result.add(jsConst)
   result.add(" ")
   for decl in node[0]:
-    result.add(jsAssign % [decl[0].ident, decl[^1].getImplValue])
+    let ident = if decl[0].kind == nkIdent: decl[0].ident else: decl[0].render
+    let val = decl[^1].getImplValue
+    result.add(jsIdent(ident) & " = " & val)
 
-# Render a node as a Ruby expression for HTML/text output
-proc renderHandle(node: Node, unquoted = true): string =
-  # Render a node as a JS expression for HTML/text output
+proc exprToString(node: Node): string =
   case node.kind
-  of nkString:
-    node.stringVal
-  of nkInt:
-    $node.intVal
-  of nkFloat:
-    $node.floatVal
-  of nkBool:
-    $node.boolVal
-  of nkIdent:
-    node.ident
-  of nkPrefix:
-    node[0].renderHandle & node[1].renderHandle
-  of nkPostfix:
-    node[0].renderHandle & node[1].renderHandle
+  of nkString: "\"" & jsEscapeDQuote(node.stringVal) & "\""
+  of nkInt: $node.intVal
+  of nkFloat: $node.floatVal
+  of nkBool: $node.boolVal
+  of nkIdent: jsIdent(node.ident)
+  of nkPrefix: jsOp(node[0].ident) & exprToString(node[1])
+  of nkPostfix: exprToString(node[0]) & jsOp(node[1].ident)
   of nkInfix:
-    node[1].renderHandle & ' ' & node[0].renderHandle & ' ' & node[2].renderHandle
+    let op = if node[0].kind == nkIdent: jsOp(node[0].ident) else: jsOp(node[0].render)
+    "(" & exprToString(node[1]) & " " & op & " " & exprToString(node[2]) & ")"
   of nkCall:
-    node[0].renderHandle & '(' & node[1..^1].mapIt(it.renderHandle).join(", ") & ')'
+    let callee = if node[0].kind == nkIdent: jsIdent(node[0].ident) else: exprToString(node[0])
+    callee & "(" & node[1..^1].mapIt(exprToString(it)).join(", ") & ")"
+  of nkBracket:
+    exprToString(node[0]) & "[" & exprToString(node[1]) & "]"
+  of nkDot:
+    exprToString(node[0]) & "." & exprToString(node[1])
   else:
-    ""
+    node.render
 
-# Helper to repeat a string n times (for indentation)
-proc repeatStr(s: string, n: int): string =
-  # Helper to repeat a string n times (for indentation)
-  for i in 0..<n:
-    result.add(s)
-
-# Overload writeHtml and genStmt to accept indent level
-proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
-  # Write HTML as string concatenation
-  let tag = node.getTag()
-  var
-    classNames: seq[string] = @[]
-    idVal: string = ""
-    customAttrs: seq[(string, string)] = @[]
+proc attrsToJs(node: Node): (seq[string], string, seq[(string, string)]) =
+  var classNames: seq[string] = @[]
+  var idVal: string = ""
+  var customAttrs: seq[(string, string)] = @[]
   for attr in node.attributes:
     if attr.kind == nkHtmlAttribute:
       case attr.attrType
@@ -100,105 +126,98 @@ proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
           classNames.add(attr.attrNode.stringVal)
         of nkIdent:
           classNames.add(attr.attrNode.ident)
-        else:
-          discard
+        of nkInfix, nkCall:
+          classNames.add("${" & exprToString(attr.attrNode) & "}")
+        else: discard
       of htmlAttrId:
         case attr.attrNode.kind
         of nkString:
           idVal = attr.attrNode.stringVal
         of nkIdent:
           idVal = attr.attrNode.ident
-        else:
-          discard
+        of nkInfix, nkCall:
+          idVal = "${" & exprToString(attr.attrNode) & "}"
+        else: discard
       of htmlAttr:
-        if attr.attrNode.kind == nkInfix:
-          if attr.attrNode[2].kind == nkInfix:
-            if attr.attrNode[2][0].ident == "&":
-              let left = attr.attrNode[2][1]
-              let right = attr.attrNode[2][2]
-              let leftVal =
-                if left.kind == nkString:
-                  left.stringVal
-                else:
-                  "${" & left.renderHandle(false) & ".toString()}"
-              let rightVal =
-                if right.kind == nkIdent and right.ident.len > 0 and right.ident[0] == '$':
-                  "${" & right.ident[1..^1] & "}"
-                else:
-                  (if right.kind == nkString: right.stringVal
-                                        else: "${" & right.renderHandle(false) & ".toString()}")
-              customAttrs.add((attr.attrNode[1].renderHandle(true), leftVal & rightVal))
-          else:
-            let key = attr.attrNode[1].renderHandle
-            let value =
-              case attr.attrNode[2].kind
-              of nkIdent, nkCall:
-                "#{" & attr.attrNode[2].renderHandle & "}"
-              else: 
-                attr.attrNode[2].renderHandle
-            customAttrs.add((key, value))
+        if attr.attrNode.kind == nkInfix and attr.attrNode.len >= 3:
+          let keyNode = attr.attrNode[1]
+          let valNode = attr.attrNode[2]
+          let key = if keyNode.kind == nkIdent: keyNode.ident
+                    elif keyNode.kind == nkString: keyNode.stringVal
+                    else: $keyNode.render
+          let valStr = case valNode.kind
+            of nkString: jsEscapeDQuote(valNode.stringVal)
+            of nkInt, nkFloat, nkBool: $valNode.render
+            of nkIdent: valNode.ident
+            else: "${" & exprToString(valNode) & "}"
+          customAttrs.add((key, valStr))
         elif attr.attrNode.kind == nkString:
           customAttrs.add((attr.attrNode.stringVal, ""))
-      else:
-        discard
-  let ind = repeatStr("  ", indent)
-  result.add(ind & "{\n")
-  result.add(ind & "  html += `<" & tag)
-  
+        elif attr.attrNode.kind == nkIdent:
+          customAttrs.add((attr.attrNode.ident, ""))
+        else:
+          customAttrs.add(("${" & exprToString(attr.attrNode) & "}", ""))
+      else: discard
+  (classNames, idVal, customAttrs)
+
+proc writeHtml(node: Node, indent: int = 0) {.codegen.} =
+  let tag = node.getTag()
+  let (classNames, idVal, customAttrs) = attrsToJs(node)
+  let ind = repeat("  ", indent)
+
+  result.add(ind & "html += `<" & tag)
+
   if classNames.len > 0:
-    # Join class names with spaces
-    result.add(" class=\\\"" & classNames.join(" ") & "\\\"")
-  
+    result.add(" class=\\\"")
+    var first = true
+    for c in classNames:
+      if not first: result.add(" ")
+      first = false
+      result.add(c)
+    result.add("\\\"")
+
   if idVal.len > 0:
-    # Add id attribute if present
     result.add(" id=\\\"" & idVal & "\\\"")
-  
+
   for (key, value) in customAttrs:
-    # Add custom attributes
     if value.len > 0:
       result.add(" " & key & "=\\\"" & value & "\\\"")
     else:
       result.add(" " & key)
   result.add(">`;\n")
+
   for child in node.childElements:
     case child.kind
-    of nkBool, nkInt, nkFloat:
-      result.add(ind & "  html += `" & child.renderHandle & "`;\n")
     of nkString:
-      result.add(ind & "  html += `" & child.renderHandle(true) & "`;\n")
+      result.add(ind & "html += `" & jsEscapeStr(child.stringVal) & "`;\n")
+    of nkBool, nkInt, nkFloat:
+      result.add(ind & "html += `" & child.render & "`;\n")
     of nkIdent:
-      result.add(ind & "  html += String(" & child.renderHandle & ");\n")
-    of nkCall:
-      # handle function calls
-      if child[0].ident[0] == '@':
-        discard
-      else:
-        result.add(gen.genStmt(child, indent + 2))
+      result.add(ind & "html += String(" & jsIdent(child.ident) & ");\n")
+    of nkInfix, nkPrefix, nkPostfix, nkCall, nkBracket, nkDot:
+      result.add(ind & "html += String(" & exprToString(child) & ");\n")
     else:
-      result.add(gen.genStmt(child, indent + 2))
+      result.add(gen.genStmt(child, indent))
+
   if node.tag notin voidHtmlElements:
-    result.add(ind & "  html += `</" & tag & ">`;\n")
-  result.add(ind & "}\n")
+    result.add(ind & "html += `</" & tag & ">`;\n")
 
 proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
-  # Generate JS code for a statement node
   result = Rope()
-  let ind = repeatStr("  ", indent)
+  let ind = repeat("  ", indent)
   case node.kind
   of nkVar, nkLet, nkConst:
-    # Add TypeDoc for variable type if available
     for decl in node[0]:
-      let varName = decl[0].ident
+      let varName = if decl[0].kind == nkIdent: decl[0].ident else: decl[0].render
       let varType = if decl[1].kind != nkEmpty: decl[1].render else: "any"
       result.add(ind & "/** @type {" & varType & "} */\n")
-      result.add(ind & gen.writeVar(node) & "\n")
+      result.add(ind & gen.writeVar(node) & ";\n")
   of nkProc:
-    # Function declaration with TypeDoc
     let fnName = node[0].render
     let params = node[2]
     let retType = if node[2][0].kind != nkEmpty: node[2][0].render else: "any"
     result.add(ind & "/**\n")
-    for param in params[1..^1]:  # Skip the first element (return type)
+    for param in params[1..^1]:
       if param.kind == nkIdentDefs:
         let pname = param[0].render
         let ptype = if param[1].kind != nkEmpty: param[1].render else: "any"
@@ -231,13 +250,13 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
   of nkHtmlElement:
     result.add(gen.writeHtml(node, indent))
   of nkIf:
-    result.add(ind & "if (" & node[0].render & ") {\n")
+    result.add(ind & "if (" & exprToString(node[0]) & ") {\n")
     result.add(gen.genStmt(node[1], indent + 1))
     result.add(ind & "}\n")
     let hasElse = node.children.len mod 2 == 1
     let elifBranches = if hasElse: node[2..^2] else: node[2..^1]
     for i in countup(0, elifBranches.len - 1, 2):
-      result.add(ind & "else if (" & elifBranches[i].render & ") {\n")
+      result.add(ind & "else if (" & exprToString(elifBranches[i]) & ") {\n")
       result.add(gen.genStmt(elifBranches[i + 1], indent + 1))
       result.add(ind & "}\n")
     if hasElse:
@@ -245,69 +264,80 @@ proc genStmt(node: Node, indent: int = 0): Rope {.codegen.} =
       result.add(gen.genStmt(node[^1], indent + 1))
       result.add(ind & "}\n")
   of nkFor:
-    # node[0] = loop variable, node[1] = iterable/range, node[2] = body
-    let varName = node[0].render
+    let varName = if node[0].kind == nkIdent: jsIdent(node[0].ident) else: node[0].render
     let iterable = node[1]
-    if iterable.kind == nkInfix and iterable[0].kind == nkIdent and iterable[0].ident == "..":
-      # Range: 0..3
-      let startVal = iterable[1].render
-      let endVal = iterable[2].render
+    if iterable.kind == nkCall and iterable[0].kind == nkIdent and iterable[0].ident == "..":
+      let startVal = exprToString(iterable[1])
+      let endVal = exprToString(iterable[2])
       result.add(ind & "for (let " & varName & " = " & startVal & "; " & varName & " <= " & endVal & "; " & varName & "++) {\n")
       result.add(gen.genStmt(node[2], indent + 1))
       result.add(ind & "}\n")
     else:
-      # for-of loop
-      result.add(ind & "for (let " & varName & " of " & iterable.render & ") {\n")
+      let iterExpr = exprToString(iterable)
+      result.add(ind & "for (let " & varName & " of " & iterExpr & ") {\n")
       result.add(gen.genStmt(node[2], indent + 1))
       result.add(ind & "}\n")
-  of nkCall:
-    if node[0].kind == nkIdent and node[0].ident == "echo":
-      result.add(ind & "console.log(" & node[1..^1].mapIt(it.render).join(", ") & ");\n")
-    else:
-      discard
+  of nkWhile:
+    result.add(ind & "while (" & exprToString(node[0]) & ") {\n")
+    result.add(gen.genStmt(node[1], indent + 1))
+    result.add(ind & "}\n")
   of nkBlock:
     for i, s in node:
       result.add(gen.genStmt(s, indent))
   of nkReturn:
     if node[0].kind != nkEmpty:
-      result.add(ind & "return " & node[0].render & ";\n")
+      result.add(ind & "return " & exprToString(node[0]) & ";\n")
     else:
       result.add(ind & "return;\n")
   of nkBreak:
     result.add(ind & "break;\n")
   of nkContinue:
     result.add(ind & "continue;\n")
-  of nkWhile:
-    result.add(ind & "while (" & node[0].render & ") {\n")
-    result.add(gen.genStmt(node[1], indent + 1))
-    result.add(ind & "}\n")
+  of nkCall:
+    let callee = if node[0].kind == nkIdent: jsIdent(node[0].ident) else: exprToString(node[0])
+    if callee == "echo" or callee == "console.log":
+      result.add(ind & "console.log(" & node[1..^1].mapIt(exprToString(it)).join(", ") & ");\n")
+    else:
+      result.add(ind & callee & "(" & node[1..^1].mapIt(exprToString(it)).join(", ") & ");\n")
+  of nkInfix, nkPrefix, nkPostfix:
+    result.add(ind & exprToString(node) & ";\n")
+  of nkIdent:
+    result.add(ind & jsIdent(node.ident) & ";\n")
+  of nkRawHtml:
+    result.add(ind & "html += `" & jsEscapeStr(node.rawHtml) & "`;\n")
+  of nkCssSnippet:
+    let css = node.snippetCode
+    result.add(ind & "html += `<style>`" & ";\n")
+    result.add(ind & "html += `" & jsEscapeStr(css) & "`;\n")
+    result.add(ind & "html += `</style>`;\n")
+  of nkJavaScriptSnippet:
+    let js = node.snippetCode
+    result.add(ind & "html += `<script>`" & ";\n")
+    result.add(ind & js & "\n")
+    result.add(ind & "html += `</script>`;\n")
+  of nkDocComment:
+    if node.comment.len > 0:
+      result.add(ind & "/* " & node.comment & " */\n")
   else: discard
 
 proc genScript*(program: Ast, includePath: Option[string],
             isMainScript: static bool = false,
             isSnippet: static bool = false,
             commonJs = true) {.codegen.} =
-  # Generate the JS script from the AST
-  # when isSnippet == true:
-  #   let baseCode =
-  #     utilsJS.replace(re(r"^\s*//.*$", {reStudy, reMultiLine}))
-  #           .replace(re"/\*[\s\S]*?\*/")
-  #           .replace(re"\s{2,}", "")
-  #           .replace(re"\n+")
+  let modName = gen.module.getModuleName()
   if not commonJs:
-    result.add("export default class $1 {\n" % [gen.module.getModuleName()])
+    result.add("export default class $1 {\n" % [modName])
   else:
-    result.add("class $1 {\n" % [gen.module.getModuleName()])
-  result.add("  static render() {\n")
+    result.add("class $1 {\n" % [modName])
+  result.add("  static render(locals = {}, app = {}) {\n")
   result.add("    let html = \"\";\n")
   for node in program.nodes:
     result.add(gen.genStmt(node, 2))
   result.add("    return html;\n")
   result.add("  }\n}")
   if commonJs:
-    result.add("\nmodule.exports = $1;\n" % [gen.module.getModuleName()])
+    result.add("\nmodule.exports = $1;\n" % [modName])
 
 proc genScript*(nodes: seq[Node]) {.codegen.} =
-  # Generate the JS script from a sequence of nodes
   for node in nodes:
     result.add(gen.genStmt(node, 2))
