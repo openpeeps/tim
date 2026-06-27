@@ -1,17 +1,17 @@
 name: test
 on:
   push:
+    branches:
+      - '**'
     paths-ignore:
       - LICENSE
       - README.*
       - examples
-      - .github/workflows
   pull_request:
     paths-ignore:
       - LICENSE
       - README.*
       - examples
-      - .github/workflows
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,8 +27,14 @@ jobs:
           nim-version: ${{ matrix.nim-version }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install libpcre and luajit
-        run: sudo apt-get install -y libluajit-5.1-dev luajit libpcre3-dev
+      - name: "Install s2s runtime dependencies"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libluajit-5.1-dev luajit \
+            libpcre3-dev \
+            php-cli \
+            ruby
 
       - name: Install cmake-js for building node bindings"
         run: "npm install cmake-js -g"

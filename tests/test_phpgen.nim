@@ -32,12 +32,20 @@ proc transpile(code: string): string =
   var cg = phpgen.initCodeGen(script, module, mainChunk)
   result = $cg.genScript(program, none(string), isMainScript = true)
 
+proc phpBin(): string =
+  for candidate in ["php83", "php"]:
+    let sts = execCmdEx("which " & candidate)
+    if sts.exitCode == 0:
+      return candidate
+  raise newException(CatchableError, "no PHP binary found (tried php83, php)")
+
 proc runPhp(code: string): string =
+  let bin = phpBin()
   let tmpFile = getTempDir() / "tim_test.php"
   writeFile(tmpFile, code)
-  let sts = execCmdEx("php83 " & tmpFile)
+  let sts = execCmdEx(bin & " " & tmpFile)
   if sts.exitCode != 0:
-    raise newException(CatchableError, "php83 exited with code " & $sts.exitCode & ": " & sts.output)
+    raise newException(CatchableError, bin & " exited with code " & $sts.exitCode & ": " & sts.output)
   sts.output.strip()
 
 template checkOutput(transpiled, expected: string) =
