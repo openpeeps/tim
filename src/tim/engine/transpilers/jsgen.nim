@@ -1,3 +1,9 @@
+# A super fast template engine for cool kids
+#
+# (c) 2025 George Lemon | LGPL-v3 License
+#          Made by Humans from OpenPeeps
+#          https://github.com/openpeeps/tim | https://openpeeps.dev/packages/tim
+
 include ./private
 
 #
