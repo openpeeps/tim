@@ -539,6 +539,69 @@ proc loadLibrary*(script: Script): Module =
         client.close()
     )
 
+  proc doFetch(url: string, optsJson: JsonNode): Value =
+    let
+      httpMethod = block:
+        if optsJson != nil and optsJson.hasKey("method"):
+          try: parseEnum[HttpMethod](optsJson["method"].getStr())
+          except: HttpGet
+        else: HttpGet
+      reqHeaders = block:
+        if optsJson != nil and optsJson.hasKey("headers"):
+          var h = newHttpHeaders()
+          for key, val in optsJson["headers"]:
+            h[key] = val.getStr()
+          h
+        else: newHttpHeaders()
+      body = block:
+        if optsJson != nil and optsJson.hasKey("body"):
+          optsJson["body"].getStr()
+        else: ""
+      timeout = block:
+        if optsJson != nil and optsJson.hasKey("timeout"):
+          optsJson["timeout"].getInt()
+        else: -1
+    var client = newHttpClient(timeout = timeout)
+    client.headers = reqHeaders
+    try:
+      let res = client.request(url, httpMethod, body)
+      let httpCode = int(res.code())
+      var resp = %*{
+        "ok": httpCode >= 200 and httpCode < 300,
+        "status": httpCode,
+        "statusText": res.status,
+        "headers": %*{}
+      }
+      for k, v in res.headers:
+        resp["headers"][k] = %*v
+      resp["body"] = %*res.body
+      try:
+        resp["json"] = fromJson(res.body)
+      except:
+        resp["json"] = newJNull()
+      result = initValue(resp)
+    except:
+      let err = getCurrentExceptionMsg()
+      result = initValue(%*{
+        "ok": false,
+        "status": 0,
+        "statusText": "Error",
+        "headers": %*{},
+        "body": "",
+        "json": newJNull(),
+        "error": err
+      })
+    finally:
+      client.close()
+
+  script.addProc(result, "fetch", @[paramDef("url", ttyString), paramDef("options", ttyJson)], ttyJson,
+    proc (args: StackView, argc: int): Value =
+      doFetch(args[0].stringVal[], args[1].jsonVal))
+
+  script.addProc(result, "fetch", @[paramDef("url", ttyString)], ttyJson,
+    proc (args: StackView, argc: int): Value =
+      doFetch(args[0].stringVal[], nil))
+
   for someTy in [ttyBool, ttyInt, ttyFloat, ttyString, ttyJson, ttyNil]:
     script.addProc(result, "==", @[paramDef("a", ttyJson), paramDef("b", someTy)], ttyBool,
       proc (args: StackView, argc: int): Value =
