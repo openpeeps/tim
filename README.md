@@ -23,11 +23,13 @@ Additionally, Tim Engine supports source-to-source transpilation to multiple tar
 
 ## Key features
 - ⚡️ Fast, Compiled, Clean syntax
-- 🎯 Template engine with support for layouts, partials and views
-- 🍭 Source-to-Source transpilation to Lua, Python, Ruby, JavaScript and PHP
+- 🎯 Template engine with support for **layouts**, **partials** and **views**
+- 🍭 Source-to-Source transpilation to **Lua**, **Python**, **Ruby**, **JavaScript**, **PHP** and **Nim** lang
 - 📚 **Standard Library** with many built-in utilities for web development
 - 📦 **Built-in Package Manager** for easy installation of third-party packages
 - 🔁 Built-in **Browser Sync & Reload**
+- 🫶 Built-in **HTTP Server** and WebSocket support
+- Available natively as a **Node.js NAPI module**, **PHP extension**, **Python module**, **Ruby gem**, and **Lua rock**
 - 🪄 SPA Awareness with support for client-side routing and dynamic content updates
 - 👑 Written in Nim language
 
@@ -86,6 +88,9 @@ Deep nesting                             500       161.140       322.281        
 Mixed template                           500       205.136       410.272         2437.
 ```
 
+## Roadmap 
+- [ ] Update Tim Engine for Node.js runtime
+
 ## Awesome Projects using Tim Engine
 - [Sunday Publishing Platform](https://github.com/getsunday) - A modern, open-source publishing platform built with Tim Engine
 
@@ -94,6 +99,10 @@ Mixed template                           500       205.136       410.272        
 - 👋 Wanna help? [Fork it!](https://github.com/openpeeps/tim/fork)
 - 🎉 Spread the word! **Tell your friends about Tim Engine**
 - ⚽️ Play with Tim Engine in your next web-project
+
+|  |  |
+|---|---|
+| <a href="https://opencode.ai/go?ref=BHMEEK48QX"><img src="https://github.com/openpeeps/pistachio/blob/main/.github/opencode.png" alt="OpenCode"></a> | Switch to **Open-Source LLMs** via OpenCode GO, choosing from a variety of powerful models such as DeepSeek, Qwen, Kimi, GLM-5, MiniMax, MiMo. 🍕 [Use our referral link to get started!](https://opencode.ai/go?ref=BHMEEK48QX)|
 
 ### 🎩 License
 Tim Engine | `LGPLv3` license. [Made by Humans from OpenPeeps](https://github.com/openpeeps).<br>
