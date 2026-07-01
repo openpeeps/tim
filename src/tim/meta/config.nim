@@ -43,6 +43,11 @@ type
     ## An alias for a simple in-memory template store, used when loading templates
     ## from embedded resources instead of the filesystem.
 
+  WebServerConfig* = object
+    port*: Port
+    threads*: uint
+    routes*: Table[string, string]
+
   TimConfig* = ref object
     ## The main configuration object for the Tim template engine
     name*: string
@@ -63,6 +68,7 @@ type
     of ConfigType.typeProject:
       compilation*: CompilationSettings
       browser_sync*: BrowserSync
+      server*: WebServerConfig
     else: discard
 
 when not defined napibuild:

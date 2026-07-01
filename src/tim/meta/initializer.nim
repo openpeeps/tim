@@ -479,9 +479,11 @@ proc precompileTemplate*(engine: TimEngine, tpl: TimTemplate,
     display(e.msg)
 
 proc precompileEmbeddedTemplate*(engine: TimEngine, tpl: TimTemplate,
-        pkgr: Packager, data: JsonNode = nil): bool {.discardable.} =
+        pkgr: Packager, data: JsonNode = nil,
+        vfsMap: TableRef[string, string] = nil): bool {.discardable.} =
   ## Precompile a Tim template from embedded code. This is used when the
-  ## templates are embedded into the binary as strings, and we need to compile them into scripts
+  ## templates are embedded into the binary as strings, and we need to compile them into scripts.
+  ## Optionally pass a `vfsMap` containing all available embedded templates for include/import resolution.
   var astProgram: Ast
   try:
     parser.parseScript(astProgram, tpl.embeddedCode.get(), tpl.id)
@@ -500,6 +502,18 @@ proc precompileEmbeddedTemplate*(engine: TimEngine, tpl: TimTemplate,
   let systemModule = libsystem.loadLibrary(script)
   module.load(systemModule)
 
+  # load the user defined script
+  if engine.userScript != nil:
+    for procDef in engine.userScript.procs:
+      script.addProc(
+        module,
+        procDef[0], # name
+        procDef[1], # params
+        procDef[2], # return type
+        procDef[3], # implementation
+        procDef[4]  # export symbol
+      )
+
   let stringsLib = initStrings(script, systemModule)
   module.load(stringsLib)
 
@@ -516,15 +530,20 @@ proc precompileEmbeddedTemplate*(engine: TimEngine, tpl: TimTemplate,
                       pkgr, stdlibs, parserCallback)
 
   # Inject an in-memory FS into the compiler's resolver so genImport/resolveFile
-  # and parserCallback read from embedded contents. Include the current tpl and
-  # optionally other embedded templates (partials/views) if available.
-  var vfsMap = newTable[string, string]()
-  vfsMap[normalizedPath(tpl.id)] = tpl.embeddedCode.get()
-  compiler.resolver.fs = newInMemoryFS(vfsMap)
+  # and parserCallback read from embedded contents.
+  # Use the provided vfsMap (all templates) or fall back to a single-entry map
+  var localVfsMap = vfsMap
+  if localVfsMap == nil:
+    localVfsMap = newTable[string, string]()
+    localVfsMap[normalizedPath(tpl.id)] = tpl.embeddedCode.get()
+  compiler.resolver.fs = newInMemoryFS(localVfsMap)
   compiler.declareGlobals()
+  # In embedded mode, the VFS already contains all templates keyed by simple
+  # filenames. Don't use an includePath so that @include "leftsidebar" resolves
+  # to "leftsidebar.timl" directly via the VFS rather than an absolute path.
   compiler.genScript(
     program = astProgram,
-    includePath = some(engine.config.compilation.partialsPath)
+    includePath = none(string)
   )
   
   tpl.script = script
@@ -592,22 +611,29 @@ proc precompile*(engine: TimEngine,
   let pkgr = packager.initPackageRemote()
   pkgr.loadPackages()
 
+  # Build a complete VFS with all templates so @include/@import directives
+  # can resolve across views, layouts, and partials
+  var allTemplates = newTable[string, string]()
+  for k, v in views:    allTemplates[k] = v
+  for k, v in layouts:  allTemplates[k] = v
+  for k, v in partials: allTemplates[k] = v
+
   for k, view in views:
     let id = getHashedPath(k)
     let tpl = TimTemplate(id: id, templateType: ttView, embeddedCode: some(view))
-    if engine.precompileEmbeddedTemplate(tpl, pkgr):
+    if engine.precompileEmbeddedTemplate(tpl, pkgr, vfsMap = allTemplates):
       engine.views[k] = tpl
   
   for k, layout in layouts:
     let id = getHashedPath(k)
     let tpl = TimTemplate(id: id, templateType: ttLayout, embeddedCode: some(layout))
-    if engine.precompileEmbeddedTemplate(tpl, pkgr):
+    if engine.precompileEmbeddedTemplate(tpl, pkgr, vfsMap = allTemplates):
       engine.layouts[k] = tpl
   
   for k, partial in partials:
     let id = getHashedPath(k)
     let tpl = TimTemplate(id: id, templateType: ttPartial, embeddedCode: some(partial))
-    if engine.precompileEmbeddedTemplate(tpl, pkgr):
+    if engine.precompileEmbeddedTemplate(tpl, pkgr, vfsMap = allTemplates):
       engine.partials[k] = tpl
 
 
