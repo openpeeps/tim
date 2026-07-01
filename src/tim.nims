@@ -12,9 +12,10 @@
 #   --passC:"-I /usr/include"
 
 --mm:atomicArc
---define:ssl
 --threads:on
 --deepcopy:on
+--define:ssl
+--define:vancodeJit
 --define:supraNative
 --define:nimPreviewHashRef
 

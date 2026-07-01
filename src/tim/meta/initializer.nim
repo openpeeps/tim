@@ -436,7 +436,8 @@ proc precompileTemplate*(engine: TimEngine, tpl: TimTemplate,
           includePath = some(engine.config.compilation.partialsPath)
         )
 
-        var vmInstance = newVM()
+        let prefs = VMPreferences(enableHotCodeDetection: true, hotProcThreshold: 5)
+        var vmInstance = newVirtualMachine(prefs)
         result = vm.interpret(vmInstance, inlineScript, inlineChunk, localData = newJObject())
 
       except TimParserError as e:
@@ -469,7 +470,9 @@ proc precompileTemplate*(engine: TimEngine, tpl: TimTemplate,
     
     tpl.script = script
     tpl.mainChunk = mainChunk
-    tpl.vmInstance = newVM()
+    
+    let prefs = VMPreferences(enableHotCodeDetection: true, hotProcThreshold: 5)
+    tpl.vmInstance = newVirtualMachine(prefs)
     
     writeFile(tpl.sources.ast, toJson(astProgram))
     writeFile(tpl.sources.opcache, tpl.mainChunk.code)

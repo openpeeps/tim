@@ -4,139 +4,151 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/openpeeps/tim
 
-import std/[tables, httpcore, net, os, strutils]
+import std/[tables, httpcore, net, os, strutils, options, locks]
 import pkg/kapsis/runtime
 import pkg/openparser/[yaml, json]
+import pkg/watchout
+import pkg/vancode/manager/packager
 
 import supranim/network/webserver
-import supranim/core/[router, request, response]
 
-import ../meta/[initializer, config]
+import ../meta/[initializer, config, websocket]
 
 type
   WebApp* = ref object
-    ## Represents a web application that serves at a specified port and handles
     server*: WebServer
-      ## A powpow web server instance that listens for incoming HTTP requests and serves responses.
-    router*: HttpRouterInstance
-      ## A router instance that maps incoming HTTP requests to specific handlers based on the request path and method.
     engine*: TimEngine
-      ## A Tim Engine instance that handles template rendering for the web application.
     configInstance*: TimConfig
-      ## The configuration object for the web application, containing settings such as routes, server port, and other options.
+    baseDir*: string
+    watcher*: Watchout
+    wsServer*: WebSocketServer
 
-var webapp: WebApp # a singleton instance of the web application, initialized in the `serveCommand` procedure.
+var webapp*: WebApp
 
-proc render*(engine: TimEngine, view: string, layout: string = "base",
-            data: JsonNode): string =
-  ## Render a Tim Engine template based on the view and layout templates.
-  ## 
-  ## Optionally, you can pass a `JsonNode` object as data to be used
-  ## within the template as local data available under the `$this` variable.
-  ## 
-  ## If no layout is provided, the default `base` layout will be used.
-  ## 
-  ## Raises a `TimEngineError` if the view or layout templates are not found.
-  ## Ensure to handle these exceptions in your web server to respond
-  ## with appropriate HTTP status codes (e.g., 404 or 500).
-  let
-    viewTpl: TimTemplate = engine.getView(view.replace(".", "/"))
-    layoutTpl: TimTemplate = engine.getLayout(layout)
-  
-  if viewTpl == nil:
-    raise newException(TimEngineError, "View template not found: " & view)
+var templateLock: Lock
+initLock(templateLock)
 
-  if layoutTpl == nil:
-    raise newException(TimEngineError, "Layout template not found: " & layout)
-  result.add("<!DOCTYPE html>")    # Add DOCTYPE declaration at the beginning of the output
-  result.add($interpret(viewTpl, layoutTpl, data, engine.globalData))
-
-proc renderView*(engine: TimEngine, view: string, data: JsonNode): string =
-  ## Render a Tim Engine template based on the view and layout templates.
-  ## 
-  ## Optionally, you can pass a `JsonNode` object as data to be used
-  ## within the template as local data available under the `$this` variable.
-  ## 
-  ## If no layout is provided, the default `base` layout will be used.
-  ## 
-  ## Raises a `TimEngineError` if the view or layout templates are not found.
-  ## Ensure to handle these exceptions in your web server to respond
-  ## with appropriate HTTP status codes (e.g., 404 or 500).
-  let viewTpl: TimTemplate = engine.getView(view.replace(".", "/"))
-  if viewTpl == nil:
-    raise newException(TimEngineError, "View template not found: " & view)
-  result.add($interpret(viewTpl, data, engine.globalData))
-
-proc onRequest(req: var Request) =
-  # Handle incoming HTTP requests and serve the appropriate response based on the request path and method
-  {.gcsafe.}:
-    let path = req.getUriPath()
-    if path == "/":
-      let indexView = webapp.configInstance.server.routes.getOrDefault("/", "index")
-      if webapp.router.checkExists("/", HttpGet).exists:
-        try:
-          let html = webapp.engine.render(indexView, "base", newJObject())
-          req.send(200, html)
-          return
-        except:
-          discard
-      else:
-        try:
-          let html = webapp.engine.renderView(indexView, newJObject())
-          req.send(200, html)
-          return
-        except:
-          req.send(404, "Not Found")
-        return
-
-    let routeCheck = webapp.router.checkExists(path, HttpGet)
-    if routeCheck.exists:
-      let viewName = webapp.configInstance.server.routes.getOrDefault(path, path)
-      try:
-        let html = webapp.engine.render(viewName, "base", newJObject())
-        req.send(200, html)
-        return
-      except:
-        discard
-
+proc serveTemplate(req: var Request, viewName: string) =
+  acquire(templateLock)
+  let viewTpl = webapp.engine.getView(viewName.replace(".", "/"))
+  let layoutTpl = webapp.engine.getLayout("base")
+  if viewTpl != nil and layoutTpl != nil:
     try:
-      let html = webapp.engine.renderView(path, newJObject())
+      let html = "<!DOCTYPE html>" & $interpret(viewTpl, layoutTpl, newJObject(), webapp.engine.globalData)
+      release(templateLock)
       req.send(200, html)
       return
-    except:
-      req.send(404, "Not Found")
+    except Exception as e:
+      echo e.msg
+      release(templateLock)
+      req.send(500, "Internal Server Error")
+      return
+  release(templateLock)
+  req.send(404, "Not Found")
 
-proc requestHandle(req: var request.Request, res: var Response): void =
-  discard
+proc onRequest(req: var Request) {.gcsafe.} =
+  {.gcsafe.}:
+    let path = req.path
+    var viewName = webapp.configInstance.server.routes.getOrDefault(path)
+    if viewName.len == 0 and path != "/":
+      viewName = webapp.configInstance.server.routes.getOrDefault(path.strip(chars={'/'}, leading=true))
+    if viewName.len > 0:
+      serveTemplate(req, viewName)
+    else:
+      let staticPath = webapp.baseDir / "public" / path.relativePath("/")
+      if fileExists(staticPath):
+        let headers = newHttpHeaders()
+        let ext = staticPath.splitFile().ext.toLowerAscii()
+        case ext
+        of ".html", ".htm": headers.add("Content-Type", "text/html")
+        of ".css":          headers.add("Content-Type", "text/css")
+        of ".js":           headers.add("Content-Type", "application/javascript")
+        of ".png":          headers.add("Content-Type", "image/png")
+        of ".jpg", ".jpeg": headers.add("Content-Type", "image/jpeg")
+        of ".gif":          headers.add("Content-Type", "image/gif")
+        of ".svg":          headers.add("Content-Type", "image/svg+xml")
+        of ".ico":          headers.add("Content-Type", "image/x-icon")
+        else:               discard
+        req.send(200, readFile(staticPath), headers)
+      else:
+        req.send(404, "Not Found")
 
 proc serveCommand*(v: Values) =
-  ## Command for starting a local development server that serves rendered templates
   let configPath = $(v.get("config").getPath)
   let yamlFile = readFile(configPath)
   let config: TimConfig = parseYaml(yamlFile, TimConfig)
-  let baseDir = configPath.parentDir()
+  let baseDir = absolutePath(configPath.parentDir())
   discard existsOrCreateDir(baseDir / "storage")
 
   let timEngine = newTim(
-    src = baseDir / "src" / "templates",
-    output = baseDir / "storage",
+    src = "templates",
+    output = "storage",
     basepath = baseDir
   )
   timEngine.precompile()
 
-  var router = newHttpRouter()
-  for routePath, viewName in config.server.routes:
-    router.registerRoute(routePath, HttpGet, requestHandle)
-
   webapp = WebApp(
     server: newWebServer(
-      port = Port(8000),
+      port = config.server.port,
       enableMultiThreading = config.server.threads > 1
     ),
-    router: router,
     engine: timEngine,
-    configInstance: config
+    configInstance: config,
+    baseDir: baseDir
   )
 
-  let nThreads = if config.server.threads > 1: config.server.threads.int else: 0
-  webapp.server.start(onRequest, startupCallback = nil, threads = nThreads)
+  let pkgr = packager.initPackageRemote()
+  pkgr.loadPackages()
+
+  webapp.watcher = newWatchout(@[
+    baseDir / "templates" / "layouts",
+    baseDir / "templates" / "views",
+    baseDir / "templates" / "partials"
+  ], some("*.timl"))
+
+  webapp.watcher.onFound = proc(file: watchout.File) =
+    acquire(templateLock)
+    let tpl = webapp.engine.getTemplateByPath(file.getPath())
+    if tpl != nil:
+      if tpl.templateType in {ttView, ttLayout}:
+        discard webapp.engine.precompileTemplate(tpl, pkgr)
+    else:
+      let newTpl = webapp.engine.registerTemplate(file.getPath())
+      if newTpl.templateType != ttPartial:
+        discard webapp.engine.precompileTemplate(newTpl, pkgr)
+    release(templateLock)
+
+  webapp.watcher.onChange = proc(file: watchout.File) =
+    let fpath = file.getPath()
+    var size = getFileSize(fpath)
+    sleep(300)
+    while getFileSize(fpath) != size:
+      size = getFileSize(fpath)
+      sleep(200)
+    acquire(templateLock)
+    let tpl = webapp.engine.getTemplateByPath(fpath)
+    if tpl != nil and tpl.templateType in {ttView, ttLayout}:
+      if webapp.engine.precompileTemplate(tpl, pkgr):
+        notifyAllClients(webapp.wsServer)
+    release(templateLock)
+
+  webapp.watcher.onDelete = proc(file: watchout.File) =
+    acquire(templateLock)
+    let tpl = webapp.engine.getTemplateByPath(file.getPath())
+    if tpl != nil:
+      case tpl.templateType
+      of ttView:
+        webapp.engine.views.del(tpl.sources.src)
+      of ttLayout:
+        webapp.engine.layouts.del(tpl.sources.src)
+      of ttPartial:
+        webapp.engine.partials.del(tpl.sources.src)
+    release(templateLock)
+
+  webapp.watcher.start()
+
+  let wsPort = if config.browser_sync != nil: config.browser_sync.port
+               else: Port(9000)
+  webapp.wsServer = startWebSocket(wsPort)
+
+  webapp.server.start(onRequest)
