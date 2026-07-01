@@ -22,11 +22,11 @@ requires "voodoo >= 0.1.9"
 requires "watchout >= 0.2.2"
 requires "openparser >= 0.1.2"
 requires "semver >= 1.2.3"
-requires "supranim >= 0.1.1"
-# requires "marvdown#head"
 
-task dev, "build a dev version":
-  exec "nimble build --mm:orc -d:useMalloc"
+requires "supranim >= 0.1.1"
+requires "powpow >= 0.1.0"
+requires "clue >= 0.1.0"
+requires "bag >= 0.1.0"
 
 task napi, "build a dev version":
   exec "denim build src/tim.nim --cmake -y"

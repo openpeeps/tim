@@ -8,7 +8,7 @@ import std/[os, osproc, strutils, sequtils, uri, httpclient]
 
 import pkg/[semver, openparser/yaml]
 import pkg/kapsis/runtime
-import pkg/kapsis/interactive/prompts
+import pkg/kapsis/interactive/[prompts, widgets]
 
 import pkg/vancode/manager/[configurator, packager, remote]
 
@@ -16,11 +16,8 @@ import pkg/vancode/manager/[configurator, packager, remote]
 # CLI command `init` a new package
 #
 proc initCommand*(v: Values) =
-  ## Initializes a new Tim Engine package
-  ## at the current working directory
-  # note `displayError` will block the execution
-  # so we can use it to inform user about errors and
-  # stop the execution of the command
+  ## Initializes a new Tim Engine package at the current working directory
+
   let currDirPath = getCurrentDir()
   let currDir = currDirPath.extractFilename()
   var pkgName =
@@ -46,18 +43,30 @@ proc initCommand*(v: Values) =
   let pkgDesc = prompt("Package description: ", default = "A new awesome package for Tim Engine")
   let pkgVersion = prompt("Package version: ", default = "0.1.0")
   let pkgLicense = prompt("Package license: ", default = "MIT")
+
+  let pkgTypeOpts = @["project", "package"]
+  let pkgType = promptInteractive("Package type: ", answers = pkgTypeOpts, activeIcon = "🍕")
+  if pkgType == -1:
+    displayError("No package type selected. Please, choose one", quitProcess = true)
   
   createDir(currDirPath / pkgName)
   createDir(currDirPath / pkgName / "src")
-
-  const sampleCode = """
+  
+  let pkgTypeEnum = parseEnum[ConfigType](pkgTypeOpts[pkgType])
+  if pkgTypeEnum == typePackage:
+    const sampleCode = """
 var hello = "Tim Engine is Awesome"
 echo $hello"""
-  writeFile(currDirPath / pkgName / "src" / pkgName & ".timl", sampleCode)
+    writeFile(currDirPath / pkgName / "src" / pkgName & ".timl", sampleCode)
+  else:
+    createDir(currDirPath / pkgName / "src" / "templates")
+    createDir(currDirPath / pkgName / "src" / "templates" / "layouts")
+    createDir(currDirPath / pkgName / "src" / "templates" / "views")
+    createDir(currDirPath / pkgName / "src" / "templates" / "partials")
 
   var timConfig = PackageConfig(
     name: pkgName,
-    `type`: ConfigType.typePackage,
+    `type`: parseEnum[ConfigType](pkgTypeOpts[pkgType]),
     description: pkgDesc,
     version: pkgVersion,
     license: pkgLicense,
@@ -66,8 +75,7 @@ echo $hello"""
     ]
   )
 
-  writeFile(currDirPath / pkgName / "tim.config.yml",
-    timConfig.generateYaml())
+  writeFile(currDirPath / pkgName / "tim.config.yml", timConfig.generateYaml())
 
 proc watchCommand*(v: Values) =
   ## Watches for file changes and rebuilds the project.

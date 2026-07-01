@@ -97,6 +97,7 @@ proc srcCommand*(v: Values) =
 
   # let timesModule = script.initTimes(systemModule)
   # module.load(timesModule)
+  var output: string
   if ext == "html":
     try:
       var compiler = codegen.initCodeGen(script, module, mainChunk, pkgr = pkgr,
@@ -104,33 +105,37 @@ proc srcCommand*(v: Values) =
       compiler.declareGlobals()
       compiler.genScript(program, none(string))
       let vmInstance = newVm()
-      let output: value.Value = vmInstance.interpret(script, mainChunk, globalData = globalData, localData = localData)
-      echo output
+      output = $(vmInstance.interpret(script, mainChunk, globalData = globalData, localData = localData))
     except CodeGenError as e:
       displayError("Code generation error in template: " & srcFilePath)
       display(e.msg)
       quit(1)
   elif ext == "js":
     var jst = jsgen.initCodeGen(script, module, mainChunk)
-    echo jst.genScript(program, none(string), isMainScript = true)
+    output = $(jst.genScript(program, none(string), isMainScript = true))
   elif ext == "py":
     var pyt = pygen.initCodeGen(script, module, mainChunk)
-    echo pyt.genScript(program, none(string), isMainScript = true)
+    output = $(pyt.genScript(program, none(string), isMainScript = true))
   elif ext == "rb":
     var rbt = rbgen.initCodeGen(script, module, mainChunk)
-    echo rbt.genScript(program, none(string), isMainScript = true)
+    output = $(rbt.genScript(program, none(string), isMainScript = true))
   elif ext == "php":
     var phpt = phpgen.initCodeGen(script, module, mainChunk)
-    echo phpt.genScript(program, none(string), isMainScript = true)
+    output = $(phpt.genScript(program, none(string), isMainScript = true))
   elif ext == "lua":
     var lut = luagen.initCodeGen(script, module, mainChunk)
-    echo lut.genScript(program, none(string), isMainScript = true)
+    output = $(lut.genScript(program, none(string), isMainScript = true))
   elif ext == "nim":
     var nimt = nimgen.initCodeGen(script, module, mainChunk)
-    echo nimt.genScript(program, none(string), isMainScript = true)
+    output = $(nimt.genScript(program, none(string), isMainScript = true))
   else:
     displayError("Unsupported target source extension: " & ext)
     quit(1)
+
+  if outputPath.len > 0:
+    writeFile(outputPath, output)
+  else:
+    echo output
 
   # display the time taken for compilation
   if flagBencmarks:

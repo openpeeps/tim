@@ -42,7 +42,7 @@ elif isMainModule:
   import pkg/kapsis
   import pkg/kapsis/runtime
   import pkg/kapsis/interactive/prompts
-  import ./tim/app/[build, dev, #[serve]#]
+  import ./tim/app/[build, dev, serve]
 
   initKapsis do:
     defaultCommand: "src"
@@ -58,7 +58,8 @@ elif isMainModule:
         ?string("-o"),        # save output to file
         ?json("--data"),      # pass data to global/local scope
         ?bool("--nocache"),   # tells Tim to import modules and rebuild cache
-        ?bool("--bench"):     # benchmark operations
+        ?bool("--bench"),     # benchmark operations
+        ?bool("--sync"):      # enable sync and reload for development
           ## Transpile `timl` to specific target source
 
       ast path(timl):
@@ -78,12 +79,12 @@ elif isMainModule:
       remove string(pkg):
         ## Remove a package from local source
 
-      # #
-      # # Server commands
-      # #
-      # -- "Server"
-      # serve path(config):
-      #   ## Start a local server
+      #
+      # Server commands
+      #
+      -- "Server"
+      serve path(config):
+        ## Start a local development server that serves rendered templates
 else:
   # Importing Tim Engine as a Nimble library
   # so it can be used in other Nim projects
