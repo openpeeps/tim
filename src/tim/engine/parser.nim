@@ -386,10 +386,8 @@ proc parseAttributes(p: var Parser, attrs: var seq[Node], el: TokenTuple) =
         var attr = ast.newStringLit(p.curr.value)
         walk p # tk any attribute name
         if p.curr is tkColon:
-          attr.stringVal.add(":")
-          walk p # tkColon
-          if p.curr is tkIdentifier:
-            attr.stringVal.add(p.curr.value)
+          attrs.add(ast.newHtmlAttribute(htmlAttr, attr))
+          break
         if p.curr is tkAssign:
           # parse an HTML attribute with a value
           walk p # tkAssign

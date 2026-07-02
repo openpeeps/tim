@@ -127,23 +127,37 @@ proc loadLibrary*(script: Script): Module =
   #
   script.addProc(result, "==", @[paramDef("a", ttyJson), paramDef("b", ttyBool)], ttyBool,
     proc (args: StackView, argc: int): Value =
-      assert args[0].jsonVal.kind == JBool
-      result = initValue(args[0].jsonVal.getBool == args[1].boolVal))
+      if args[0].jsonVal.kind != JBool:
+        result = initValue(false)
+      else:
+        result = initValue(args[0].jsonVal.getBool == args[1].boolVal))
 
   script.addProc(result, "==", @[paramDef("a", ttyJson), paramDef("b", ttyString)], ttyBool,
     proc (args: StackView, argc: int): Value =
-      assert args[0].jsonVal.kind == JString
-      result = initValue(args[0].jsonVal.getStr() == args[1].stringVal[]))
+      if args[0].jsonVal.kind != JString:
+        result = initValue(false)
+      else:
+        result = initValue(args[0].jsonVal.getStr() == args[1].stringVal[]))
 
   script.addProc(result, "==", @[paramDef("a", ttyJson), paramDef("b", ttyInt)], ttyBool,
     proc (args: StackView, argc: int): Value =
-      assert args[0].jsonVal.kind == JInt
-      result = initValue(args[0].jsonVal.getInt() == args[1].intVal))
+      case args[0].jsonVal.kind
+      of JInt:
+        result = initValue(args[0].jsonVal.getInt() == args[1].intVal)
+      of JFloat:
+        result = initValue(args[0].jsonVal.getFloat() == toFloat(args[1].intVal))
+      else:
+        raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[0].jsonVal.kind))
 
   script.addProc(result, "==", @[paramDef("a", ttyJson), paramDef("b", ttyFloat)], ttyBool,
     proc (args: StackView, argc: int): Value =
-      assert args[0].jsonVal.kind == JFloat
-      result = initValue(args[0].jsonVal.getFloat() == args[1].floatVal))
+      case args[0].jsonVal.kind
+      of JFloat:
+        result = initValue(args[0].jsonVal.getFloat() == args[1].floatVal)
+      of JInt:
+        result = initValue(toFloat(args[0].jsonVal.getInt()) == args[1].floatVal)
+      else:
+        raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[0].jsonVal.kind))
 
   script.addProc(result, "type", @[paramDef("x", ttyAny)], ttyString,
     proc (args: StackView, argc: int): Value =
@@ -609,9 +623,21 @@ proc loadLibrary*(script: Script): Module =
         of tyBool:
           result = initValue(args[0].jsonVal.getBool() == args[1].boolVal)
         of tyInt:
-          result = initValue(args[0].jsonVal.getInt() == args[1].intVal)
+          case args[0].jsonVal.kind
+          of JInt:
+            result = initValue(args[0].jsonVal.getInt() == args[1].intVal)
+          of JFloat:
+            result = initValue(args[0].jsonVal.getFloat() == toFloat(args[1].intVal))
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[0].jsonVal.kind)
         of tyFloat:
-          result = initValue(args[0].jsonVal.getFloat() == args[1].floatVal)
+          case args[0].jsonVal.kind
+          of JFloat:
+            result = initValue(args[0].jsonVal.getFloat() == args[1].floatVal)
+          of JInt:
+            result = initValue(toFloat(args[0].jsonVal.getInt()) == args[1].floatVal)
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[0].jsonVal.kind)
         of tyString:
           result = initValue(args[0].jsonVal.getStr() == args[1].stringVal[])
         of tyJsonStorage:
@@ -626,13 +652,31 @@ proc loadLibrary*(script: Script): Module =
       proc (args: StackView, argc: int): Value =
         case args[0].typeId
         of tyBool:
-          result = initValue(args[0].boolVal == args[1].jsonVal.getBool())
+          if args[1].jsonVal.kind != JBool:
+            result = initValue(false)
+          else:
+            result = initValue(args[0].boolVal == args[1].jsonVal.getBool())
         of tyInt:
-          result = initValue(args[0].intVal == args[1].jsonVal.getInt())
+          case args[1].jsonVal.kind
+          of JInt:
+            result = initValue(args[0].intVal == args[1].jsonVal.getInt())
+          of JFloat:
+            result = initValue(toFloat(args[0].intVal) == args[1].jsonVal.getFloat())
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[1].jsonVal.kind)
         of tyFloat:
-          result = initValue(args[0].floatVal == args[1].jsonVal.getFloat())
+          case args[1].jsonVal.kind
+          of JFloat:
+            result = initValue(args[0].floatVal == args[1].jsonVal.getFloat())
+          of JInt:
+            result = initValue(args[0].floatVal == toFloat(args[1].jsonVal.getInt()))
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[1].jsonVal.kind)
         of tyString:
-          result = initValue(args[0].stringVal[] == args[1].jsonVal.getStr())
+          if args[1].jsonVal.kind != JString:
+            raise newException(TimRuntime, "Type mismatch: expected JSON string for comparison")
+          else:
+            result = initValue(args[0].stringVal[] == args[1].jsonVal.getStr())
         of tyJsonStorage:
           result = initValue(args[0].jsonVal == args[1].jsonVal)
         of tyNil:
@@ -645,12 +689,28 @@ proc loadLibrary*(script: Script): Module =
       proc (args: StackView, argc: int): Value =
         case args[1].typeId
         of tyBool:
+          if args[0].jsonVal.kind != JBool:
+            raise newException(TimRuntime, "Type mismatch: expected JSON bool for comparison")
           result = initValue(args[0].jsonVal.getBool() != args[1].boolVal)
         of tyInt:
-          result = initValue(args[0].jsonVal.getInt() != args[1].intVal)
+          case args[0].jsonVal.kind
+          of JInt:
+            result = initValue(args[0].jsonVal.getInt() != args[1].intVal)
+          of JFloat:
+            result = initValue(args[0].jsonVal.getFloat() != toFloat(args[1].intVal))
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[0].jsonVal.kind)
         of tyFloat:
-          result = initValue(args[0].jsonVal.getFloat() != args[1].floatVal)
+          case args[0].jsonVal.kind
+          of JFloat:
+            result = initValue(args[0].jsonVal.getFloat() != args[1].floatVal)
+          of JInt:
+            result = initValue(toFloat(args[0].jsonVal.getInt()) != args[1].floatVal)
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[0].jsonVal.kind)
         of tyString:
+          if args[0].jsonVal.kind != JString:
+            raise newException(TimRuntime, "Type mismatch: expected JSON string for comparison")
           result = initValue(args[0].jsonVal.getStr() != args[1].stringVal[])
         of tyJsonStorage:
           result = initValue(args[0].jsonVal != args[1].jsonVal)
@@ -664,12 +724,28 @@ proc loadLibrary*(script: Script): Module =
       proc (args: StackView, argc: int): Value =
         case args[0].typeId
         of tyBool:
+          if args[1].jsonVal.kind != JBool:
+            raise newException(TimRuntime, "Type mismatch: expected JSON bool for comparison")
           result = initValue(args[0].boolVal != args[1].jsonVal.getBool())
         of tyInt:
-          result = initValue(args[0].intVal != args[1].jsonVal.getInt())
+          case args[1].jsonVal.kind
+          of JInt:
+            result = initValue(args[0].intVal != args[1].jsonVal.getInt())
+          of JFloat:
+            result = initValue(toFloat(args[0].intVal) != args[1].jsonVal.getFloat())
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[1].jsonVal.kind)
         of tyFloat:
-          result = initValue(args[0].floatVal != args[1].jsonVal.getFloat())
+          case args[1].jsonVal.kind
+          of JFloat:
+            result = initValue(args[0].floatVal != args[1].jsonVal.getFloat())
+          of JInt:
+            result = initValue(args[0].floatVal != toFloat(args[1].jsonVal.getInt()))
+          else:
+            raise newException(TimRuntime, "Type mismatch: expected JSON number, got " & $args[1].jsonVal.kind)
         of tyString:
+          if args[1].jsonVal.kind != JString:
+            raise newException(TimRuntime, "Type mismatch: expected JSON string for comparison")
           result = initValue(args[0].stringVal[] != args[1].jsonVal.getStr())
         of tyJsonStorage:
           result = initValue(args[0].jsonVal != args[1].jsonVal)
