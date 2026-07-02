@@ -1,0 +1,2 @@
+nimTitle	libtimes	tim/engine/stdlib/libtimes.html	module tim/engine/stdlib/libtimes		0
+nim	loadTimes	tim/engine/stdlib/libtimes.html#loadTimes,Script,Module	proc loadTimes(script: Script; systemModule: Module): Module		14

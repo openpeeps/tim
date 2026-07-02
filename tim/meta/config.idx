@@ -1,0 +1,17 @@
+nimTitle	config	tim/meta/config.html	module tim/meta/config		0
+nim	tsNim	tim/meta/config.html#tsNim	TargetSource.tsNim		18
+nim	tsJS	tim/meta/config.html#tsJS	TargetSource.tsJS		18
+nim	tsHtml	tim/meta/config.html#tsHtml	TargetSource.tsHtml		18
+nim	tsRuby	tim/meta/config.html#tsRuby	TargetSource.tsRuby		18
+nim	tsPython	tim/meta/config.html#tsPython	TargetSource.tsPython		18
+nim	TargetSource	tim/meta/config.html#TargetSource	enum TargetSource		18
+nim	BrowserSync	tim/meta/config.html#BrowserSync	type BrowserSync		27
+nim	sourceFilesystem	tim/meta/config.html#sourceFilesystem	SourceType.sourceFilesystem		39
+nim	sourceEmbedded	tim/meta/config.html#sourceEmbedded	SourceType.sourceEmbedded		39
+nim	SourceType	tim/meta/config.html#SourceType	enum SourceType		39
+nim	EmbeddedTemplates	tim/meta/config.html#EmbeddedTemplates	type EmbeddedTemplates		42
+nim	WebServerConfig	tim/meta/config.html#WebServerConfig	object WebServerConfig		46
+nim	TimConfig	tim/meta/config.html#TimConfig	type TimConfig		51
+nim	generateYaml	tim/meta/config.html#generateYaml,TimConfig	proc generateYaml(c: TimConfig): string		75
+nim	`$`	tim/meta/config.html#$,TimConfig	proc `$`(c: TimConfig): string		87
+nim	getBasePath	tim/meta/config.html#getBasePath,TimConfig	proc getBasePath(config: TimConfig): string		90

@@ -1,0 +1,2 @@
+nimTitle	libstrings	tim/engine/stdlib/libstrings.html	module tim/engine/stdlib/libstrings		0
+nim	initStrings	tim/engine/stdlib/libstrings.html#initStrings,Script,Module	proc initStrings(script: Script; systemModule: Module): Module		15

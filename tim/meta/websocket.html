@@ -5,7 +5,7 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>tim/engine/parser</title>
+<title>tim/meta/websocket</title>
 
 <!-- Google fonts -->
 <link href='https://fonts.googleapis.com/css?family=Lato:400,600,900' rel='stylesheet' type='text/css'/>
@@ -27,7 +27,7 @@
     <label for="nav-toggle" id="nav-burger">&#9776;</label>
     <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
-      <h1 class="title">tim/engine/parser</h1>
+      <h1 class="title">tim/meta/websocket</h1>
       <div class="row">
   <div class="three columns">
     <div class="theme-select-wrapper">
@@ -55,17 +55,10 @@
     </div>
     <ul class="simple simple-toc" id="toc-list">
   <li>
-  <a class="reference reference-toplevel" href="#6" id="56">Imports</a>
-</li>
-<li>
   <details open>
     <summary><a class="reference reference-toplevel" href="#7" id="57">Types</a></summary>
     <ul class="simple simple-toc-section">
-      <li><a class="reference" href="#Parser" title="Parser = object">Parser</a></li>
-<li><a class="reference" href="#PrefixFunction" title="PrefixFunction = proc (p: var Parser; minPrec = 0): Node">PrefixFunction</a></li>
-<li><a class="reference" href="#TimParserError" title="TimParserError = object of ValueError
-  file*: string
-  ln*, col*: int">TimParserError</a></li>
+      <li><a class="reference" href="#WebSocketServer" title="WebSocketServer = ref object">WebSocketServer</a></li>
 
     </ul>
   </details>
@@ -74,8 +67,16 @@
   <details open>
     <summary><a class="reference reference-toplevel" href="#12" id="62">Procs</a></summary>
     <ul class="simple simple-toc-section">
-      <ul class="simple nested-toc-section">parseScript
-  <li><a class="reference" href="#parseScript%2CAst%2Cstring%2Cstring" title="parseScript(astProgram: var Ast; code: string; sourcePath: string)">parseScript(astProgram: var Ast; code: string; sourcePath: string)</a></li>
+      <ul class="simple nested-toc-section">notifyAllClients
+  <li><a class="reference" href="#notifyAllClients%2CWebSocketServer" title="notifyAllClients(server: WebSocketServer)">notifyAllClients(server: WebSocketServer)</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">startWebSocket
+  <li><a class="reference" href="#startWebSocket%2CPort" title="startWebSocket(port: Port = Port(9000)): WebSocketServer">startWebSocket(port: Port = Port(9000)): WebSocketServer</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">wsSendText
+  <li><a class="reference" href="#wsSendText%2CSocket%2Cstring" title="wsSendText(client: Socket; data: string)">wsSendText(client: Socket; data: string)</a></li>
 
 </ul>
 
@@ -90,36 +91,14 @@
     
     <div id="tocRoot"></div>
     
-    <p class="module-desc"></p>
-    <div class="section" id="6">
-  <h1><a class="toc-backref" href="#6">Imports</a></h1>
-  <dl class="item">
-    <a class="reference external" href="transpilers/private.html">transpilers/private</a>, <a class="reference external" href="lexer.html">lexer</a>
-  </dl>
-</div>
-<div class="section" id="7">
+    <p class="module-desc"><p>This module implements a very basic websocket server that can be used to notify connected clients when a new change is detected in the templates directory.</p>
+<p>This is not a full featured websocket server and is only intended for Tim's internal use.</p>
+</p>
+    <div class="section" id="7">
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
-    <div id="Parser">
-  <dt><pre><a href="#Parser"><span class="Identifier">Parser</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-<div id="PrefixFunction">
-  <dt><pre><a href="#PrefixFunction"><span class="Identifier">PrefixFunction</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#Parser"><span class="Identifier">Parser</span></a><span class="Other">;</span> <span class="Identifier">minPrec</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Node</span></pre></dt>
-  <dd>
-    
-    
-    
-  </dd>
-</div>
-<div id="TimParserError">
-  <dt><pre><a href="#TimParserError"><span class="Identifier">TimParserError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">ValueError</span>
-  <span class="Identifier">file</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span>
-  <span class="Identifier">ln</span><span class="Operator">*</span><span class="Other">,</span> <span class="Identifier">col</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span></pre></dt>
+    <div id="WebSocketServer">
+  <dt><pre><a href="#WebSocketServer"><span class="Identifier">WebSocketServer</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span></pre></dt>
   <dd>
     
     
@@ -132,11 +111,34 @@
 <div class="section" id="12">
   <h1><a class="toc-backref" href="#12">Procs</a></h1>
   <dl class="item">
-    <div id="parseScript-procs-all">
-  <div id="parseScript,Ast,string,string">
-  <dt><pre><span class="Keyword">proc</span> <a href="#parseScript%2CAst%2Cstring%2Cstring"><span class="Identifier">parseScript</span></a><span class="Other">(</span><span class="Identifier">astProgram</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">Ast</span><span class="Other">;</span> <span class="Identifier">code</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">sourcePath</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">TimLexerError</span><span class="Other">,</span> <span class="Identifier">ValueError</span><span class="Other">,</span> <span class="Identifier">Exception</span><span class="Other">,</span> <span class="Identifier">TimParserError</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <div id="notifyAllClients-procs-all">
+  <div id="notifyAllClients,WebSocketServer">
+  <dt><pre><span class="Keyword">proc</span> <a href="#notifyAllClients%2CWebSocketServer"><span class="Identifier">notifyAllClients</span></a><span class="Other">(</span><span class="Identifier">server</span><span class="Other">:</span> <a href="#WebSocketServer"><span class="Identifier">WebSocketServer</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">SslError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Notify all connected WebSocket clients for this server
+    
+  </dd>
+</div>
+
+</div>
+<div id="startWebSocket-procs-all">
+  <div id="startWebSocket,Port">
+  <dt><pre><span class="Keyword">proc</span> <a href="#startWebSocket%2CPort"><span class="Identifier">startWebSocket</span></a><span class="Other">(</span><span class="Identifier">port</span><span class="Other">:</span> <span class="Identifier">Port</span> <span class="Other">=</span> <span class="Identifier">Port</span><span class="Other">(</span><span class="DecNumber">9000</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <a href="#WebSocketServer"><span class="Identifier">WebSocketServer</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">ResourceExhaustedError</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+  <dd>
+    
+    Start a new WebSocket server instance on the given port
+    
+  </dd>
+</div>
+
+</div>
+<div id="wsSendText-procs-all">
+  <div id="wsSendText,Socket,string">
+  <dt><pre><span class="Keyword">proc</span> <a href="#wsSendText%2CSocket%2Cstring"><span class="Identifier">wsSendText</span></a><span class="Other">(</span><span class="Identifier">client</span><span class="Other">:</span> <span class="Identifier">Socket</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">SslError</span><span class="Other">,</span> <span class="Identifier">OSError</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
   <dd>
     
     
@@ -155,7 +157,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-02 11:23:06 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-02 11:23:07 UTC</small>
       </div>
     </div>
   </div>

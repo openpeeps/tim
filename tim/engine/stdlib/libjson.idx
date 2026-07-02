@@ -1,0 +1,2 @@
+nimTitle	libjson	tim/engine/stdlib/libjson.html	module tim/engine/stdlib/libjson		0
+nim	initJSON	tim/engine/stdlib/libjson.html#initJSON,Script,Module	proc initJSON(script: Script; systemModule: Module): Module		15

@@ -28,10 +28,24 @@
     <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">Index</h1>
-      Modules: <a href="index.html">tim</a>, <a href="tim/app/build.html">tim/app/build</a>, <a href="tim/app/dev.html">tim/app/dev</a>, <a href="tim/engine/lexer.html">tim/engine/lexer</a>, <a href="tim/engine/parser.html">tim/engine/parser</a>, <a href="tim/engine/stdlib/inliner.html">tim/engine/stdlib/inliner</a>, <a href="tim/engine/stdlib/libarrays.html">tim/engine/stdlib/libarrays</a>, <a href="tim/engine/stdlib/libsystem.html">tim/engine/stdlib/libsystem</a>, <a href="tim/engine/transpilers/jsgen.html">tim/engine/transpilers/jsgen</a>, <a href="tim/engine/transpilers/luagen.html">tim/engine/transpilers/luagen</a>, <a href="tim/engine/transpilers/nimgen.html">tim/engine/transpilers/nimgen</a>, <a href="tim/engine/transpilers/phpgen.html">tim/engine/transpilers/phpgen</a>, <a href="tim/engine/transpilers/private.html">tim/engine/transpilers/private</a>, <a href="tim/engine/transpilers/pygen.html">tim/engine/transpilers/pygen</a>, <a href="tim/engine/transpilers/rbgen.html">tim/engine/transpilers/rbgen</a>.<br/><p /><h2>API symbols</h2>
-<dl><dt><a name="astCommand" href="#astCommand"><span>astCommand:</span></a></dt><dd><ul class="simple">
+      Modules: <a href="index.html">tim</a>, <a href="tim/app/build.html">tim/app/build</a>, <a href="tim/app/dev.html">tim/app/dev</a>, <a href="tim/app/serve.html">tim/app/serve</a>, <a href="tim/engine/lexer.html">tim/engine/lexer</a>, <a href="tim/engine/parser.html">tim/engine/parser</a>, <a href="tim/engine/stdlib/inliner.html">tim/engine/stdlib/inliner</a>, <a href="tim/engine/stdlib/libarrays.html">tim/engine/stdlib/libarrays</a>, <a href="tim/engine/stdlib/libffi.html">tim/engine/stdlib/libffi</a>, <a href="tim/engine/stdlib/libjson.html">tim/engine/stdlib/libjson</a>, <a href="tim/engine/stdlib/libstrings.html">tim/engine/stdlib/libstrings</a>, <a href="tim/engine/stdlib/libsystem.html">tim/engine/stdlib/libsystem</a>, <a href="tim/engine/stdlib/libtimes.html">tim/engine/stdlib/libtimes</a>, <a href="tim/engine/transpilers/jsgen.html">tim/engine/transpilers/jsgen</a>, <a href="tim/engine/transpilers/luagen.html">tim/engine/transpilers/luagen</a>, <a href="tim/engine/transpilers/nimgen.html">tim/engine/transpilers/nimgen</a>, <a href="tim/engine/transpilers/phpgen.html">tim/engine/transpilers/phpgen</a>, <a href="tim/engine/transpilers/private.html">tim/engine/transpilers/private</a>, <a href="tim/engine/transpilers/pygen.html">tim/engine/transpilers/pygen</a>, <a href="tim/engine/transpilers/rbgen.html">tim/engine/transpilers/rbgen</a>, <a href="tim/meta/config.html">tim/meta/config</a>, <a href="tim/meta/initializer.html">tim/meta/initializer</a>, <a href="tim/meta/websocket.html">tim/meta/websocket</a>.<br/><p /><h2>API symbols</h2>
+<dl><dt><a name="%60%24%60" href="#%60%24%60"><span>`$`:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: proc `$`(c: TimConfig): string" href="tim/meta/config.html#%24%2CTimConfig">config: proc `$`(c: TimConfig): string</a></li>
+          </ul></dd>
+<dt><a name="addProc" href="#addProc"><span>addProc:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc addProc(userScript: UserScript; name: string; params: seq[TempParamDef] = @[];
+        returnTy: TypeKind; impl: ForeignProc = nil; exportSym = true)" href="tim/meta/initializer.html#addProc%2CUserScript%2Cstring%2Cseq%5BTempParamDef%5D%2CTypeKind%2CForeignProc">initializer: proc addProc(userScript: UserScript; name: string; params: seq[TempParamDef] = @[];
+        returnTy: TypeKind; impl: ForeignProc = nil; exportSym = true)</a></li>
+          </ul></dd>
+<dt><a name="astCommand" href="#astCommand"><span>astCommand:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="build: proc astCommand(v: Values)" href="tim/app/build.html#astCommand%2CValues">build: proc astCommand(v: Values)</a></li>
+          </ul></dd>
+<dt><a name="BrowserSync" href="#BrowserSync"><span>BrowserSync:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: type BrowserSync" href="tim/meta/config.html#BrowserSync">config: type BrowserSync</a></li>
           </ul></dd>
 <dt><a name="CodeGen" href="#CodeGen"><span>CodeGen:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -52,16 +66,32 @@
 <dt><a name="compileCode" href="#compileCode"><span>compileCode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="inliner: proc compileCode(script: Script; module: Module; filename, code: string)" href="tim/engine/stdlib/inliner.html#compileCode%2CScript%2CModule%2Cstring%2Cstring">inliner: proc compileCode(script: Script; module: Module; filename, code: string)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="initializer: proc compileCode(view: TimTemplate; localData, globalData: JsonNode): Value" href="tim/meta/initializer.html#compileCode%2CTimTemplate%2CJsonNode%2CJsonNode">initializer: proc compileCode(view: TimTemplate; localData, globalData: JsonNode): Value</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="initializer: proc compileCode(view, layout: TimTemplate; localData, globalData: JsonNode): Value" href="tim/meta/initializer.html#compileCode%2CTimTemplate%2CTimTemplate%2CJsonNode%2CJsonNode">initializer: proc compileCode(view, layout: TimTemplate; localData, globalData: JsonNode): Value</a></li>
+          </ul></dd>
+<dt><a name="declareGlobals" href="#declareGlobals"><span>declareGlobals:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc declareGlobals(compiler: CodeGen)" href="tim/meta/initializer.html#declareGlobals%2CCodeGen">initializer: proc declareGlobals(compiler: CodeGen)</a></li>
           </ul></dd>
 <dt><a name="developCommand" href="#developCommand"><span>developCommand:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="dev: proc developCommand(v: Values)" href="tim/app/dev.html#developCommand%2CValues">dev: proc developCommand(v: Values)</a></li>
+          </ul></dd>
+<dt><a name="EmbeddedTemplates" href="#EmbeddedTemplates"><span>EmbeddedTemplates:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: type EmbeddedTemplates" href="tim/meta/config.html#EmbeddedTemplates">config: type EmbeddedTemplates</a></li>
           </ul></dd>
 <dt><a name="error" href="#error"><span>error:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: proc error(l: var Lexer; msg: string)" href="tim/engine/lexer.html#error%2CLexer%2Cstring">lexer: proc error(l: var Lexer; msg: string)</a></li>
           <li><a class="reference external"
           data-doc-search-tag="nimgen: proc error(node: Node; msg: string)" href="tim/engine/transpilers/nimgen.html#error%2CNode%2Cstring">nimgen: proc error(node: Node; msg: string)</a></li>
+          </ul></dd>
+<dt><a name="generateYaml" href="#generateYaml"><span>generateYaml:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: proc generateYaml(c: TimConfig): string" href="tim/meta/config.html#generateYaml%2CTimConfig">config: proc generateYaml(c: TimConfig): string</a></li>
           </ul></dd>
 <dt><a name="genScript" href="#genScript"><span>genScript:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -97,9 +127,61 @@
           isMainScript: static bool = false; isSnippet: static bool = false): Rope" href="tim/engine/transpilers/rbgen.html#genScript%2CCodeGen%2CAst%2COption%5Bstring%5D%2Cstaticbool%2Cstaticbool">rbgen: proc genScript(gen: var CodeGen; program: Ast; includePath: Option[string];
           isMainScript: static bool = false; isSnippet: static bool = false): Rope</a></li>
           </ul></dd>
+<dt><a name="getBasePath" href="#getBasePath"><span>getBasePath:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: proc getBasePath(config: TimConfig): string" href="tim/meta/config.html#getBasePath%2CTimConfig">config: proc getBasePath(config: TimConfig): string</a></li>
+          </ul></dd>
+<dt><a name="getLayout" href="#getLayout"><span>getLayout:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc getLayout(engine: TimEngine; key: string): TimTemplate" href="tim/meta/initializer.html#getLayout%2CTimEngine%2Cstring">initializer: proc getLayout(engine: TimEngine; key: string): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getLayouts" href="#getLayouts"><span>getLayouts:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: iterator getLayouts(engine: TimEngine): TimTemplate" href="tim/meta/initializer.html#getLayouts.i%2CTimEngine">initializer: iterator getLayouts(engine: TimEngine): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getPartial" href="#getPartial"><span>getPartial:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc getPartial(engine: TimEngine; key: string): TimTemplate" href="tim/meta/initializer.html#getPartial%2CTimEngine%2Cstring">initializer: proc getPartial(engine: TimEngine; key: string): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getPartials" href="#getPartials"><span>getPartials:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: iterator getPartials(engine: TimEngine): TimTemplate" href="tim/meta/initializer.html#getPartials.i%2CTimEngine">initializer: iterator getPartials(engine: TimEngine): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getTemplateByPath" href="#getTemplateByPath"><span>getTemplateByPath:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc getTemplateByPath(engine: TimEngine; path: string): TimTemplate" href="tim/meta/initializer.html#getTemplateByPath%2CTimEngine%2Cstring">initializer: proc getTemplateByPath(engine: TimEngine; path: string): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getThemeLayout" href="#getThemeLayout"><span>getThemeLayout:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc getThemeLayout(engine: TimEngine; key: string): TimTemplate" href="tim/meta/initializer.html#getThemeLayout%2CTimEngine%2Cstring">initializer: proc getThemeLayout(engine: TimEngine; key: string): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getThemePartial" href="#getThemePartial"><span>getThemePartial:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc getThemePartial(engine: TimEngine; key: string): TimTemplate" href="tim/meta/initializer.html#getThemePartial%2CTimEngine%2Cstring">initializer: proc getThemePartial(engine: TimEngine; key: string): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getThemeView" href="#getThemeView"><span>getThemeView:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc getThemeView(engine: TimEngine; key: string): TimTemplate" href="tim/meta/initializer.html#getThemeView%2CTimEngine%2Cstring">initializer: proc getThemeView(engine: TimEngine; key: string): TimTemplate</a></li>
+          </ul></dd>
 <dt><a name="getToken" href="#getToken"><span>getToken:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: proc getToken(lex: var Lexer): TokenTuple" href="tim/engine/lexer.html#getToken%2CLexer">lexer: proc getToken(lex: var Lexer): TokenTuple</a></li>
+          </ul></dd>
+<dt><a name="getView" href="#getView"><span>getView:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc getView(engine: TimEngine; key: string): TimTemplate" href="tim/meta/initializer.html#getView%2CTimEngine%2Cstring">initializer: proc getView(engine: TimEngine; key: string): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="getViews" href="#getViews"><span>getViews:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: iterator getViews(engine: TimEngine): TimTemplate" href="tim/meta/initializer.html#getViews.i%2CTimEngine">initializer: iterator getViews(engine: TimEngine): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="GreetingProc" href="#GreetingProc"><span>GreetingProc:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libffi: type GreetingProc" href="tim/engine/stdlib/libffi.html#GreetingProc">libffi: type GreetingProc</a></li>
+          </ul></dd>
+<dt><a name="HelloWorldProc" href="#HelloWorldProc"><span>HelloWorldProc:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libffi: type HelloWorldProc" href="tim/engine/stdlib/libffi.html#HelloWorldProc">libffi: type HelloWorldProc</a></li>
           </ul></dd>
 <dt><a name="initArrays" href="#initArrays"><span>initArrays:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -125,6 +207,18 @@
 <li><a class="reference external"
           data-doc-search-tag="dev: proc initCommand(v: Values)" href="tim/app/dev.html#initCommand%2CValues">dev: proc initCommand(v: Values)</a></li>
           </ul></dd>
+<dt><a name="initJSON" href="#initJSON"><span>initJSON:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libjson: proc initJSON(script: Script; systemModule: Module): Module" href="tim/engine/stdlib/libjson.html#initJSON%2CScript%2CModule">libjson: proc initJSON(script: Script; systemModule: Module): Module</a></li>
+          </ul></dd>
+<dt><a name="initStrings" href="#initStrings"><span>initStrings:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libstrings: proc initStrings(script: Script; systemModule: Module): Module" href="tim/engine/stdlib/libstrings.html#initStrings%2CScript%2CModule">libstrings: proc initStrings(script: Script; systemModule: Module): Module</a></li>
+          </ul></dd>
+<dt><a name="injectScript" href="#injectScript"><span>injectScript:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc injectScript(userScript: UserScript; code: string)" href="tim/meta/initializer.html#injectScript%2CUserScript%2Cstring">initializer: proc injectScript(userScript: UserScript; code: string)</a></li>
+          </ul></dd>
 <dt><a name="InlineCode" href="#InlineCode"><span>InlineCode:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="inliner: const InlineCode" href="tim/engine/stdlib/inliner.html#InlineCode">inliner: const InlineCode</a></li>
@@ -133,13 +227,27 @@
 <li><a class="reference external"
           data-doc-search-tag="dev: proc installCommand(v: Values)" href="tim/app/dev.html#installCommand%2CValues">dev: proc installCommand(v: Values)</a></li>
           </ul></dd>
+<dt><a name="interpret" href="#interpret"><span>interpret:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc interpret(view: TimTemplate; localData, globalData: JsonNode): Value" href="tim/meta/initializer.html#interpret%2CTimTemplate%2CJsonNode%2CJsonNode">initializer: proc interpret(view: TimTemplate; localData, globalData: JsonNode): Value</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="initializer: proc interpret(view, layout: TimTemplate; localData, globalData: JsonNode): Value" href="tim/meta/initializer.html#interpret%2CTimTemplate%2CTimTemplate%2CJsonNode%2CJsonNode">initializer: proc interpret(view, layout: TimTemplate; localData, globalData: JsonNode): Value</a></li>
+          </ul></dd>
 <dt><a name="Lexer" href="#Lexer"><span>Lexer:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: object Lexer" href="tim/engine/lexer.html#Lexer">lexer: object Lexer</a></li>
           </ul></dd>
+<dt><a name="loadFFI" href="#loadFFI"><span>loadFFI:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libffi: proc loadFFI(script: Script; systemModule: Module): Module" href="tim/engine/stdlib/libffi.html#loadFFI%2CScript%2CModule">libffi: proc loadFFI(script: Script; systemModule: Module): Module</a></li>
+          </ul></dd>
 <dt><a name="loadLibrary" href="#loadLibrary"><span>loadLibrary:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="libsystem: proc loadLibrary(script: Script): Module" href="tim/engine/stdlib/libsystem.html#loadLibrary%2CScript">libsystem: proc loadLibrary(script: Script): Module</a></li>
+          </ul></dd>
+<dt><a name="loadTimes" href="#loadTimes"><span>loadTimes:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="libtimes: proc loadTimes(script: Script; systemModule: Module): Module" href="tim/engine/stdlib/libtimes.html#loadTimes%2CScript%2CModule">libtimes: proc loadTimes(script: Script; systemModule: Module): Module</a></li>
           </ul></dd>
 <dt><a name="minifyInlineCSS" href="#minifyInlineCSS"><span>minifyInlineCSS:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -193,9 +301,31 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: proc newLexer(input: string): Lexer" href="tim/engine/lexer.html#newLexer%2Cstring">lexer: proc newLexer(input: string): Lexer</a></li>
           </ul></dd>
+<dt><a name="newTemplate" href="#newTemplate"><span>newTemplate:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc newTemplate(id: string; templateType: TimTemplateType; sources: TemplateSources): TimTemplate" href="tim/meta/initializer.html#newTemplate%2Cstring%2CTimTemplateType%2CTemplateSources">initializer: proc newTemplate(id: string; templateType: TimTemplateType; sources: TemplateSources): TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="newTim" href="#newTim"><span>newTim:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc newTim(globalData: JsonNode = nil): TimEngine" href="tim/meta/initializer.html#newTim%2CJsonNode">initializer: proc newTim(globalData: JsonNode = nil): TimEngine</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="initializer: proc newTim(src, output, basepath: string; target = TargetSource.tsHtml;
+       globalData: JsonNode = newJObject(); enableThemes: static bool = false;
+       activeThemeName: string = &quot;&quot;): TimEngine" href="tim/meta/initializer.html#newTim%2Cstring%2Cstring%2Cstring%2CJsonNode%2Cstaticbool%2Cstring">initializer: proc newTim(src, output, basepath: string; target = TargetSource.tsHtml;
+       globalData: JsonNode = newJObject(); enableThemes: static bool = false;
+       activeThemeName: string = &quot;&quot;): TimEngine</a></li>
+          </ul></dd>
 <dt><a name="nextToken" href="#nextToken"><span>nextToken:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="lexer: proc nextToken(lex: var Lexer): TokenTuple" href="tim/engine/lexer.html#nextToken%2CLexer">lexer: proc nextToken(lex: var Lexer): TokenTuple</a></li>
+          </ul></dd>
+<dt><a name="notifyAllClients" href="#notifyAllClients"><span>notifyAllClients:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocket: proc notifyAllClients(server: WebSocketServer)" href="tim/meta/websocket.html#notifyAllClients%2CWebSocketServer">websocket: proc notifyAllClients(server: WebSocketServer)</a></li>
+          </ul></dd>
+<dt><a name="parseHook" href="#parseHook"><span>parseHook:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc parseHook(p: var YamlParser; v: var semver.Version)" href="tim/meta/initializer.html#parseHook%2CYamlParser%2C">initializer: proc parseHook(p: var YamlParser; v: var semver.Version)</a></li>
           </ul></dd>
 <dt><a name="Parser" href="#Parser"><span>Parser:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -205,17 +335,91 @@
 <li><a class="reference external"
           data-doc-search-tag="parser: proc parseScript(astProgram: var Ast; code: string; sourcePath: string)" href="tim/engine/parser.html#parseScript%2CAst%2Cstring%2Cstring">parser: proc parseScript(astProgram: var Ast; code: string; sourcePath: string)</a></li>
           </ul></dd>
+<dt><a name="precompile" href="#precompile"><span>precompile:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc precompile(engine: TimEngine)" href="tim/meta/initializer.html#precompile%2CTimEngine">initializer: proc precompile(engine: TimEngine)</a></li>
+          <li><a class="reference external"
+          data-doc-search-tag="initializer: proc precompile(engine: TimEngine; views, layouts, partials: EmbeddedTemplates;
+           globalData: JsonNode = nil)" href="tim/meta/initializer.html#precompile%2CTimEngine%2CEmbeddedTemplates%2CEmbeddedTemplates%2CEmbeddedTemplates%2CJsonNode">initializer: proc precompile(engine: TimEngine; views, layouts, partials: EmbeddedTemplates;
+           globalData: JsonNode = nil)</a></li>
+          </ul></dd>
+<dt><a name="precompileEmbeddedTemplate" href="#precompileEmbeddedTemplate"><span>precompileEmbeddedTemplate:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc precompileEmbeddedTemplate(engine: TimEngine; tpl: TimTemplate; pkgr: Packager;
+                           data: JsonNode = nil;
+                           vfsMap: TableRef[string, string] = nil): bool" href="tim/meta/initializer.html#precompileEmbeddedTemplate%2CTimEngine%2CTimTemplate%2CPackager%2CJsonNode%2CTableRef%5Bstring%2Cstring%5D">initializer: proc precompileEmbeddedTemplate(engine: TimEngine; tpl: TimTemplate; pkgr: Packager;
+                           data: JsonNode = nil;
+                           vfsMap: TableRef[string, string] = nil): bool</a></li>
+          </ul></dd>
+<dt><a name="precompileTemplate" href="#precompileTemplate"><span>precompileTemplate:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc precompileTemplate(engine: TimEngine; tpl: TimTemplate; pkgr: Packager;
+                   data: JsonNode = nil): bool" href="tim/meta/initializer.html#precompileTemplate%2CTimEngine%2CTimTemplate%2CPackager%2CJsonNode">initializer: proc precompileTemplate(engine: TimEngine; tpl: TimTemplate; pkgr: Packager;
+                   data: JsonNode = nil): bool</a></li>
+          </ul></dd>
 <dt><a name="PrefixFunction" href="#PrefixFunction"><span>PrefixFunction:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="parser: type PrefixFunction" href="tim/engine/parser.html#PrefixFunction">parser: type PrefixFunction</a></li>
+          </ul></dd>
+<dt><a name="registerTemplate" href="#registerTemplate"><span>registerTemplate:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: proc registerTemplate(engine: TimEngine; src: string): TimTemplate" href="tim/meta/initializer.html#registerTemplate%2CTimEngine%2Cstring">initializer: proc registerTemplate(engine: TimEngine; src: string): TimTemplate</a></li>
           </ul></dd>
 <dt><a name="removeCommand" href="#removeCommand"><span>removeCommand:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="dev: proc removeCommand(v: Values)" href="tim/app/dev.html#removeCommand%2CValues">dev: proc removeCommand(v: Values)</a></li>
           </ul></dd>
+<dt><a name="serveCommand" href="#serveCommand"><span>serveCommand:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="serve: proc serveCommand(v: Values)" href="tim/app/serve.html#serveCommand%2CValues">serve: proc serveCommand(v: Values)</a></li>
+          </ul></dd>
+<dt><a name="sourceEmbedded" href="#sourceEmbedded"><span>sourceEmbedded:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: SourceType.sourceEmbedded" href="tim/meta/config.html#sourceEmbedded">config: SourceType.sourceEmbedded</a></li>
+          </ul></dd>
+<dt><a name="sourceFilesystem" href="#sourceFilesystem"><span>sourceFilesystem:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: SourceType.sourceFilesystem" href="tim/meta/config.html#sourceFilesystem">config: SourceType.sourceFilesystem</a></li>
+          </ul></dd>
+<dt><a name="SourceType" href="#SourceType"><span>SourceType:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: enum SourceType" href="tim/meta/config.html#SourceType">config: enum SourceType</a></li>
+          </ul></dd>
 <dt><a name="srcCommand" href="#srcCommand"><span>srcCommand:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="build: proc srcCommand(v: Values)" href="tim/app/build.html#srcCommand%2CValues">build: proc srcCommand(v: Values)</a></li>
+          </ul></dd>
+<dt><a name="startWebSocket" href="#startWebSocket"><span>startWebSocket:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocket: proc startWebSocket(port: Port = Port(9000)): WebSocketServer" href="tim/meta/websocket.html#startWebSocket%2CPort">websocket: proc startWebSocket(port: Port = Port(9000)): WebSocketServer</a></li>
+          </ul></dd>
+<dt><a name="TargetSource" href="#TargetSource"><span>TargetSource:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: enum TargetSource" href="tim/meta/config.html#TargetSource">config: enum TargetSource</a></li>
+          </ul></dd>
+<dt><a name="TemplateSources" href="#TemplateSources"><span>TemplateSources:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: tuple TemplateSources" href="tim/meta/initializer.html#TemplateSources">initializer: tuple TemplateSources</a></li>
+          </ul></dd>
+<dt><a name="Theme" href="#Theme"><span>Theme:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: type Theme" href="tim/meta/initializer.html#Theme">initializer: type Theme</a></li>
+          </ul></dd>
+<dt><a name="ThemeManifest" href="#ThemeManifest"><span>ThemeManifest:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: object ThemeManifest" href="tim/meta/initializer.html#ThemeManifest">initializer: object ThemeManifest</a></li>
+          </ul></dd>
+<dt><a name="TimConfig" href="#TimConfig"><span>TimConfig:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: type TimConfig" href="tim/meta/config.html#TimConfig">config: type TimConfig</a></li>
+          </ul></dd>
+<dt><a name="TimEngine" href="#TimEngine"><span>TimEngine:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: type TimEngine" href="tim/meta/initializer.html#TimEngine">initializer: type TimEngine</a></li>
+          </ul></dd>
+<dt><a name="TimEngineError" href="#TimEngineError"><span>TimEngineError:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: object TimEngineError" href="tim/meta/initializer.html#TimEngineError">initializer: object TimEngineError</a></li>
           </ul></dd>
 <dt><a name="TimLexerError" href="#TimLexerError"><span>TimLexerError:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -228,6 +432,26 @@
 <dt><a name="TimRuntime" href="#TimRuntime"><span>TimRuntime:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="libsystem: object TimRuntime" href="tim/engine/stdlib/libsystem.html#TimRuntime">libsystem: object TimRuntime</a></li>
+          </ul></dd>
+<dt><a name="timSourceEmbedded" href="#timSourceEmbedded"><span>timSourceEmbedded:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: TimSourceType.timSourceEmbedded" href="tim/meta/initializer.html#timSourceEmbedded">initializer: TimSourceType.timSourceEmbedded</a></li>
+          </ul></dd>
+<dt><a name="timSourceFilesystem" href="#timSourceFilesystem"><span>timSourceFilesystem:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: TimSourceType.timSourceFilesystem" href="tim/meta/initializer.html#timSourceFilesystem">initializer: TimSourceType.timSourceFilesystem</a></li>
+          </ul></dd>
+<dt><a name="TimSourceType" href="#TimSourceType"><span>TimSourceType:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: enum TimSourceType" href="tim/meta/initializer.html#TimSourceType">initializer: enum TimSourceType</a></li>
+          </ul></dd>
+<dt><a name="TimTemplate" href="#TimTemplate"><span>TimTemplate:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: type TimTemplate" href="tim/meta/initializer.html#TimTemplate">initializer: type TimTemplate</a></li>
+          </ul></dd>
+<dt><a name="TimTemplateType" href="#TimTemplateType"><span>TimTemplateType:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: enum TimTemplateType" href="tim/meta/initializer.html#TimTemplateType">initializer: enum TimTemplateType</a></li>
           </ul></dd>
 <dt><a name="tkAmp" href="#tkAmp"><span>tkAmp:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
@@ -577,15 +801,71 @@
 <li><a class="reference external"
           data-doc-search-tag="lexer: tuple TokenTuple" href="tim/engine/lexer.html#TokenTuple">lexer: tuple TokenTuple</a></li>
           </ul></dd>
+<dt><a name="tsHtml" href="#tsHtml"><span>tsHtml:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: TargetSource.tsHtml" href="tim/meta/config.html#tsHtml">config: TargetSource.tsHtml</a></li>
+          </ul></dd>
+<dt><a name="tsJS" href="#tsJS"><span>tsJS:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: TargetSource.tsJS" href="tim/meta/config.html#tsJS">config: TargetSource.tsJS</a></li>
+          </ul></dd>
+<dt><a name="tsNim" href="#tsNim"><span>tsNim:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: TargetSource.tsNim" href="tim/meta/config.html#tsNim">config: TargetSource.tsNim</a></li>
+          </ul></dd>
+<dt><a name="tsPython" href="#tsPython"><span>tsPython:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: TargetSource.tsPython" href="tim/meta/config.html#tsPython">config: TargetSource.tsPython</a></li>
+          </ul></dd>
+<dt><a name="tsRuby" href="#tsRuby"><span>tsRuby:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: TargetSource.tsRuby" href="tim/meta/config.html#tsRuby">config: TargetSource.tsRuby</a></li>
+          </ul></dd>
+<dt><a name="ttLayout" href="#ttLayout"><span>ttLayout:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: TimTemplateType.ttLayout" href="tim/meta/initializer.html#ttLayout">initializer: TimTemplateType.ttLayout</a></li>
+          </ul></dd>
+<dt><a name="ttPartial" href="#ttPartial"><span>ttPartial:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: TimTemplateType.ttPartial" href="tim/meta/initializer.html#ttPartial">initializer: TimTemplateType.ttPartial</a></li>
+          </ul></dd>
+<dt><a name="ttView" href="#ttView"><span>ttView:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: TimTemplateType.ttView" href="tim/meta/initializer.html#ttView">initializer: TimTemplateType.ttView</a></li>
+          </ul></dd>
+<dt><a name="UserScript" href="#UserScript"><span>UserScript:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="initializer: type UserScript" href="tim/meta/initializer.html#UserScript">initializer: type UserScript</a></li>
+          </ul></dd>
 <dt><a name="watchCommand" href="#watchCommand"><span>watchCommand:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="dev: proc watchCommand(v: Values)" href="tim/app/dev.html#watchCommand%2CValues">dev: proc watchCommand(v: Values)</a></li>
+          </ul></dd>
+<dt><a name="WebApp" href="#WebApp"><span>WebApp:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="serve: type WebApp" href="tim/app/serve.html#WebApp">serve: type WebApp</a></li>
+          </ul></dd>
+<dt><a name="webapp" href="#webapp"><span>webapp:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="serve: var webapp" href="tim/app/serve.html#webapp_2">serve: var webapp</a></li>
+          </ul></dd>
+<dt><a name="WebServerConfig" href="#WebServerConfig"><span>WebServerConfig:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="config: object WebServerConfig" href="tim/meta/config.html#WebServerConfig">config: object WebServerConfig</a></li>
+          </ul></dd>
+<dt><a name="WebSocketServer" href="#WebSocketServer"><span>WebSocketServer:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocket: type WebSocketServer" href="tim/meta/websocket.html#WebSocketServer">websocket: type WebSocketServer</a></li>
+          </ul></dd>
+<dt><a name="wsSendText" href="#wsSendText"><span>wsSendText:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="websocket: proc wsSendText(client: Socket; data: string)" href="tim/meta/websocket.html#wsSendText%2CSocket%2Cstring">websocket: proc wsSendText(client: Socket; data: string)</a></li>
           </ul></dd>
 </dl>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-06-26 11:08:15 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-07-02 11:23:07 UTC</small>
       </div>
     </div>
   </div>
